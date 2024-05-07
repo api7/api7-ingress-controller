@@ -39,7 +39,7 @@ Before you get started make sure you have:
 
 ## Fork and clone
 
-1. Fork the repository [apache/apisix-ingress-controller](https://github.com/apache/apisix-ingress-controller) to your GitHub account
+1. Fork the repository [apache/apisix-ingress-controller](https://github.com/api7/api7-ingress-controller) to your GitHub account
 2. Clone the fork to your workstation.
 3. Run `go mod download` to download the required modules.
 
@@ -65,7 +65,7 @@ Now you can run it by:
 
 ## Making changes
 
-Prior to opening a pull request with changes or new features, please [open an issue](https://github.com/apache/apisix-ingress-controller/issues).
+Prior to opening a pull request with changes or new features, please [open an issue](https://github.com/api7/api7-ingress-controller/issues).
 
 Make sure that the license, code style, and document format are consistent with the project specification. You can do this by running:
 

@@ -19,7 +19,7 @@
 
 # Apache APISIX for Kubernetes
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/apache/apisix-ingress-controller)](https://goreportcard.com/report/github.com/apache/apisix-ingress-controller)
+[![Go Report Card](https://goreportcard.com/badge/github.com/api7/api7-ingress-controller)](https://goreportcard.com/report/github.com/api7/api7-ingress-controller)
 [![Slack](https://badgen.net/badge/Slack/Join%20Apache%20APISIX?icon=slack)](https://apisix.apache.org/slack)
 
 Use [Apache APISIX](https://github.com/apache/apisix#apache-apisix) for Kubernetes [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/).
@@ -95,13 +95,13 @@ Most of the contributions that we receive are code contributions, but you can
 also contribute to the documentation or simply report solid bugs
 for us to fix.
 
- For new contributors, please take a look at issues with a tag called [Good first issue](https://github.com/apache/apisix-ingress-controller/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) or [Help wanted](https://github.com/apache/apisix-ingress-controller/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
+ For new contributors, please take a look at issues with a tag called [Good first issue](https://github.com/api7/api7-ingress-controller/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) or [Help wanted](https://github.com/api7/api7-ingress-controller/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
 
 ### How to report a bug
 
-* **Ensure the bug was not already reported** by searching on GitHub under [Issues](https://github.com/apache/apisix-ingress-controller/issues).
+* **Ensure the bug was not already reported** by searching on GitHub under [Issues](https://github.com/api7/api7-ingress-controller/issues).
 
-* If you're unable to find an open issue addressing the problem, [open a new one](https://github.com/apache/apisix-ingress-controller/issues/new). Be sure to include a **title and clear description**, as much relevant information as possible, and a **code sample** or an **executable test case** demonstrating the expected behavior that is not occurring.
+* If you're unable to find an open issue addressing the problem, [open a new one](https://github.com/api7/api7-ingress-controller/issues/new). Be sure to include a **title and clear description**, as much relevant information as possible, and a **code sample** or an **executable test case** demonstrating the expected behavior that is not occurring.
 
 ### Contributor over time
 
@@ -116,7 +116,7 @@ for us to fix.
 
 ## Todos
 
-* More todos will display in [issues](https://github.com/apache/apisix-ingress-controller/issues?q=is%3Aopen+is%3Aissue+label%3Atriage%2Faccepted)
+* More todos will display in [issues](https://github.com/api7/api7-ingress-controller/issues?q=is%3Aopen+is%3Aissue+label%3Atriage%2Faccepted)
 
 ## User stories
 
@@ -129,7 +129,7 @@ for us to fix.
 - [aispeech: Why we create a new k8s ingress controller?(Chinese)](https://mp.weixin.qq.com/s/bmm2ibk2V7-XYneLo9XAPQ)
 
 If you are willing to share with us some scenarios and use cases when you use APISIX Ingress,
-please reply to the [issue](https://github.com/apache/apisix-ingress-controller/issues/501),
+please reply to the [issue](https://github.com/api7/api7-ingress-controller/issues/501),
 or submit PR to update [Powered-BY](./powered-by.md) file
 
 ## Who Uses APISIX Ingress?
@@ -146,7 +146,7 @@ A wide variety of companies and organizations use APISIX Ingress for research, p
 
 ## Milestone
 
-* [Milestone](https://github.com/apache/apisix-ingress-controller/milestones)
+* [Milestone](https://github.com/api7/api7-ingress-controller/milestones)
 
 ## Terminology
 

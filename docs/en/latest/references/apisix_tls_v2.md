@@ -29,7 +29,7 @@ See [concepts](https://apisix.apache.org/docs/ingress-controller/concepts/apisix
 
 ## Spec
 
-See the [definition](https://github.com/apache/apisix-ingress-controller/blob/master/samples/deploy/crd/v1/ApisixTls.yaml) on GitHub.
+See the [definition](https://github.com/api7/api7-ingress-controller/blob/master/samples/deploy/crd/v1/ApisixTls.yaml) on GitHub.
 
 | Attribute                 | Type   | Description                                                                             |
 |---------------------------|--------|-----------------------------------------------------------------------------------------|

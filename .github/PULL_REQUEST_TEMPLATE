@@ -34,4 +34,4 @@ Please follow the requirements:
 - [ ] Did you explain what problem does this PR solve? Or what new features have been added?
 - [ ] Have you added corresponding test cases?
 - [ ] Have you modified the corresponding document?
-- [ ] Is this PR backward compatible? **If it is not backward compatible, please discuss on the [mailing list](https://github.com/apache/apisix-ingress-controller#community) first**
+- [ ] Is this PR backward compatible? **If it is not backward compatible, please discuss on the [mailing list](https://github.com/api7/api7-ingress-controller#community) first**

@@ -87,5 +87,5 @@ Events:
 If you are not able to see the status, please check if you are using:
 
 1. An APISIX Ingress controller version `>=1.0`.
-2. The [latest CRD definition file](https://github.com/apache/apisix-ingress-controller/tree/master/samples/deploy/crd/v1).
-3. The latest [RBAC configuration](https://github.com/apache/apisix-ingress-controller/tree/master/samples/deploy/rbac).
+2. The [latest CRD definition file](https://github.com/api7/api7-ingress-controller/tree/master/samples/deploy/crd/v1).
+3. The latest [RBAC configuration](https://github.com/api7/api7-ingress-controller/tree/master/samples/deploy/rbac).

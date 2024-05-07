@@ -24,7 +24,7 @@ title: Powered by Apache APISIX Ingress
 This page documents an alphabetical list of institutions that are using APISIX Ingress for research and production,
 or providing commercial products including APISIX Ingress.
 
-Users are encouraged to add themselves to this page, [issue](https://github.com/apache/apisix-ingress-controller/issues/501) and PR are welcomed.
+Users are encouraged to add themselves to this page, [issue](https://github.com/api7/api7-ingress-controller/issues/501) and PR are welcomed.
 
 1. <a href="https://www.aispeech.com/" rel="nofollow">AISpeech 思必驰</a>
 1. <a href="https://cloud.tencent.com/" rel="nofollow">Tencent Cloud 腾讯云</a>

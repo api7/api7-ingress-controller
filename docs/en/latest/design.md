@@ -35,7 +35,7 @@ Apache APISIX ingress for Kubernetes.
 
 - can be packaged as a stand-alone binary, keep in sync with the ingress definition;
 
-- [CRD design](https://github.com/apache/apisix-ingress-controller/issues/3)
+- [CRD design](https://github.com/api7/api7-ingress-controller/issues/3)
 
 ### 2.Types
 
@@ -136,4 +136,4 @@ The black and white list here is implemented by the [ip-restriction](https://git
 
 There will be more annotation implementations in the future to facilitate the definition of some common configurations, such as CORS.
 
-If you have some annotation needs, welcome to [issue](https://github.com/apache/apisix-ingress-controller/issues) to discuss, let’s discuss how to implement it.
+If you have some annotation needs, welcome to [issue](https://github.com/api7/api7-ingress-controller/issues) to discuss, let’s discuss how to implement it.

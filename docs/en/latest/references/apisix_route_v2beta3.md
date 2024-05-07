@@ -29,7 +29,7 @@ See [concepts](https://apisix.apache.org/docs/ingress-controller/concepts/apisix
 
 ## Spec
 
-See the [definition](https://github.com/apache/apisix-ingress-controller/blob/master/samples/deploy/crd/v1/ApisixRoute.yaml) on GitHub.
+See the [definition](https://github.com/api7/api7-ingress-controller/blob/master/samples/deploy/crd/v1/ApisixRoute.yaml) on GitHub.
 
 The table below describes each of the attributes in the spec. The fields `apiVersion`, `kind`, and `metadata` are similar to other Kubernetes resources and are excluded below.
 

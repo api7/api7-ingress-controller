@@ -12,7 +12,7 @@ body:
         Prior to opening the issue, please make sure that you:
 
         - Use English to communicate.
-        - Search the [open issues](https://github.com/apache/apisix-ingress-controller/issues) to avoid duplicating the issue.
+        - Search the [open issues](https://github.com/api7/api7-ingress-controller/issues) to avoid duplicating the issue.
   - type: textarea
     id: issue-faced
     attributes:

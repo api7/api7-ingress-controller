@@ -102,7 +102,7 @@
     {
       "type": "link",
       "label": "CHANGELOG",
-      "href": "https://github.com/apache/apisix-ingress-controller/blob/master/CHANGELOG.md"
+      "href": "https://github.com/api7/api7-ingress-controller/blob/master/CHANGELOG.md"
     }
   ]
 }

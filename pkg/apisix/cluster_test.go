@@ -21,8 +21,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/apache/apisix-ingress-controller/pkg/metrics"
-	v1 "github.com/apache/apisix-ingress-controller/pkg/types/apisix/v1"
+	"github.com/api7/api7-ingress-controller/pkg/metrics"
+	v1 "github.com/api7/api7-ingress-controller/pkg/types/apisix/v1"
 )
 
 func TestAddCluster(t *testing.T) {
