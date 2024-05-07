@@ -17,12 +17,7 @@
 #
 -->
 
-# Apache APISIX for Kubernetes
-
-[![Go Report Card](https://goreportcard.com/badge/github.com/api7/api7-ingress-controller)](https://goreportcard.com/report/github.com/api7/api7-ingress-controller)
-[![Slack](https://badgen.net/badge/Slack/Join%20Apache%20APISIX?icon=slack)](https://apisix.apache.org/slack)
-
-Use [Apache APISIX](https://github.com/apache/apisix#apache-apisix) for Kubernetes [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/).
+# API7 Ingress Controller
 
 All configurations in `apisix-ingress-controller` are defined with Kubernetes CRDs (Custom Resource Definitions).
 Support configuring [plugins](https://github.com/apache/apisix/blob/master/docs/en/latest/plugins), service registration discovery mechanism for upstreams, load balancing and more in Apache APISIX.
@@ -82,73 +77,6 @@ Currently, APISIX Ingress Controller automatically manipulates some APISIX resou
 * Verify the correctness of the configuration, safe and reliable.
 * [Rich plugins and ecology.](https://github.com/apache/apisix/tree/master/docs/en/latest/plugins)
 * Supports APISIX custom resources and Kubernetes native Ingress resources.
-
-## Contributing
-
-We welcome all kinds of contributions from the open-source community, individuals and partners.
-
-* [Contributing Guide](./docs/en/latest/contribute.md)
-
-### How to contribute
-
-Most of the contributions that we receive are code contributions, but you can
-also contribute to the documentation or simply report solid bugs
-for us to fix.
-
- For new contributors, please take a look at issues with a tag called [Good first issue](https://github.com/api7/api7-ingress-controller/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) or [Help wanted](https://github.com/api7/api7-ingress-controller/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
-
-### How to report a bug
-
-* **Ensure the bug was not already reported** by searching on GitHub under [Issues](https://github.com/api7/api7-ingress-controller/issues).
-
-* If you're unable to find an open issue addressing the problem, [open a new one](https://github.com/api7/api7-ingress-controller/issues/new). Be sure to include a **title and clear description**, as much relevant information as possible, and a **code sample** or an **executable test case** demonstrating the expected behavior that is not occurring.
-
-### Contributor over time
-
-[![Contributor over time](https://contributor-overtime-api.git-contributor.com/contributors-svg?chart=contributorOverTime&repo=apache/apisix-ingress-controller)](https://git-contributor.com/?chart=contributorOverTime&repo=apache/apisix-ingress-controller)
-
-## Community
-
-* Mailing List: Mail to <dev-subscribe@apisix.apache.org>, follow the reply to subscribe the mailing list.
-* QQ Group - 578997126
-* ![Twitter Follow](https://img.shields.io/twitter/follow/ApacheAPISIX?style=social) - follow and interact with us using hashtag `#ApacheAPISIX`
-* [Bilibili video](https://space.bilibili.com/551921247)
-
-## Todos
-
-* More todos will display in [issues](https://github.com/api7/api7-ingress-controller/issues?q=is%3Aopen+is%3Aissue+label%3Atriage%2Faccepted)
-
-## User stories
-
-- [How Does Zoom Use APISIX Ingress in Its Continuous Delivery Pipeline? - API7.ai](https://api7.ai/blog/zoom-uses-apisix-ingress)
-- [Copernicus Reference System Software](https://github.com/COPRS/infrastructure/wiki/Networking-trade-off)
-- [From Traefik to APISIX, Horizon Robotics's Exploration in Ingress Controller - API7.ai](https://api7.ai/blog/why-horizon-robotics-migrated-from-traefik-to-apche-apisix)
-- [Why Jiakaobaodian Chooses APISIX Ingress Controller - API7.ai](https://api7.ai/blog/why-jiakaobaodian-chooses-apisix-ingress-controller)
-- [Why AISpeech Chooses Apache APISIX Instead of NGINX as k8s Ingress Controller - API7.ai](https://api7.ai/blog/why-aispeech-chooses-apache-apisix-instead-of-nginx-as-k8s-ingress-controller)
-- [Tencent Cloud: Why choose Apache APISIX to implement the k8s ingress controller?(Chinese)](https://cloud.tencent.com/developer/article/1592281)
-- [aispeech: Why we create a new k8s ingress controller?(Chinese)](https://mp.weixin.qq.com/s/bmm2ibk2V7-XYneLo9XAPQ)
-
-If you are willing to share with us some scenarios and use cases when you use APISIX Ingress,
-please reply to the [issue](https://github.com/api7/api7-ingress-controller/issues/501),
-or submit PR to update [Powered-BY](./powered-by.md) file
-
-## Who Uses APISIX Ingress?
-
-A wide variety of companies and organizations use APISIX Ingress for research, production and commercial product, below are some of them:
-
-- AISpeech
-- European Copernicus Reference System
-- Jiakaobaodian(驾考宝典)
-- Horizon Robotics(地平线)
-- Tencent Cloud
-- UPYUN
-- Zoom
-
-## Milestone
-
-* [Milestone](https://github.com/api7/api7-ingress-controller/milestones)
-
-## Terminology
 
 * APISIX Ingress: the whole service that contains the proxy ([Apache APISIX](https://apisix.apache.org)) and ingress controller (apisix-ingress-controller).
 * apisix-ingress-controller: the ingress controller component.
