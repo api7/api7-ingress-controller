@@ -21,8 +21,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	configv2 "github.com/apache/apisix-ingress-controller/pkg/kube/apisix/apis/config/v2"
-	apisixv1 "github.com/apache/apisix-ingress-controller/pkg/types/apisix/v1"
+	configv2 "github.com/api7/api7-ingress-controller/pkg/kube/apisix/apis/config/v2"
+	apisixv1 "github.com/api7/api7-ingress-controller/pkg/types/apisix/v1"
 )
 
 func TestTranslateUpstreamHealthCheckV2(t *testing.T) {

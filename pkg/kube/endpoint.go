@@ -26,7 +26,7 @@ import (
 	listersdiscoveryv1 "k8s.io/client-go/listers/discovery/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/apache/apisix-ingress-controller/pkg/log"
+	"github.com/api7/api7-ingress-controller/pkg/log"
 )
 
 type HostPort struct {
