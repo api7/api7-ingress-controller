@@ -36,4 +36,4 @@ WORKDIR /ingress-apisix
 COPY --from=build-env /build/api7-ingress-controller .
 COPY ./conf/apisix-schema.json ./conf/apisix-schema.json
 
-ENTRYPOINT ["/ingress-apisix/apisix-ingress-controller", "ingress", "--config-path", "/ingress-apisix/conf/config.yaml"]
+ENTRYPOINT ["/ingress-apisix/api7-ingress-controller", "ingress", "--config-path", "/ingress-apisix/conf/config.yaml"]
