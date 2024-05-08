@@ -62,7 +62,7 @@ E2E_ENV ?= "dev"
 .PHONY: build
 build:
 	CGO_ENABLED=0 go build \
-		-o api7-ingress-controller \
+		-o apisix-ingress-controller \
 		-ldflags $(GO_LDFLAGS) \
 		main.go
 
