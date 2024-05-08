@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/apache/apisix-ingress-controller/pkg/types"
+	"github.com/api7/api7-ingress-controller/pkg/types"
 )
 
 const (

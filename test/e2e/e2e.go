@@ -17,7 +17,7 @@ package e2e
 import (
 	"os"
 
-	"github.com/apache/apisix-ingress-controller/pkg/log"
+	"github.com/api7/api7-ingress-controller/pkg/log"
 
 	// _ "github.com/apache/apisix-ingress-controller/test/e2e/suite-annotations"
 	_ "github.com/apache/apisix-ingress-controller/test/e2e/suite-chore"

@@ -18,11 +18,11 @@ package chore
 import (
 	"context"
 
-	v1 "github.com/apache/apisix-ingress-controller/pkg/types/apisix/v1"
+	v1 "github.com/api7/api7-ingress-controller/pkg/types/apisix/v1"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
+	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
 var _ = ginkgo.Describe("suite-chore: admin-api sdk", func() {
