@@ -427,7 +427,7 @@ func (c *cluster) HasSynced(ctx context.Context) error {
 		return ctx.Err()
 	case <-c.cacheSynced:
 		if c.cacheSyncErr != nil {
-			// See https://github.com/api7/api7-ingress-controller/issues/448
+			// See https://github.com/apache/apisix-ingress-controller/issues/448
 			// for more details.
 			return c.cacheSyncErr
 		}

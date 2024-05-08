@@ -622,7 +622,7 @@ func (t *translator) translateOldIngressV1beta1(ing *networkingv1beta1.Ingress) 
 // but this method can cause problems in some scenarios.
 // For example, the generated name is too long.
 // The current APISIX limit its maximum length to 100.
-// ref: https://github.com/api7/api7-ingress-controller/issues/781
+// ref: https://github.com/apache/apisix-ingress-controller/issues/781
 // We will construct the following structure for easy reading and debugging.
 // ing_namespace_ingressName_id
 func composeIngressRouteName(namespace, name, host, path string) string {

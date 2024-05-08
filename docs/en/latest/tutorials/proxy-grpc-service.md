@@ -27,7 +27,7 @@ In this practice, we will introduce how to proxy the gRPC service.
 
 * Prepare an available Kubernetes cluster in your workstation, we recommend you to use [KIND](https://kind.sigs.k8s.io/docs/user/quick-start/) to create a local Kubernetes cluster.
 * Install [Apache APISIX](https://github.com/apache/apisix) in Kubernetes by [Helm Chart](https://github.com/apache/apisix-helm-chart).
-* Install [apisix-ingress-controller](https://github.com/api7/api7-ingress-controller/blob/master/install.md).
+* Install [apisix-ingress-controller](https://github.com/apache/apisix-ingress-controller/blob/master/install.md).
 
 Please note that in this practice, all components will be installed in the `ingress-apisix` namespace. If your Kubernetes cluster does not have such namespace, please create it first.
 
