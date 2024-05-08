@@ -93,20 +93,17 @@ func (pc *pluginConfigClient) List(ctx context.Context) ([]*v1.PluginConfig, err
 	}
 
 	var items []*v1.PluginConfig
-	for i, item := range pluginConfigItems {
+	for _, item := range pluginConfigItems {
 		pluginConfig, err := item.pluginConfig()
 		if err != nil {
 			log.Errorw("failed to convert pluginConfig item",
 				zap.String("url", pc.url),
-				zap.String("pluginConfig_key", item.Key),
-				zap.String("pluginConfig_value", string(item.Value)),
 				zap.Error(err),
 			)
 			return nil, err
 		}
 
 		items = append(items, pluginConfig)
-		log.Debugf("list pluginConfig #%d, body: %s", i, string(item.Value))
 	}
 
 	return items, nil

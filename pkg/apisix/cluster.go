@@ -685,7 +685,7 @@ func (c *cluster) getResource(ctx context.Context, url, resource string) (*item,
 	return &res.Item, nil
 }
 
-func (c *cluster) listResource(ctx context.Context, url, resource string) (items, error) {
+func (c *cluster) listResource(ctx context.Context, url, resource string) (ditems, error) {
 	log.Debugw("list resource in cluster",
 		zap.String("cluster_name", c.name),
 		zap.String("name", resource),
@@ -715,23 +715,25 @@ func (c *cluster) listResource(ctx context.Context, url, resource string) (items
 		err = multierr.Append(err, fmt.Errorf("error message: %s", body))
 		return nil, err
 	}
-
+	byt, _ := io.ReadAll(resp.Body)
+	fmt.Println("AY YO MAH NIGGA ", string(byt))
 	if c.adminVersion == "v3" {
-		var list listResponseV3
+		var list listResponseDashboard
 
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&list); err != nil {
 			return nil, err
 		}
+		fmt.Println("SYSHTUM HANG ", list.List)
 		return list.List, nil
 	}
-	var list listResponse
+	var list listResponseDashboard
 
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&list); err != nil {
 		return nil, err
 	}
-	return list.Node.Items, nil
+	return list.List, nil
 }
 
 func (c *cluster) createResource(ctx context.Context, url, resource string, body []byte) (*item, error) {

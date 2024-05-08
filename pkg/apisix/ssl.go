@@ -98,18 +98,16 @@ func (s *sslClient) List(ctx context.Context) ([]*v1.Ssl, error) {
 	}
 
 	var items []*v1.Ssl
-	for i, item := range sslItems {
+	for _, item := range sslItems {
 		ssl, err := item.ssl()
 		if err != nil {
 			log.Errorw("failed to convert ssl item",
 				zap.String("url", s.url),
-				zap.String("ssl_key", item.Key),
 				zap.Error(err),
 			)
 			return nil, err
 		}
 		items = append(items, ssl)
-		log.Infof("list ssl #%d, body: %s", i, string(item.Value))
 	}
 
 	return items, nil

@@ -97,20 +97,17 @@ func (r *streamRouteClient) List(ctx context.Context) ([]*v1.StreamRoute, error)
 	}
 
 	var items []*v1.StreamRoute
-	for i, item := range streamRouteItems {
+	for _, item := range streamRouteItems {
 		streamRoute, err := item.streamRoute()
 		if err != nil {
 			log.Errorw("failed to convert stream_route item",
 				zap.String("url", r.url),
-				zap.String("stream_route_key", item.Key),
-				zap.String("stream_route_value", string(item.Value)),
 				zap.Error(err),
 			)
 			return nil, err
 		}
 
 		items = append(items, streamRoute)
-		log.Debugf("list stream_route #%d, body: %s", i, string(item.Value))
 	}
 	return items, nil
 }

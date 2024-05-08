@@ -90,18 +90,16 @@ func (u *upstreamClient) List(ctx context.Context) ([]*v1.Upstream, error) {
 	}
 
 	var items []*v1.Upstream
-	for i, item := range upsItems {
+	for _, item := range upsItems {
 		ups, err := item.upstream()
 		if err != nil {
 			log.Errorw("failed to convert upstream item",
 				zap.String("url", u.url),
-				zap.String("upstream_key", item.Key),
 				zap.Error(err),
 			)
 			return nil, err
 		}
 		items = append(items, ups)
-		log.Debugf("list upstream #%d, body: %s", i, string(item.Value))
 	}
 	return items, nil
 }

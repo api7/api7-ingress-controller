@@ -81,20 +81,17 @@ func (r *pluginMetadataClient) List(ctx context.Context) ([]*v1.PluginMetadata, 
 	}
 
 	var items []*v1.PluginMetadata
-	for i, item := range pluginMetadataItems {
+	for _, item := range pluginMetadataItems {
 		pluginMetadata, err := item.pluginMetadata()
 		if err != nil {
 			log.Errorw("failed to convert pluginMetadata item",
 				zap.String("url", r.url),
-				zap.String("pluginMetadata_key", item.Key),
-				zap.String("pluginMetadata_value", string(item.Value)),
 				zap.Error(err),
 			)
 			return nil, err
 		}
 
 		items = append(items, pluginMetadata)
-		log.Debugf("list pluginMetadata #%d, body: %s", i, string(item.Value))
 	}
 
 	return items, nil
@@ -232,20 +229,17 @@ func (r *pluginMetadataMem) List(ctx context.Context) ([]*v1.PluginMetadata, err
 	}
 
 	var items []*v1.PluginMetadata
-	for i, item := range pluginMetadataItems {
+	for _, item := range pluginMetadataItems {
 		pluginMetadata, err := item.pluginMetadata()
 		if err != nil {
 			log.Errorw("failed to convert pluginMetadata item",
 				zap.String("url", r.url),
-				zap.String("pluginMetadata_key", item.Key),
-				zap.String("pluginMetadata_value", string(item.Value)),
 				zap.Error(err),
 			)
 			return nil, err
 		}
 
 		items = append(items, pluginMetadata)
-		log.Debugf("list pluginMetadata #%d, body: %s", i, string(item.Value))
 	}
 
 	return items, nil

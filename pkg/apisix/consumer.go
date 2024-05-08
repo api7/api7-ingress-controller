@@ -90,20 +90,17 @@ func (r *consumerClient) List(ctx context.Context) ([]*v1.Consumer, error) {
 	}
 
 	var items []*v1.Consumer
-	for i, item := range consumerItems {
+	for _, item := range consumerItems {
 		consumer, err := item.consumer()
 		if err != nil {
 			log.Errorw("failed to convert consumer item",
 				zap.String("url", r.url),
-				zap.String("consumer_key", item.Key),
-				zap.String("consumer_value", string(item.Value)),
 				zap.Error(err),
 			)
 			return nil, err
 		}
 
 		items = append(items, consumer)
-		log.Debugf("list consumer #%d, body: %s", i, string(item.Value))
 	}
 
 	return items, nil
