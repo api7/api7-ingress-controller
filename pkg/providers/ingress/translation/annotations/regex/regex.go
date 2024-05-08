@@ -15,7 +15,7 @@
 package regex
 
 import (
-	"github.com/apache/apisix-ingress-controller/pkg/providers/ingress/translation/annotations"
+	"github.com/api7/api7-ingress-controller/pkg/providers/ingress/translation/annotations"
 )
 
 type regex struct{}

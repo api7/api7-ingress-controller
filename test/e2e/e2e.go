@@ -17,7 +17,7 @@ package e2e
 import (
 	"os"
 
-	"github.com/apache/apisix-ingress-controller/pkg/log"
+	"github.com/api7/api7-ingress-controller/pkg/log"
 
 	// _ "github.com/apache/apisix-ingress-controller/test/e2e/suite-annotations"
 	_ "github.com/apache/apisix-ingress-controller/test/e2e/suite-chore"
@@ -32,6 +32,7 @@ import (
 	_ "github.com/apache/apisix-ingress-controller/test/e2e/suite-plugins/suite-plugins-security"
 	_ "github.com/apache/apisix-ingress-controller/test/e2e/suite-plugins/suite-plugins-traffic"
 	_ "github.com/apache/apisix-ingress-controller/test/e2e/suite-plugins/suite-plugins-transformation"
+
 )
 
 func runE2E() {
