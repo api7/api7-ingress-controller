@@ -42,7 +42,6 @@ func (p *apisixProvider) Init(ctx context.Context) error {
 
 		routeMapA6        = make(map[string]string)
 		streamRouteMapA6  = make(map[string]string)
-		upstreamMapA6     = make(map[string]string)
 		sslMapA6          = make(map[string]string)
 		consumerMapA6     = make(map[string]string)
 		pluginConfigMapA6 = make(map[string]string)
@@ -150,9 +149,7 @@ func (p *apisixProvider) Init(ctx context.Context) error {
 	if err := p.listStreamRouteCache(ctx, streamRouteMapA6); err != nil {
 		return err
 	}
-	if err := p.listUpstreamCache(ctx, upstreamMapA6); err != nil {
-		return err
-	}
+
 	if err := p.listSSLCache(ctx, sslMapA6); err != nil {
 		return err
 	}
@@ -165,14 +162,12 @@ func (p *apisixProvider) Init(ctx context.Context) error {
 	// 3.compare
 	routeResult := findRedundant(routeMapA6, routeMapK8S)
 	streamRouteResult := findRedundant(streamRouteMapA6, streamRouteMapK8S)
-	upstreamResult := findRedundant(upstreamMapA6, upstreamMapK8S)
 	sslResult := findRedundant(sslMapA6, sslMapK8S)
 	consumerResult := findRedundant(consumerMapA6, consumerMapK8S)
 	pluginConfigResult := findRedundant(pluginConfigMapA6, pluginConfigMapK8S)
 	// 4.warn
 	warnRedundantResources(routeResult, "route")
 	warnRedundantResources(streamRouteResult, "streamRoute")
-	warnRedundantResources(upstreamResult, "upstream")
 	warnRedundantResources(sslResult, "ssl")
 	warnRedundantResources(consumerResult, "consumer")
 	warnRedundantResources(pluginConfigResult, "pluginConfig")
@@ -218,18 +213,6 @@ func (p *apisixProvider) listStreamRouteCache(ctx context.Context, streamRouteMa
 	} else {
 		for _, ra := range streamRoutesInA6 {
 			streamRouteMapA6[ra.ID] = ra.ID
-		}
-	}
-	return nil
-}
-
-func (p *apisixProvider) listUpstreamCache(ctx context.Context, upstreamMapA6 map[string]string) error {
-	upstreamsInA6, err := p.common.APISIX.Cluster(p.common.Config.APISIX.DefaultClusterName).Upstream().List(ctx)
-	if err != nil {
-		return err
-	} else {
-		for _, ra := range upstreamsInA6 {
-			upstreamMapA6[ra.ID] = ra.ID
 		}
 	}
 	return nil

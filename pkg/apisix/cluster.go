@@ -298,11 +298,12 @@ func (c *cluster) syncCacheOnce(ctx context.Context) (bool, error) {
 		log.Errorf("failed to list routes in APISIX: %s", err)
 		return false, err
 	}
-	upstreams, err := c.upstream.List(ctx)
-	if err != nil {
-		log.Errorf("failed to list upstreams in APISIX: %s", err)
-		return false, err
-	}
+	//upstreams are not supported in api7ee
+	// upstreams, err := c.upstream.List(ctx)
+	// if err != nil {
+	// 	log.Errorf("failed to list upstreams in APISIX: %s", err)
+	// 	return false, err
+	// }
 	ssl, err := c.ssl.List(ctx)
 	if err != nil {
 		log.Errorf("failed to list ssl in APISIX: %s", err)
@@ -333,16 +334,6 @@ func (c *cluster) syncCacheOnce(ctx context.Context) (bool, error) {
 		if err := c.cache.InsertRoute(r); err != nil {
 			log.Errorw("failed to insert route to cache",
 				zap.String("route", r.ID),
-				zap.String("cluster", c.name),
-				zap.String("error", err.Error()),
-			)
-			return false, err
-		}
-	}
-	for _, u := range upstreams {
-		if err := c.cache.InsertUpstream(u); err != nil {
-			log.Errorw("failed to insert upstream to cache",
-				zap.String("upstream", u.ID),
 				zap.String("cluster", c.name),
 				zap.String("error", err.Error()),
 			)
