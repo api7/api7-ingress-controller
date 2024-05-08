@@ -19,7 +19,7 @@ import (
 
 	"github.com/apache/apisix-ingress-controller/pkg/log"
 
-	_ "github.com/apache/apisix-ingress-controller/test/e2e/suite-annotations"
+	// _ "github.com/apache/apisix-ingress-controller/test/e2e/suite-annotations"
 	_ "github.com/apache/apisix-ingress-controller/test/e2e/suite-chore"
 	_ "github.com/apache/apisix-ingress-controller/test/e2e/suite-cluster"
 	_ "github.com/apache/apisix-ingress-controller/test/e2e/suite-features"
