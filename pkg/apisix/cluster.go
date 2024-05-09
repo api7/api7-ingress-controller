@@ -324,11 +324,11 @@ func (c *cluster) syncCacheOnce(ctx context.Context) (bool, error) {
 		log.Errorf("failed to list consumers in APISIX: %s", err)
 		return false, err
 	}
-	pluginConfigs, err := c.pluginConfig.List(ctx)
-	if err != nil {
-		log.Errorf("failed to list plugin_configs in APISIX: %s", err)
-		return false, err
-	}
+	// pluginConfigs, err := c.pluginConfig.List(ctx)
+	// if err != nil {
+	// 	log.Errorf("failed to list plugin_configs in APISIX: %s", err)
+	// 	return false, err
+	// }
 
 	for _, r := range routes {
 		if err := c.cache.InsertRoute(r); err != nil {
@@ -379,16 +379,16 @@ func (c *cluster) syncCacheOnce(ctx context.Context) (bool, error) {
 			)
 		}
 	}
-	for _, u := range pluginConfigs {
-		if err := c.cache.InsertPluginConfig(u); err != nil {
-			log.Errorw("failed to insert pluginConfig to cache",
-				zap.String("pluginConfig", u.ID),
-				zap.String("cluster", c.name),
-				zap.String("error", err.Error()),
-			)
-			return false, err
-		}
-	}
+	// for _, u := range pluginConfigs {
+	// 	if err := c.cache.InsertPluginConfig(u); err != nil {
+	// 		log.Errorw("failed to insert pluginConfig to cache",
+	// 			zap.String("pluginConfig", u.ID),
+	// 			zap.String("cluster", c.name),
+	// 			zap.String("error", err.Error()),
+	// 		)
+	// 		return false, err
+	// 	}
+	// }
 	return true, nil
 }
 
@@ -715,16 +715,13 @@ func (c *cluster) listResource(ctx context.Context, url, resource string) (ditem
 		err = multierr.Append(err, fmt.Errorf("error message: %s", body))
 		return nil, err
 	}
-	byt, _ := io.ReadAll(resp.Body)
-	fmt.Println("AY YO MAH NIGGA ", string(byt))
 	if c.adminVersion == "v3" {
 		var list listResponseDashboard
-
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&list); err != nil {
+		byt, _ := io.ReadAll(resp.Body)
+		err := json.Unmarshal(byt, &list)
+		if err != nil {
 			return nil, err
 		}
-		fmt.Println("SYSHTUM HANG ", list.List)
 		return list.List, nil
 	}
 	var list listResponseDashboard
@@ -966,6 +963,19 @@ func (c *cluster) getList(ctx context.Context, url, resource string) ([]string, 
 		return nil, err
 	}
 
+	// In EE, for plugins the response is an array of string and not an object.
+	//sent to /list
+	if resource == "plugin" {
+		byt, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		var listResponse []string
+		if err := json.Unmarshal(byt, &listResponse); err != nil {
+			return nil, err
+		}
+		return listResponse, nil
+	}
 	var listResponse map[string]interface{}
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&listResponse); err != nil {

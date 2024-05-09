@@ -32,19 +32,17 @@ import (
 // cc https://github.com/apache/apisix-ingress-controller/pull/742#discussion_r757197791
 func (p *apisixProvider) Init(ctx context.Context) error {
 	var (
-		wg                 sync.WaitGroup
-		routeMapK8S        = new(sync.Map)
-		streamRouteMapK8S  = new(sync.Map)
-		upstreamMapK8S     = new(sync.Map)
-		sslMapK8S          = new(sync.Map)
-		consumerMapK8S     = new(sync.Map)
-		pluginConfigMapK8S = new(sync.Map)
+		wg                sync.WaitGroup
+		routeMapK8S       = new(sync.Map)
+		streamRouteMapK8S = new(sync.Map)
+		upstreamMapK8S    = new(sync.Map)
+		sslMapK8S         = new(sync.Map)
+		consumerMapK8S    = new(sync.Map)
 
-		routeMapA6        = make(map[string]string)
-		streamRouteMapA6  = make(map[string]string)
-		sslMapA6          = make(map[string]string)
-		consumerMapA6     = make(map[string]string)
-		pluginConfigMapA6 = make(map[string]string)
+		routeMapA6       = make(map[string]string)
+		streamRouteMapA6 = make(map[string]string)
+		sslMapA6         = make(map[string]string)
+		consumerMapA6    = make(map[string]string)
 	)
 
 	namespaces := p.namespaceProvider.WatchingNamespaces()
@@ -83,10 +81,6 @@ func (p *apisixProvider) Init(ctx context.Context) error {
 							// ssl
 							for _, ssl := range tc.SSL {
 								sslMapK8S.Store(ssl.ID, ssl.ID)
-							}
-							// pluginConfigs
-							for _, pluginConfig := range tc.PluginConfigs {
-								pluginConfigMapK8S.Store(pluginConfig.ID, pluginConfig.ID)
 							}
 						}
 					}
@@ -156,21 +150,19 @@ func (p *apisixProvider) Init(ctx context.Context) error {
 	if err := p.listConsumerCache(ctx, consumerMapA6); err != nil {
 		return err
 	}
-	if err := p.listPluginConfigCache(ctx, pluginConfigMapA6); err != nil {
-		return err
-	}
+	// if err := p.listPluginConfigCache(ctx, pluginConfigMapA6); err != nil {
+	// 	return err
+	// }
 	// 3.compare
 	routeResult := findRedundant(routeMapA6, routeMapK8S)
 	streamRouteResult := findRedundant(streamRouteMapA6, streamRouteMapK8S)
 	sslResult := findRedundant(sslMapA6, sslMapK8S)
 	consumerResult := findRedundant(consumerMapA6, consumerMapK8S)
-	pluginConfigResult := findRedundant(pluginConfigMapA6, pluginConfigMapK8S)
 	// 4.warn
 	warnRedundantResources(routeResult, "route")
 	warnRedundantResources(streamRouteResult, "streamRoute")
 	warnRedundantResources(sslResult, "ssl")
 	warnRedundantResources(consumerResult, "consumer")
-	warnRedundantResources(pluginConfigResult, "pluginConfig")
 
 	return nil
 }

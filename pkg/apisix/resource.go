@@ -104,15 +104,6 @@ func (items *items) UnmarshalJSON(p []byte) error {
 	return nil
 }
 
-func (items *ditems) UnmarshalJSON(p []byte) error {
-	var data []ditem
-	if err := json.Unmarshal(p, &data); err != nil {
-		return err
-	}
-	*items = data
-	return nil
-}
-
 type item struct {
 	Key   string          `json:"key"`
 	Value json.RawMessage `json:"value"`
