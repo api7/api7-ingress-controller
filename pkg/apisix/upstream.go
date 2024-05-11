@@ -34,7 +34,7 @@ type upstreamClient struct {
 
 func newUpstreamClient(c *cluster) Upstream {
 	return &upstreamClient{
-		url:     c.baseURL + "/upstreams",
+		url:     c.baseURL + "/services",
 		cluster: c,
 	}
 }
@@ -82,8 +82,7 @@ func (u *upstreamClient) List(ctx context.Context) ([]*v1.Upstream, error) {
 		zap.String("url", u.url),
 		zap.String("cluster", u.cluster.name),
 	)
-
-	upsItems, err := u.cluster.listResource(ctx, u.url, "upstream")
+	upsItems, err := u.cluster.listResource(ctx, u.url, "service")
 	if err != nil {
 		log.Errorf("failed to list upstreams: %s", err)
 		return nil, err
@@ -91,7 +90,7 @@ func (u *upstreamClient) List(ctx context.Context) ([]*v1.Upstream, error) {
 
 	var items []*v1.Upstream
 	for _, item := range upsItems {
-		ups, err := item.upstream()
+		ups, err := item.service()
 		if err != nil {
 			log.Errorw("failed to convert upstream item",
 				zap.String("url", u.url),
@@ -121,20 +120,23 @@ func (u *upstreamClient) Create(ctx context.Context, obj *v1.Upstream, shouldCom
 	if err := u.cluster.HasSynced(ctx); err != nil {
 		return nil, err
 	}
-
-	body, err := json.Marshal(obj)
+	serviceObj := &v1.Service{
+		Upstream: *obj,
+		ID:       obj.ID,
+	}
+	body, err := json.Marshal(serviceObj)
 	if err != nil {
 		return nil, err
 	}
 	url := u.url + "/" + obj.ID
 	log.Debugw("creating upstream", zap.ByteString("body", body), zap.String("url", url))
 
-	resp, err := u.cluster.createResource(ctx, url, "upstream", body)
+	resp, err := u.cluster.createResource(ctx, url, "service", body)
 	if err != nil {
 		log.Errorf("failed to create upstream: %s", err)
 		return nil, err
 	}
-	ups, err := resp.upstream()
+	ups, err := resp.service()
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +167,7 @@ func (u *upstreamClient) Delete(ctx context.Context, obj *v1.Upstream) error {
 		return err
 	}
 	url := u.url + "/" + obj.ID
-	if err := u.cluster.deleteResource(ctx, url, "upstream"); err != nil {
+	if err := u.cluster.deleteResource(ctx, url, "service"); err != nil {
 		return err
 	}
 	if err := u.cluster.cache.DeleteUpstream(obj); err != nil {
@@ -202,17 +204,21 @@ func (u *upstreamClient) Update(ctx context.Context, obj *v1.Upstream, shouldCom
 		return nil, err
 	}
 
-	body, err := json.Marshal(obj)
+	svcObj := &v1.Service{
+		Upstream: *obj,
+		ID:       obj.ID,
+	}
+	body, err := json.Marshal(svcObj)
 	if err != nil {
 		return nil, err
 	}
 
 	url := u.url + "/" + obj.ID
-	resp, err := u.cluster.updateResource(ctx, url, "upstream", body)
+	resp, err := u.cluster.updateResource(ctx, url, "service", body)
 	if err != nil {
 		return nil, err
 	}
-	ups, err := resp.upstream()
+	ups, err := resp.service()
 	if err != nil {
 		return nil, err
 	}

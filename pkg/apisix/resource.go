@@ -26,7 +26,7 @@ import (
 )
 
 type getResponse struct {
-	Item item `json:"node"`
+	Item ditem `json:"node"`
 }
 
 // listResponse is the unified LIST response mapping of APISIX.
@@ -63,11 +63,11 @@ func (ios *IntOrString) UnmarshalJSON(p []byte) error {
 
 type createResponse struct {
 	Action string `json:"action"`
-	Item   item   `json:"node"`
+	Item   ditem  `json:"node"`
 }
 
 type createResponseV3 struct {
-	item
+	ditem
 }
 
 type updateResponse = createResponse
@@ -189,16 +189,18 @@ func (i *item) upstream() (*v1.Upstream, error) {
 	return &ups, nil
 }
 
-func (i *ditem) upstream() (*v1.Upstream, error) {
+// upstream decodes response and converts it to v1.Upstream.
+func (i *ditem) service() (*v1.Upstream, error) {
 	byt, err := json.Marshal(i)
 	if err != nil {
 		return nil, err
 	}
-	var ups v1.Upstream
-	if err := json.Unmarshal(byt, &ups); err != nil {
+	var svc v1.Service
+	if err := json.Unmarshal(byt, &svc); err != nil {
 		return nil, err
 	}
-
+	ups := svc.Upstream
+	ups.ID = svc.ID
 	// This is a workaround scheme to avoid APISIX's
 	// health check schema about the health checker intervals.
 	if ups.Checks != nil && ups.Checks.Active != nil {

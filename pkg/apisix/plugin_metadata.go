@@ -60,8 +60,6 @@ func (r *pluginMetadataClient) Get(ctx context.Context, name string) (*v1.Plugin
 	if err != nil {
 		log.Errorw("failed to convert pluginMetadata item",
 			zap.String("url", r.url),
-			zap.String("pluginMetadata_key", resp.Key),
-			zap.String("pluginMetadata_value", string(resp.Value)),
 			zap.Error(err),
 		)
 		return nil, err
@@ -205,8 +203,6 @@ func (r *pluginMetadataMem) Get(ctx context.Context, name string) (*v1.PluginMet
 	if err != nil {
 		log.Errorw("failed to convert pluginMetadata item",
 			zap.String("url", r.url),
-			zap.String("pluginMetadata_key", resp.Key),
-			zap.String("pluginMetadata_value", string(resp.Value)),
 			zap.Error(err),
 		)
 		return nil, err

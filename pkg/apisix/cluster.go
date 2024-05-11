@@ -632,7 +632,7 @@ func (c *cluster) isFunctionDisabled(body string) bool {
 	return strings.Contains(body, "is disabled")
 }
 
-func (c *cluster) getResource(ctx context.Context, url, resource string) (*item, error) {
+func (c *cluster) getResource(ctx context.Context, url, resource string) (*ditem, error) {
 	log.Debugw("get resource in cluster",
 		zap.String("cluster_name", c.name),
 		zap.String("name", resource),
@@ -668,7 +668,7 @@ func (c *cluster) getResource(ctx context.Context, url, resource string) (*item,
 	}
 
 	if c.adminVersion == "v3" {
-		var res item
+		var res ditem
 
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&res); err != nil {
@@ -733,7 +733,7 @@ func (c *cluster) listResource(ctx context.Context, url, resource string) (ditem
 	return list.List, nil
 }
 
-func (c *cluster) createResource(ctx context.Context, url, resource string, body []byte) (*item, error) {
+func (c *cluster) createResource(ctx context.Context, url, resource string, body []byte) (*ditem, error) {
 	log.Debugw("creating resource in cluster",
 		zap.String("cluster_name", c.name),
 		zap.String("name", resource),
@@ -774,7 +774,7 @@ func (c *cluster) createResource(ctx context.Context, url, resource string, body
 			return nil, err
 		}
 
-		return &cr.item, nil
+		return &cr.ditem, nil
 	}
 	var cr createResponse
 	dec := json.NewDecoder(resp.Body)
@@ -784,7 +784,7 @@ func (c *cluster) createResource(ctx context.Context, url, resource string, body
 	return &cr.Item, nil
 }
 
-func (c *cluster) updateResource(ctx context.Context, url, resource string, body []byte) (*item, error) {
+func (c *cluster) updateResource(ctx context.Context, url, resource string, body []byte) (*ditem, error) {
 	log.Debugw("updating resource in cluster",
 		zap.String("cluster_name", c.name),
 		zap.String("name", resource),
@@ -828,7 +828,7 @@ func (c *cluster) updateResource(ctx context.Context, url, resource string, body
 			return nil, err
 		}
 
-		return &ur.item, nil
+		return &ur.ditem, nil
 	}
 	var ur updateResponse
 	dec := json.NewDecoder(resp.Body)
@@ -1014,8 +1014,6 @@ func (c *cluster) GetGlobalRule(ctx context.Context, baseUrl, id string) (*v1.Gl
 	if err != nil {
 		log.Errorw("failed to convert global_rule item",
 			zap.String("url", url),
-			zap.String("global_rule_key", resp.Key),
-			zap.String("global_rule_value", string(resp.Value)),
 			zap.Error(err),
 		)
 		return nil, err
@@ -1049,8 +1047,6 @@ func (c *cluster) GetConsumer(ctx context.Context, baseUrl, name string) (*v1.Co
 	if err != nil {
 		log.Errorw("failed to convert consumer item",
 			zap.String("url", url),
-			zap.String("consumer_key", resp.Key),
-			zap.String("consumer_value", string(resp.Value)),
 			zap.Error(err),
 		)
 		return nil, err
@@ -1083,8 +1079,6 @@ func (c *cluster) GetPluginConfig(ctx context.Context, baseUrl, id string) (*v1.
 	if err != nil {
 		log.Errorw("failed to convert pluginConfig item",
 			zap.String("url", url),
-			zap.String("pluginConfig_key", resp.Key),
-			zap.String("pluginConfig_value", string(resp.Value)),
 			zap.Error(err),
 		)
 		return nil, err
@@ -1117,8 +1111,6 @@ func (c *cluster) GetRoute(ctx context.Context, baseUrl, id string) (*v1.Route, 
 	if err != nil {
 		log.Errorw("failed to convert route item",
 			zap.String("url", url),
-			zap.String("route_key", resp.Key),
-			zap.String("route_value", string(resp.Value)),
 			zap.Error(err),
 		)
 		return nil, err
@@ -1151,8 +1143,6 @@ func (c *cluster) GetStreamRoute(ctx context.Context, baseUrl, id string) (*v1.S
 	if err != nil {
 		log.Errorw("failed to convert stream_route item",
 			zap.String("url", url),
-			zap.String("stream_route_key", resp.Key),
-			zap.String("stream_route_value", string(resp.Value)),
 			zap.Error(err),
 		)
 		return nil, err
@@ -1160,9 +1150,12 @@ func (c *cluster) GetStreamRoute(ctx context.Context, baseUrl, id string) (*v1.S
 	return streamRoute, nil
 }
 
+// Dashboard doesn't support upstream. So GetUpstream will actually fetch a service and then convert it to upstream.
+// There will be 1:1 relationship between upstream and service.
 func (c *cluster) GetUpstream(ctx context.Context, baseUrl, id string) (*v1.Upstream, error) {
 	url := baseUrl + "/" + id
-	resp, err := c.getResource(ctx, url, "upstream")
+	url = strings.Replace(url, "upstream", "service", 1)
+	resp, err := c.getResource(ctx, url, "service")
 	if err != nil {
 		if err == cache.ErrNotFound {
 			log.Debugw("upstream not found",
@@ -1181,11 +1174,10 @@ func (c *cluster) GetUpstream(ctx context.Context, baseUrl, id string) (*v1.Upst
 		return nil, err
 	}
 
-	ups, err := resp.upstream()
+	ups, err := resp.service()
 	if err != nil {
 		log.Errorw("failed to convert upstream item",
 			zap.String("url", url),
-			zap.String("ssl_key", resp.Key),
 			zap.Error(err),
 		)
 		return nil, err
@@ -1217,7 +1209,6 @@ func (c *cluster) GetSSL(ctx context.Context, baseUrl, id string) (*v1.Ssl, erro
 	if err != nil {
 		log.Errorw("failed to convert ssl item",
 			zap.String("url", url),
-			zap.String("ssl_key", resp.Key),
 			zap.Error(err),
 		)
 		return nil, err

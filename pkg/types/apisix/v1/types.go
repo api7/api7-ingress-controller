@@ -104,6 +104,12 @@ type Metadata struct {
 	Labels map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
 }
 
+type Service struct {
+	ID       string   `json:"id,omitempty" yaml:"id,omitempty"`
+	Name     string   `json:"name,omitempty" yaml:"name,omitempty"`
+	Upstream Upstream `json:"upstream,omitempty" yaml:"upstream,omitempty"`
+}
+
 // Route apisix route object
 // +k8s:deepcopy-gen=true
 type Route struct {
