@@ -606,7 +606,7 @@ func (c *cluster) isFunctionDisabled(body string) bool {
 	return strings.Contains(body, "is disabled")
 }
 
-func (c *cluster) getResource(ctx context.Context, url, resource string) (*ditem, error) {
+func (c *cluster) getResource(ctx context.Context, url, resource string) (*getItem, error) {
 	log.Debugw("get resource in cluster",
 		zap.String("cluster_name", c.name),
 		zap.String("name", resource),
@@ -642,7 +642,7 @@ func (c *cluster) getResource(ctx context.Context, url, resource string) (*ditem
 	}
 
 	if c.adminVersion == "v3" {
-		var res ditem
+		var res getItem
 
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&res); err != nil {
@@ -656,10 +656,10 @@ func (c *cluster) getResource(ctx context.Context, url, resource string) (*ditem
 	if err := dec.Decode(&res); err != nil {
 		return nil, err
 	}
-	return &res.Item, nil
+	return &res.Items[0], nil
 }
 
-func (c *cluster) listResource(ctx context.Context, url, resource string) (ditems, error) {
+func (c *cluster) listResource(ctx context.Context, url, resource string) (listResponse, error) {
 	log.Debugw("list resource in cluster",
 		zap.String("cluster_name", c.name),
 		zap.String("name", resource),
@@ -669,12 +669,12 @@ func (c *cluster) listResource(ctx context.Context, url, resource string) (ditem
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, err
+		return listResponse{}, err
 	}
 	start := time.Now()
 	resp, err := c.do(req)
 	if err != nil {
-		return nil, err
+		return listResponse{}, err
 	}
 	//count and node
 	c.metricsCollector.RecordAPISIXLatency(time.Since(start), "list")
@@ -684,42 +684,32 @@ func (c *cluster) listResource(ctx context.Context, url, resource string) (ditem
 	if resp.StatusCode != http.StatusOK {
 		body := readBody(resp.Body, url)
 		if c.isFunctionDisabled(body) {
-			return nil, ErrFunctionDisabled
+			return listResponse{}, ErrFunctionDisabled
 		}
 		err = multierr.Append(err, fmt.Errorf("unexpected status code %d", resp.StatusCode))
 		err = multierr.Append(err, fmt.Errorf("error message: %s", body))
-		return nil, err
+		return listResponse{}, err
 	}
 	if c.adminVersion == "v3" {
-		var list listResponseDashboard
+		var list listResponse
 		byt, _ := io.ReadAll(resp.Body)
 		err := json.Unmarshal(byt, &list)
 		if err != nil {
-			return nil, err
+			return listResponse{}, err
 		}
-		nodes := list.Item["nodes"].([]interface{})
-		var items ditems
-		for _, n := range nodes {
-			items = append(items, n.(map[string]interface{}))
-		}
-		return items, nil
+		return list, nil
 	}
-	var list getResponse
+	var list listResponse
 
 	byt, _ := io.ReadAll(resp.Body)
 	err = json.Unmarshal(byt, &list)
 	if err != nil {
-		return nil, err
+		return listResponse{}, err
 	}
-	nodes := list.Item["nodes"].([]interface{})
-	var items ditems
-	for _, n := range nodes {
-		items = append(items, n.(map[string]interface{}))
-	}
-	return items, nil
+	return list, nil
 }
 
-func (c *cluster) createResource(ctx context.Context, url, resource string, body []byte) (*ditem, error) {
+func (c *cluster) createResource(ctx context.Context, url, resource string, body []byte) (*getItem, error) {
 	log.Debugw("creating resource in cluster",
 		zap.String("cluster_name", c.name),
 		zap.String("name", resource),
@@ -753,24 +743,25 @@ func (c *cluster) createResource(ctx context.Context, url, resource string, body
 	}
 
 	if c.adminVersion == "v3" {
-		var cr createResponseV3
+		var cr createResponse
 
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&cr); err != nil {
+		byt, err := io.ReadAll(resp.Body)
+		if err != nil {
 			return nil, err
 		}
-
-		return &cr.ditem, nil
+		json.Unmarshal(byt, &cr)
+		return &cr.Item, nil
 	}
 	var cr createResponse
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&cr); err != nil {
+	byt, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return nil, err
 	}
+	json.Unmarshal(byt, &cr)
 	return &cr.Item, nil
 }
 
-func (c *cluster) updateResource(ctx context.Context, url, resource string, body []byte) (*ditem, error) {
+func (c *cluster) updateResource(ctx context.Context, url, resource string, body []byte) (*getItem, error) {
 	log.Debugw("updating resource in cluster",
 		zap.String("cluster_name", c.name),
 		zap.String("name", resource),
@@ -814,7 +805,7 @@ func (c *cluster) updateResource(ctx context.Context, url, resource string, body
 			return nil, err
 		}
 
-		return &ur.ditem, nil
+		return &ur.Item, nil
 	}
 	var ur updateResponse
 	dec := json.NewDecoder(resp.Body)
@@ -957,16 +948,12 @@ func (c *cluster) getList(ctx context.Context, url, resource string) ([]string, 
 		if err != nil {
 			return nil, err
 		}
-		var listResponse map[string]interface{}
-		if err := json.Unmarshal(byt, &listResponse); err != nil {
+		var listResponse []string
+		err = json.Unmarshal(byt, &listResponse)
+		if err != nil {
 			return nil, err
 		}
-		res := make([]string, 0, len(listResponse))
-
-		for name := range listResponse {
-			res = append(res, name)
-		}
-		return res, nil
+		return listResponse, nil
 	}
 	var listResponse map[string]interface{}
 	dec := json.NewDecoder(resp.Body)

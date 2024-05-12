@@ -89,7 +89,7 @@ func (u *upstreamClient) List(ctx context.Context) ([]*v1.Upstream, error) {
 	}
 
 	var items []*v1.Upstream
-	for _, item := range upsItems {
+	for _, item := range upsItems.List {
 		ups, err := item.service()
 		if err != nil {
 			log.Errorw("failed to convert upstream item",

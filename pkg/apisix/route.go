@@ -92,7 +92,7 @@ func (r *routeClient) List(ctx context.Context) ([]*v1.Route, error) {
 	}
 
 	var items []*v1.Route
-	for _, item := range routeItems {
+	for _, item := range routeItems.List {
 		route, err := item.route()
 		if err != nil {
 			log.Errorw("failed to convert route item",

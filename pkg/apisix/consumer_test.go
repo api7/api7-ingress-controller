@@ -21,8 +21,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sort"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -34,8 +32,30 @@ import (
 )
 
 type fakeAPISIXConsumerSrv struct {
-	consumer map[string]json.RawMessage
+	consumer map[string]map[string]interface{}
 }
+
+type Value map[string]interface{}
+
+type fakeAPISIXRouteSrv struct {
+	route map[string]Value
+}
+
+type fakeListResp struct {
+	Total string         `json:"total"`
+	List  []fakeListItem `json:"list"`
+}
+
+type fakeGetCreateResp struct {
+	fakeGetCreateItem
+}
+
+type fakeGetCreateItem struct {
+	Value Value  `json:"value"`
+	Key   string `json:"key"`
+}
+
+type fakeListItem Value
 
 func (srv *fakeAPISIXConsumerSrv) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
@@ -46,26 +66,34 @@ func (srv *fakeAPISIXConsumerSrv) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	}
 
 	if r.Method == http.MethodGet {
-		resp := fakeListResp{
-			Count: strconv.Itoa(len(srv.consumer)),
-			Node: fakeNode{
-				Key: "/apisix/consumers",
-			},
+		//For individual resource, the getcreate response is sent
+		var key string
+		if strings.HasPrefix(r.URL.Path, "/apisix/admin/consumers/") && strings.TrimPrefix(r.URL.Path, "/apisix/admin/consumers/") != "" {
+			key = strings.TrimPrefix(r.URL.Path, "/apisix/admin/consumers/")
 		}
-		var keys []string
-		for key := range srv.consumer {
-			keys = append(keys, key)
+		if key != "" {
+			resp := fakeGetCreateResp{
+				fakeGetCreateItem{
+					Key:   key,
+					Value: srv.consumer[key],
+				},
+			}
+			resp.fakeGetCreateItem.Value = srv.consumer[key]
+			w.WriteHeader(http.StatusOK)
+			data, _ := json.Marshal(resp)
+			_, _ = w.Write(data)
+		} else {
+			resp := fakeListResp{}
+			resp.Total = fmt.Sprintf("%d", len(srv.consumer))
+			resp.List = make([]fakeListItem, 0, len(srv.consumer))
+
+			for _, v := range srv.consumer {
+				resp.List = append(resp.List, fakeListItem(v))
+			}
+			data, _ := json.Marshal(resp)
+			_, _ = w.Write(data)
 		}
-		sort.Strings(keys)
-		for _, key := range keys {
-			resp.Node.Items = append(resp.Node.Items, fakeItem{
-				Key:   key,
-				Value: srv.consumer[key],
-			})
-		}
-		w.WriteHeader(http.StatusOK)
-		data, _ := json.Marshal(resp)
-		_, _ = w.Write(data)
+
 		return
 	}
 
@@ -84,13 +112,13 @@ func (srv *fakeAPISIXConsumerSrv) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		paths := strings.Split(r.URL.Path, "/")
 		key := fmt.Sprintf("/apisix/admin/consumers/%s", paths[len(paths)-1])
 		data, _ := io.ReadAll(r.Body)
-		srv.consumer[key] = data
 		w.WriteHeader(http.StatusCreated)
-		resp := fakeCreateResp{
-			Action: "create",
-			Node: fakeItem{
+		var val Value
+		json.Unmarshal(data, &val)
+		resp := fakeGetCreateResp{
+			fakeGetCreateItem{
+				Value: val,
 				Key:   key,
-				Value: json.RawMessage(data),
 			},
 		}
 		data, _ = json.Marshal(resp)
@@ -107,18 +135,25 @@ func (srv *fakeAPISIXConsumerSrv) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		}
 
 		data, _ := io.ReadAll(r.Body)
-		srv.consumer[id] = data
+		var val Value
+		json.Unmarshal(data, &val)
 
 		w.WriteHeader(http.StatusOK)
-		output := fmt.Sprintf(`{"action": "compareAndSwap", "node": {"key": "%s", "value": %s}}`, id, string(data))
-		_, _ = w.Write([]byte(output))
+		resp := fakeGetCreateResp{
+			fakeGetCreateItem{
+				Value: val,
+				Key:   id,
+			},
+		}
+		byt, _ := json.Marshal(resp)
+		_, _ = w.Write([]byte(byt))
 		return
 	}
 }
 
 func runFakeConsumerSrv(t *testing.T) *http.Server {
 	srv := &fakeAPISIXConsumerSrv{
-		consumer: make(map[string]json.RawMessage),
+		consumer: make(map[string]map[string]interface{}),
 	}
 
 	ln, _ := nettest.NewLocalListener("tcp")

@@ -91,7 +91,7 @@ func (r *consumerClient) List(ctx context.Context) ([]*v1.Consumer, error) {
 		return nil, err
 	}
 	var items []*v1.Consumer
-	for _, item := range consumerItems {
+	for _, item := range consumerItems.List {
 		consumer, err := item.consumer()
 		if err != nil {
 			log.Errorw("failed to convert consumer item",

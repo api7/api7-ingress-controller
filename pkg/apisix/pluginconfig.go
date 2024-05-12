@@ -93,7 +93,7 @@ func (pc *pluginConfigClient) List(ctx context.Context) ([]*v1.PluginConfig, err
 	}
 
 	var items []*v1.PluginConfig
-	for _, item := range pluginConfigItems {
+	for _, item := range pluginConfigItems.List {
 		pluginConfig, err := item.pluginConfig()
 		if err != nil {
 			log.Errorw("failed to convert pluginConfig item",

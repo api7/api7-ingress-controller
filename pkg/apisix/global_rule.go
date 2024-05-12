@@ -92,7 +92,7 @@ func (r *globalRuleClient) List(ctx context.Context) ([]*v1.GlobalRule, error) {
 	}
 
 	var items []*v1.GlobalRule
-	for _, item := range globalRuleItems {
+	for _, item := range globalRuleItems.List {
 		globalRule, err := item.globalRule()
 		if err != nil {
 			log.Errorw("failed to convert global_rule item",

@@ -27,7 +27,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/net/nettest"
 
 	"github.com/api7/api7-ingress-controller/pkg/metrics"
 	v1 "github.com/api7/api7-ingress-controller/pkg/types/apisix/v1"
@@ -114,26 +113,6 @@ func (srv *fakeAPISIXUpstreamSrv) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		_, _ = w.Write([]byte(output))
 		return
 	}
-}
-
-func runFakeUpstreamSrv(t *testing.T) *http.Server {
-	srv := &fakeAPISIXUpstreamSrv{
-		upstream: make(map[string]json.RawMessage),
-	}
-
-	ln, _ := nettest.NewLocalListener("tcp")
-	httpSrv := &http.Server{
-		Addr:    ln.Addr().String(),
-		Handler: srv,
-	}
-
-	go func() {
-		if err := httpSrv.Serve(ln); err != nil && err != http.ErrServerClosed {
-			t.Errorf("failed to run http server: %s", err)
-		}
-	}()
-
-	return httpSrv
 }
 
 func TestUpstreamClient(t *testing.T) {

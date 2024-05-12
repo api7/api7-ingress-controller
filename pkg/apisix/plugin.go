@@ -41,7 +41,8 @@ func (p *pluginClient) List(ctx context.Context) ([]string, error) {
 		zap.String("cluster", p.cluster.name),
 		zap.String("url", p.url),
 	)
-	pluginList, err := p.cluster.getList(ctx, p.url+"/list", "plugin")
+	url := p.url + "/list"
+	pluginList, err := p.cluster.getList(ctx, url, "plugin")
 	if err != nil {
 		log.Errorf("failed to list plugins' names: %s", err)
 		return nil, err

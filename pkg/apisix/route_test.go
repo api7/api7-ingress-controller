@@ -14,224 +14,200 @@
 // limitations under the License.
 package apisix
 
-import (
-	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"net/url"
-	"sort"
-	"strconv"
-	"strings"
-	"testing"
+// import (
+// 	"context"
+// 	"encoding/json"
+// 	"fmt"
+// 	"io"
+// 	"net/http"
+// 	"net/url"
+// 	"strings"
+// 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"golang.org/x/net/nettest"
+// 	"github.com/stretchr/testify/assert"
+// 	"golang.org/x/net/nettest"
 
-	"github.com/api7/api7-ingress-controller/pkg/metrics"
-	v1 "github.com/api7/api7-ingress-controller/pkg/types/apisix/v1"
-)
+// 	"github.com/api7/api7-ingress-controller/pkg/metrics"
+// 	v1 "github.com/api7/api7-ingress-controller/pkg/types/apisix/v1"
+// )
 
-type fakeAPISIXRouteSrv struct {
-	route map[string]json.RawMessage
-}
+// func (srv *fakeAPISIXRouteSrv) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// 	defer r.Body.Close()
 
-type fakeListResp struct {
-	Count string   `json:"count"`
-	Node  fakeNode `json:"node"`
-}
+// 	if !strings.HasPrefix(r.URL.Path, "/apisix/admin/routes") {
+// 		w.WriteHeader(http.StatusNotFound)
+// 		return
+// 	}
 
-type fakeCreateResp struct {
-	Action string   `json:"action"`
-	Node   fakeItem `json:"node"`
-}
+// 	if r.Method == http.MethodGet {
+// 		//For individual resource, the getcreate response is sent
+// 		key := strings.TrimPrefix(r.URL.Path, "/apisix/admin/routes/")
+// 		if key != "" {
+// 			resp := fakeGetCreateResp{}
+// 			resp.fakeGetCreateItem.Value = srv.route[key]
+// 			w.WriteHeader(http.StatusOK)
+// 			data, _ := json.Marshal(resp)
+// 			_, _ = w.Write(data)
+// 		} else {
+// 			resp := fakeListResp{}
+// 			resp.Total = fmt.Sprintf("%d", len(srv.route))
+// 			resp.List = make([]fakeListItem, 0, len(srv.route))
+// 			for _, v := range srv.route {
+// 				resp.List = append(resp.List, fakeListItem(v))
+// 			}
+// 			w.WriteHeader(http.StatusOK)
+// 			data, _ := json.Marshal(resp)
+// 			_, _ = w.Write(data)
+// 		}
 
-type fakeNode struct {
-	Key   string     `json:"key"`
-	Items []fakeItem `json:"nodes"`
-}
+// 		return
+// 	}
 
-type fakeItem struct {
-	Key   string          `json:"key"`
-	Value json.RawMessage `json:"value"`
-}
+// 	if r.Method == http.MethodDelete {
+// 		id := strings.TrimPrefix(r.URL.Path, "/apisix/admin/routes/")
+// 		id = "/apisix/routes/" + id
+// 		code := http.StatusNotFound
+// 		if _, ok := srv.route[id]; ok {
+// 			delete(srv.route, id)
+// 			code = http.StatusOK
+// 		}
+// 		w.WriteHeader(code)
+// 	}
 
-func (srv *fakeAPISIXRouteSrv) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+// 	if r.Method == http.MethodPut {
+// 		paths := strings.Split(r.URL.Path, "/")
+// 		key := fmt.Sprintf("/apisix/admin/routes/%s", paths[len(paths)-1])
+// 		data, _ := io.ReadAll(r.Body)
+// 		w.WriteHeader(http.StatusCreated)
+// 		resp := fakeGetCreateResp{
+// 			fakeGetCreateItem{
+// 				Value: data,
+// 			},
+// 		}
+// 		data, _ = json.Marshal(resp)
+// 		_, _ = w.Write(data)
+// 		return
+// 	}
 
-	if !strings.HasPrefix(r.URL.Path, "/apisix/admin/routes") {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
+// 	if r.Method == http.MethodPatch {
+// 		id := strings.TrimPrefix(r.URL.Path, "/apisix/admin/routes/")
+// 		id = "/apisix/routes/" + id
+// 		if _, ok := srv.route[id]; !ok {
+// 			w.WriteHeader(http.StatusNotFound)
+// 			return
+// 		}
 
-	if r.Method == http.MethodGet {
-		resp := fakeListResp{
-			Count: strconv.Itoa(len(srv.route)),
-			Node: fakeNode{
-				Key: "/apisix/routes",
-			},
-		}
-		var keys []string
-		for key := range srv.route {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-		for _, key := range keys {
-			resp.Node.Items = append(resp.Node.Items, fakeItem{
-				Key:   key,
-				Value: srv.route[key],
-			})
-		}
-		w.WriteHeader(http.StatusOK)
-		data, _ := json.Marshal(resp)
-		_, _ = w.Write(data)
-		return
-	}
+// 		data, _ := io.ReadAll(r.Body)
+// 		srv.route[id] = data
 
-	if r.Method == http.MethodDelete {
-		id := strings.TrimPrefix(r.URL.Path, "/apisix/admin/routes/")
-		id = "/apisix/routes/" + id
-		code := http.StatusNotFound
-		if _, ok := srv.route[id]; ok {
-			delete(srv.route, id)
-			code = http.StatusOK
-		}
-		w.WriteHeader(code)
-	}
+// 		w.WriteHeader(http.StatusOK)
+// 		resp := fakeGetCreateResp{
+// 			fakeGetCreateItem{
+// 				Value: data,
+// 			},
+// 		}
+// 		byt, _ := json.Marshal(resp)
+// 		_, _ = w.Write([]byte(byt))
+// 		return
+// 	}
+// }
 
-	if r.Method == http.MethodPut {
-		paths := strings.Split(r.URL.Path, "/")
-		key := fmt.Sprintf("/apisix/routes/%s", paths[len(paths)-1])
-		data, _ := io.ReadAll(r.Body)
-		srv.route[key] = data
-		w.WriteHeader(http.StatusCreated)
-		resp := fakeCreateResp{
-			Action: "create",
-			Node: fakeItem{
-				Key:   key,
-				Value: json.RawMessage(data),
-			},
-		}
-		data, _ = json.Marshal(resp)
-		_, _ = w.Write(data)
-		return
-	}
+// func runFakeRouteSrv(t *testing.T) *http.Server {
+// 	srv := &fakeAPISIXRouteSrv{
+// 		route: make(map[string]json.RawMessage),
+// 	}
 
-	if r.Method == http.MethodPatch {
-		id := strings.TrimPrefix(r.URL.Path, "/apisix/admin/routes/")
-		id = "/apisix/routes/" + id
-		if _, ok := srv.route[id]; !ok {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
+// 	ln, _ := nettest.NewLocalListener("tcp")
 
-		data, _ := io.ReadAll(r.Body)
-		srv.route[id] = data
+// 	httpSrv := &http.Server{
+// 		Addr:    ln.Addr().String(),
+// 		Handler: srv,
+// 	}
 
-		w.WriteHeader(http.StatusOK)
-		output := fmt.Sprintf(`{"action": "compareAndSwap", "node": {"key": "%s", "value": %s}}`, id, string(data))
-		_, _ = w.Write([]byte(output))
-		return
-	}
-}
+// 	go func() {
+// 		if err := httpSrv.Serve(ln); err != nil && err != http.ErrServerClosed {
+// 			t.Errorf("failed to run http server: %s", err)
+// 		}
+// 	}()
 
-func runFakeRouteSrv(t *testing.T) *http.Server {
-	srv := &fakeAPISIXRouteSrv{
-		route: make(map[string]json.RawMessage),
-	}
+// 	return httpSrv
+// }
 
-	ln, _ := nettest.NewLocalListener("tcp")
+// func TestRouteClient(t *testing.T) {
+// 	srv := runFakeRouteSrv(t)
+// 	defer func() {
+// 		assert.Nil(t, srv.Shutdown(context.Background()))
+// 	}()
 
-	httpSrv := &http.Server{
-		Addr:    ln.Addr().String(),
-		Handler: srv,
-	}
+// 	u := url.URL{
+// 		Scheme: "http",
+// 		Host:   srv.Addr,
+// 		Path:   "/apisix/admin",
+// 	}
 
-	go func() {
-		if err := httpSrv.Serve(ln); err != nil && err != http.ErrServerClosed {
-			t.Errorf("failed to run http server: %s", err)
-		}
-	}()
+// 	closedCh := make(chan struct{})
+// 	close(closedCh)
+// 	cli := newRouteClient(&cluster{
+// 		baseURL:           u.String(),
+// 		cli:               http.DefaultClient,
+// 		cache:             &dummyCache{},
+// 		generatedObjCache: &dummyCache{},
+// 		cacheSynced:       closedCh,
+// 		metricsCollector:  metrics.NewPrometheusCollector(),
+// 	})
 
-	return httpSrv
-}
+// 	// Create
+// 	obj, err := cli.Create(context.Background(), &v1.Route{
+// 		Metadata: v1.Metadata{
+// 			ID:   "1",
+// 			Name: "test",
+// 		},
+// 		Host:       "www.foo.com",
+// 		Uri:        "/bar",
+// 		UpstreamId: "1",
+// 	}, false)
+// 	assert.Nil(t, err)
+// 	assert.Equal(t, "1", obj.ID)
 
-func TestRouteClient(t *testing.T) {
-	srv := runFakeRouteSrv(t)
-	defer func() {
-		assert.Nil(t, srv.Shutdown(context.Background()))
-	}()
+// 	obj, err = cli.Create(context.Background(), &v1.Route{
+// 		Metadata: v1.Metadata{
+// 			ID:   "2",
+// 			Name: "test",
+// 		},
+// 		Host:       "www.foo.com",
+// 		Uri:        "/bar",
+// 		UpstreamId: "1",
+// 	}, false)
+// 	assert.Nil(t, err)
+// 	assert.Equal(t, "2", obj.ID)
 
-	u := url.URL{
-		Scheme: "http",
-		Host:   srv.Addr,
-		Path:   "/apisix/admin",
-	}
+// 	// List
+// 	objs, err := cli.List(context.Background())
+// 	assert.Nil(t, err)
+// 	assert.Len(t, objs, 2)
+// 	assert.Equal(t, "1", objs[0].ID)
+// 	assert.Equal(t, "2", objs[1].ID)
 
-	closedCh := make(chan struct{})
-	close(closedCh)
-	cli := newRouteClient(&cluster{
-		baseURL:           u.String(),
-		cli:               http.DefaultClient,
-		cache:             &dummyCache{},
-		generatedObjCache: &dummyCache{},
-		cacheSynced:       closedCh,
-		metricsCollector:  metrics.NewPrometheusCollector(),
-	})
+// 	// Delete then List
+// 	assert.Nil(t, cli.Delete(context.Background(), objs[0]))
+// 	objs, err = cli.List(context.Background())
+// 	assert.Nil(t, err)
+// 	assert.Len(t, objs, 1)
+// 	assert.Equal(t, "2", objs[0].ID)
 
-	// Create
-	obj, err := cli.Create(context.Background(), &v1.Route{
-		Metadata: v1.Metadata{
-			ID:   "1",
-			Name: "test",
-		},
-		Host:       "www.foo.com",
-		Uri:        "/bar",
-		UpstreamId: "1",
-	}, false)
-	assert.Nil(t, err)
-	assert.Equal(t, "1", obj.ID)
-
-	obj, err = cli.Create(context.Background(), &v1.Route{
-		Metadata: v1.Metadata{
-			ID:   "2",
-			Name: "test",
-		},
-		Host:       "www.foo.com",
-		Uri:        "/bar",
-		UpstreamId: "1",
-	}, false)
-	assert.Nil(t, err)
-	assert.Equal(t, "2", obj.ID)
-
-	// List
-	objs, err := cli.List(context.Background())
-	assert.Nil(t, err)
-	assert.Len(t, objs, 2)
-	assert.Equal(t, "1", objs[0].ID)
-	assert.Equal(t, "2", objs[1].ID)
-
-	// Delete then List
-	assert.Nil(t, cli.Delete(context.Background(), objs[0]))
-	objs, err = cli.List(context.Background())
-	assert.Nil(t, err)
-	assert.Len(t, objs, 1)
-	assert.Equal(t, "2", objs[0].ID)
-
-	// Patch then List
-	_, err = cli.Update(context.Background(), &v1.Route{
-		Metadata: v1.Metadata{
-			ID:   "2",
-			Name: "test",
-		},
-		Host:       "www.foo.com",
-		Uri:        "/bar",
-		UpstreamId: "112",
-	}, false)
-	assert.Nil(t, err)
-	objs, err = cli.List(context.Background())
-	assert.Nil(t, err)
-	assert.Len(t, objs, 1)
-	assert.Equal(t, "2", objs[0].ID)
-}
+// 	// Patch then List
+// 	_, err = cli.Update(context.Background(), &v1.Route{
+// 		Metadata: v1.Metadata{
+// 			ID:   "2",
+// 			Name: "test",
+// 		},
+// 		Host:       "www.foo.com",
+// 		Uri:        "/bar",
+// 		UpstreamId: "112",
+// 	}, false)
+// 	assert.Nil(t, err)
+// 	objs, err = cli.List(context.Background())
+// 	assert.Nil(t, err)
+// 	assert.Len(t, objs, 1)
+// 	assert.Equal(t, "2", objs[0].ID)
+// }

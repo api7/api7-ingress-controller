@@ -79,7 +79,7 @@ func (r *pluginMetadataClient) List(ctx context.Context) ([]*v1.PluginMetadata, 
 	}
 
 	var items []*v1.PluginMetadata
-	for _, item := range pluginMetadataItems {
+	for _, item := range pluginMetadataItems.List {
 		pluginMetadata, err := item.pluginMetadata()
 		if err != nil {
 			log.Errorw("failed to convert pluginMetadata item",
@@ -225,7 +225,7 @@ func (r *pluginMetadataMem) List(ctx context.Context) ([]*v1.PluginMetadata, err
 	}
 
 	var items []*v1.PluginMetadata
-	for _, item := range pluginMetadataItems {
+	for _, item := range pluginMetadataItems.List {
 		pluginMetadata, err := item.pluginMetadata()
 		if err != nil {
 			log.Errorw("failed to convert pluginMetadata item",

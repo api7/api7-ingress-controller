@@ -233,15 +233,3 @@ func (p *apisixProvider) listConsumerCache(ctx context.Context, consumerMapA6 ma
 	}
 	return nil
 }
-
-func (p *apisixProvider) listPluginConfigCache(ctx context.Context, pluginConfigMapA6 map[string]string) error {
-	pluginConfigInA6, err := p.common.APISIX.Cluster(p.common.Config.APISIX.DefaultClusterName).PluginConfig().List(ctx)
-	if err != nil {
-		return err
-	} else {
-		for _, ra := range pluginConfigInA6 {
-			pluginConfigMapA6[ra.ID] = ra.ID
-		}
-	}
-	return nil
-}

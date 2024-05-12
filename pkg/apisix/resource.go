@@ -23,12 +23,18 @@ import (
 )
 
 type getResponse struct {
-	Item ditem `json:"node"`
+	Total string   `json:"total"`
+	Items getItems `json:"list"`
 }
 
-type listResponseDashboard struct {
-	Item ditem `json:"node"`
+type listResponse struct {
+	Total IntOrString `json:"total"`
+	List  listItems   `json:"list"`
 }
+
+type listItems []listItem
+
+type listItem map[string]interface{}
 
 // IntOrString processing number and string types, after json deserialization will output int
 type IntOrString struct {
@@ -46,12 +52,12 @@ func (ios *IntOrString) UnmarshalJSON(p []byte) error {
 }
 
 type createResponse struct {
-	Action string `json:"action"`
-	Item   ditem  `json:"node"`
+	Action string  `json:"action"`
+	Item   getItem `json:"node"`
 }
 
 type createResponseV3 struct {
-	ditem
+	Item getItem `json:"node"`
 }
 
 type updateResponse = createResponse
@@ -65,9 +71,11 @@ type updateResponseV3 = createResponseV3
 
 // type items []item
 
-type ditems []ditem
+type getItems []getItem
 
-type ditem map[string]interface{}
+type getItem struct {
+	Value json.RawMessage `json:"value"`
+}
 
 // // UnmarshalJSON implements json.Unmarshaler interface.
 // // lua-cjson doesn't distinguish empty array and table,
@@ -108,9 +116,8 @@ type ditem map[string]interface{}
 // 	return &route, nil
 // }
 
-func (i *ditem) route() (*v1.Route, error) {
-	value := (*i)["value"]
-	byt, err := json.Marshal(value)
+func (i *getItem) route() (*v1.Route, error) {
+	byt, err := json.Marshal(i.Value)
 	if err != nil {
 		return nil, err
 	}
@@ -121,9 +128,32 @@ func (i *ditem) route() (*v1.Route, error) {
 	return &route, nil
 }
 
-func (i *ditem) streamRoute() (*v1.StreamRoute, error) {
-	value := (*i)["value"]
-	byt, err := json.Marshal(value)
+func (i *listItem) route() (*v1.Route, error) {
+	byt, err := json.Marshal(i)
+	if err != nil {
+		return nil, err
+	}
+	var route v1.Route
+	if err := json.Unmarshal(byt, &route); err != nil {
+		return nil, err
+	}
+	return &route, nil
+}
+
+func (i *getItem) streamRoute() (*v1.StreamRoute, error) {
+	byt, err := json.Marshal(i.Value)
+	if err != nil {
+		return nil, err
+	}
+	var streamRoute v1.StreamRoute
+	if err := json.Unmarshal(byt, &streamRoute); err != nil {
+		return nil, err
+	}
+	return &streamRoute, nil
+}
+
+func (i *listItem) streamRoute() (*v1.StreamRoute, error) {
+	byt, err := json.Marshal(i)
 	if err != nil {
 		return nil, err
 	}
@@ -161,9 +191,32 @@ func (i *ditem) streamRoute() (*v1.StreamRoute, error) {
 // }
 
 // upstream decodes response and converts it to v1.Upstream.
-func (i *ditem) service() (*v1.Upstream, error) {
-	value := (*i)["value"]
-	byt, err := json.Marshal(value)
+func (i *getItem) service() (*v1.Upstream, error) {
+	byt, err := json.Marshal(i.Value)
+	if err != nil {
+		return nil, err
+	}
+	var svc v1.Service
+	if err := json.Unmarshal(byt, &svc); err != nil {
+		return nil, err
+	}
+	ups := svc.Upstream
+	ups.ID = svc.ID
+	// This is a workaround scheme to avoid APISIX's
+	// health check schema about the health checker intervals.
+	if ups.Checks != nil && ups.Checks.Active != nil {
+		if ups.Checks.Active.Healthy.Interval == 0 {
+			ups.Checks.Active.Healthy.Interval = int(v1.ActiveHealthCheckMinInterval.Seconds())
+		}
+		if ups.Checks.Active.Unhealthy.Interval == 0 {
+			ups.Checks.Active.Healthy.Interval = int(v1.ActiveHealthCheckMinInterval.Seconds())
+		}
+	}
+	return &ups, nil
+}
+
+func (i *listItem) service() (*v1.Upstream, error) {
+	byt, err := json.Marshal(i)
 	if err != nil {
 		return nil, err
 	}
@@ -196,9 +249,20 @@ func (i *ditem) service() (*v1.Upstream, error) {
 // 	return &ssl, nil
 // }
 
-func (i *ditem) ssl() (*v1.Ssl, error) {
-	value := (*i)["value"]
-	byt, err := json.Marshal(value)
+func (i *getItem) ssl() (*v1.Ssl, error) {
+	byt, err := json.Marshal(i.Value)
+	if err != nil {
+		return nil, err
+	}
+	var ssl v1.Ssl
+	if err := json.Unmarshal(byt, &ssl); err != nil {
+		return nil, err
+	}
+	return &ssl, nil
+}
+
+func (i *listItem) ssl() (*v1.Ssl, error) {
+	byt, err := json.Marshal(i)
 	if err != nil {
 		return nil, err
 	}
@@ -219,9 +283,20 @@ func (i *ditem) ssl() (*v1.Ssl, error) {
 // 	return &globalRule, nil
 // }
 
-func (i *ditem) globalRule() (*v1.GlobalRule, error) {
-	value := (*i)["value"]
-	byt, err := json.Marshal(value)
+func (i *getItem) globalRule() (*v1.GlobalRule, error) {
+	byt, err := json.Marshal(i.Value)
+	if err != nil {
+		return nil, err
+	}
+	var globalRule v1.GlobalRule
+	if err := json.Unmarshal(byt, &globalRule); err != nil {
+		return nil, err
+	}
+	return &globalRule, nil
+}
+
+func (i *listItem) globalRule() (*v1.GlobalRule, error) {
+	byt, err := json.Marshal(i)
 	if err != nil {
 		return nil, err
 	}
@@ -242,9 +317,20 @@ func (i *ditem) globalRule() (*v1.GlobalRule, error) {
 // 	return &consumer, nil
 // }
 
-func (i *ditem) consumer() (*v1.Consumer, error) {
-	value := (*i)["value"]
-	byt, err := json.Marshal(value)
+func (i *getItem) consumer() (*v1.Consumer, error) {
+	byt, err := json.Marshal(i.Value)
+	if err != nil {
+		return nil, err
+	}
+	var consumer v1.Consumer
+	if err := json.Unmarshal(byt, &consumer); err != nil {
+		return nil, err
+	}
+	return &consumer, nil
+}
+
+func (i *listItem) consumer() (*v1.Consumer, error) {
+	byt, err := json.Marshal(i)
 	if err != nil {
 		return nil, err
 	}
@@ -266,9 +352,20 @@ func (i *ditem) consumer() (*v1.Consumer, error) {
 // 	return &pluginMetadata, nil
 // }
 
-func (i *ditem) pluginMetadata() (*v1.PluginMetadata, error) {
-	value := (*i)["value"]
-	byt, err := json.Marshal(value)
+func (i *getItem) pluginMetadata() (*v1.PluginMetadata, error) {
+	byt, err := json.Marshal(i.Value)
+	if err != nil {
+		return nil, err
+	}
+	var pluginMetadata v1.PluginMetadata
+	if err := json.Unmarshal(byt, &pluginMetadata.Metadata); err != nil {
+		return nil, err
+	}
+	return &pluginMetadata, nil
+}
+
+func (i *listItem) pluginMetadata() (*v1.PluginMetadata, error) {
+	byt, err := json.Marshal(i)
 	if err != nil {
 		return nil, err
 	}
@@ -289,9 +386,20 @@ func (i *ditem) pluginMetadata() (*v1.PluginMetadata, error) {
 // 	return &pluginConfig, nil
 // }
 
-func (i *ditem) pluginConfig() (*v1.PluginConfig, error) {
-	value := (*i)["value"]
-	byt, err := json.Marshal(value)
+func (i *getItem) pluginConfig() (*v1.PluginConfig, error) {
+	byt, err := json.Marshal(i.Value)
+	if err != nil {
+		return nil, err
+	}
+	var pluginConfig v1.PluginConfig
+	if err := json.Unmarshal(byt, &pluginConfig); err != nil {
+		return nil, err
+	}
+	return &pluginConfig, nil
+}
+
+func (i *listItem) pluginConfig() (*v1.PluginConfig, error) {
+	byt, err := json.Marshal(i)
 	if err != nil {
 		return nil, err
 	}
