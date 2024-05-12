@@ -21,8 +21,8 @@ import (
 	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/labels"
 
-	"github.com/apache/apisix-ingress-controller/pkg/config"
-	"github.com/apache/apisix-ingress-controller/pkg/log"
+	"github.com/api7/api7-ingress-controller/pkg/config"
+	"github.com/api7/api7-ingress-controller/pkg/log"
 )
 
 // Init used to compare the object IDs in resources and APISIX

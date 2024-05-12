@@ -18,8 +18,8 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
-
 	v1 "github.com/apache/apisix-ingress-controller/pkg/types/apisix/v1"
+
 )
 
 type getResponse struct {

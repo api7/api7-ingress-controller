@@ -25,8 +25,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/apache/apisix-ingress-controller/pkg/log"
-	"github.com/apache/apisix-ingress-controller/pkg/types"
+	"github.com/api7/api7-ingress-controller/pkg/log"
+	"github.com/api7/api7-ingress-controller/pkg/types"
 )
 
 // FIXME: Controller should be the Core Part,
