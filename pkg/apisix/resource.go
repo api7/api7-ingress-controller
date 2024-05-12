@@ -23,8 +23,8 @@ import (
 )
 
 type getResponse struct {
-	Total string   `json:"total"`
-	Items getItems `json:"list"`
+	Key   string                 `json:"key"`
+	Value map[string]interface{} `json:"value"`
 }
 
 type listResponse struct {
@@ -51,18 +51,9 @@ func (ios *IntOrString) UnmarshalJSON(p []byte) error {
 	return nil
 }
 
-type createResponse struct {
-	Action string  `json:"action"`
-	Item   getItem `json:"node"`
-}
+type updateResponse = getResponse
 
-type createResponseV3 struct {
-	Item getItem `json:"node"`
-}
-
-type updateResponse = createResponse
-
-type updateResponseV3 = createResponseV3
+type updateResponseV3 = getResponse
 
 // type node struct {
 // 	Key   string `json:"key"`
@@ -70,12 +61,6 @@ type updateResponseV3 = createResponseV3
 // }
 
 // type items []item
-
-type getItems []getItem
-
-type getItem struct {
-	Value json.RawMessage `json:"value"`
-}
 
 // // UnmarshalJSON implements json.Unmarshaler interface.
 // // lua-cjson doesn't distinguish empty array and table,
@@ -116,7 +101,7 @@ type getItem struct {
 // 	return &route, nil
 // }
 
-func (i *getItem) route() (*v1.Route, error) {
+func (i *getResponse) route() (*v1.Route, error) {
 	byt, err := json.Marshal(i.Value)
 	if err != nil {
 		return nil, err
@@ -140,7 +125,7 @@ func (i *listItem) route() (*v1.Route, error) {
 	return &route, nil
 }
 
-func (i *getItem) streamRoute() (*v1.StreamRoute, error) {
+func (i *getResponse) streamRoute() (*v1.StreamRoute, error) {
 	byt, err := json.Marshal(i.Value)
 	if err != nil {
 		return nil, err
@@ -191,7 +176,7 @@ func (i *listItem) streamRoute() (*v1.StreamRoute, error) {
 // }
 
 // upstream decodes response and converts it to v1.Upstream.
-func (i *getItem) service() (*v1.Upstream, error) {
+func (i *getResponse) service() (*v1.Upstream, error) {
 	byt, err := json.Marshal(i.Value)
 	if err != nil {
 		return nil, err
@@ -249,7 +234,7 @@ func (i *listItem) service() (*v1.Upstream, error) {
 // 	return &ssl, nil
 // }
 
-func (i *getItem) ssl() (*v1.Ssl, error) {
+func (i *getResponse) ssl() (*v1.Ssl, error) {
 	byt, err := json.Marshal(i.Value)
 	if err != nil {
 		return nil, err
@@ -283,7 +268,7 @@ func (i *listItem) ssl() (*v1.Ssl, error) {
 // 	return &globalRule, nil
 // }
 
-func (i *getItem) globalRule() (*v1.GlobalRule, error) {
+func (i *getResponse) globalRule() (*v1.GlobalRule, error) {
 	byt, err := json.Marshal(i.Value)
 	if err != nil {
 		return nil, err
@@ -317,7 +302,7 @@ func (i *listItem) globalRule() (*v1.GlobalRule, error) {
 // 	return &consumer, nil
 // }
 
-func (i *getItem) consumer() (*v1.Consumer, error) {
+func (i *getResponse) consumer() (*v1.Consumer, error) {
 	byt, err := json.Marshal(i.Value)
 	if err != nil {
 		return nil, err
@@ -352,7 +337,7 @@ func (i *listItem) consumer() (*v1.Consumer, error) {
 // 	return &pluginMetadata, nil
 // }
 
-func (i *getItem) pluginMetadata() (*v1.PluginMetadata, error) {
+func (i *getResponse) pluginMetadata() (*v1.PluginMetadata, error) {
 	byt, err := json.Marshal(i.Value)
 	if err != nil {
 		return nil, err
@@ -386,7 +371,7 @@ func (i *listItem) pluginMetadata() (*v1.PluginMetadata, error) {
 // 	return &pluginConfig, nil
 // }
 
-func (i *getItem) pluginConfig() (*v1.PluginConfig, error) {
+func (i *getResponse) pluginConfig() (*v1.PluginConfig, error) {
 	byt, err := json.Marshal(i.Value)
 	if err != nil {
 		return nil, err

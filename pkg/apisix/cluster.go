@@ -606,7 +606,7 @@ func (c *cluster) isFunctionDisabled(body string) bool {
 	return strings.Contains(body, "is disabled")
 }
 
-func (c *cluster) getResource(ctx context.Context, url, resource string) (*getItem, error) {
+func (c *cluster) getResource(ctx context.Context, url, resource string) (*getResponse, error) {
 	log.Debugw("get resource in cluster",
 		zap.String("cluster_name", c.name),
 		zap.String("name", resource),
@@ -642,7 +642,7 @@ func (c *cluster) getResource(ctx context.Context, url, resource string) (*getIt
 	}
 
 	if c.adminVersion == "v3" {
-		var res getItem
+		var res getResponse
 
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&res); err != nil {
@@ -656,7 +656,7 @@ func (c *cluster) getResource(ctx context.Context, url, resource string) (*getIt
 	if err := dec.Decode(&res); err != nil {
 		return nil, err
 	}
-	return &res.Items[0], nil
+	return &res, nil
 }
 
 func (c *cluster) listResource(ctx context.Context, url, resource string) (listResponse, error) {
@@ -709,7 +709,7 @@ func (c *cluster) listResource(ctx context.Context, url, resource string) (listR
 	return list, nil
 }
 
-func (c *cluster) createResource(ctx context.Context, url, resource string, body []byte) (*getItem, error) {
+func (c *cluster) createResource(ctx context.Context, url, resource string, body []byte) (*getResponse, error) {
 	log.Debugw("creating resource in cluster",
 		zap.String("cluster_name", c.name),
 		zap.String("name", resource),
@@ -743,25 +743,25 @@ func (c *cluster) createResource(ctx context.Context, url, resource string, body
 	}
 
 	if c.adminVersion == "v3" {
-		var cr createResponse
+		var cr getResponse
 
 		byt, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, err
 		}
 		json.Unmarshal(byt, &cr)
-		return &cr.Item, nil
+		return &cr, nil
 	}
-	var cr createResponse
+	var cr getResponse
 	byt, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
 	json.Unmarshal(byt, &cr)
-	return &cr.Item, nil
+	return &cr, nil
 }
 
-func (c *cluster) updateResource(ctx context.Context, url, resource string, body []byte) (*getItem, error) {
+func (c *cluster) updateResource(ctx context.Context, url, resource string, body []byte) (*getResponse, error) {
 	log.Debugw("updating resource in cluster",
 		zap.String("cluster_name", c.name),
 		zap.String("name", resource),
@@ -805,14 +805,14 @@ func (c *cluster) updateResource(ctx context.Context, url, resource string, body
 			return nil, err
 		}
 
-		return &ur.Item, nil
+		return &ur, nil
 	}
 	var ur updateResponse
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&ur); err != nil {
 		return nil, err
 	}
-	return &ur.Item, nil
+	return &ur, nil
 }
 
 func (c *cluster) deleteResource(ctx context.Context, url, resource string) error {

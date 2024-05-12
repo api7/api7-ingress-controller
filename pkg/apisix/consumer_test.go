@@ -37,10 +37,6 @@ type fakeAPISIXConsumerSrv struct {
 
 type Value map[string]interface{}
 
-type fakeAPISIXRouteSrv struct {
-	route map[string]Value
-}
-
 type fakeListResp struct {
 	Total string         `json:"total"`
 	List  []fakeListItem `json:"list"`
@@ -86,9 +82,8 @@ func (srv *fakeAPISIXConsumerSrv) ServeHTTP(w http.ResponseWriter, r *http.Reque
 			resp := fakeListResp{}
 			resp.Total = fmt.Sprintf("%d", len(srv.consumer))
 			resp.List = make([]fakeListItem, 0, len(srv.consumer))
-
 			for _, v := range srv.consumer {
-				resp.List = append(resp.List, fakeListItem(v))
+				resp.List = append(resp.List, v)
 			}
 			data, _ := json.Marshal(resp)
 			_, _ = w.Write(data)
@@ -113,6 +108,9 @@ func (srv *fakeAPISIXConsumerSrv) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		key := fmt.Sprintf("/apisix/admin/consumers/%s", paths[len(paths)-1])
 		data, _ := io.ReadAll(r.Body)
 		w.WriteHeader(http.StatusCreated)
+		consumer := make(map[string]interface{}, 0)
+		json.Unmarshal(data, &consumer)
+		srv.consumer[key] = consumer
 		var val Value
 		json.Unmarshal(data, &val)
 		resp := fakeGetCreateResp{
@@ -137,7 +135,9 @@ func (srv *fakeAPISIXConsumerSrv) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		data, _ := io.ReadAll(r.Body)
 		var val Value
 		json.Unmarshal(data, &val)
-
+		consumer := make(map[string]interface{}, 0)
+		json.Unmarshal(data, &consumer)
+		srv.consumer[id] = consumer
 		w.WriteHeader(http.StatusOK)
 		resp := fakeGetCreateResp{
 			fakeGetCreateItem{

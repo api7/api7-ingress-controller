@@ -132,7 +132,6 @@ func (r *consumerClient) Create(ctx context.Context, obj *v1.Consumer, shouldCom
 		log.Errorf("failed to create consumer: %s", err)
 		return nil, err
 	}
-
 	consumer, err := resp.consumer()
 	if err != nil {
 		return nil, err
