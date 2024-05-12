@@ -83,7 +83,9 @@ func (r *consumerClient) List(ctx context.Context) ([]*v1.Consumer, error) {
 		zap.String("cluster", r.cluster.name),
 		zap.String("url", r.url),
 	)
-	consumerItems, err := r.cluster.listResource(ctx, r.url, "consumer")
+	//TODO: fixme get properly gateway group
+	url := r.url + "?gateway_group_id=default"
+	consumerItems, err := r.cluster.listResource(ctx, url, "consumer")
 	if err != nil {
 		log.Errorf("failed to list consumers: %s", err)
 		return nil, err
@@ -94,7 +96,7 @@ func (r *consumerClient) List(ctx context.Context) ([]*v1.Consumer, error) {
 		consumer, err := item.consumer()
 		if err != nil {
 			log.Errorw("failed to convert consumer item",
-				zap.String("url", r.url),
+				zap.String("url", url),
 				zap.Error(err),
 			)
 			return nil, err

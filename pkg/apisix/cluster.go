@@ -298,20 +298,9 @@ func (c *cluster) syncCacheOnce(ctx context.Context) (bool, error) {
 		log.Errorf("failed to list routes in APISIX: %s", err)
 		return false, err
 	}
-	//upstreams are not supported in api7ee
-	// upstreams, err := c.upstream.List(ctx)
-	// if err != nil {
-	// 	log.Errorf("failed to list upstreams in APISIX: %s", err)
-	// 	return false, err
-	// }
 	ssl, err := c.ssl.List(ctx)
 	if err != nil {
 		log.Errorf("failed to list ssl in APISIX: %s", err)
-		return false, err
-	}
-	streamRoutes, err := c.streamRoute.List(ctx)
-	if err != nil {
-		log.Errorf("failed to list stream_routes in APISIX: %s", err)
 		return false, err
 	}
 	globalRules, err := c.globalRules.List(ctx)
@@ -324,11 +313,6 @@ func (c *cluster) syncCacheOnce(ctx context.Context) (bool, error) {
 		log.Errorf("failed to list consumers in APISIX: %s", err)
 		return false, err
 	}
-	// pluginConfigs, err := c.pluginConfig.List(ctx)
-	// if err != nil {
-	// 	log.Errorf("failed to list plugin_configs in APISIX: %s", err)
-	// 	return false, err
-	// }
 
 	for _, r := range routes {
 		if err := c.cache.InsertRoute(r); err != nil {
@@ -344,16 +328,6 @@ func (c *cluster) syncCacheOnce(ctx context.Context) (bool, error) {
 		if err := c.cache.InsertSSL(s); err != nil {
 			log.Errorw("failed to insert ssl to cache",
 				zap.String("ssl", s.ID),
-				zap.String("cluster", c.name),
-				zap.String("error", err.Error()),
-			)
-			return false, err
-		}
-	}
-	for _, sr := range streamRoutes {
-		if err := c.cache.InsertStreamRoute(sr); err != nil {
-			log.Errorw("failed to insert stream_route to cache",
-				zap.Any("stream_route", sr),
 				zap.String("cluster", c.name),
 				zap.String("error", err.Error()),
 			)
@@ -912,7 +886,8 @@ func readBody(r io.ReadCloser, url string) string {
 
 // getSchema returns the schema of APISIX object.
 func (c *cluster) getSchema(ctx context.Context, url, resource string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	//TODO: fixme The above passed context gets cancelled for some reason. Investigate
+	req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, url, nil)
 	if err != nil {
 		return "", err
 	}
