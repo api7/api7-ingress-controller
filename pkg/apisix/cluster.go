@@ -676,6 +676,7 @@ func (c *cluster) listResource(ctx context.Context, url, resource string) (ditem
 	if err != nil {
 		return nil, err
 	}
+	//count and node
 	c.metricsCollector.RecordAPISIXLatency(time.Since(start), "list")
 	c.metricsCollector.RecordAPISIXCode(resp.StatusCode, resource)
 
@@ -696,15 +697,26 @@ func (c *cluster) listResource(ctx context.Context, url, resource string) (ditem
 		if err != nil {
 			return nil, err
 		}
-		return list.List, nil
+		nodes := list.Item["nodes"].([]interface{})
+		var items ditems
+		for _, n := range nodes {
+			items = append(items, n.(map[string]interface{}))
+		}
+		return items, nil
 	}
-	var list listResponseDashboard
+	var list getResponse
 
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&list); err != nil {
+	byt, _ := io.ReadAll(resp.Body)
+	err = json.Unmarshal(byt, &list)
+	if err != nil {
 		return nil, err
 	}
-	return list.List, nil
+	nodes := list.Item["nodes"].([]interface{})
+	var items ditems
+	for _, n := range nodes {
+		items = append(items, n.(map[string]interface{}))
+	}
+	return items, nil
 }
 
 func (c *cluster) createResource(ctx context.Context, url, resource string, body []byte) (*ditem, error) {
@@ -945,11 +957,16 @@ func (c *cluster) getList(ctx context.Context, url, resource string) ([]string, 
 		if err != nil {
 			return nil, err
 		}
-		var listResponse []string
+		var listResponse map[string]interface{}
 		if err := json.Unmarshal(byt, &listResponse); err != nil {
 			return nil, err
 		}
-		return listResponse, nil
+		res := make([]string, 0, len(listResponse))
+
+		for name := range listResponse {
+			res = append(res, name)
+		}
+		return res, nil
 	}
 	var listResponse map[string]interface{}
 	dec := json.NewDecoder(resp.Body)

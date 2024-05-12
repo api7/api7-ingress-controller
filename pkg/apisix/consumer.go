@@ -90,7 +90,6 @@ func (r *consumerClient) List(ctx context.Context) ([]*v1.Consumer, error) {
 		log.Errorf("failed to list consumers: %s", err)
 		return nil, err
 	}
-
 	var items []*v1.Consumer
 	for _, item := range consumerItems {
 		consumer, err := item.consumer()
@@ -112,7 +111,6 @@ func (r *consumerClient) Create(ctx context.Context, obj *v1.Consumer, shouldCom
 	if v, skip := skipRequest(r.cluster, shouldCompare, r.url, obj.Username, obj); skip {
 		return v, nil
 	}
-
 	log.Debugw("try to create consumer",
 		zap.String("name", obj.Username),
 		zap.Any("plugins", obj.Plugins),
@@ -129,7 +127,6 @@ func (r *consumerClient) Create(ctx context.Context, obj *v1.Consumer, shouldCom
 	}
 
 	url := r.url + "/" + obj.Username
-	log.Debugw("creating consumer", zap.ByteString("body", data), zap.String("url", url))
 	resp, err := r.cluster.createResource(ctx, url, "consumer", data)
 	if err != nil {
 		log.Errorf("failed to create consumer: %s", err)

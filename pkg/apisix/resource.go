@@ -27,8 +27,7 @@ type getResponse struct {
 }
 
 type listResponseDashboard struct {
-	Total IntOrString `json:"total"`
-	List  ditems      `json:"list"`
+	Item ditem `json:"node"`
 }
 
 // IntOrString processing number and string types, after json deserialization will output int
@@ -110,7 +109,8 @@ type ditem map[string]interface{}
 // }
 
 func (i *ditem) route() (*v1.Route, error) {
-	byt, err := json.Marshal(i)
+	value := (*i)["value"]
+	byt, err := json.Marshal(value)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +122,8 @@ func (i *ditem) route() (*v1.Route, error) {
 }
 
 func (i *ditem) streamRoute() (*v1.StreamRoute, error) {
-	byt, err := json.Marshal(i)
+	value := (*i)["value"]
+	byt, err := json.Marshal(value)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +162,8 @@ func (i *ditem) streamRoute() (*v1.StreamRoute, error) {
 
 // upstream decodes response and converts it to v1.Upstream.
 func (i *ditem) service() (*v1.Upstream, error) {
-	byt, err := json.Marshal(i)
+	value := (*i)["value"]
+	byt, err := json.Marshal(value)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +197,8 @@ func (i *ditem) service() (*v1.Upstream, error) {
 // }
 
 func (i *ditem) ssl() (*v1.Ssl, error) {
-	byt, err := json.Marshal(i)
+	value := (*i)["value"]
+	byt, err := json.Marshal(value)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +220,8 @@ func (i *ditem) ssl() (*v1.Ssl, error) {
 // }
 
 func (i *ditem) globalRule() (*v1.GlobalRule, error) {
-	byt, err := json.Marshal(i)
+	value := (*i)["value"]
+	byt, err := json.Marshal(value)
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +243,8 @@ func (i *ditem) globalRule() (*v1.GlobalRule, error) {
 // }
 
 func (i *ditem) consumer() (*v1.Consumer, error) {
-	byt, err := json.Marshal(i)
+	value := (*i)["value"]
+	byt, err := json.Marshal(value)
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +267,8 @@ func (i *ditem) consumer() (*v1.Consumer, error) {
 // }
 
 func (i *ditem) pluginMetadata() (*v1.PluginMetadata, error) {
-	byt, err := json.Marshal(i)
+	value := (*i)["value"]
+	byt, err := json.Marshal(value)
 	if err != nil {
 		return nil, err
 	}
@@ -284,7 +290,8 @@ func (i *ditem) pluginMetadata() (*v1.PluginMetadata, error) {
 // }
 
 func (i *ditem) pluginConfig() (*v1.PluginConfig, error) {
-	byt, err := json.Marshal(i)
+	value := (*i)["value"]
+	byt, err := json.Marshal(value)
 	if err != nil {
 		return nil, err
 	}

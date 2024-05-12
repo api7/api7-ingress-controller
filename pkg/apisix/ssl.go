@@ -18,7 +18,6 @@ package apisix
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"go.uber.org/zap"
 
@@ -95,7 +94,6 @@ func (s *sslClient) List(ctx context.Context) ([]*v1.Ssl, error) {
 	url := s.url + "?gateway_group_id=default"
 	sslItems, err := s.cluster.listResource(ctx, url, "ssl")
 	if err != nil {
-		fmt.Println("HAA BHAI YAHI", err.Error(), url)
 		log.Errorf("failed to list ssl: %s", err)
 		return nil, err
 	}
