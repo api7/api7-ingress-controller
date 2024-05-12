@@ -16,29 +16,14 @@ package apisix
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 
-	"github.com/apache/apisix-ingress-controller/pkg/log"
 	v1 "github.com/apache/apisix-ingress-controller/pkg/types/apisix/v1"
 )
 
 type getResponse struct {
 	Item ditem `json:"node"`
-}
-
-// listResponse is the unified LIST response mapping of APISIX.
-type listResponse struct {
-	Count IntOrString `json:"count"`
-	Node  node        `json:"node"`
-}
-
-// listResponseV3 is the v3 version unified LIST response mapping of APISIX.
-type listResponseV3 struct {
-	Total IntOrString `json:"total"`
-	List  items       `json:"list"`
 }
 
 type listResponseDashboard struct {
@@ -74,55 +59,55 @@ type updateResponse = createResponse
 
 type updateResponseV3 = createResponseV3
 
-type node struct {
-	Key   string `json:"key"`
-	Items items  `json:"nodes"`
-}
+// type node struct {
+// 	Key   string `json:"key"`
+// 	Items items  `json:"nodes"`
+// }
 
-type items []item
+// type items []item
 
 type ditems []ditem
 
 type ditem map[string]interface{}
 
-// UnmarshalJSON implements json.Unmarshaler interface.
-// lua-cjson doesn't distinguish empty array and table,
-// and by default empty array will be encoded as '{}'.
-// We have to maintain the compatibility.
-func (items *items) UnmarshalJSON(p []byte) error {
-	if p[0] == '{' {
-		if len(p) != 2 {
-			return errors.New("unexpected non-empty object")
-		}
-		return nil
-	}
-	var data []item
-	if err := json.Unmarshal(p, &data); err != nil {
-		return err
-	}
-	*items = data
-	return nil
-}
+// // UnmarshalJSON implements json.Unmarshaler interface.
+// // lua-cjson doesn't distinguish empty array and table,
+// // and by default empty array will be encoded as '{}'.
+// // We have to maintain the compatibility.
+// func (items *items) UnmarshalJSON(p []byte) error {
+// 	if p[0] == '{' {
+// 		if len(p) != 2 {
+// 			return errors.New("unexpected non-empty object")
+// 		}
+// 		return nil
+// 	}
+// 	var data []item
+// 	if err := json.Unmarshal(p, &data); err != nil {
+// 		return err
+// 	}
+// 	*items = data
+// 	return nil
+// }
 
-type item struct {
-	Key   string          `json:"key"`
-	Value json.RawMessage `json:"value"`
-}
+// type item struct {
+// 	Key   string          `json:"key"`
+// 	Value json.RawMessage `json:"value"`
+// }
 
-// route decodes item.Value and converts it to v1.Route.
-func (i *item) route() (*v1.Route, error) {
-	log.Debugf("got route: %s", string(i.Value))
-	list := strings.Split(i.Key, "/")
-	if len(list) < 1 {
-		return nil, fmt.Errorf("bad route config key: %s", i.Key)
-	}
+// // route decodes item.Value and converts it to v1.Route.
+// func (i *item) route() (*v1.Route, error) {
+// 	log.Debugf("got route: %s", string(i.Value))
+// 	list := strings.Split(i.Key, "/")
+// 	if len(list) < 1 {
+// 		return nil, fmt.Errorf("bad route config key: %s", i.Key)
+// 	}
 
-	var route v1.Route
-	if err := json.Unmarshal(i.Value, &route); err != nil {
-		return nil, err
-	}
-	return &route, nil
-}
+// 	var route v1.Route
+// 	if err := json.Unmarshal(i.Value, &route); err != nil {
+// 		return nil, err
+// 	}
+// 	return &route, nil
+// }
 
 func (i *ditem) route() (*v1.Route, error) {
 	byt, err := json.Marshal(i)
@@ -134,21 +119,6 @@ func (i *ditem) route() (*v1.Route, error) {
 		return nil, err
 	}
 	return &route, nil
-}
-
-// streamRoute decodes item.Value and converts it to v1.StreamRoute.
-func (i *item) streamRoute() (*v1.StreamRoute, error) {
-	log.Debugf("got stream_route: %s", string(i.Value))
-	list := strings.Split(i.Key, "/")
-	if len(list) < 1 {
-		return nil, fmt.Errorf("bad stream_route config key: %s", i.Key)
-	}
-
-	var streamRoute v1.StreamRoute
-	if err := json.Unmarshal(i.Value, &streamRoute); err != nil {
-		return nil, err
-	}
-	return &streamRoute, nil
 }
 
 func (i *ditem) streamRoute() (*v1.StreamRoute, error) {
@@ -164,30 +134,30 @@ func (i *ditem) streamRoute() (*v1.StreamRoute, error) {
 }
 
 // upstream decodes item.Value and converts it to v1.Upstream.
-func (i *item) upstream() (*v1.Upstream, error) {
-	log.Debugf("got upstream: %s", string(i.Value))
-	list := strings.Split(i.Key, "/")
-	if len(list) < 1 {
-		return nil, fmt.Errorf("bad upstream config key: %s", i.Key)
-	}
+// func (i *item) upstream() (*v1.Upstream, error) {
+// 	log.Debugf("got upstream: %s", string(i.Value))
+// 	list := strings.Split(i.Key, "/")
+// 	if len(list) < 1 {
+// 		return nil, fmt.Errorf("bad upstream config key: %s", i.Key)
+// 	}
 
-	var ups v1.Upstream
-	if err := json.Unmarshal(i.Value, &ups); err != nil {
-		return nil, err
-	}
+// 	var ups v1.Upstream
+// 	if err := json.Unmarshal(i.Value, &ups); err != nil {
+// 		return nil, err
+// 	}
 
-	// This is a workaround scheme to avoid APISIX's
-	// health check schema about the health checker intervals.
-	if ups.Checks != nil && ups.Checks.Active != nil {
-		if ups.Checks.Active.Healthy.Interval == 0 {
-			ups.Checks.Active.Healthy.Interval = int(v1.ActiveHealthCheckMinInterval.Seconds())
-		}
-		if ups.Checks.Active.Unhealthy.Interval == 0 {
-			ups.Checks.Active.Healthy.Interval = int(v1.ActiveHealthCheckMinInterval.Seconds())
-		}
-	}
-	return &ups, nil
-}
+// 	// This is a workaround scheme to avoid APISIX's
+// 	// health check schema about the health checker intervals.
+// 	if ups.Checks != nil && ups.Checks.Active != nil {
+// 		if ups.Checks.Active.Healthy.Interval == 0 {
+// 			ups.Checks.Active.Healthy.Interval = int(v1.ActiveHealthCheckMinInterval.Seconds())
+// 		}
+// 		if ups.Checks.Active.Unhealthy.Interval == 0 {
+// 			ups.Checks.Active.Healthy.Interval = int(v1.ActiveHealthCheckMinInterval.Seconds())
+// 		}
+// 	}
+// 	return &ups, nil
+// }
 
 // upstream decodes response and converts it to v1.Upstream.
 func (i *ditem) service() (*v1.Upstream, error) {
@@ -215,14 +185,14 @@ func (i *ditem) service() (*v1.Upstream, error) {
 }
 
 // ssl decodes item.Value and converts it to v1.Ssl.
-func (i *item) ssl() (*v1.Ssl, error) {
-	log.Debugf("got ssl: %s", string(i.Value))
-	var ssl v1.Ssl
-	if err := json.Unmarshal(i.Value, &ssl); err != nil {
-		return nil, err
-	}
-	return &ssl, nil
-}
+// func (i *item) ssl() (*v1.Ssl, error) {
+// 	log.Debugf("got ssl: %s", string(i.Value))
+// 	var ssl v1.Ssl
+// 	if err := json.Unmarshal(i.Value, &ssl); err != nil {
+// 		return nil, err
+// 	}
+// 	return &ssl, nil
+// }
 
 func (i *ditem) ssl() (*v1.Ssl, error) {
 	byt, err := json.Marshal(i)
@@ -237,14 +207,14 @@ func (i *ditem) ssl() (*v1.Ssl, error) {
 }
 
 // globalRule decodes item.Value and converts it to v1.GlobalRule.
-func (i *item) globalRule() (*v1.GlobalRule, error) {
-	log.Debugf("got global_rule: %s", string(i.Value))
-	var globalRule v1.GlobalRule
-	if err := json.Unmarshal(i.Value, &globalRule); err != nil {
-		return nil, err
-	}
-	return &globalRule, nil
-}
+// func (i *item) globalRule() (*v1.GlobalRule, error) {
+// 	log.Debugf("got global_rule: %s", string(i.Value))
+// 	var globalRule v1.GlobalRule
+// 	if err := json.Unmarshal(i.Value, &globalRule); err != nil {
+// 		return nil, err
+// 	}
+// 	return &globalRule, nil
+// }
 
 func (i *ditem) globalRule() (*v1.GlobalRule, error) {
 	byt, err := json.Marshal(i)
@@ -259,14 +229,14 @@ func (i *ditem) globalRule() (*v1.GlobalRule, error) {
 }
 
 // consumer decodes item.Value and converts it to v1.Consumer.
-func (i *item) consumer() (*v1.Consumer, error) {
-	log.Debugf("got consumer: %s", string(i.Value))
-	var consumer v1.Consumer
-	if err := json.Unmarshal(i.Value, &consumer); err != nil {
-		return nil, err
-	}
-	return &consumer, nil
-}
+// func (i *item) consumer() (*v1.Consumer, error) {
+// 	log.Debugf("got consumer: %s", string(i.Value))
+// 	var consumer v1.Consumer
+// 	if err := json.Unmarshal(i.Value, &consumer); err != nil {
+// 		return nil, err
+// 	}
+// 	return &consumer, nil
+// }
 
 func (i *ditem) consumer() (*v1.Consumer, error) {
 	byt, err := json.Marshal(i)
@@ -280,16 +250,16 @@ func (i *ditem) consumer() (*v1.Consumer, error) {
 	return &consumer, nil
 }
 
-func (i *item) pluginMetadata() (*v1.PluginMetadata, error) {
-	log.Debugf("got pluginMetadata: %s", string(i.Value))
-	var pluginMetadata v1.PluginMetadata
-	if err := json.Unmarshal(i.Value, &pluginMetadata.Metadata); err != nil {
-		return nil, err
-	}
-	keys := strings.Split(i.Key, "/")
-	pluginMetadata.Name = keys[len(keys)-1]
-	return &pluginMetadata, nil
-}
+// func (i *item) pluginMetadata() (*v1.PluginMetadata, error) {
+// 	log.Debugf("got pluginMetadata: %s", string(i.Value))
+// 	var pluginMetadata v1.PluginMetadata
+// 	if err := json.Unmarshal(i.Value, &pluginMetadata.Metadata); err != nil {
+// 		return nil, err
+// 	}
+// 	keys := strings.Split(i.Key, "/")
+// 	pluginMetadata.Name = keys[len(keys)-1]
+// 	return &pluginMetadata, nil
+// }
 
 func (i *ditem) pluginMetadata() (*v1.PluginMetadata, error) {
 	byt, err := json.Marshal(i)
@@ -303,15 +273,15 @@ func (i *ditem) pluginMetadata() (*v1.PluginMetadata, error) {
 	return &pluginMetadata, nil
 }
 
-// pluginConfig decodes item.Value and converts it to v1.PluginConfig.
-func (i *item) pluginConfig() (*v1.PluginConfig, error) {
-	log.Debugf("got pluginConfig: %s", string(i.Value))
-	var pluginConfig v1.PluginConfig
-	if err := json.Unmarshal(i.Value, &pluginConfig); err != nil {
-		return nil, err
-	}
-	return &pluginConfig, nil
-}
+// // pluginConfig decodes item.Value and converts it to v1.PluginConfig.
+// func (i *item) pluginConfig() (*v1.PluginConfig, error) {
+// 	log.Debugf("got pluginConfig: %s", string(i.Value))
+// 	var pluginConfig v1.PluginConfig
+// 	if err := json.Unmarshal(i.Value, &pluginConfig); err != nil {
+// 		return nil, err
+// 	}
+// 	return &pluginConfig, nil
+// }
 
 func (i *ditem) pluginConfig() (*v1.PluginConfig, error) {
 	byt, err := json.Marshal(i)
