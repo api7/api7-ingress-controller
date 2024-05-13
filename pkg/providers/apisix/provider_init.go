@@ -136,9 +136,6 @@ func (p *apisixProvider) Init(ctx context.Context) error {
 	if err := p.listRouteCache(ctx, routeMapA6); err != nil {
 		return err
 	}
-	if err := p.listStreamRouteCache(ctx, streamRouteMapA6); err != nil {
-		return err
-	}
 
 	if err := p.listSSLCache(ctx, sslMapA6); err != nil {
 		return err
@@ -189,18 +186,6 @@ func (p *apisixProvider) listRouteCache(ctx context.Context, routeMapA6 map[stri
 	} else {
 		for _, ra := range routesInA6 {
 			routeMapA6[ra.ID] = ra.ID
-		}
-	}
-	return nil
-}
-
-func (p *apisixProvider) listStreamRouteCache(ctx context.Context, streamRouteMapA6 map[string]string) error {
-	streamRoutesInA6, err := p.common.APISIX.Cluster(p.common.Config.APISIX.DefaultClusterName).StreamRoute().List(ctx)
-	if err != nil {
-		return err
-	} else {
-		for _, ra := range streamRoutesInA6 {
-			streamRouteMapA6[ra.ID] = ra.ID
 		}
 	}
 	return nil
