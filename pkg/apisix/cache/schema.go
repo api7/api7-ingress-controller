@@ -50,8 +50,8 @@ var (
 					},
 				},
 			},
-			"upstream": {
-				Name: "upstream",
+			"service": {
+				Name: "service",
 				Indexes: map[string]*memdb.IndexSchema{
 					"id": {
 						Name:    "id",
