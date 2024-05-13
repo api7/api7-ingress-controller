@@ -126,7 +126,7 @@ func (srv *fakeAPISIXConsumerSrv) ServeHTTP(w http.ResponseWriter, r *http.Reque
 
 	if r.Method == http.MethodPatch {
 		id := strings.TrimPrefix(r.URL.Path, "/apisix/admin/consumers/")
-		id = "/apisix/consumers/" + id
+		id = "/apisix/admin/consumers/" + id
 		if _, ok := srv.consumer[id]; !ok {
 			w.WriteHeader(http.StatusNotFound)
 			return

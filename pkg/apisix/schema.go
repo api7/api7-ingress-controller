@@ -63,8 +63,7 @@ func (sc schemaClient) getSchema(ctx context.Context, name string) (*v1.Schema, 
 			zap.Error(err),
 		)
 	}
-
-	//Dashboard uses /apisix/admin/plugins/{plugin_name} instead of /apisix/admin/schema/plugins/{plugin_name} to get schema
+	//Dashboard uses /apisix/admin/plugins/{plugin_name} instead of /apisix/admin/schema/{plugin_name} to get schema
 	url := strings.Replace(sc.url, "schema", name, 1)
 	content, err := sc.cluster.getSchema(ctx, url, "schema")
 	if err != nil {
@@ -76,7 +75,6 @@ func (sc schemaClient) getSchema(ctx context.Context, name string) (*v1.Schema, 
 		)
 		return nil, err
 	}
-
 	schema = &v1.Schema{
 		Name:    name,
 		Content: content,

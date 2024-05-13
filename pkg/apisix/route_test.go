@@ -93,7 +93,6 @@ func (srv *fakeAPISIXRouteSrv) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		gr := make(map[string]interface{}, 0)
 		json.Unmarshal(data, &gr)
 		srv.route[key] = gr
-		fmt.Println("BHAI  add kiya with key", key, "=", srv.route[key])
 		var val Value
 		json.Unmarshal(data, &val)
 		resp := fakeGetCreateResp{
@@ -109,7 +108,7 @@ func (srv *fakeAPISIXRouteSrv) ServeHTTP(w http.ResponseWriter, r *http.Request)
 
 	if r.Method == http.MethodPatch {
 		id := strings.TrimPrefix(r.URL.Path, "/apisix/admin/routes/")
-		id = "/apisix/routes/" + id
+		id = "/apisix/admin/routes/" + id
 		if _, ok := srv.route[id]; !ok {
 			w.WriteHeader(http.StatusNotFound)
 			return

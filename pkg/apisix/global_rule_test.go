@@ -108,7 +108,7 @@ func (srv *fakeAPISIXGlobalRuleSrv) ServeHTTP(w http.ResponseWriter, r *http.Req
 
 	if r.Method == http.MethodPatch {
 		id := strings.TrimPrefix(r.URL.Path, "/apisix/admin/global_rules/")
-		id = "/apisix/global_rules/" + id
+		id = "/apisix/admin/global_rules/" + id
 		if _, ok := srv.globalRule[id]; !ok {
 			w.WriteHeader(http.StatusNotFound)
 			return
