@@ -467,8 +467,8 @@ func (in *Route) DeepCopyInto(out *Route) {
 			}
 		}
 	}
-	if in.Uris != nil {
-		in, out := &in.Uris, &out.Uris
+	if in.Paths != nil {
+		in, out := &in.Paths, &out.Paths
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}

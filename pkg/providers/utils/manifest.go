@@ -16,6 +16,7 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	"github.com/hashicorp/go-multierror"
@@ -274,36 +275,43 @@ func SyncManifests(ctx context.Context, apisix apisix.APISIX, clusterName string
 		// Should create upstreams firstly due to the dependencies.
 		for _, ssl := range added.SSLs {
 			if _, err := apisix.Cluster(clusterName).SSL().Create(ctx, ssl, shouldCompare); err != nil {
+				fmt.Println("TIWARI ssl ", err)
 				merr = multierror.Append(merr, err)
 			}
 		}
 		for _, u := range added.Upstreams {
 			if _, err := apisix.Cluster(clusterName).Upstream().Create(ctx, u, shouldCompare); err != nil {
+				fmt.Println("TIWARI upstream ", err)
 				merr = multierror.Append(merr, err)
 			}
 		}
 		for _, pc := range added.PluginConfigs {
 			if _, err := apisix.Cluster(clusterName).PluginConfig().Create(ctx, pc, shouldCompare); err != nil {
+				fmt.Println("TIWARI plugin config ", err)
 				merr = multierror.Append(merr, err)
 			}
 		}
 		for _, r := range added.Routes {
 			if _, err := apisix.Cluster(clusterName).Route().Create(ctx, r, shouldCompare); err != nil {
+				fmt.Println("TIWARI route ", err)
 				merr = multierror.Append(merr, err)
 			}
 		}
 		for _, sr := range added.StreamRoutes {
 			if _, err := apisix.Cluster(clusterName).StreamRoute().Create(ctx, sr, shouldCompare); err != nil {
+				fmt.Println("TIWARI stream route ", err)
 				merr = multierror.Append(merr, err)
 			}
 		}
 		for _, pm := range added.PluginMetadatas {
 			if _, err := apisix.Cluster(clusterName).PluginMetadata().Create(ctx, pm, shouldCompare); err != nil {
+				fmt.Println("TIWARI plugin metadata ", err)
 				merr = multierror.Append(merr, err)
 			}
 		}
 		for _, gr := range added.GlobalRules {
 			if _, err := apisix.Cluster(clusterName).GlobalRule().Create(ctx, gr, shouldCompare); err != nil {
+				fmt.Println("TIWARI global rule ", err)
 				merr = multierror.Append(merr, err)
 			}
 		}
@@ -386,7 +394,7 @@ func SyncManifests(ctx context.Context, apisix apisix.APISIX, clusterName string
 							found := false
 
 							for _, r := range deleted.Routes {
-								if r.UpstreamId == u.ID {
+								if r.ServiceID == u.ID {
 									found = true
 									log.Debugw("a deleted route is referencing upstream",
 										zap.Any("route", r),
@@ -410,7 +418,7 @@ func SyncManifests(ctx context.Context, apisix apisix.APISIX, clusterName string
 
 						found := false
 						for _, r := range routes {
-							if r.UpstreamId == u.ID {
+							if r.ServiceID == u.ID {
 								found = true
 								log.Debugw("route is referencing upstream",
 									zap.Any("route", r),

@@ -163,7 +163,7 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 		route.RemoteAddrs = part.Match.RemoteAddrs
 		route.Vars = exprs
 		route.Hosts = part.Match.Hosts
-		route.Uris = part.Match.Paths
+		route.Paths = part.Match.Paths
 		route.Methods = part.Match.Methods
 		route.EnableWebsocket = part.Websocket
 		route.Plugins = pluginMap
@@ -203,7 +203,7 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 			}
 
 			upstreamName := apisixv1.ComposeUpstreamName(ar.Namespace, backend.ServiceName, backend.Subset, svcPort, backend.ResolveGranularity)
-			route.UpstreamId = id.GenID(upstreamName)
+			route.ServiceID = id.GenID(upstreamName)
 
 			if len(backends) > 0 {
 				weight := translation.DefaultWeight
@@ -232,7 +232,7 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 		if len(part.Backends) == 0 && len(part.Upstreams) > 0 {
 			// Only have Upstreams
 			upName := apisixv1.ComposeExternalUpstreamName(ar.Namespace, part.Upstreams[0].Name)
-			route.UpstreamId = id.GenID(upName)
+			route.ServiceID = id.GenID(upName)
 		}
 		// --- translate Upstreams ---
 		var ups []*apisixv1.Upstream
@@ -707,9 +707,9 @@ func (t *translator) translateOldRouteV2(ar *configv2.ApisixRoute) (*translation
 		if err != nil || r == nil {
 			continue
 		}
-		if r.UpstreamId != "" {
+		if r.ServiceID != "" {
 			ups := apisixv1.NewDefaultUpstream()
-			ups.ID = r.UpstreamId
+			ups.ID = r.ServiceID
 			oldCtx.AddUpstream(ups)
 		}
 		oldCtx.AddRoute(r)

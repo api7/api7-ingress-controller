@@ -113,19 +113,18 @@ type Service struct {
 // Route apisix route object
 // +k8s:deepcopy-gen=true
 type Route struct {
-	Metadata `json:",inline" yaml:",inline"`
-
+	Metadata        `json:",inline" yaml:",inline"`
 	Host            string           `json:"host,omitempty" yaml:"host,omitempty"`
 	Hosts           []string         `json:"hosts,omitempty" yaml:"hosts,omitempty"`
 	Uri             string           `json:"uri,omitempty" yaml:"uri,omitempty"`
 	Priority        int              `json:"priority,omitempty" yaml:"priority,omitempty"`
 	Timeout         *UpstreamTimeout `json:"timeout,omitempty" yaml:"timeout,omitempty"`
 	Vars            Vars             `json:"vars,omitempty" yaml:"vars,omitempty"`
-	Uris            []string         `json:"uris,omitempty" yaml:"uris,omitempty"`
+	Paths           []string         `json:"paths,omitempty" yaml:"paths,omitempty"`
 	Methods         []string         `json:"methods,omitempty" yaml:"methods,omitempty"`
 	EnableWebsocket bool             `json:"enable_websocket,omitempty" yaml:"enable_websocket,omitempty"`
 	RemoteAddrs     []string         `json:"remote_addrs,omitempty" yaml:"remote_addrs,omitempty"`
-	UpstreamId      string           `json:"upstream_id,omitempty" yaml:"upstream_id,omitempty"`
+	ServiceID       string           `json:"service_id,omitempty" yaml:"service_id,omitempty"`
 	Plugins         Plugins          `json:"plugins,omitempty" yaml:"plugins,omitempty"`
 	PluginConfigId  string           `json:"plugin_config_id,omitempty" yaml:"plugin_config_id,omitempty"`
 	FilterFunc      string           `json:"filter_func,omitempty" yaml:"filter_func,omitempty"`

@@ -720,8 +720,10 @@ func (c *cluster) createResource(ctx context.Context, url, resource string, body
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(body))
 	if err != nil {
+		fmt.Println("NAW ERR HERE ", err.Error())
 		return nil, err
 	}
+	req.Header.Add("Content-Type", "application/json")
 	start := time.Now()
 	resp, err := c.do(req)
 	if err != nil {
@@ -729,14 +731,15 @@ func (c *cluster) createResource(ctx context.Context, url, resource string, body
 	}
 	c.metricsCollector.RecordAPISIXLatency(time.Since(start), "create")
 	c.metricsCollector.RecordAPISIXCode(resp.StatusCode, resource)
-
+	reqBody := body
 	defer drainBody(resp.Body, url)
-
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 		body := readBody(resp.Body, url)
 		if c.isFunctionDisabled(body) {
 			return nil, ErrFunctionDisabled
 		}
+		fmt.Println("URL dekh", url)
+		fmt.Println("BODY DEKH ", string(reqBody))
 		err = multierr.Append(err, fmt.Errorf("unexpected status code %d", resp.StatusCode))
 		err = multierr.Append(err, fmt.Errorf("error message: %s", body))
 		return nil, err

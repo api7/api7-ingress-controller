@@ -261,7 +261,7 @@ func (t *translator) translateIngressV1(ing *networkingv1.Ingress, skipVerify bo
 			route.Name = composeIngressRouteName(ing.Namespace, ing.Name, rule.Host, pathRule.Path)
 			route.ID = id.GenID(route.Name)
 			route.Host = rule.Host
-			route.Uris = uris
+			route.Paths = uris
 			route.EnableWebsocket = ingress.EnableWebSocket
 			if len(nginxVars) > 0 {
 				routeVars, err := t.ApisixTranslator.TranslateRouteMatchExprs(nginxVars)
@@ -279,7 +279,7 @@ func (t *translator) translateIngressV1(ing *networkingv1.Ingress, skipVerify bo
 				route.PluginConfigId = id.GenID(apisixv1.ComposePluginConfigName(ing.Namespace, ingress.PluginConfigName))
 			}
 			if ups != nil {
-				route.UpstreamId = ups.ID
+				route.ServiceID = ups.ID
 			}
 			ctx.AddRoute(route)
 		}
@@ -366,7 +366,7 @@ func (t *translator) translateIngressV1beta1(ing *networkingv1beta1.Ingress, ski
 			route.Name = composeIngressRouteName(ing.Namespace, ing.Name, rule.Host, pathRule.Path)
 			route.ID = id.GenID(route.Name)
 			route.Host = rule.Host
-			route.Uris = uris
+			route.Paths = uris
 			route.EnableWebsocket = ingress.EnableWebSocket
 			if len(nginxVars) > 0 {
 				routeVars, err := t.ApisixTranslator.TranslateRouteMatchExprs(nginxVars)
@@ -403,7 +403,7 @@ func (t *translator) translateIngressV1beta1(ing *networkingv1beta1.Ingress, ski
 				route.PluginConfigId = id.GenID(apisixv1.ComposePluginConfigName(ing.Namespace, ingress.PluginConfigName))
 			}
 			if ups != nil {
-				route.UpstreamId = ups.ID
+				route.ServiceID = ups.ID
 			}
 			ctx.AddRoute(route)
 		}
@@ -565,9 +565,9 @@ func (t *translator) translateOldIngressV1(ing *networkingv1.Ingress) (*translat
 			if err != nil {
 				continue
 			}
-			if r.UpstreamId != "" {
+			if r.ServiceID != "" {
 				ups := apisixv1.NewDefaultUpstream()
-				ups.ID = r.UpstreamId
+				ups.ID = r.ServiceID
 				oldCtx.AddUpstream(ups)
 			}
 			if r.PluginConfigId != "" {
@@ -602,9 +602,9 @@ func (t *translator) translateOldIngressV1beta1(ing *networkingv1beta1.Ingress) 
 			if err != nil {
 				continue
 			}
-			if r.UpstreamId != "" {
+			if r.ServiceID != "" {
 				ups := apisixv1.NewDefaultUpstream()
-				ups.ID = r.UpstreamId
+				ups.ID = r.ServiceID
 				oldCtx.AddUpstream(ups)
 			}
 			if r.PluginConfigId != "" {
