@@ -35,19 +35,13 @@ func TestTranslateContext(t *testing.T) {
 			ID: "2",
 		},
 	}
-	sr1 := &apisix.StreamRoute{
-		ID: "1",
-	}
-	sr2 := &apisix.StreamRoute{
-		ID: "2",
-	}
-	u1 := &apisix.Upstream{
+	u1 := &apisix.Service{
 		Metadata: apisix.Metadata{
 			ID:   "1",
 			Name: "aaa",
 		},
 	}
-	u2 := &apisix.Upstream{
+	u2 := &apisix.Service{
 		Metadata: apisix.Metadata{
 			ID:   "1",
 			Name: "aaa",
@@ -67,23 +61,18 @@ func TestTranslateContext(t *testing.T) {
 	}
 	ctx.AddRoute(r1)
 	ctx.AddRoute(r2)
-	ctx.AddStreamRoute(sr1)
-	ctx.AddStreamRoute(sr2)
-	ctx.AddUpstream(u1)
-	ctx.AddUpstream(u2)
+	ctx.AddService(u1)
+	ctx.AddService(u2)
 	ctx.AddPluginConfig(pc1)
 	ctx.AddPluginConfig(pc2)
 
 	assert.Len(t, ctx.Routes, 2)
-	assert.Len(t, ctx.StreamRoutes, 2)
-	assert.Len(t, ctx.Upstreams, 1)
+	assert.Len(t, ctx.Services, 1)
 	assert.Len(t, ctx.PluginConfigs, 2)
 
 	assert.Equal(t, r1, ctx.Routes[0])
 	assert.Equal(t, r2, ctx.Routes[1])
-	assert.Equal(t, sr1, ctx.StreamRoutes[0])
-	assert.Equal(t, sr2, ctx.StreamRoutes[1])
-	assert.Equal(t, u1, ctx.Upstreams[0])
+	assert.Equal(t, u1, ctx.Services[0])
 	assert.Equal(t, pc1, ctx.PluginConfigs[0])
 	assert.Equal(t, pc2, ctx.PluginConfigs[1])
 

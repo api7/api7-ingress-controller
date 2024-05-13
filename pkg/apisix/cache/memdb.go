@@ -54,12 +54,8 @@ func (c *dbCache) InsertSSL(ssl *v1.Ssl) error {
 	return c.insert("ssl", ssl.DeepCopy())
 }
 
-func (c *dbCache) InsertUpstream(u *v1.Upstream) error {
-	return c.insert("upstream", u.DeepCopy())
-}
-
-func (c *dbCache) InsertStreamRoute(sr *v1.StreamRoute) error {
-	return c.insert("stream_route", sr.DeepCopy())
+func (c *dbCache) InsertService(u *v1.Service) error {
+	return c.insert("service", u.DeepCopy())
 }
 
 func (c *dbCache) InsertGlobalRule(gr *v1.GlobalRule) error {
@@ -108,20 +104,12 @@ func (c *dbCache) GetSSL(id string) (*v1.Ssl, error) {
 	return obj.(*v1.Ssl).DeepCopy(), nil
 }
 
-func (c *dbCache) GetUpstream(id string) (*v1.Upstream, error) {
-	obj, err := c.get("upstream", id)
+func (c *dbCache) GetService(id string) (*v1.Service, error) {
+	obj, err := c.get("service", id)
 	if err != nil {
 		return nil, err
 	}
-	return obj.(*v1.Upstream).DeepCopy(), nil
-}
-
-func (c *dbCache) GetStreamRoute(id string) (*v1.StreamRoute, error) {
-	obj, err := c.get("stream_route", id)
-	if err != nil {
-		return nil, err
-	}
-	return obj.(*v1.StreamRoute).DeepCopy(), nil
+	return obj.(*v1.Service).DeepCopy(), nil
 }
 
 func (c *dbCache) GetGlobalRule(id string) (*v1.GlobalRule, error) {
@@ -204,28 +192,16 @@ func (c *dbCache) ListSSL() ([]*v1.Ssl, error) {
 	return ssl, nil
 }
 
-func (c *dbCache) ListUpstreams() ([]*v1.Upstream, error) {
-	raws, err := c.list("upstream")
+func (c *dbCache) ListServices() ([]*v1.Service, error) {
+	raws, err := c.list("service")
 	if err != nil {
 		return nil, err
 	}
-	upstreams := make([]*v1.Upstream, 0, len(raws))
+	services := make([]*v1.Service, 0, len(raws))
 	for _, raw := range raws {
-		upstreams = append(upstreams, raw.(*v1.Upstream).DeepCopy())
+		services = append(services, raw.(*v1.Service).DeepCopy())
 	}
-	return upstreams, nil
-}
-
-func (c *dbCache) ListStreamRoutes() ([]*v1.StreamRoute, error) {
-	raws, err := c.list("stream_route")
-	if err != nil {
-		return nil, err
-	}
-	streamRoutes := make([]*v1.StreamRoute, 0, len(raws))
-	for _, raw := range raws {
-		streamRoutes = append(streamRoutes, raw.(*v1.StreamRoute).DeepCopy())
-	}
-	return streamRoutes, nil
+	return services, nil
 }
 
 func (c *dbCache) ListGlobalRules() ([]*v1.GlobalRule, error) {
@@ -310,11 +286,11 @@ func (c *dbCache) DeleteSSL(ssl *v1.Ssl) error {
 	return c.delete("ssl", ssl)
 }
 
-func (c *dbCache) DeleteUpstream(u *v1.Upstream) error {
-	if err := c.CheckUpstreamReference(u); err != nil {
+func (c *dbCache) DeleteService(u *v1.Service) error {
+	if err := c.CheckServiceReference(u); err != nil {
 		return err
 	}
-	return c.delete("upstream", u)
+	return c.delete("service", u)
 }
 
 func (c *dbCache) DeleteStreamRoute(sr *v1.StreamRoute) error {
@@ -357,19 +333,11 @@ func (c *dbCache) delete(table string, obj interface{}) error {
 	return nil
 }
 
-func (c *dbCache) CheckUpstreamReference(u *v1.Upstream) error {
+func (c *dbCache) CheckServiceReference(u *v1.Service) error {
 	// Upstream is referenced by Route.
 	txn := c.db.Txn(false)
 	defer txn.Abort()
-	obj, err := txn.First("route", "upstream_id", u.ID)
-	if err != nil && err != memdb.ErrNotFound {
-		return err
-	}
-	if obj != nil {
-		return ErrStillInUse
-	}
-
-	obj, err = txn.First("stream_route", "upstream_id", u.ID)
+	obj, err := txn.First("route", "service_id", u.ID)
 	if err != nil && err != memdb.ErrNotFound {
 		return err
 	}

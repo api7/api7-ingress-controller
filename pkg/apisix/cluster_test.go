@@ -75,13 +75,13 @@ func TestNonExistentCluster(t *testing.T) {
 	err = apisix.Cluster("non-existent-cluster").Route().Delete(context.Background(), &v1.Route{})
 	assert.Equal(t, ErrClusterNotExist, err)
 
-	_, err = apisix.Cluster("non-existent-cluster").Upstream().List(context.Background())
+	_, err = apisix.Cluster("non-existent-cluster").Service().List(context.Background())
 	assert.Equal(t, ErrClusterNotExist, err)
-	_, err = apisix.Cluster("non-existent-cluster").Upstream().Create(context.Background(), &v1.Upstream{}, false)
+	_, err = apisix.Cluster("non-existent-cluster").Service().Create(context.Background(), &v1.Service{}, false)
 	assert.Equal(t, ErrClusterNotExist, err)
-	_, err = apisix.Cluster("non-existent-cluster").Upstream().Update(context.Background(), &v1.Upstream{}, false)
+	_, err = apisix.Cluster("non-existent-cluster").Service().Update(context.Background(), &v1.Service{}, false)
 	assert.Equal(t, ErrClusterNotExist, err)
-	err = apisix.Cluster("non-existent-cluster").Upstream().Delete(context.Background(), &v1.Upstream{})
+	err = apisix.Cluster("non-existent-cluster").Service().Delete(context.Background(), &v1.Service{})
 	assert.Equal(t, ErrClusterNotExist, err)
 
 	_, err = apisix.Cluster("non-existent-cluster").SSL().List(context.Background())

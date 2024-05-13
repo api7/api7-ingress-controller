@@ -51,7 +51,7 @@ func (t *translator) TranslateGatewayTLSRouteV1Alpha2(tlsRoute *gatewayv1alpha2.
 			continue
 		}
 
-		var ruleUpstreams []*apisixv1.Upstream
+		var ruleUpstreams []*apisixv1.Service
 
 		for j, backend := range backends {
 			//TODO: Support filters
@@ -97,7 +97,7 @@ func (t *translator) TranslateGatewayTLSRouteV1Alpha2(tlsRoute *gatewayv1alpha2.
 			ups.Labels["meta_port"] = fmt.Sprintf("%v", int32(*backend.Port))
 
 			ups.ID = id.GenID(ups.Name)
-			ctx.AddUpstream(ups)
+			ctx.AddService(ups)
 			ruleUpstreams = append(ruleUpstreams, ups)
 		}
 		if len(ruleUpstreams) == 0 {
@@ -124,7 +124,6 @@ func (t *translator) TranslateGatewayTLSRouteV1Alpha2(tlsRoute *gatewayv1alpha2.
 					zap.String("tlsroute", tlsRoute.Name),
 				)
 			}
-			ctx.AddStreamRoute(route)
 		}
 	}
 

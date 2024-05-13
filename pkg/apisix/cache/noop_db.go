@@ -37,7 +37,7 @@ func (c *noopCache) InsertSSL(ssl *v1.Ssl) error {
 	return nil
 }
 
-func (c *noopCache) InsertUpstream(u *v1.Upstream) error {
+func (c *noopCache) InsertService(u *v1.Service) error {
 	return nil
 }
 
@@ -73,7 +73,7 @@ func (c *noopCache) GetSSL(id string) (*v1.Ssl, error) {
 	return nil, nil
 }
 
-func (c *noopCache) GetUpstream(id string) (*v1.Upstream, error) {
+func (c *noopCache) GetService(id string) (*v1.Service, error) {
 	return nil, nil
 }
 
@@ -109,7 +109,7 @@ func (c *noopCache) ListSSL() ([]*v1.Ssl, error) {
 	return nil, nil
 }
 
-func (c *noopCache) ListUpstreams() ([]*v1.Upstream, error) {
+func (c *noopCache) ListServices() ([]*v1.Service, error) {
 	return nil, nil
 }
 
@@ -145,7 +145,7 @@ func (c *noopCache) DeleteSSL(ssl *v1.Ssl) error {
 	return nil
 }
 
-func (c *noopCache) DeleteUpstream(u *v1.Upstream) error {
+func (c *noopCache) DeleteService(u *v1.Service) error {
 	return nil
 }
 
@@ -173,7 +173,7 @@ func (c *noopCache) DeleteUpstreamServiceRelation(us *v1.UpstreamServiceRelation
 	return nil
 }
 
-func (c *noopCache) CheckUpstreamReference(u *v1.Upstream) error {
+func (c *noopCache) CheckServiceReference(u *v1.Service) error {
 	return nil
 }
 

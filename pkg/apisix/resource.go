@@ -176,7 +176,7 @@ func (i *listItem) streamRoute() (*v1.StreamRoute, error) {
 // }
 
 // upstream decodes response and converts it to v1.Upstream.
-func (i *getResponse) service() (*v1.Upstream, error) {
+func (i *getResponse) service() (*v1.Service, error) {
 	byt, err := json.Marshal(i.Value)
 	if err != nil {
 		return nil, err
@@ -197,10 +197,11 @@ func (i *getResponse) service() (*v1.Upstream, error) {
 			ups.Checks.Active.Healthy.Interval = int(v1.ActiveHealthCheckMinInterval.Seconds())
 		}
 	}
-	return &ups, nil
+	svc.Upstream = ups
+	return &svc, nil
 }
 
-func (i *listItem) service() (*v1.Upstream, error) {
+func (i *listItem) service() (*v1.Service, error) {
 	byt, err := json.Marshal(i)
 	if err != nil {
 		return nil, err
@@ -209,19 +210,17 @@ func (i *listItem) service() (*v1.Upstream, error) {
 	if err := json.Unmarshal(byt, &svc); err != nil {
 		return nil, err
 	}
-	ups := svc.Upstream
-	ups.ID = svc.ID
 	// This is a workaround scheme to avoid APISIX's
 	// health check schema about the health checker intervals.
-	if ups.Checks != nil && ups.Checks.Active != nil {
-		if ups.Checks.Active.Healthy.Interval == 0 {
-			ups.Checks.Active.Healthy.Interval = int(v1.ActiveHealthCheckMinInterval.Seconds())
+	if svc.Upstream.Checks != nil && svc.Upstream.Checks.Active != nil {
+		if svc.Upstream.Checks.Active.Healthy.Interval == 0 {
+			svc.Upstream.Checks.Active.Healthy.Interval = int(v1.ActiveHealthCheckMinInterval.Seconds())
 		}
-		if ups.Checks.Active.Unhealthy.Interval == 0 {
-			ups.Checks.Active.Healthy.Interval = int(v1.ActiveHealthCheckMinInterval.Seconds())
+		if svc.Upstream.Checks.Active.Unhealthy.Interval == 0 {
+			svc.Upstream.Checks.Active.Healthy.Interval = int(v1.ActiveHealthCheckMinInterval.Seconds())
 		}
 	}
-	return &ups, nil
+	return &svc, nil
 }
 
 // ssl decodes item.Value and converts it to v1.Ssl.

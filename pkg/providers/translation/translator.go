@@ -42,7 +42,7 @@ func (te *TranslateError) Error() string {
 type Translator interface {
 	// TranslateUpstreamConfigV2 translates ApisixUpstreamConfig (part of ApisixUpstream)
 	// to APISIX Upstream, it doesn't fill the the Upstream metadata and nodes.
-	TranslateUpstreamConfigV2(*configv2.ApisixUpstreamConfig) (*apisixv1.Upstream, error)
+	TranslateUpstreamConfigV2(*configv2.ApisixUpstreamConfig) (*apisixv1.Service, error)
 	// TranslateUpstream composes an upstream according to the
 	// given namespace, name (searching Service/Endpoints) and port (filtering Endpoints).
 	// The returned Upstream doesn't have metadata info.
@@ -52,7 +52,7 @@ type Translator interface {
 	// matching the subset labels (defined in ApisixUpstream) will be selected.
 	// When the subset is not found, the node list will be empty. When the subset is empty,
 	// all pods IP will be filled.
-	TranslateService(string, string, string, int32) (*apisixv1.Upstream, error)
+	TranslateService(string, string, string, int32) (*apisixv1.Service, error)
 	// TranslateUpstreamNodes translate Endpoints resources to APISIX Upstream nodes
 	// according to the give port. Extra labels can be passed to filter the ultimate
 	// upstream nodes.

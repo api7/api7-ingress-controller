@@ -104,10 +104,32 @@ type Metadata struct {
 	Labels map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
 }
 
+// Upstream is the apisix upstream definition.
+// +k8s:deepcopy-gen=true
+type UpstreamNew struct {
+	Metadata `json:",inline" yaml:",inline"`
+
+	Type         string               `json:"type,omitempty" yaml:"type,omitempty"`
+	HashOn       string               `json:"hash_on,omitempty" yaml:"hash_on,omitempty"`
+	Key          string               `json:"key,omitempty" yaml:"key,omitempty"`
+	Checks       *UpstreamHealthCheck `json:"checks,omitempty" yaml:"checks,omitempty"`
+	Nodes        UpstreamNodes        `json:"nodes" yaml:"nodes"`
+	Scheme       string               `json:"scheme,omitempty" yaml:"scheme,omitempty"`
+	Retries      *int                 `json:"retries,omitempty" yaml:"retries,omitempty"`
+	Timeout      *UpstreamTimeout     `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	TLS          *ClientTLS           `json:"tls,omitempty" yaml:"tls,omitempty"`
+	PassHost     string               `json:"pass_host,omitempty" yaml:"pass_host,omitempty"`
+	UpstreamHost string               `json:"upstream_host,omitempty" yaml:"upstream_host,omitempty"`
+
+	// for Service Discovery
+	ServiceName   string            `json:"service_name,omitempty" yaml:"service_name,omitempty"`
+	DiscoveryType string            `json:"discovery_type,omitempty" yaml:"discovery_type,omitempty"`
+	DiscoveryArgs map[string]string `json:"discovery_args,omitempty" yaml:"discovery_args,omitempty"`
+}
+
 type Service struct {
-	ID       string   `json:"id,omitempty" yaml:"id,omitempty"`
-	Name     string   `json:"name,omitempty" yaml:"name,omitempty"`
-	Upstream Upstream `json:"upstream,omitempty" yaml:"upstream,omitempty"`
+	Metadata `json:",inline" yaml:",inline"`
+	Upstream UpstreamNew `json:"upstream,omitempty" yaml:"upstream,omitempty"`
 }
 
 // Route apisix route object
@@ -530,16 +552,18 @@ type UpstreamServiceRelation struct {
 }
 
 // NewDefaultUpstream returns an empty Upstream with default values.
-func NewDefaultUpstream() *Upstream {
-	return &Upstream{
-		Type:   LbRoundRobin,
-		Key:    "",
-		Nodes:  make(UpstreamNodes, 0),
-		Scheme: SchemeHTTP,
-		Metadata: Metadata{
-			Desc: "Created by apisix-ingress-controller, DO NOT modify it manually",
-			Labels: map[string]string{
-				"managed-by": "apisix-ingress-controller",
+func NewDefaultService() *Service {
+	return &Service{
+		Upstream: UpstreamNew{
+			Type:   LbRoundRobin,
+			Key:    "",
+			Nodes:  make(UpstreamNodes, 0),
+			Scheme: SchemeHTTP,
+			Metadata: Metadata{
+				Desc: "Created by apisix-ingress-controller, DO NOT modify it manually",
+				Labels: map[string]string{
+					"managed-by": "apisix-ingress-controller",
+				},
 			},
 		},
 	}

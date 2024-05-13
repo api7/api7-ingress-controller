@@ -143,11 +143,11 @@ func (c *gatewayHTTPRouteController) sync(ctx context.Context, ev *types.Event) 
 
 	log.Debugw("translated HTTPRoute",
 		zap.Any("routes", tctx.Routes),
-		zap.Any("upstreams", tctx.Upstreams),
+		zap.Any("services", tctx.Services),
 	)
 	m := &utils.Manifest{
-		Routes:    tctx.Routes,
-		Upstreams: tctx.Upstreams,
+		Routes:   tctx.Routes,
+		Services: tctx.Services,
 	}
 
 	var (
@@ -167,8 +167,8 @@ func (c *gatewayHTTPRouteController) sync(ctx context.Context, ev *types.Event) 
 		if oldCtx != nil {
 
 			om := &utils.Manifest{
-				Routes:    oldCtx.Routes,
-				Upstreams: oldCtx.Upstreams,
+				Routes:   oldCtx.Routes,
+				Services: oldCtx.Services,
 			}
 			added, updated, deleted = m.Diff(om)
 		} else {

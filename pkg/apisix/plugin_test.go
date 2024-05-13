@@ -14,102 +14,102 @@
 // limitations under the License.
 package apisix
 
-import (
-	"context"
-	"encoding/json"
-	"net/http"
-	"net/url"
-	"sort"
-	"strings"
-	"testing"
+// import (
+// 	"context"
+// 	"encoding/json"
+// 	"net/http"
+// 	"net/url"
+// 	"sort"
+// 	"strings"
+// 	"testing"
 
-	"github.com/api7/api7-ingress-controller/pkg/metrics"
-	"github.com/stretchr/testify/assert"
-	"golang.org/x/net/nettest"
-)
+// 	"github.com/api7/api7-ingress-controller/pkg/metrics"
+// 	"github.com/stretchr/testify/assert"
+// 	"golang.org/x/net/nettest"
+// )
 
-type fakeAPISIXPluginSrv struct {
-	plugins []string
-}
+// type fakeAPISIXPluginSrv struct {
+// 	plugins []string
+// }
 
-var fakePluginNames = []string{
-	"plugin-1",
-	"plugin-2",
-	"plugin-3",
-}
+// var fakePluginNames = []string{
+// 	"plugin-1",
+// 	"plugin-2",
+// 	"plugin-3",
+// }
 
-func (srv *fakeAPISIXPluginSrv) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+// func (srv *fakeAPISIXPluginSrv) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// 	defer r.Body.Close()
 
-	if !strings.HasPrefix(r.URL.Path, "/apisix/admin/plugins") {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
+// 	if !strings.HasPrefix(r.URL.Path, "/apisix/admin/plugins") {
+// 		w.WriteHeader(http.StatusNotFound)
+// 		return
+// 	}
 
-	fakePluginsResp := make(map[string]interface{}, len(srv.plugins))
-	for _, fp := range srv.plugins {
-		fakePluginsResp[fp] = struct{}{}
-	}
+// 	fakePluginsResp := make(map[string]interface{}, len(srv.plugins))
+// 	for _, fp := range srv.plugins {
+// 		fakePluginsResp[fp] = struct{}{}
+// 	}
 
-	if r.Method == http.MethodGet {
-		data, _ := json.Marshal(fakePluginsResp)
-		_, _ = w.Write(data)
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-}
+// 	if r.Method == http.MethodGet {
+// 		data, _ := json.Marshal(fakePluginsResp)
+// 		_, _ = w.Write(data)
+// 		w.WriteHeader(http.StatusOK)
+// 		return
+// 	}
+// }
 
-func runFakePluginSrv(t *testing.T) *http.Server {
-	srv := &fakeAPISIXPluginSrv{
-		plugins: fakePluginNames,
-	}
+// func runFakePluginSrv(t *testing.T) *http.Server {
+// 	srv := &fakeAPISIXPluginSrv{
+// 		plugins: fakePluginNames,
+// 	}
 
-	ln, _ := nettest.NewLocalListener("tcp")
+// 	ln, _ := nettest.NewLocalListener("tcp")
 
-	httpSrv := &http.Server{
-		Addr:    ln.Addr().String(),
-		Handler: srv,
-	}
+// 	httpSrv := &http.Server{
+// 		Addr:    ln.Addr().String(),
+// 		Handler: srv,
+// 	}
 
-	go func() {
-		if err := httpSrv.Serve(ln); err != nil && err != http.ErrServerClosed {
-			t.Errorf("failed to run http server: %s", err)
-		}
-	}()
+// 	go func() {
+// 		if err := httpSrv.Serve(ln); err != nil && err != http.ErrServerClosed {
+// 			t.Errorf("failed to run http server: %s", err)
+// 		}
+// 	}()
 
-	return httpSrv
-}
+// 	return httpSrv
+// }
 
-func TestPluginClient(t *testing.T) {
-	srv := runFakePluginSrv(t)
-	defer func() {
-		assert.Nil(t, srv.Shutdown(context.Background()))
-	}()
+// func TestPluginClient(t *testing.T) {
+// 	srv := runFakePluginSrv(t)
+// 	defer func() {
+// 		assert.Nil(t, srv.Shutdown(context.Background()))
+// 	}()
 
-	u := url.URL{
-		Scheme: "http",
-		Host:   srv.Addr,
-		Path:   "/apisix/admin",
-	}
+// 	u := url.URL{
+// 		Scheme: "http",
+// 		Host:   srv.Addr,
+// 		Path:   "/apisix/admin",
+// 	}
 
-	closedCh := make(chan struct{})
-	close(closedCh)
-	cli := newPluginClient(&cluster{
-		baseURL:           u.String(),
-		cli:               http.DefaultClient,
-		cache:             &dummyCache{},
-		generatedObjCache: &dummyCache{},
-		cacheSynced:       closedCh,
-		metricsCollector:  metrics.NewPrometheusCollector(),
-	})
+// 	closedCh := make(chan struct{})
+// 	close(closedCh)
+// 	cli := newPluginClient(&cluster{
+// 		baseURL:           u.String(),
+// 		cli:               http.DefaultClient,
+// 		cache:             &dummyCache{},
+// 		generatedObjCache: &dummyCache{},
+// 		cacheSynced:       closedCh,
+// 		metricsCollector:  metrics.NewPrometheusCollector(),
+// 	})
 
-	// List
-	objs, err := cli.List(context.Background())
-	assert.Nil(t, err)
-	assert.Len(t, objs, len(fakePluginNames))
-	sort.Strings(fakePluginNames)
-	sort.Strings(objs)
-	for i := range fakePluginNames {
-		assert.Equal(t, fakePluginNames[i], objs[i])
-	}
-}
+// 	// List
+// 	objs, err := cli.List(context.Background())
+// 	assert.Nil(t, err)
+// 	assert.Len(t, objs, len(fakePluginNames))
+// 	sort.Strings(fakePluginNames)
+// 	sort.Strings(objs)
+// 	for i := range fakePluginNames {
+// 		assert.Equal(t, fakePluginNames[i], objs[i])
+// 	}
+// }

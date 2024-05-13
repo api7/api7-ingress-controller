@@ -42,8 +42,8 @@ func TestTranslateUpstreamConfigV2(t *testing.T) {
 
 	ups, err := tr.TranslateUpstreamConfigV2(au)
 	assert.Nil(t, err, "checking upstream config translating")
-	assert.Equal(t, apisixv1.LbRoundRobin, ups.Type)
-	assert.Equal(t, apisixv1.SchemeGRPC, ups.Scheme)
+	assert.Equal(t, apisixv1.LbRoundRobin, ups.Upstream.Type)
+	assert.Equal(t, apisixv1.SchemeGRPC, ups.Upstream.Scheme)
 
 	au = &configv2.ApisixUpstreamConfig{
 		LoadBalancer: &configv2.LoadBalancer{
@@ -55,10 +55,10 @@ func TestTranslateUpstreamConfigV2(t *testing.T) {
 	}
 	ups, err = tr.TranslateUpstreamConfigV2(au)
 	assert.Nil(t, err, "checking upstream config translating")
-	assert.Equal(t, apisixv1.LbConsistentHash, ups.Type)
-	assert.Equal(t, "user-agent", ups.Key)
-	assert.Equal(t, apisixv1.HashOnHeader, ups.HashOn)
-	assert.Equal(t, apisixv1.SchemeHTTP, ups.Scheme)
+	assert.Equal(t, apisixv1.LbConsistentHash, ups.Upstream.Type)
+	assert.Equal(t, "user-agent", ups.Upstream.Key)
+	assert.Equal(t, apisixv1.HashOnHeader, ups.Upstream.HashOn)
+	assert.Equal(t, apisixv1.SchemeHTTP, ups.Upstream.Scheme)
 
 	au = &configv2.ApisixUpstreamConfig{
 		LoadBalancer: &configv2.LoadBalancer{

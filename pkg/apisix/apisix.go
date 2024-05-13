@@ -41,8 +41,8 @@ type APISIX interface {
 type Cluster interface {
 	// Route returns a Route interface that can operate Route resources.
 	Route() Route
-	// Upstream returns a Upstream interface that can operate Upstream resources.
-	Upstream() Upstream
+
+	Service() Service
 	// SSL returns a SSL interface that can operate SSL resources.
 	SSL() SSL
 	// StreamRoute returns a StreamRoute interface that can operate StreamRoute resources.
@@ -94,12 +94,12 @@ type SSL interface {
 
 // Upstream is the specific client interface to take over the create, update,
 // list and delete for APISIX Upstream resource.
-type Upstream interface {
-	Get(ctx context.Context, name string) (*v1.Upstream, error)
-	List(ctx context.Context) ([]*v1.Upstream, error)
-	Create(ctx context.Context, ups *v1.Upstream, shouldCompare bool) (*v1.Upstream, error)
-	Delete(ctx context.Context, ups *v1.Upstream) error
-	Update(ctx context.Context, ups *v1.Upstream, shouldCompare bool) (*v1.Upstream, error)
+type Service interface {
+	Get(ctx context.Context, name string) (*v1.Service, error)
+	List(ctx context.Context) ([]*v1.Service, error)
+	Create(ctx context.Context, ups *v1.Service, shouldCompare bool) (*v1.Service, error)
+	Delete(ctx context.Context, ups *v1.Service) error
+	Update(ctx context.Context, ups *v1.Service, shouldCompare bool) (*v1.Service, error)
 }
 
 // StreamRoute is the specific client interface to take over the create, update,

@@ -255,7 +255,6 @@ func (c *apisixRouteController) syncApisixUpstreamRelationChanges(routeKey strin
 
 func (c *apisixRouteController) sync(ctx context.Context, ev *types.Event) error {
 	obj := ev.Object.(kube.ApisixRouteEvent)
-	fmt.Println("ASHISH I GOT ", obj)
 	namespace, name, err := cache.SplitMetaNamespaceKey(obj.Key)
 	if err != nil {
 		log.Errorf("invalid resource key: %s", obj.Key)
@@ -335,7 +334,7 @@ func (c *apisixRouteController) sync(ctx context.Context, ev *types.Event) error
 
 		log.Debugw("translated ApisixRoute",
 			zap.Any("routes", tctx.Routes),
-			zap.Any("upstreams", tctx.Upstreams),
+			zap.Any("upstreams", tctx.Services),
 			zap.Any("apisix_route", ar),
 			zap.Any("pluginConfigs", tctx.PluginConfigs),
 		)
@@ -344,8 +343,7 @@ func (c *apisixRouteController) sync(ctx context.Context, ev *types.Event) error
 	{
 		m := &utils.Manifest{
 			Routes:        tctx.Routes,
-			Upstreams:     tctx.Upstreams,
-			StreamRoutes:  tctx.StreamRoutes,
+			Services:      tctx.Services,
 			PluginConfigs: tctx.PluginConfigs,
 		}
 		var (
@@ -363,8 +361,7 @@ func (c *apisixRouteController) sync(ctx context.Context, ev *types.Event) error
 			if oldCtx != nil {
 				om := &utils.Manifest{
 					Routes:        oldCtx.Routes,
-					Upstreams:     oldCtx.Upstreams,
-					StreamRoutes:  oldCtx.StreamRoutes,
+					Services:      oldCtx.Services,
 					PluginConfigs: oldCtx.PluginConfigs,
 				}
 				added, updated, deleted = m.Diff(om)

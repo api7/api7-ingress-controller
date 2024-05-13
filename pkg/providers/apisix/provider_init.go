@@ -70,12 +70,8 @@ func (p *apisixProvider) Init(ctx context.Context) error {
 							for _, route := range tc.Routes {
 								routeMapK8S.Store(route.ID, route.ID)
 							}
-							// streamRoutes
-							for _, stRoute := range tc.StreamRoutes {
-								streamRouteMapK8S.Store(stRoute.ID, stRoute.ID)
-							}
 							// upstreams
-							for _, upstream := range tc.Upstreams {
+							for _, upstream := range tc.Services {
 								upstreamMapK8S.Store(upstream.ID, upstream.ID)
 							}
 							// ssl

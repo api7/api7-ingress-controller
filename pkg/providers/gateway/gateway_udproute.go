@@ -140,12 +140,10 @@ func (c *gatewayUDPRouteController) sync(ctx context.Context, ev *types.Event) e
 	}
 
 	log.Debugw("translated UDPRoute",
-		zap.Any("streamroutes", tctx.StreamRoutes),
-		zap.Any("upstreams", tctx.Upstreams),
+		zap.Any("services", tctx.Services),
 	)
 	m := &utils.Manifest{
-		StreamRoutes: tctx.StreamRoutes,
-		Upstreams:    tctx.Upstreams,
+		Services: tctx.Services,
 	}
 
 	var (
@@ -173,8 +171,8 @@ func (c *gatewayUDPRouteController) sync(ctx context.Context, ev *types.Event) e
 		}
 
 		om := &utils.Manifest{
-			Routes:    oldCtx.Routes,
-			Upstreams: oldCtx.Upstreams,
+			Routes:   oldCtx.Routes,
+			Services: oldCtx.Services,
 		}
 		added, updated, deleted = m.Diff(om)
 	}

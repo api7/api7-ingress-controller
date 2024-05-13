@@ -32,7 +32,7 @@ import (
 	apisixv1 "github.com/api7/api7-ingress-controller/pkg/types/apisix/v1"
 )
 
-func (t *translator) TranslateService(namespace, name, subset string, port int32) (*apisixv1.Upstream, error) {
+func (t *translator) TranslateService(namespace, name, subset string, port int32) (*apisixv1.Service, error) {
 	endpoint, err := t.EndpointLister.GetEndpoint(namespace, name)
 	if err != nil {
 		return nil, &TranslateError{
@@ -49,15 +49,15 @@ func (t *translator) TranslateService(namespace, name, subset string, port int32
 	}
 }
 
-func (t *translator) translateUpstreamV2(ep *kube.Endpoint, namespace, name, subset string, port int32) (*apisixv1.Upstream, error) {
+func (t *translator) translateUpstreamV2(ep *kube.Endpoint, namespace, name, subset string, port int32) (*apisixv1.Service, error) {
 	au, err := t.ApisixUpstreamLister.V2(namespace, name)
-	ups := apisixv1.NewDefaultUpstream()
+	ups := apisixv1.NewDefaultService()
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			// If subset in ApisixRoute is not empty but the ApisixUpstream resource not found,
 			// just set an empty node list.
 			if subset != "" {
-				ups.Nodes = apisixv1.UpstreamNodes{}
+				ups.Upstream.Nodes = apisixv1.UpstreamNodes{}
 				return ups, nil
 			}
 		} else {
@@ -96,7 +96,7 @@ func (t *translator) translateUpstreamV2(ep *kube.Endpoint, namespace, name, sub
 		return nil, err
 	}
 	if au == nil || au.V2().Spec == nil {
-		ups.Nodes = nodes
+		ups.Upstream.Nodes = nodes
 		return ups, nil
 	}
 
@@ -110,7 +110,7 @@ func (t *translator) translateUpstreamV2(ep *kube.Endpoint, namespace, name, sub
 	if err != nil {
 		return nil, err
 	}
-	ups.Nodes = nodes
+	ups.Upstream.Nodes = nodes
 	return ups, nil
 }
 

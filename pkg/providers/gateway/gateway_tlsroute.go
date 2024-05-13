@@ -158,12 +158,10 @@ func (c *gatewayTLSRouteController) sync(ctx context.Context, ev *types.Event) e
 	}
 
 	log.Debugw("translated TLSRoute",
-		zap.Any("stream_routes", tctx.StreamRoutes),
-		zap.Any("upstreams", tctx.Upstreams),
+		zap.Any("services", tctx.Services),
 	)
 	m := &utils.Manifest{
-		StreamRoutes: tctx.StreamRoutes,
-		Upstreams:    tctx.Upstreams,
+		Services: tctx.Services,
 	}
 
 	var (
@@ -191,8 +189,7 @@ func (c *gatewayTLSRouteController) sync(ctx context.Context, ev *types.Event) e
 		}
 
 		om := &utils.Manifest{
-			StreamRoutes: oldCtx.StreamRoutes,
-			Upstreams:    oldCtx.Upstreams,
+			Services: oldCtx.Services,
 		}
 		added, updated, deleted = m.Diff(om)
 	}

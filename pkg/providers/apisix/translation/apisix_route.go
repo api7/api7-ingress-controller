@@ -225,7 +225,7 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 				if err != nil {
 					return err
 				}
-				ctx.AddUpstream(ups)
+				ctx.AddService(ups)
 			}
 		}
 
@@ -235,7 +235,7 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 			route.ServiceID = id.GenID(upName)
 		}
 		// --- translate Upstreams ---
-		var ups []*apisixv1.Upstream
+		var ups []*apisixv1.Service
 		for i, au := range part.Upstreams {
 			up, err := t.translateExternalApisixUpstream(ar.Namespace, au.Name)
 			if err != nil {
@@ -327,7 +327,7 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 		}
 
 		for _, up := range ups {
-			ctx.AddUpstream(up)
+			ctx.AddService(up)
 		}
 	}
 	return nil
@@ -490,7 +490,7 @@ func (t *translator) generateHTTPRouteV2DeleteMark(ctx *translation.TranslateCon
 				if err != nil {
 					return err
 				}
-				ctx.AddUpstream(ups)
+				ctx.AddService(ups)
 			}
 		}
 		if len(part.Upstreams) > 0 {
@@ -498,10 +498,10 @@ func (t *translator) generateHTTPRouteV2DeleteMark(ctx *translation.TranslateCon
 			for _, upstream := range upstreams {
 				upstreamName := apisixv1.ComposeExternalUpstreamName(ar.Namespace, upstream.Name)
 				if !ctx.CheckUpstreamExist(upstreamName) {
-					ups := &apisixv1.Upstream{}
+					ups := &apisixv1.Service{}
 					ups.Name = upstreamName
 					ups.ID = id.GenID(ups.Name)
-					ctx.AddUpstream(ups)
+					ctx.AddService(ups)
 				}
 			}
 		}
@@ -566,9 +566,8 @@ func (t *translator) translateStreamRouteV2(ctx *translation.TranslateContext, a
 		}
 		sr.UpstreamId = ups.ID
 		sr.Plugins = pluginMap
-		ctx.AddStreamRoute(sr)
 		if !ctx.CheckUpstreamExist(ups.Name) {
-			ctx.AddUpstream(ups)
+			ctx.AddService(ups)
 		}
 
 	}
@@ -589,9 +588,8 @@ func (t *translator) generateStreamRouteDeleteMarkV2(ctx *translation.TranslateC
 			return err
 		}
 		sr.UpstreamId = ups.ID
-		ctx.AddStreamRoute(sr)
 		if !ctx.CheckUpstreamExist(ups.Name) {
-			ctx.AddUpstream(ups)
+			ctx.AddService(ups)
 		}
 	}
 	return nil
@@ -695,11 +693,10 @@ func (t *translator) translateOldRouteV2(ar *configv2.ApisixRoute) (*translation
 			continue
 		}
 		if sr.UpstreamId != "" {
-			ups := apisixv1.NewDefaultUpstream()
+			ups := apisixv1.NewDefaultService()
 			ups.ID = sr.UpstreamId
-			oldCtx.AddUpstream(ups)
+			oldCtx.AddService(ups)
 		}
-		oldCtx.AddStreamRoute(sr)
 	}
 	for _, part := range ar.Spec.HTTP {
 		name := apisixv1.ComposeRouteName(ar.Namespace, ar.Name, part.Name)
@@ -708,9 +705,9 @@ func (t *translator) translateOldRouteV2(ar *configv2.ApisixRoute) (*translation
 			continue
 		}
 		if r.ServiceID != "" {
-			ups := apisixv1.NewDefaultUpstream()
+			ups := apisixv1.NewDefaultService()
 			ups.ID = r.ServiceID
-			oldCtx.AddUpstream(ups)
+			oldCtx.AddService(ups)
 		}
 		oldCtx.AddRoute(r)
 	}

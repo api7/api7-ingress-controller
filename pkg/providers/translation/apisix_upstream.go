@@ -26,8 +26,8 @@ type passHostConfig struct {
 	upstreamHost string
 }
 
-func (t *translator) TranslateUpstreamConfigV2(au *configv2.ApisixUpstreamConfig) (*apisixv1.Upstream, error) {
-	ups := apisixv1.NewDefaultUpstream()
+func (t *translator) TranslateUpstreamConfigV2(au *configv2.ApisixUpstreamConfig) (*apisixv1.Service, error) {
+	ups := apisixv1.NewDefaultService()
 	if err := t.translateUpstreamScheme(au.Scheme, ups); err != nil {
 		return nil, err
 	}
@@ -52,28 +52,28 @@ func (t *translator) TranslateUpstreamConfigV2(au *configv2.ApisixUpstreamConfig
 	return ups, nil
 }
 
-func (t *translator) translateUpstreamScheme(scheme string, ups *apisixv1.Upstream) error {
+func (t *translator) translateUpstreamScheme(scheme string, ups *apisixv1.Service) error {
 	if scheme == "" {
-		ups.Scheme = apisixv1.SchemeHTTP
+		ups.Upstream.Scheme = apisixv1.SchemeHTTP
 		return nil
 	}
 	switch scheme {
 	case apisixv1.SchemeHTTP, apisixv1.SchemeGRPC, apisixv1.SchemeHTTPS, apisixv1.SchemeGRPCS:
-		ups.Scheme = scheme
+		ups.Upstream.Scheme = scheme
 		return nil
 	default:
 		return &TranslateError{Field: "scheme", Reason: "invalid value"}
 	}
 }
 
-func (t *translator) translateUpstreamRetriesAndTimeoutV2(retries *int, timeout *configv2.UpstreamTimeout, ups *apisixv1.Upstream) error {
+func (t *translator) translateUpstreamRetriesAndTimeoutV2(retries *int, timeout *configv2.UpstreamTimeout, ups *apisixv1.Service) error {
 	if retries != nil && *retries < 0 {
 		return &TranslateError{
 			Field:  "retries",
 			Reason: "invalid value",
 		}
 	}
-	ups.Retries = retries
+	ups.Upstream.Retries = retries
 	if timeout == nil {
 		return nil
 	}
@@ -107,7 +107,7 @@ func (t *translator) translateUpstreamRetriesAndTimeoutV2(retries *int, timeout 
 	} else if timeout.Send.Duration > 0 {
 		sendTimeout = int(timeout.Send.Seconds())
 	}
-	ups.Timeout = &apisixv1.UpstreamTimeout{
+	ups.Upstream.Timeout = &apisixv1.UpstreamTimeout{
 		Connect: connTimeout,
 		Send:    sendTimeout,
 		Read:    readTimeout,
@@ -115,28 +115,28 @@ func (t *translator) translateUpstreamRetriesAndTimeoutV2(retries *int, timeout 
 	return nil
 }
 
-func (t *translator) translateUpstreamDiscovery(discovery *configv2.Discovery, ups *apisixv1.Upstream) error {
+func (t *translator) translateUpstreamDiscovery(discovery *configv2.Discovery, ups *apisixv1.Service) error {
 	if discovery == nil {
 		return nil
 	}
-	ups.ServiceName = discovery.ServiceName
-	ups.DiscoveryType = discovery.Type
-	ups.DiscoveryArgs = discovery.Args
+	ups.Upstream.ServiceName = discovery.ServiceName
+	ups.Upstream.DiscoveryType = discovery.Type
+	ups.Upstream.DiscoveryArgs = discovery.Args
 
 	return nil
 }
 
-func (t *translator) translateUpstreamLoadBalancerV2(lb *configv2.LoadBalancer, ups *apisixv1.Upstream) error {
+func (t *translator) translateUpstreamLoadBalancerV2(lb *configv2.LoadBalancer, ups *apisixv1.Service) error {
 	if lb == nil || lb.Type == "" {
-		ups.Type = apisixv1.LbRoundRobin
+		ups.Upstream.Type = apisixv1.LbRoundRobin
 		return nil
 	}
 	switch lb.Type {
 	case apisixv1.LbRoundRobin, apisixv1.LbLeastConn, apisixv1.LbEwma:
-		ups.Type = lb.Type
+		ups.Upstream.Type = lb.Type
 	case apisixv1.LbConsistentHash:
-		ups.Type = lb.Type
-		ups.Key = lb.Key
+		ups.Upstream.Type = lb.Type
+		ups.Upstream.Key = lb.Key
 		switch lb.HashOn {
 		case apisixv1.HashOnVars:
 			fallthrough
@@ -147,7 +147,7 @@ func (t *translator) translateUpstreamLoadBalancerV2(lb *configv2.LoadBalancer, 
 		case apisixv1.HashOnConsumer:
 			fallthrough
 		case apisixv1.HashOnVarsCombination:
-			ups.HashOn = lb.HashOn
+			ups.Upstream.HashOn = lb.HashOn
 		default:
 			return &TranslateError{Field: "loadbalancer.hashOn", Reason: "invalid value"}
 		}
@@ -160,7 +160,7 @@ func (t *translator) translateUpstreamLoadBalancerV2(lb *configv2.LoadBalancer, 
 	return nil
 }
 
-func (t *translator) translateUpstreamHealthCheckV2(config *configv2.HealthCheck, ups *apisixv1.Upstream) error {
+func (t *translator) translateUpstreamHealthCheckV2(config *configv2.HealthCheck, ups *apisixv1.Service) error {
 	if config == nil || (config.Passive == nil && config.Active == nil) {
 		return nil
 	}
@@ -186,11 +186,11 @@ func (t *translator) translateUpstreamHealthCheckV2(config *configv2.HealthCheck
 		}
 	}
 
-	ups.Checks = &hc
+	ups.Upstream.Checks = &hc
 	return nil
 }
 
-func (t *translator) translateClientTLSV2(config *configv2.ApisixSecret, ups *apisixv1.Upstream) error {
+func (t *translator) translateClientTLSV2(config *configv2.ApisixSecret, ups *apisixv1.Service) error {
 	if config == nil {
 		return nil
 	}
@@ -208,7 +208,7 @@ func (t *translator) translateClientTLSV2(config *configv2.ApisixSecret, ups *ap
 			Reason: fmt.Sprintf("extract cert and key from secret failed, %v", err),
 		}
 	}
-	ups.TLS = &apisixv1.ClientTLS{
+	ups.Upstream.TLS = &apisixv1.ClientTLS{
 		Cert: string(cert),
 		Key:  string(key),
 	}
@@ -377,15 +377,15 @@ func (t *translator) translateUpstreamPassiveHealthCheckV2(config *configv2.Pass
 	return &passive, nil
 }
 
-func (t *translator) translatePassHost(ph *passHostConfig, ups *apisixv1.Upstream) error {
+func (t *translator) translatePassHost(ph *passHostConfig, ups *apisixv1.Service) error {
 	switch ph.passHost {
 	case "", apisixv1.PassHostPass, apisixv1.PassHostNode, apisixv1.PassHostRewrite:
-		ups.PassHost = ph.passHost
+		ups.Upstream.PassHost = ph.passHost
 	default:
 		return &TranslateError{Field: "passHost", Reason: "invalid value"}
 	}
 
-	ups.UpstreamHost = ph.upstreamHost
+	ups.Upstream.UpstreamHost = ph.upstreamHost
 
 	return nil
 }

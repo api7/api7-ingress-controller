@@ -194,7 +194,7 @@ func (c *apisixUpstreamController) sync(ctx context.Context, ev *types.Event) er
 
 		// We will prioritize ExternalNodes and Discovery.
 		if len(au.Spec.ExternalNodes) != 0 || au.Spec.Discovery != nil {
-			var newUps *apisixv1.Upstream
+			var newUps *apisixv1.Service
 			if ev.Type != types.EventDelete {
 				cfg := &au.Spec.ApisixUpstreamConfig
 				newUps, err = c.translator.TranslateUpstreamConfigV2(cfg)
@@ -339,11 +339,11 @@ func (c *apisixUpstreamController) updateUpstream(ctx context.Context, upsName s
 	// TODO: multi cluster
 	clusterName := c.Config.APISIX.DefaultClusterName
 
-	ups, err := c.APISIX.Cluster(clusterName).Upstream().Get(ctx, upsName)
+	ups, err := c.APISIX.Cluster(clusterName).Service().Get(ctx, upsName)
 	if err != nil {
 		return apisix.ErrNotFound
 	}
-	var newUps *apisixv1.Upstream
+	var newUps *apisixv1.Service
 	if cfg != nil {
 		newUps, err = c.translator.TranslateUpstreamConfigV2(cfg)
 		if err != nil {
@@ -354,16 +354,16 @@ func (c *apisixUpstreamController) updateUpstream(ctx context.Context, upsName s
 			return err
 		}
 	} else {
-		newUps = apisixv1.NewDefaultUpstream()
+		newUps = apisixv1.NewDefaultService()
 	}
 
 	newUps.Metadata = ups.Metadata
-	newUps.Nodes = ups.Nodes
+	newUps.Upstream.Nodes = ups.Upstream.Nodes
 	log.Debugw("updating upstream since ApisixUpstream changed",
 		zap.Any("upstream", newUps),
 		zap.String("ApisixUpstream name", upsName),
 	)
-	if _, err := c.APISIX.Cluster(clusterName).Upstream().Update(ctx, newUps, shouldCompare); err != nil {
+	if _, err := c.APISIX.Cluster(clusterName).Service().Update(ctx, newUps, shouldCompare); err != nil {
 		log.Errorw("failed to update upstream",
 			zap.Error(err),
 			zap.Any("upstream", newUps),
@@ -375,13 +375,13 @@ func (c *apisixUpstreamController) updateUpstream(ctx context.Context, upsName s
 	return nil
 }
 
-func (c *apisixUpstreamController) updateExternalNodes(ctx context.Context, au *configv2.ApisixUpstream, old *configv2.ApisixUpstream, newUps *apisixv1.Upstream, ns, name string, shouldCompare bool) error {
+func (c *apisixUpstreamController) updateExternalNodes(ctx context.Context, au *configv2.ApisixUpstream, old *configv2.ApisixUpstream, newSvc *apisixv1.Service, ns, name string, shouldCompare bool) error {
 	clusterName := c.Config.APISIX.DefaultClusterName
 
 	// TODO: if old is not nil, diff the external nodes change first
 
 	upsName := apisixv1.ComposeExternalUpstreamName(ns, name)
-	ups, err := c.APISIX.Cluster(clusterName).Upstream().Get(ctx, upsName)
+	ups, err := c.APISIX.Cluster(clusterName).Service().Get(ctx, upsName)
 	if err != nil {
 		if err == apisix.ErrNotFound {
 			log.Debugw("upstream is not referenced",
@@ -405,13 +405,13 @@ func (c *apisixUpstreamController) updateExternalNodes(ctx context.Context, au *
 			c.recordStatus(au, utils.ResourceSyncAborted, err, metav1.ConditionFalse, au.GetGeneration())
 			return err
 		}
-		if newUps != nil {
-			newUps.Metadata = ups.Metadata
-			ups = newUps
+		if newSvc != nil {
+			newSvc.Metadata = ups.Metadata
+			ups = newSvc
 		}
 
-		ups.Nodes = nodes
-		if _, err := c.APISIX.Cluster(clusterName).Upstream().Update(ctx, ups, shouldCompare); err != nil {
+		ups.Upstream.Nodes = nodes
+		if _, err := c.APISIX.Cluster(clusterName).Service().Update(ctx, ups, shouldCompare); err != nil {
 			log.Errorw("failed to update external nodes upstream",
 				zap.Error(err),
 				zap.Any("upstream", ups),

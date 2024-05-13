@@ -53,7 +53,7 @@ func (t *translator) translateTrafficSplitPlugin(ctx *translation.TranslateConte
 		if err != nil {
 			return nil, err
 		}
-		ctx.AddUpstream(ups)
+		ctx.AddService(ups)
 
 		weight := translation.DefaultWeight
 		if backend.Weight != nil {

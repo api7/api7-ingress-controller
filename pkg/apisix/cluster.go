@@ -112,7 +112,7 @@ type cluster struct {
 	cacheSyncErr            error
 	syncComparison          bool
 	route                   Route
-	upstream                Upstream
+	service                 Service
 	ssl                     SSL
 	streamRoute             StreamRoute
 	globalRules             GlobalRule
@@ -176,9 +176,8 @@ func newCluster(ctx context.Context, o *ClusterOptions) (Cluster, error) {
 		)
 		c.adapter = adapter.NewEtcdAdapter(nil)
 		c.route = newRouteMem(c)
-		c.upstream = newUpstreamMem(c)
+		c.service = newServiceMem(c)
 		c.ssl = newSSLMem(c)
-		c.streamRoute = newStreamRouteMem(c)
 		c.globalRules = newGlobalRuleMem(c)
 		c.consumer = newConsumerMem(c)
 		c.plugin = newPluginClient(c)
@@ -206,9 +205,8 @@ func newCluster(ctx context.Context, o *ClusterOptions) (Cluster, error) {
 		go c.adapter.Serve(ctx, ln)
 	} else {
 		c.route = newRouteClient(c)
-		c.upstream = newUpstreamClient(c)
+		c.service = newServiceClient(c)
 		c.ssl = newSSLClient(c)
-		c.streamRoute = newStreamRouteClient(c)
 		c.globalRules = newGlobalRuleClient(c)
 		c.consumer = newConsumerClient(c)
 		c.plugin = newPluginClient(c)
@@ -487,8 +485,8 @@ func (c *cluster) Route() Route {
 }
 
 // Upstream implements Cluster.Upstream method.
-func (c *cluster) Upstream() Upstream {
-	return c.upstream
+func (c *cluster) Service() Service {
+	return c.service
 }
 
 // SSL implements Cluster.SSL method.
@@ -720,10 +718,8 @@ func (c *cluster) createResource(ctx context.Context, url, resource string, body
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(body))
 	if err != nil {
-		fmt.Println("NAW ERR HERE ", err.Error())
 		return nil, err
 	}
-	req.Header.Add("Content-Type", "application/json")
 	start := time.Now()
 	resp, err := c.do(req)
 	if err != nil {
@@ -731,15 +727,12 @@ func (c *cluster) createResource(ctx context.Context, url, resource string, body
 	}
 	c.metricsCollector.RecordAPISIXLatency(time.Since(start), "create")
 	c.metricsCollector.RecordAPISIXCode(resp.StatusCode, resource)
-	reqBody := body
 	defer drainBody(resp.Body, url)
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 		body := readBody(resp.Body, url)
 		if c.isFunctionDisabled(body) {
 			return nil, ErrFunctionDisabled
 		}
-		fmt.Println("URL dekh", url)
-		fmt.Println("BODY DEKH ", string(reqBody))
 		err = multierr.Append(err, fmt.Errorf("unexpected status code %d", resp.StatusCode))
 		err = multierr.Append(err, fmt.Errorf("error message: %s", body))
 		return nil, err
@@ -1134,9 +1127,8 @@ func (c *cluster) GetStreamRoute(ctx context.Context, baseUrl, id string) (*v1.S
 
 // Dashboard doesn't support upstream. So GetUpstream will actually fetch a service and then convert it to upstream.
 // There will be 1:1 relationship between upstream and service.
-func (c *cluster) GetUpstream(ctx context.Context, baseUrl, id string) (*v1.Upstream, error) {
+func (c *cluster) GetService(ctx context.Context, baseUrl, id string) (*v1.Service, error) {
 	url := baseUrl + "/" + id
-	url = strings.Replace(url, "upstream", "service", 1)
 	resp, err := c.getResource(ctx, url, "service")
 	if err != nil {
 		if err == cache.ErrNotFound {

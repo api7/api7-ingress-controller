@@ -113,12 +113,10 @@ func (c *gatewayTCPRouteController) sync(ctx context.Context, ev *types.Event) e
 	}
 
 	log.Debugw("translated TCPRoute",
-		zap.Any("stream_routes", tctx.StreamRoutes),
-		zap.Any("upstreams", tctx.Upstreams),
+		zap.Any("services", tctx.Services),
 	)
 	m := &utils.Manifest{
-		StreamRoutes: tctx.StreamRoutes,
-		Upstreams:    tctx.Upstreams,
+		Services: tctx.Services,
 	}
 
 	var (
@@ -137,8 +135,7 @@ func (c *gatewayTCPRouteController) sync(ctx context.Context, ev *types.Event) e
 		oldCtx, _ = c.controller.translator.TranslateGatewayTCPRouteV1Alpha2(oldObj)
 		if oldCtx != nil {
 			om := &utils.Manifest{
-				StreamRoutes: oldCtx.StreamRoutes,
-				Upstreams:    oldCtx.Upstreams,
+				Services: oldCtx.Services,
 			}
 			added, updated, deleted = m.Diff(om)
 		} else {

@@ -226,15 +226,15 @@ func TestTranslateGatewayHTTPRouteExactMatch(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, 1, len(tctx.Routes))
-	assert.Equal(t, 1, len(tctx.Upstreams))
+	assert.Equal(t, 1, len(tctx.Services))
 
 	r := tctx.Routes[0]
-	u := tctx.Upstreams[0]
+	u := tctx.Services[0]
 
 	// Metadata
 	// FIXME
 	assert.NotEqual(t, "", u.ID)
-	assert.Equal(t, u.ID, r.UpstreamId)
+	assert.Equal(t, u.ID, r.ServiceID)
 
 	// hosts
 	assert.Equal(t, 1, len(r.Hosts))
@@ -255,12 +255,12 @@ func TestTranslateGatewayHTTPRouteExactMatch(t *testing.T) {
 	assert.Equal(t, "GET", r.Methods[0])
 
 	// backend refs
-	assert.Equal(t, "http", u.Scheme) // FIXME
-	assert.Equal(t, 2, len(u.Nodes))
-	assert.Equal(t, "192.168.1.1", u.Nodes[0].Host)
-	assert.Equal(t, 9080, u.Nodes[0].Port)
-	assert.Equal(t, "192.168.1.2", u.Nodes[1].Host)
-	assert.Equal(t, 9080, u.Nodes[1].Port)
+	assert.Equal(t, "http", u.Upstream.Scheme) // FIXME
+	assert.Equal(t, 2, len(u.Upstream.Nodes))
+	assert.Equal(t, "192.168.1.1", u.Upstream.Nodes[0].Host)
+	assert.Equal(t, 9080, u.Upstream.Nodes[0].Port)
+	assert.Equal(t, "192.168.1.2", u.Upstream.Nodes[1].Host)
+	assert.Equal(t, 9080, u.Upstream.Nodes[1].Port)
 }
 
 func TestTranslateGatewayHTTPRouteRegexMatch(t *testing.T) {
@@ -335,15 +335,15 @@ func TestTranslateGatewayHTTPRouteRegexMatch(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, 1, len(tctx.Routes))
-	assert.Equal(t, 1, len(tctx.Upstreams))
+	assert.Equal(t, 1, len(tctx.Services))
 
 	r := tctx.Routes[0]
-	u := tctx.Upstreams[0]
+	u := tctx.Services[0]
 
 	// Metadata
 	// FIXME
 	assert.NotEqual(t, "", u.ID)
-	assert.Equal(t, u.ID, r.UpstreamId)
+	assert.Equal(t, u.ID, r.ServiceID)
 
 	// hosts
 	assert.Equal(t, 1, len(r.Hosts))
@@ -364,12 +364,12 @@ func TestTranslateGatewayHTTPRouteRegexMatch(t *testing.T) {
 	assert.Equal(t, "GET", r.Methods[0])
 
 	// backend refs
-	assert.Equal(t, "http", u.Scheme) // FIXME
-	assert.Equal(t, 2, len(u.Nodes))
-	assert.Equal(t, "192.168.1.1", u.Nodes[0].Host)
-	assert.Equal(t, 9080, u.Nodes[0].Port)
-	assert.Equal(t, "192.168.1.2", u.Nodes[1].Host)
-	assert.Equal(t, 9080, u.Nodes[1].Port)
+	assert.Equal(t, "http", u.Upstream.Scheme) // FIXME
+	assert.Equal(t, 2, len(u.Upstream.Nodes))
+	assert.Equal(t, "192.168.1.1", u.Upstream.Nodes[0].Host)
+	assert.Equal(t, 9080, u.Upstream.Nodes[0].Port)
+	assert.Equal(t, "192.168.1.2", u.Upstream.Nodes[1].Host)
+	assert.Equal(t, 9080, u.Upstream.Nodes[1].Port)
 }
 
 // TODO: Multiple Rules, Multiple Matches
@@ -455,16 +455,16 @@ func TestTranslateGatewayHTTPRouteMultipleBackendRefs(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, 2, len(tctx.Routes))
-	assert.Equal(t, 2, len(tctx.Upstreams))
+	assert.Equal(t, 2, len(tctx.Services))
 
 	// === route 1 ===
 	r := tctx.Routes[0]
-	u := tctx.Upstreams[0]
+	u := tctx.Services[0]
 
 	// Metadata
 	// FIXME
 	assert.NotEqual(t, "", u.ID)
-	assert.Equal(t, u.ID, r.UpstreamId)
+	assert.Equal(t, u.ID, r.ServiceID)
 
 	// hosts
 	assert.Equal(t, 1, len(r.Hosts))
@@ -474,21 +474,21 @@ func TestTranslateGatewayHTTPRouteMultipleBackendRefs(t *testing.T) {
 	assert.Equal(t, "/path*", r.Uri)
 
 	// backend refs
-	assert.Equal(t, "http", u.Scheme) // FIXME
-	assert.Equal(t, 2, len(u.Nodes))
-	assert.Equal(t, "192.168.1.1", u.Nodes[0].Host)
-	assert.Equal(t, 9080, u.Nodes[0].Port)
-	assert.Equal(t, "192.168.1.2", u.Nodes[1].Host)
-	assert.Equal(t, 9080, u.Nodes[1].Port)
+	assert.Equal(t, "http", u.Upstream.Scheme) // FIXME
+	assert.Equal(t, 2, len(u.Upstream.Nodes))
+	assert.Equal(t, "192.168.1.1", u.Upstream.Nodes[0].Host)
+	assert.Equal(t, 9080, u.Upstream.Nodes[0].Port)
+	assert.Equal(t, "192.168.1.2", u.Upstream.Nodes[1].Host)
+	assert.Equal(t, 9080, u.Upstream.Nodes[1].Port)
 
 	// === route 2 ===
 	r = tctx.Routes[1]
-	u = tctx.Upstreams[1]
+	u = tctx.Services[1]
 
 	// Metadata
 	// FIXME
 	assert.NotEqual(t, "", u.ID)
-	assert.Equal(t, u.ID, r.UpstreamId)
+	assert.Equal(t, u.ID, r.ServiceID)
 
 	// hosts
 	assert.Equal(t, 1, len(r.Hosts))
@@ -498,10 +498,10 @@ func TestTranslateGatewayHTTPRouteMultipleBackendRefs(t *testing.T) {
 	assert.Equal(t, "/path2*", r.Uri)
 
 	// backend refs
-	assert.Equal(t, "http", u.Scheme) // FIXME
-	assert.Equal(t, 2, len(u.Nodes))
-	assert.Equal(t, "192.168.1.3", u.Nodes[0].Host)
-	assert.Equal(t, 9081, u.Nodes[0].Port)
-	assert.Equal(t, "192.168.1.4", u.Nodes[1].Host)
-	assert.Equal(t, 9081, u.Nodes[1].Port)
+	assert.Equal(t, "http", u.Upstream.Scheme) // FIXME
+	assert.Equal(t, 2, len(u.Upstream.Nodes))
+	assert.Equal(t, "192.168.1.3", u.Upstream.Nodes[0].Host)
+	assert.Equal(t, 9081, u.Upstream.Nodes[0].Port)
+	assert.Equal(t, "192.168.1.4", u.Upstream.Nodes[1].Host)
+	assert.Equal(t, 9081, u.Upstream.Nodes[1].Port)
 }
