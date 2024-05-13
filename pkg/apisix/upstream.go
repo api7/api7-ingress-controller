@@ -345,7 +345,7 @@ func (u *upstreamMem) deleteCheck(ctx context.Context, obj *v1.Upstream) (bool, 
 		return true, nil
 	}
 	for _, route := range routes {
-		if route.UpstreamId == obj.ID {
+		if route.ServiceID == obj.ID {
 			return false, fmt.Errorf("can not delete this upstream, route.id=%s is still using it now", route.ID)
 		}
 	}

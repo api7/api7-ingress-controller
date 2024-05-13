@@ -112,7 +112,7 @@ func (r *routeClient) Create(ctx context.Context, obj *v1.Route, shouldCompare b
 	if v, skip := skipRequest(r.cluster, shouldCompare, r.url, obj.ID, obj); skip {
 		return v, nil
 	}
-
+	obj.Name = obj.ID
 	log.Debugw("try to create route",
 		zap.Strings("hosts", obj.Hosts),
 		zap.String("name", obj.Name),
