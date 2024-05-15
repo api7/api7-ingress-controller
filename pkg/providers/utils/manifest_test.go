@@ -125,7 +125,7 @@ func TestDiffStreamRoutes(t *testing.T) {
 	assert.Equal(t, "2", deleted[0].ID)
 }
 
-func TestDiffUpstreams(t *testing.T) {
+func TestDiffServices(t *testing.T) {
 	retries := 3
 	news := []*apisixv1.Service{
 		{
@@ -148,7 +148,7 @@ func TestDiffUpstreams(t *testing.T) {
 	assert.Len(t, added, 2)
 	assert.Equal(t, "1", added[0].ID)
 	assert.Equal(t, "3", added[1].ID)
-	assert.Equal(t, 3, *&added[1].Upstream.Retries)
+	assert.Equal(t, 3, added[1].Upstream.Retries)
 
 	retries1 := 5
 	olds := []*apisixv1.Service{
@@ -175,7 +175,7 @@ func TestDiffUpstreams(t *testing.T) {
 	assert.Len(t, deleted, 2)
 	assert.Equal(t, "2", deleted[0].ID)
 	assert.Equal(t, "3", deleted[1].ID)
-	assert.Equal(t, 5, *&deleted[1].Upstream.Retries)
+	assert.Equal(t, 5, deleted[1].Upstream.Retries)
 	assert.Equal(t, 10, deleted[1].Upstream.Timeout.Connect)
 
 	added, updated, deleted = DiffServices(olds, news)
