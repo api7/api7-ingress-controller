@@ -57,9 +57,9 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), s.ScaleHTTPBIN(2), "scaling number of httpbin instances")
 			assert.Nil(ginkgo.GinkgoT(), s.WaitAllHTTPBINPodsAvailable(), "waiting for all httpbin pods ready")
 
-			ups, err := s.ListApisixUpstreams()
+			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err, "list upstreams error")
-			assert.Len(ginkgo.GinkgoT(), ups[0].Nodes, 2, "upstreams nodes not expect")
+			assert.Len(ginkgo.GinkgoT(), ups[0].Upstream.Nodes, 2, "upstreams nodes not expect")
 			s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.com").Expect().Status(http.StatusOK).Body().Raw()
 		})
 
@@ -236,7 +236,7 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err, "listing routes in APISIX")
 			assert.Len(ginkgo.GinkgoT(), routes, 1)
 
-			upstreams, err := s.ListApisixUpstreams()
+			upstreams, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err, "listing upstreams in APISIX")
 			assert.Len(ginkgo.GinkgoT(), upstreams, 1)
 
@@ -272,7 +272,7 @@ spec:
 			newRoutes, err := s.ListApisixRoutes()
 			assert.Nil(ginkgo.GinkgoT(), err, "listing routes in APISIX")
 			assert.Len(ginkgo.GinkgoT(), newRoutes, 1)
-			newUpstreams, err := s.ListApisixUpstreams()
+			newUpstreams, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err, "listing upstreams in APISIX")
 			assert.Len(ginkgo.GinkgoT(), newUpstreams, 1)
 			newPluginConfigs, err := s.ListApisixPluginConfig()
@@ -432,13 +432,13 @@ spec:
 			assert.Len(ginkgo.GinkgoT(), routes, 1)
 			name := s.Namespace() + "_" + "httpbin-route" + "_" + "rule1"
 			assert.Equal(ginkgo.GinkgoT(), routes[0].Name, name)
-			assert.Equal(ginkgo.GinkgoT(), routes[0].Uris, []string{"/ip"})
+			assert.Equal(ginkgo.GinkgoT(), routes[0].Paths, []string{"/ip"})
 			assert.Equal(ginkgo.GinkgoT(), routes[0].Hosts, []string{"httpbin.com"})
 			assert.Equal(ginkgo.GinkgoT(), routes[0].Desc,
 				"Created by apisix-ingress-controller, DO NOT modify it manually")
 			assert.Equal(ginkgo.GinkgoT(), routes[0].Labels["managed-by"], "apisix-ingress-controller")
 
-			ups, err := s.ListApisixUpstreams()
+			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err, "listing upstreams")
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
 			assert.Equal(ginkgo.GinkgoT(), ups[0].Desc,
@@ -506,11 +506,11 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err, "listing routes")
 			assert.Len(ginkgo.GinkgoT(), routes, 2)
 
-			ups, err := s.ListApisixUpstreams()
+			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err, "listing upstreams")
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
-			assert.Equal(ginkgo.GinkgoT(), ups[0].ID, routes[0].UpstreamId)
-			assert.Equal(ginkgo.GinkgoT(), ups[0].ID, routes[1].UpstreamId)
+			assert.Equal(ginkgo.GinkgoT(), ups[0].ID, routes[0].ServiceID)
+			assert.Equal(ginkgo.GinkgoT(), ups[0].ID, routes[1].ServiceID)
 
 			pluginConfigs, err := s.ListApisixPluginConfig()
 			assert.Nil(ginkgo.GinkgoT(), err, "listing pluginConfigs")
@@ -536,10 +536,10 @@ spec:
 			assert.Equal(ginkgo.GinkgoT(), routes[0].Name, name)
 
 			// As httpbin service is referenced by ar2, the corresponding upstream still exists.
-			ups, err = s.ListApisixUpstreams()
+			ups, err = s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err, "listing upstreams")
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
-			assert.Equal(ginkgo.GinkgoT(), ups[0].ID, routes[0].UpstreamId)
+			assert.Equal(ginkgo.GinkgoT(), ups[0].ID, routes[0].ServiceID)
 
 			// As httpbin service is referenced by ar2, the corresponding PluginConfig still doesn't exist.
 			pluginConfigs, err = s.ListApisixPluginConfig()

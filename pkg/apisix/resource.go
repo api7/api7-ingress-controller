@@ -137,18 +137,6 @@ func (i *getResponse) streamRoute() (*v1.StreamRoute, error) {
 	return &streamRoute, nil
 }
 
-func (i *listItem) streamRoute() (*v1.StreamRoute, error) {
-	byt, err := json.Marshal(i)
-	if err != nil {
-		return nil, err
-	}
-	var streamRoute v1.StreamRoute
-	if err := json.Unmarshal(byt, &streamRoute); err != nil {
-		return nil, err
-	}
-	return &streamRoute, nil
-}
-
 // upstream decodes item.Value and converts it to v1.Upstream.
 // func (i *item) upstream() (*v1.Upstream, error) {
 // 	log.Debugf("got upstream: %s", string(i.Value))

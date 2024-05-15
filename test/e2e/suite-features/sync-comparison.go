@@ -128,7 +128,7 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.True(ginkgo.GinkgoT(), len(routes) > 0)
 
-			ups, err := s.ListApisixUpstreams()
+			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.True(ginkgo.GinkgoT(), len(ups) > 0)
 

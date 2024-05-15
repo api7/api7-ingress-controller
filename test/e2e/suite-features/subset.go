@@ -56,10 +56,10 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "checking number of routes")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "checking number of upstreams")
 
-			ups, err := s.ListApisixUpstreams()
+			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err, "listing upstreams")
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
-			assert.Len(ginkgo.GinkgoT(), ups[0].Nodes, 0, "upstreams nodes not expect")
+			assert.Len(ginkgo.GinkgoT(), ups[0].Upstream.Nodes, 0, "upstreams nodes not expect")
 
 			s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.com").Expect().Status(http.StatusServiceUnavailable).Body().Raw()
 		})
@@ -105,10 +105,10 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "checking number of routes")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "checking number of upstreams")
 
-			ups, err := s.ListApisixUpstreams()
+			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err, "listing upstreams")
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
-			assert.Len(ginkgo.GinkgoT(), ups[0].Nodes, 0, "upstreams nodes not expect")
+			assert.Len(ginkgo.GinkgoT(), ups[0].Upstream.Nodes, 0, "upstreams nodes not expect")
 
 			s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.com").Expect().Status(http.StatusServiceUnavailable).Body().Raw()
 		})
@@ -157,10 +157,10 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "checking number of routes")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "checking number of upstreams")
 
-			ups, err := s.ListApisixUpstreams()
+			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err, "listing upstreams")
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
-			assert.Len(ginkgo.GinkgoT(), ups[0].Nodes, 2, "upstreams nodes not expect")
+			assert.Len(ginkgo.GinkgoT(), ups[0].Upstream.Nodes, 2, "upstreams nodes not expect")
 
 			s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.com").Expect().Status(http.StatusOK).Body().Raw()
 		})

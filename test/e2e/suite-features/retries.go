@@ -63,10 +63,10 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err, "create ApisixUpstream")
 			time.Sleep(6 * time.Second)
 
-			ups, err := s.ListApisixUpstreams()
+			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
-			assert.Nil(ginkgo.GinkgoT(), ups[0].Retries)
+			assert.Nil(ginkgo.GinkgoT(), ups[0].Upstream.Retries)
 		})
 
 		ginkgo.It("is zero", func() {
@@ -88,10 +88,10 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err, "create ApisixUpstream")
 			time.Sleep(2 * time.Second)
 
-			ups, err := s.ListApisixUpstreams()
+			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
-			assert.Equal(ginkgo.GinkgoT(), *ups[0].Retries, 0)
+			assert.Equal(ginkgo.GinkgoT(), *ups[0].Upstream.Retries, 0)
 		})
 
 		ginkgo.It("is a positive number", func() {
@@ -113,10 +113,10 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err, "create ApisixUpstream")
 			time.Sleep(2 * time.Second)
 
-			ups, err := s.ListApisixUpstreams()
+			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
-			assert.Equal(ginkgo.GinkgoT(), *ups[0].Retries, 3)
+			assert.Equal(ginkgo.GinkgoT(), *ups[0].Upstream.Retries, 3)
 		})
 	}
 
@@ -166,12 +166,12 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err)
 			time.Sleep(5 * time.Second)
 
-			ups, err := s.ListApisixUpstreams()
+			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
-			assert.Equal(ginkgo.GinkgoT(), ups[0].Timeout.Connect, 60)
-			assert.Equal(ginkgo.GinkgoT(), ups[0].Timeout.Read, 10)
-			assert.Equal(ginkgo.GinkgoT(), ups[0].Timeout.Send, 10)
+			assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Timeout.Connect, 60)
+			assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Timeout.Read, 10)
+			assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Timeout.Send, 10)
 		})
 	}
 

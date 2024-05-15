@@ -86,10 +86,10 @@ spec:
 `)
 			assert.Nil(ginkgo.GinkgoT(), err)
 			time.Sleep(2 * time.Second)
-			ups, err := s.ListApisixUpstreams()
+			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
-			assert.Equal(ginkgo.GinkgoT(), ups[0].Scheme, "grpc")
+			assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Scheme, "grpc")
 
 			// TODO enable the following test cases once APISIX supports HTTP/2 in plain.
 			// ep, err := s.GetAPISIXEndpoint()
@@ -159,10 +159,10 @@ spec:
 			assert.NoError(ginkgo.GinkgoT(), s.NewApisixTls("grpc-secret", "e2e.apisix.local", "grpc-secret"))
 
 			time.Sleep(2 * time.Second)
-			ups, err := s.ListApisixUpstreams()
+			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
-			assert.Equal(ginkgo.GinkgoT(), ups[0].Scheme, "grpcs")
+			assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Scheme, "grpcs")
 
 			ca, err := os.ReadFile("testbackend/tls/ca.pem")
 			assert.NoError(ginkgo.GinkgoT(), err, "read ca cert")

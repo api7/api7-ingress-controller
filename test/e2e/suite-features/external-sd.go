@@ -73,7 +73,7 @@ spec:
 	}
 
 	PhaseValidateNoUpstreams := func(s *scaffold.Scaffold) {
-		ups, err := s.ListApisixUpstreams()
+		ups, err := s.ListApisixServices()
 		assert.Nil(ginkgo.GinkgoT(), err)
 		assert.Len(ginkgo.GinkgoT(), ups, 0, "upstream count")
 	}
@@ -85,12 +85,12 @@ spec:
 	}
 
 	PhaseValidateFirstUpstream := func(s *scaffold.Scaffold, length int, serviceName, discoveryType string) string {
-		ups, err := s.ListApisixUpstreams()
+		ups, err := s.ListApisixServices()
 		assert.Nil(ginkgo.GinkgoT(), err)
 		assert.Len(ginkgo.GinkgoT(), ups, length, "upstream count")
 		upstream := ups[0]
-		assert.Equal(ginkgo.GinkgoT(), serviceName, upstream.ServiceName)
-		assert.Equal(ginkgo.GinkgoT(), discoveryType, upstream.DiscoveryType)
+		assert.Equal(ginkgo.GinkgoT(), serviceName, upstream.Upstream.ServiceName)
+		assert.Equal(ginkgo.GinkgoT(), discoveryType, upstream.Upstream.DiscoveryType)
 
 		return upstream.ID
 	}
@@ -99,7 +99,7 @@ spec:
 		routes, err := s.ListApisixRoutes()
 		assert.Nil(ginkgo.GinkgoT(), err)
 		assert.Len(ginkgo.GinkgoT(), routes, 1, "route count")
-		assert.Equal(ginkgo.GinkgoT(), upstreamId, routes[0].UpstreamId)
+		assert.Equal(ginkgo.GinkgoT(), upstreamId, routes[0].ServiceID)
 
 		_ = s.NewAPISIXClient().GET("/ip").
 			WithHeader("Host", "httpbin.org").
@@ -112,7 +112,7 @@ spec:
 	//routes, err := s.ListApisixRoutes()
 	//assert.Nil(ginkgo.GinkgoT(), err)
 	//assert.Len(ginkgo.GinkgoT(), routes, 1, "route count")
-	//assert.Equal(ginkgo.GinkgoT(), upstreamId, routes[0].UpstreamId)
+	//assert.Equal(ginkgo.GinkgoT(), upstreamId, routes[0].ServiceID)
 
 	//_ = s.NewAPISIXClient().GET("/ip").
 	//WithHeader("Host", "httpbin.org").

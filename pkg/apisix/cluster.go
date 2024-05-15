@@ -714,6 +714,7 @@ func (c *cluster) createResource(ctx context.Context, url, resource string, body
 		zap.String("url", url),
 		zap.ByteString("body", body),
 	)
+	url += "?gateway_group_id=default"
 	c.metricsCollector.IncrAPISIXWriteRequest(resource)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(body))
@@ -883,7 +884,7 @@ func readBody(r io.ReadCloser, url string) string {
 }
 
 // getSchema returns the schema of APISIX object.
-func (c *cluster) getSchema(ctx context.Context, url, resource string) (string, error) {
+func (c *cluster) getSchema(_ context.Context, url, resource string) (string, error) {
 	//TODO: fixme The above passed context gets cancelled for some reason. Investigate
 	req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, url, nil)
 	if err != nil {

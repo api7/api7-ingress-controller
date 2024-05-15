@@ -143,22 +143,22 @@ spec:
 		assert.Nil(ginkgo.GinkgoT(), s.EnsureNumListUpstreamNodesNth(1, 1))
 
 		// port in nodes is still the targetPort, not the service port
-		ups, err := s.ListApisixUpstreams()
+		ups, err := s.ListApisixServices()
 		assert.Nil(ginkgo.GinkgoT(), err, "listing APISIX upstreams")
-		assert.Equal(ginkgo.GinkgoT(), ups[0].Nodes[0].Port, 80)
+		assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Nodes[0].Port, 80)
 
 		// scale HTTPBIN, so the endpoints controller has the opportunity to update upstream.
 		assert.Nil(ginkgo.GinkgoT(), s.ScaleHTTPBIN(3))
 		// s.ScaleHTTPBIN(3) process will be slow, and need time.
 		time.Sleep(15 * time.Second)
-		ups, err = s.ListApisixUpstreams()
-		assert.Len(ginkgo.GinkgoT(), ups[0].Nodes, 3)
+		ups, err = s.ListApisixServices()
+		assert.Len(ginkgo.GinkgoT(), ups[0].Upstream.Nodes, 3)
 		assert.Nil(ginkgo.GinkgoT(), s.EnsureNumListUpstreamNodesNth(1, 3))
 
 		// port in nodes is still the targetPort, not the service port
 		assert.Nil(ginkgo.GinkgoT(), err, "listing APISIX upstreams")
-		assert.Equal(ginkgo.GinkgoT(), ups[0].Nodes[0].Port, 80)
-		assert.Equal(ginkgo.GinkgoT(), ups[0].Nodes[1].Port, 80)
-		assert.Equal(ginkgo.GinkgoT(), ups[0].Nodes[2].Port, 80)
+		assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Nodes[0].Port, 80)
+		assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Nodes[1].Port, 80)
+		assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Nodes[2].Port, 80)
 	})
 })

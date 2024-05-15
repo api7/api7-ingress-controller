@@ -338,8 +338,8 @@ func (s *Scaffold) EnsureNumApisixTlsCreated(desired int) error {
 // The upstreams[n-1].Nodes number is equal to desired.
 func (s *Scaffold) EnsureNumListUpstreamNodesNth(n, desired int) error {
 	condFunc := func() (bool, error) {
-		ups, err := s.ListApisixUpstreams()
-		if err != nil || len(ups) < n || len(ups[n-1].Nodes) != desired {
+		ups, err := s.ListApisixServices()
+		if err != nil || len(ups) < n || len(ups[n-1].Upstream.Nodes) != desired {
 			return false, fmt.Errorf("EnsureNumListUpstreamNodes failed")
 		}
 		return true, nil
@@ -449,8 +449,8 @@ func (s *Scaffold) NewAPISIX() (apisix.APISIX, error) {
 	return apisix.NewClient(s.opts.APISIXAdminAPIVersion)
 }
 
-// ListApisixUpstreams list all upstreams from APISIX
-func (s *Scaffold) ListApisixUpstreams() ([]*v1.Upstream, error) {
+// ListApisixServices list all upstreams from APISIX
+func (s *Scaffold) ListApisixServices() ([]*v1.Service, error) {
 	u := url.URL{
 		Scheme: "http",
 		Host:   s.apisixAdminTunnel.Endpoint(),
@@ -468,7 +468,7 @@ func (s *Scaffold) ListApisixUpstreams() ([]*v1.Upstream, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cli.Cluster("").Upstream().List(context.TODO())
+	return cli.Cluster("").Service().List(context.TODO())
 }
 
 // ListApisixGlobalRules list all global_rules from APISIX
