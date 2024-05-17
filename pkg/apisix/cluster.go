@@ -715,7 +715,6 @@ func (c *cluster) createResource(ctx context.Context, url, resource string, body
 		zap.String("url", url),
 		zap.ByteString("body", body),
 	)
-	url += "?gateway_group_id=default"
 	c.metricsCollector.IncrAPISIXWriteRequest(resource)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(body))
@@ -1147,7 +1146,7 @@ func (c *cluster) GetService(ctx context.Context, baseUrl, id string) (*v1.Servi
 		return nil, err
 	}
 
-	svc, err := resp.service()
+	ups, err := resp.service()
 	if err != nil {
 		log.Errorw("failed to convert service item",
 			zap.String("url", url),
@@ -1155,7 +1154,7 @@ func (c *cluster) GetService(ctx context.Context, baseUrl, id string) (*v1.Servi
 		)
 		return nil, err
 	}
-	return svc, nil
+	return ups, nil
 }
 
 func (c *cluster) GetSSL(ctx context.Context, baseUrl, id string) (*v1.Ssl, error) {

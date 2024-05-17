@@ -90,8 +90,7 @@ func (s *sslClient) List(ctx context.Context) ([]*v1.Ssl, error) {
 		zap.String("url", s.url),
 		zap.String("cluster", s.cluster.name),
 	)
-	//TODO: changeme to act on a particular gateway group
-	url := s.url + "?gateway_group_id=default"
+	url := s.url
 	sslItems, err := s.cluster.listResource(ctx, url, "ssl")
 	if err != nil {
 		log.Errorf("failed to list ssl: %s", err)

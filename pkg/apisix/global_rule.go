@@ -83,8 +83,7 @@ func (r *globalRuleClient) List(ctx context.Context) ([]*v1.GlobalRule, error) {
 		zap.String("cluster", r.cluster.name),
 		zap.String("url", r.url),
 	)
-	//TODOAPI7: Change this to use gateway group id based on api key
-	url := r.url + "?gateway_group_id=default"
+	url := r.url
 	globalRuleItems, err := r.cluster.listResource(ctx, url, "globalRule")
 	if err != nil {
 		log.Errorf("failed to list global_rules: %s", err)
