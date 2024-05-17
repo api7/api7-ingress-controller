@@ -630,8 +630,7 @@ func (c *cluster) getResource(ctx context.Context, url, resource string) (*getRe
 		if c.isFunctionDisabled(body) {
 			return nil, ErrFunctionDisabled
 		}
-		//TODO: fixme. Currently dashboard returns 400 for non existing resources
-		if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusBadRequest {
+		if resp.StatusCode == http.StatusNotFound {
 			return nil, cache.ErrNotFound
 		} else {
 			err = multierr.Append(err, fmt.Errorf("unexpected status code %d", resp.StatusCode))
@@ -1146,7 +1145,7 @@ func (c *cluster) GetService(ctx context.Context, baseUrl, id string) (*v1.Servi
 		return nil, err
 	}
 
-	ups, err := resp.service()
+	svc, err := resp.service()
 	if err != nil {
 		log.Errorw("failed to convert service item",
 			zap.String("url", url),
@@ -1154,7 +1153,7 @@ func (c *cluster) GetService(ctx context.Context, baseUrl, id string) (*v1.Servi
 		)
 		return nil, err
 	}
-	return ups, nil
+	return svc, nil
 }
 
 func (c *cluster) GetSSL(ctx context.Context, baseUrl, id string) (*v1.Ssl, error) {
