@@ -665,6 +665,7 @@ func (in *Service) DeepCopy() *Service {
 	}
 	out := new(Service)
 	in.Upstream.DeepCopyInto(&out.Upstream)
+	out.Metadata = in.Metadata
 	return out
 }
 

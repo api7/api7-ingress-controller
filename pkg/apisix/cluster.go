@@ -630,7 +630,8 @@ func (c *cluster) getResource(ctx context.Context, url, resource string) (*getRe
 		if c.isFunctionDisabled(body) {
 			return nil, ErrFunctionDisabled
 		}
-		if resp.StatusCode == http.StatusNotFound {
+		//TODO: fixme. Currently dashboard returns 400 for non existing resources
+		if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusBadRequest {
 			return nil, cache.ErrNotFound
 		} else {
 			err = multierr.Append(err, fmt.Errorf("unexpected status code %d", resp.StatusCode))
@@ -1125,20 +1126,18 @@ func (c *cluster) GetStreamRoute(ctx context.Context, baseUrl, id string) (*v1.S
 	return streamRoute, nil
 }
 
-// Dashboard doesn't support upstream. So GetUpstream will actually fetch a service and then convert it to upstream.
-// There will be 1:1 relationship between upstream and service.
 func (c *cluster) GetService(ctx context.Context, baseUrl, id string) (*v1.Service, error) {
 	url := baseUrl + "/" + id
 	resp, err := c.getResource(ctx, url, "service")
 	if err != nil {
 		if err == cache.ErrNotFound {
-			log.Debugw("upstream not found",
+			log.Debugw("service not found",
 				zap.String("id", id),
 				zap.String("url", url),
 				zap.String("cluster", c.name),
 			)
 		} else {
-			log.Errorw("failed to get upstream from APISIX",
+			log.Errorw("failed to get service from APISIX",
 				zap.String("id", id),
 				zap.String("url", url),
 				zap.String("cluster", c.name),
@@ -1148,15 +1147,15 @@ func (c *cluster) GetService(ctx context.Context, baseUrl, id string) (*v1.Servi
 		return nil, err
 	}
 
-	ups, err := resp.service()
+	svc, err := resp.service()
 	if err != nil {
-		log.Errorw("failed to convert upstream item",
+		log.Errorw("failed to convert service item",
 			zap.String("url", url),
 			zap.Error(err),
 		)
 		return nil, err
 	}
-	return ups, nil
+	return svc, nil
 }
 
 func (c *cluster) GetSSL(ctx context.Context, baseUrl, id string) (*v1.Ssl, error) {

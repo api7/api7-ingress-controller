@@ -46,9 +46,9 @@ func (u *serviceClient) Get(ctx context.Context, name string) (*v1.Service, erro
 		zap.String("cluster", u.cluster.name),
 	)
 	uid := id.GenID(name)
-	ups, err := u.cluster.cache.GetService(uid)
+	svc, err := u.cluster.cache.GetService(uid)
 	if err == nil {
-		return ups, nil
+		return svc, nil
 	}
 	if err != cache.ErrNotFound {
 		log.Errorw("failed to find upstream in cache, will try to lookup from APISIX",
@@ -63,16 +63,15 @@ func (u *serviceClient) Get(ctx context.Context, name string) (*v1.Service, erro
 	}
 
 	// TODO Add mutex here to avoid dog-pile effect
-	ups, err = u.cluster.GetService(ctx, u.url, uid)
+	svc, err = u.cluster.GetService(ctx, u.url, uid)
 	if err != nil {
 		return nil, err
 	}
-
-	if err := u.cluster.cache.InsertService(ups); err != nil {
+	if err := u.cluster.cache.InsertService(svc); err != nil {
 		log.Errorf("failed to reflect upstream create to cache: %s", err)
 		return nil, err
 	}
-	return ups, nil
+	return svc, nil
 }
 
 // List is only used in cache warming up. So here just pass through
@@ -212,11 +211,11 @@ func (u *serviceClient) Update(ctx context.Context, obj *v1.Service, shouldCompa
 	if err != nil {
 		return nil, err
 	}
-	ups, err := resp.service()
+	svc, err := resp.service()
 	if err != nil {
 		return nil, err
 	}
-	if err := u.cluster.cache.InsertService(ups); err != nil {
+	if err := u.cluster.cache.InsertService(svc); err != nil {
 		log.Errorf("failed to reflect upstream update to cache: %s", err)
 		return nil, err
 	}
@@ -224,7 +223,7 @@ func (u *serviceClient) Update(ctx context.Context, obj *v1.Service, shouldCompa
 		log.Errorf("failed to reflect generated upstream update to cache: %s", err)
 		return nil, err
 	}
-	return ups, err
+	return svc, err
 }
 
 type serviceMem struct {
