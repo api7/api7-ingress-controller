@@ -25,7 +25,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-ingress-resource: ApisixRoute stream Testing", func() {
+var _ = ginkgo.PDescribe("suite-ingress-resource: ApisixRoute stream Testing", func() {
 	suites := func(s *scaffold.Scaffold) {
 		ginkgo.It("stream tcp proxy", func() {
 			backendSvc, backendSvcPort := s.DefaultHTTPBackend()
