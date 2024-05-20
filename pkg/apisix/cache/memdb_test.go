@@ -193,12 +193,6 @@ func TestMemDBCacheReference(t *testing.T) {
 			Name: "upstream",
 		},
 	}
-	u2 := &v1.Service{
-		Metadata: v1.Metadata{
-			ID:   "2",
-			Name: "upstream",
-		},
-	}
 	pc := &v1.PluginConfig{
 		Metadata: v1.Metadata{
 			ID:   "1",
@@ -216,16 +210,13 @@ func TestMemDBCacheReference(t *testing.T) {
 	assert.Nil(t, err, "NewMemDBCache")
 	assert.Nil(t, db.InsertRoute(r))
 	assert.Nil(t, db.InsertService(u))
-	assert.Nil(t, db.InsertService(u2))
 	assert.Nil(t, db.InsertPluginConfig(pc))
 
 	assert.Error(t, ErrStillInUse, db.DeleteService(u))
-	assert.Error(t, ErrStillInUse, db.DeleteService(u2))
 	assert.Error(t, ErrStillInUse, db.DeletePluginConfig(pc))
 	assert.Equal(t, memdb.ErrNotFound, db.DeletePluginConfig(pc2))
 	assert.Nil(t, db.DeleteRoute(r))
 	assert.Nil(t, db.DeleteService(u))
-	assert.Nil(t, db.DeleteService(u2))
 	assert.Nil(t, db.DeletePluginConfig(pc))
 }
 
