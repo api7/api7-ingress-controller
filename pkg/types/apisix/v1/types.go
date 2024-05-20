@@ -127,6 +127,8 @@ type Upstream struct {
 	DiscoveryArgs map[string]string `json:"discovery_args,omitempty" yaml:"discovery_args,omitempty"`
 }
 
+// Upstream is the apisix upstream definition.
+// +k8s:deepcopy-gen=true
 type Service struct {
 	Metadata `json:",inline" yaml:",inline"`
 	Upstream Upstream `json:"upstream,omitempty" yaml:"upstream,omitempty"`
