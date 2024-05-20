@@ -179,34 +179,40 @@ func TestGlobalRuleClient(t *testing.T) {
 
 	// Create
 	obj, err := cli.Create(context.Background(), &v1.GlobalRule{
-		ID: "1",
+		ID: "limit-count",
+		Plugins: map[string]interface{}{
+			"limit-count": map[string]interface{}{},
+		},
 	}, false)
 	assert.Nil(t, err)
-	assert.Equal(t, obj.ID, "1")
+	assert.Equal(t, obj.ID, "limit-count")
 
 	obj, err = cli.Create(context.Background(), &v1.GlobalRule{
-		ID: "2",
+		ID: "prometheus",
+		Plugins: map[string]interface{}{
+			"prometheus": map[string]interface{}{},
+		},
 	}, false)
 	assert.Nil(t, err)
-	assert.Equal(t, obj.ID, "2")
+	assert.Equal(t, obj.ID, "prometheus")
 
 	// List
 	objs, err := cli.List(context.Background())
 	assert.Nil(t, err)
 	assert.Len(t, objs, 2)
-	assert.Equal(t, objs[0].ID, "1")
-	assert.Equal(t, objs[1].ID, "2")
+	assert.Equal(t, objs[0].ID, "limit-count")
+	assert.Equal(t, objs[1].ID, "prometheus")
 
 	// Delete then List
 	assert.Nil(t, cli.Delete(context.Background(), objs[0]))
 	objs, err = cli.List(context.Background())
 	assert.Nil(t, err)
 	assert.Len(t, objs, 1)
-	assert.Equal(t, "2", objs[0].ID)
+	assert.Equal(t, "prometheus", objs[0].ID)
 
 	// Patch then List
 	_, err = cli.Update(context.Background(), &v1.GlobalRule{
-		ID: "2",
+		ID: "prometheus",
 		Plugins: map[string]interface{}{
 			"prometheus": struct{}{},
 		},
@@ -215,5 +221,5 @@ func TestGlobalRuleClient(t *testing.T) {
 	objs, err = cli.List(context.Background())
 	assert.Nil(t, err)
 	assert.Len(t, objs, 1)
-	assert.Equal(t, "2", objs[0].ID)
+	assert.Equal(t, "prometheus", objs[0].ID)
 }
