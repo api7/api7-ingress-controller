@@ -137,7 +137,7 @@ func TestDiffServices(t *testing.T) {
 			Metadata: apisixv1.Metadata{
 				ID: "3",
 			},
-			Upstream: apisixv1.UpstreamNew{
+			Upstream: apisixv1.Upstream{
 				Retries: &retries,
 			},
 		},
@@ -148,7 +148,7 @@ func TestDiffServices(t *testing.T) {
 	assert.Len(t, added, 2)
 	assert.Equal(t, "1", added[0].ID)
 	assert.Equal(t, "3", added[1].ID)
-	assert.Equal(t, 3, added[1].Upstream.Retries)
+	assert.Equal(t, 3, *added[1].Upstream.Retries)
 
 	retries1 := 5
 	olds := []*apisixv1.Service{
@@ -161,7 +161,7 @@ func TestDiffServices(t *testing.T) {
 			Metadata: apisixv1.Metadata{
 				ID: "3",
 			},
-			Upstream: apisixv1.UpstreamNew{
+			Upstream: apisixv1.Upstream{
 				Retries: &retries1,
 				Timeout: &apisixv1.UpstreamTimeout{
 					Connect: 10,
@@ -175,7 +175,7 @@ func TestDiffServices(t *testing.T) {
 	assert.Len(t, deleted, 2)
 	assert.Equal(t, "2", deleted[0].ID)
 	assert.Equal(t, "3", deleted[1].ID)
-	assert.Equal(t, 5, deleted[1].Upstream.Retries)
+	assert.Equal(t, 5, *deleted[1].Upstream.Retries)
 	assert.Equal(t, 10, deleted[1].Upstream.Timeout.Connect)
 
 	added, updated, deleted = DiffServices(olds, news)
@@ -273,7 +273,7 @@ func TestManifestDiff(t *testing.T) {
 				Metadata: apisixv1.Metadata{
 					ID: "4",
 				},
-				Upstream: apisixv1.UpstreamNew{
+				Upstream: apisixv1.Upstream{
 					Retries: &retries,
 				},
 			},

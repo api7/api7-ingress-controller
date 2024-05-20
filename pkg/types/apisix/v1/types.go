@@ -106,7 +106,7 @@ type Metadata struct {
 
 // Upstream is the apisix upstream definition.
 // +k8s:deepcopy-gen=true
-type UpstreamNew struct {
+type Upstream struct {
 	Metadata `json:",inline" yaml:",inline"`
 
 	Type         string               `json:"type,omitempty" yaml:"type,omitempty"`
@@ -129,7 +129,7 @@ type UpstreamNew struct {
 
 type Service struct {
 	Metadata `json:",inline" yaml:",inline"`
-	Upstream UpstreamNew `json:"upstream,omitempty" yaml:"upstream,omitempty"`
+	Upstream Upstream `json:"upstream,omitempty" yaml:"upstream,omitempty"`
 }
 
 // Route apisix route object
@@ -223,29 +223,6 @@ func (p *Plugins) DeepCopy() *Plugins {
 	out := new(Plugins)
 	p.DeepCopyInto(out)
 	return out
-}
-
-// Upstream is the apisix upstream definition.
-// +k8s:deepcopy-gen=true
-type Upstream struct {
-	Metadata `json:",inline" yaml:",inline"`
-
-	Type         string               `json:"type,omitempty" yaml:"type,omitempty"`
-	HashOn       string               `json:"hash_on,omitempty" yaml:"hash_on,omitempty"`
-	Key          string               `json:"key,omitempty" yaml:"key,omitempty"`
-	Checks       *UpstreamHealthCheck `json:"checks,omitempty" yaml:"checks,omitempty"`
-	Nodes        UpstreamNodes        `json:"nodes" yaml:"nodes"`
-	Scheme       string               `json:"scheme,omitempty" yaml:"scheme,omitempty"`
-	Retries      *int                 `json:"retries,omitempty" yaml:"retries,omitempty"`
-	Timeout      *UpstreamTimeout     `json:"timeout,omitempty" yaml:"timeout,omitempty"`
-	TLS          *ClientTLS           `json:"tls,omitempty" yaml:"tls,omitempty"`
-	PassHost     string               `json:"pass_host,omitempty" yaml:"pass_host,omitempty"`
-	UpstreamHost string               `json:"upstream_host,omitempty" yaml:"upstream_host,omitempty"`
-
-	// for Service Discovery
-	ServiceName   string            `json:"service_name,omitempty" yaml:"service_name,omitempty"`
-	DiscoveryType string            `json:"discovery_type,omitempty" yaml:"discovery_type,omitempty"`
-	DiscoveryArgs map[string]string `json:"discovery_args,omitempty" yaml:"discovery_args,omitempty"`
 }
 
 // ClientTLS is tls cert and key use in mTLS
@@ -554,7 +531,7 @@ type UpstreamServiceRelation struct {
 // NewDefaultUpstream returns an empty Upstream with default values.
 func NewDefaultService() *Service {
 	return &Service{
-		Upstream: UpstreamNew{
+		Upstream: Upstream{
 			Type:   LbRoundRobin,
 			Key:    "",
 			Nodes:  make(UpstreamNodes, 0),
