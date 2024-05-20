@@ -235,7 +235,7 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 			route.ServiceID = id.GenID(upName)
 		}
 		// --- translate Upstreams ---
-		var ups []*apisixv1.Service
+		var svcs []*apisixv1.Service
 		for i, au := range part.Upstreams {
 			up, err := t.translateExternalApisixUpstream(ar.Namespace, au.Name)
 			if err != nil {
@@ -245,22 +245,25 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 				)
 				continue
 			}
+			if up.Labels == nil {
+				up.Labels = make(map[string]string)
+			}
 			if au.Weight != nil {
 				up.Labels["meta_weight"] = strconv.Itoa(*au.Weight)
 			} else {
 				up.Labels["meta_weight"] = strconv.Itoa(translation.DefaultWeight)
 			}
-			ups = append(ups, up)
+			svcs = append(svcs, up)
 		}
 
-		if len(ups) == 0 {
+		if len(svcs) == 0 {
 			continue
 		}
 
 		var wups []apisixv1.TrafficSplitConfigRuleWeightedUpstream
 		if len(part.Backends) == 0 {
-			if len(ups) > 1 {
-				for i, up := range ups {
+			if len(svcs) > 1 {
+				for i, up := range svcs {
 					weight, err := strconv.Atoi(up.Labels["meta_weight"])
 					if err != nil {
 						// shouldn't happen
@@ -277,7 +280,7 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 						})
 					} else {
 						wups = append(wups, apisixv1.TrafficSplitConfigRuleWeightedUpstream{
-							UpstreamID: ups[i].ID,
+							UpstreamID: svcs[i].ID,
 							Weight:     weight,
 						})
 					}
@@ -300,7 +303,7 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 					Weight: weight,
 				})
 			}
-			for i, up := range ups {
+			for i, up := range svcs {
 				weight, err := strconv.Atoi(up.Labels["meta_weight"])
 				if err != nil {
 					// shouldn't happen
@@ -311,7 +314,7 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 					continue
 				}
 				wups = append(wups, apisixv1.TrafficSplitConfigRuleWeightedUpstream{
-					UpstreamID: ups[i].ID,
+					UpstreamID: svcs[i].ID,
 					Weight:     weight,
 				})
 			}
@@ -326,8 +329,8 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 			}
 		}
 
-		for _, up := range ups {
-			ctx.AddService(up)
+		for _, svc := range svcs {
+			ctx.AddService(svc)
 		}
 	}
 	return nil

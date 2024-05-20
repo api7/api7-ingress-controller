@@ -531,6 +531,11 @@ type UpstreamServiceRelation struct {
 // NewDefaultUpstream returns an empty Upstream with default values.
 func NewDefaultService() *Service {
 	return &Service{
+		Metadata: Metadata{
+			Labels: map[string]string{
+				"managed-by": "apisix-ingress-controller",
+			},
+		},
 		Upstream: Upstream{
 			Type:   LbRoundRobin,
 			Key:    "",

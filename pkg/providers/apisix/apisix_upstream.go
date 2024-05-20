@@ -194,10 +194,10 @@ func (c *apisixUpstreamController) sync(ctx context.Context, ev *types.Event) er
 
 		// We will prioritize ExternalNodes and Discovery.
 		if len(au.Spec.ExternalNodes) != 0 || au.Spec.Discovery != nil {
-			var newUps *apisixv1.Service
+			var newSvc *apisixv1.Service
 			if ev.Type != types.EventDelete {
 				cfg := &au.Spec.ApisixUpstreamConfig
-				newUps, err = c.translator.TranslateUpstreamConfigV2(cfg)
+				newSvc, err = c.translator.TranslateUpstreamConfigV2(cfg)
 				if err != nil {
 					log.Errorw("failed to translate upstream config",
 						zap.Any("object", au),
@@ -207,9 +207,9 @@ func (c *apisixUpstreamController) sync(ctx context.Context, ev *types.Event) er
 					goto updateStatus
 				}
 			}
-
+			newSvc.Metadata.Labels = au.Labels
 			if len(au.Spec.ExternalNodes) != 0 {
-				errRecord = c.updateExternalNodes(ctx, au, nil, newUps, au.Namespace, au.Name, ev.Type.IsSyncEvent())
+				errRecord = c.updateExternalNodes(ctx, au, nil, newSvc, au.Namespace, au.Name, ev.Type.IsSyncEvent())
 				goto updateStatus
 			}
 

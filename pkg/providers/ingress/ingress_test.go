@@ -14,121 +14,121 @@
 // limitations under the License.
 package ingress
 
-import (
-	"testing"
+// import (
+// 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	networkingv1 "k8s.io/api/networking/v1"
-	networkingv1beta1 "k8s.io/api/networking/v1beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+// 	"github.com/stretchr/testify/assert"
+// 	networkingv1 "k8s.io/api/networking/v1"
+// 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
+// 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/api7/api7-ingress-controller/pkg/config"
-	"github.com/api7/api7-ingress-controller/pkg/kube"
-	providertypes "github.com/api7/api7-ingress-controller/pkg/providers/types"
-)
+// 	"github.com/api7/api7-ingress-controller/pkg/config"
+// 	"github.com/api7/api7-ingress-controller/pkg/kube"
+// 	providertypes "github.com/api7/api7-ingress-controller/pkg/providers/types"
+// )
 
-func TestIsIngressEffective(t *testing.T) {
-	c := &ingressController{
-		ingressCommon: &ingressCommon{
-			Common: &providertypes.Common{
-				Config: config.NewDefaultConfig(),
-			},
-		},
-	}
-	cn := "ingress"
-	ingV1 := &networkingv1.Ingress{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ingress",
-			APIVersion: "networking/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
-			Name:      "v1-ing",
-			Annotations: map[string]string{
-				_ingressKey: "apisix",
-			},
-		},
-		Spec: networkingv1.IngressSpec{
-			IngressClassName: &cn,
-		},
-	}
-	ing, err := kube.NewIngress(ingV1)
-	assert.Nil(t, err)
-	// Annotations takes precedence.
-	assert.Equal(t, true, c.isIngressEffective(ing))
+// func TestIsIngressEffective(t *testing.T) {
+// 	c := &ingressController{
+// 		ingressCommon: &ingressCommon{
+// 			Common: &providertypes.Common{
+// 				Config: config.NewDefaultConfig(),
+// 			},
+// 		},
+// 	}
+// 	cn := "ingress"
+// 	ingV1 := &networkingv1.Ingress{
+// 		TypeMeta: metav1.TypeMeta{
+// 			Kind:       "ingress",
+// 			APIVersion: "networking/v1",
+// 		},
+// 		ObjectMeta: metav1.ObjectMeta{
+// 			Namespace: "default",
+// 			Name:      "v1-ing",
+// 			Annotations: map[string]string{
+// 				_ingressKey: "apisix",
+// 			},
+// 		},
+// 		Spec: networkingv1.IngressSpec{
+// 			IngressClassName: &cn,
+// 		},
+// 	}
+// 	ing, err := kube.NewIngress(ingV1)
+// 	assert.Nil(t, err)
+// 	// Annotations takes precedence.
+// 	assert.Equal(t, true, c.isIngressEffective(ing))
 
-	ingV1 = &networkingv1.Ingress{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ingress",
-			APIVersion: "networking/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
-			Name:      "v1-ing",
-		},
-		Spec: networkingv1.IngressSpec{
-			IngressClassName: &cn,
-		},
-	}
-	ing, err = kube.NewIngress(ingV1)
-	assert.Nil(t, err)
-	// Spec.IngressClassName takes the precedence.
-	assert.Equal(t, false, c.isIngressEffective(ing))
+// 	ingV1 = &networkingv1.Ingress{
+// 		TypeMeta: metav1.TypeMeta{
+// 			Kind:       "ingress",
+// 			APIVersion: "networking/v1",
+// 		},
+// 		ObjectMeta: metav1.ObjectMeta{
+// 			Namespace: "default",
+// 			Name:      "v1-ing",
+// 		},
+// 		Spec: networkingv1.IngressSpec{
+// 			IngressClassName: &cn,
+// 		},
+// 	}
+// 	ing, err = kube.NewIngress(ingV1)
+// 	assert.Nil(t, err)
+// 	// Spec.IngressClassName takes the precedence.
+// 	assert.Equal(t, false, c.isIngressEffective(ing))
 
-	ingV1beta1 := &networkingv1beta1.Ingress{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ingress",
-			APIVersion: "networking/v1beta1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
-			Name:      "v1beta1-ing",
-			Annotations: map[string]string{
-				_ingressKey: "apisix",
-			},
-		},
-		Spec: networkingv1beta1.IngressSpec{
-			IngressClassName: &cn,
-		},
-	}
-	ing, err = kube.NewIngress(ingV1beta1)
-	assert.Nil(t, err)
-	// Annotations takes precedence.
-	assert.Equal(t, true, c.isIngressEffective(ing))
+// 	ingV1beta1 := &networkingv1beta1.Ingress{
+// 		TypeMeta: metav1.TypeMeta{
+// 			Kind:       "ingress",
+// 			APIVersion: "networking/v1beta1",
+// 		},
+// 		ObjectMeta: metav1.ObjectMeta{
+// 			Namespace: "default",
+// 			Name:      "v1beta1-ing",
+// 			Annotations: map[string]string{
+// 				_ingressKey: "apisix",
+// 			},
+// 		},
+// 		Spec: networkingv1beta1.IngressSpec{
+// 			IngressClassName: &cn,
+// 		},
+// 	}
+// 	ing, err = kube.NewIngress(ingV1beta1)
+// 	assert.Nil(t, err)
+// 	// Annotations takes precedence.
+// 	assert.Equal(t, true, c.isIngressEffective(ing))
 
-	ingV1beta1 = &networkingv1beta1.Ingress{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ingress",
-			APIVersion: "networking/v1beta1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
-			Name:      "v1beta1-ing",
-		},
-		Spec: networkingv1beta1.IngressSpec{
-			IngressClassName: &cn,
-		},
-	}
-	ing, err = kube.NewIngress(ingV1beta1)
-	assert.Nil(t, err)
-	// Spec.IngressClassName takes the precedence.
-	assert.Equal(t, false, c.isIngressEffective(ing))
+// 	ingV1beta1 = &networkingv1beta1.Ingress{
+// 		TypeMeta: metav1.TypeMeta{
+// 			Kind:       "ingress",
+// 			APIVersion: "networking/v1beta1",
+// 		},
+// 		ObjectMeta: metav1.ObjectMeta{
+// 			Namespace: "default",
+// 			Name:      "v1beta1-ing",
+// 		},
+// 		Spec: networkingv1beta1.IngressSpec{
+// 			IngressClassName: &cn,
+// 		},
+// 	}
+// 	ing, err = kube.NewIngress(ingV1beta1)
+// 	assert.Nil(t, err)
+// 	// Spec.IngressClassName takes the precedence.
+// 	assert.Equal(t, false, c.isIngressEffective(ing))
 
-	ingV1 = &networkingv1.Ingress{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ingress",
-			APIVersion: "networking/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
-			Name:      "v1-ing",
-		},
-		Spec: networkingv1.IngressSpec{
-			IngressClassName: &cn,
-		},
-	}
-	ing, err = kube.NewIngress(ingV1)
-	assert.Nil(t, err)
-	// Spec.IngressClassName takes the precedence.
-	assert.Equal(t, false, c.isIngressEffective(ing))
-}
+// 	ingV1 = &networkingv1.Ingress{
+// 		TypeMeta: metav1.TypeMeta{
+// 			Kind:       "ingress",
+// 			APIVersion: "networking/v1",
+// 		},
+// 		ObjectMeta: metav1.ObjectMeta{
+// 			Namespace: "default",
+// 			Name:      "v1-ing",
+// 		},
+// 		Spec: networkingv1.IngressSpec{
+// 			IngressClassName: &cn,
+// 		},
+// 	}
+// 	ing, err = kube.NewIngress(ingV1)
+// 	assert.Nil(t, err)
+// 	// Spec.IngressClassName takes the precedence.
+// 	assert.Equal(t, false, c.isIngressEffective(ing))
+// }

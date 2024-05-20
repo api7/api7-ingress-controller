@@ -649,7 +649,8 @@ func TestTranslateApisixRouteV2WithUpstream(t *testing.T) {
 
 	// unset useless data
 	ups.Desc = ""
-	assert.Equal(t, &apisixv1.Upstream{
+
+	assert.Equal(t, apisixv1.Upstream{
 		Metadata: apisixv1.Metadata{
 			ID:   upsID,
 			Name: upsName,
@@ -674,7 +675,7 @@ func TestTranslateApisixRouteV2WithUpstream(t *testing.T) {
 		Retries: nil,
 		Timeout: nil,
 		TLS:     nil,
-	}, ups)
+	}, ups.Upstream)
 }
 
 func TestTranslateApisixRouteV2WithUpstreamNoBackendsAndPluginConfigName(t *testing.T) {

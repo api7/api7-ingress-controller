@@ -137,16 +137,16 @@ func (t *translator) translateExternalApisixUpstream(namespace, upstream string)
 		return nil, fmt.Errorf("%s/%s has empty ExternalNodes or Discovery configuration", namespace, upstream)
 	}
 
-	ups, err := t.TranslateUpstreamConfigV2(&au.Spec.ApisixUpstreamConfig)
+	svc, err := t.TranslateUpstreamConfigV2(&au.Spec.ApisixUpstreamConfig)
 	if err != nil {
 		return nil, err
 	}
 	for k, v := range au.ObjectMeta.Labels {
-		ups.Metadata.Labels[k] = v
+		svc.Metadata.Labels[k] = v
 	}
-	ups.Name = apisixv1.ComposeExternalUpstreamName(namespace, upstream)
-	ups.ID = id.GenID(ups.Name)
-
+	svc.Name = apisixv1.ComposeExternalUpstreamName(namespace, upstream)
+	svc.ID = id.GenID(svc.Name)
+	svc.Upstream.Metadata = svc.Metadata
 	// APISIX does not allow discovery_type and nodes to exist at the same time.
 	// https://github.com/apache/apisix/blob/01b4b49eb2ba642b337f7a1fbe1894a77942910b/apisix/schema_def.lua#L501-L504
 	if len(au.Spec.ExternalNodes) != 0 {
@@ -155,8 +155,7 @@ func (t *translator) translateExternalApisixUpstream(namespace, upstream string)
 			return nil, err
 		}
 
-		ups.Upstream.Nodes = append(ups.Upstream.Nodes, externalNodes...)
+		svc.Upstream.Nodes = append(svc.Upstream.Nodes, externalNodes...)
 	}
-
-	return ups, nil
+	return svc, nil
 }
