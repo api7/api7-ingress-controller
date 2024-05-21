@@ -1,0 +1,2 @@
+nginx_config:
+  error_log_level: warn

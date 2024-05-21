@@ -49,6 +49,13 @@ if [ "${running}" != 'true' ]; then
     registry:2
 fi
 
+# start api7 control plane
+export API7_NETWORK="${kind_network}"
+echo "Kind network: ${kind_network}
+"
+./docker-compose/generate_env.sh
+./docker-compose/run_control_plane.sh start
+
 reg_host="${reg_name}"
 if [ "${kind_network}" = "bridge" ]; then
     reg_host="$(docker inspect -f '{{.NetworkSettings.IPAddress}}' "${reg_name}")"

@@ -1,0 +1,89 @@
+version: "3.6"
+
+services:
+  prometheus:
+    image: bitnami/prometheus:${PROMETHEUS_TAG}
+    hostname: prometheus
+    volumes:
+      - ./prometheus_data:/bitnami/prometheus
+    command:
+      - --config.file=/opt/bitnami/prometheus/conf/prometheus.yml
+      - --web.enable-remote-write-receiver
+    healthcheck:
+      test: ["CMD", "/opt/bitnami/prometheus/bin/promtool", "check", "healthy"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - kind
+
+  postgresql:
+    image: bitnami/postgresql:${POSTGRESQL_TAG}
+    hostname: postgresql
+    user: root
+    volumes:
+      - ./postgresql_data:/bitnami/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "api7ee"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    environment:
+      POSTGRES_USER: api7ee
+      POSTGRES_PASSWORD: changeme
+    networks:
+      - kind
+
+  # api7-ee-dashboard:
+  #   image: ${API7_REGISTRY}/${API7_REGISTRY_NAMESPACE}/api7-ee-3-integrated:${API7_DASHBOARD_TAG}
+  #   hostname: dashboard
+  #   restart: always
+  #   volumes:
+  #     - ./dashboard_conf/conf.yaml:/usr/local/api7/conf/conf.yaml:ro
+  #   command:
+  #     - sh
+  #     - -c
+  #     - node server.js & /usr/local/api7/api7-ee-dashboard -c /usr/local/api7/conf/conf.yaml
+  #   ports:
+  #     - "7080:7080"
+  #     - "7443:7443"
+  #   healthcheck:
+  #     test: ["CMD", "nc", "-z", "127.0.0.1", "7443"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 3
+  #   depends_on:
+  #     prometheus:
+  #       condition: service_healthy
+  #   networks:
+  #     - kind
+
+  # api7-ee-dp-manager:
+  #   image: ${API7_REGISTRY}/${API7_REGISTRY_NAMESPACE}/api7-ee-dp-manager:${API7_DP_MANAGER_TAG}
+  #   hostname: dp-manager
+  #   restart: always
+  #   volumes:
+  #     - ./dp_manager_conf/conf.yaml:/usr/local/api7/conf/conf.yaml:ro
+  #   command:
+  #     - /usr/local/api7/api7-ee-dp-manager
+  #     - -c
+  #     - /usr/local/api7/conf/conf.yaml
+  #   ports:
+  #     - "7900:7900"
+  #     - "7943:7943"
+  #   depends_on:
+  #     api7-ee-dashboard:
+  #       condition: service_healthy
+  #   networks:
+  #     - kind
+
+networks:
+  kind:
+    name: ${API7_NETWORK}
+    external: true
+
+volumes:
+  postgresql_data:
+    driver: local
