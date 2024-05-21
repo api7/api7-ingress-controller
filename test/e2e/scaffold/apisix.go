@@ -15,7 +15,10 @@
 package scaffold
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/gruntwork-io/terratest/modules/k8s"
@@ -33,6 +36,59 @@ metadata:
 data:
   config.yaml: |
 %s
+`
+
+	_eeService = `
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: api7-ee-gateway-1
+  spec:
+    selector:
+      app: api7-ee-gateway-1
+    ports:
+      - protocol: TCP
+        port: 9080
+        targetPort: 9080
+      - protocol: TCP
+        port: 9443
+        targetPort: 9443  
+  `
+
+	_eeDeployment = `
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: api7-ee-gateway-1
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: api7-ee-gateway-1
+    template:
+      metadata:
+        labels:
+          app: api7-ee-gateway-1
+      spec:
+        containers:
+          - name: api7-ee-gateway-1
+            image: localhost:5000/api7-ee-3-integrated:dev
+            ports:
+              - containerPort: 9080
+              - containerPort: 9443
+            env:
+              - name: API7_CONTROL_PLANE_ENDPOINTS
+                value: '["http://dp-manager:7900"]'
+              - name: API7_CONTROL_PLANE_TOKEN
+                value: %s
+            volumeMounts:
+              - name: config-volume
+                mountPath: /usr/local/apisix/conf
+                readOnly: true
+        volumes:
+          - name: config-volume
+            hostPath:
+              path: /path/to/gateway_conf
 `
 	_apisixDeployment = `
 apiVersion: apps/v1
@@ -159,6 +215,140 @@ func (s *Scaffold) newAPISIXConfigMap(cm *APISIXConfig) error {
 		return err
 	}
 	return nil
+}
+
+func (s *Scaffold) UploadLicense() error {
+	payload := []byte(fmt.Sprintf(`{"data":"%s"}`, tenyearsLicense))
+	req, err := http.NewRequest("PUT", fmt.Sprintf("%s:%s/api/license", DashboardHost, DashboardPort), bytes.NewBuffer(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return nil
+}
+
+type responseCreateGateway struct {
+	Value responseCreateGatewayValue `json:"value"`
+}
+type responseCreateGatewayValue struct {
+	ID             string `json:"id"`
+	TokenPlainText string `json:"token_plain_text"`
+	Key            string `json:"key"`
+}
+
+func (s *Scaffold) GetAPIKey() (string, error) {
+	gatewayGroupID := s.gatewaygroupid
+	url := fmt.Sprintf("%s:%d/api/gateway-groups/%s/admin_key", DashboardHost, DashboardPort, gatewayGroupID)
+	req, err := http.NewRequest("PUT", url, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Set basic authentication
+	req.SetBasicAuth("admin", "admin")
+
+	// Create an HTTP client
+	client := &http.Client{}
+
+	// Send the request
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	//unmarshal into responseCreateGateway
+	var response responseCreateGateway
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return "", err
+	}
+	return response.Value.Key, nil
+}
+
+func (s *Scaffold) CreateNewGatewayGroup() (string, error) {
+	payload := []byte(`{"name":"ingress","description":"","labels":{},"type":"api7_ingress_controller"}`)
+	url := fmt.Sprintf("%s:%d/api/gateway-groups", DashboardHost, DashboardPort)
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Set basic authentication
+	req.SetBasicAuth("admin", "admin")
+
+	// Create an HTTP client
+	client := &http.Client{}
+
+	// Send the request
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	//unmarshal into responseCreateGateway
+	var response responseCreateGateway
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return "", err
+	}
+	return response.Value.ID, nil
+}
+
+func (s *Scaffold) getTokenFromDashboard() (string, error) {
+	gatewayGroupID := s.gatewaygroupid
+	url := fmt.Sprintf("%s:%d/api/gateway-groups/%s/instance_token", DashboardHost, DashboardPort, gatewayGroupID)
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Set basic authentication
+	req.SetBasicAuth("admin", "admin")
+
+	// Create an HTTP client
+	client := &http.Client{}
+
+	// Send the request
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	//unmarshal into responseCreateGateway
+	var response responseCreateGateway
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return "", err
+	}
+	return response.Value.TokenPlainText, nil
+}
+
+func (s *Scaffold) newDataplane() (*corev1.Service, error) {
+	token, err := s.getTokenFromDashboard()
+	if err != nil {
+		return nil, err
+	}
+	if err := s.CreateResourceFromString(fmt.Sprintf(_eeDeployment, token)); err != nil {
+		return nil, err
+	}
+	if err := s.CreateResourceFromString(_eeService); err != nil {
+		return nil, err
+	}
+	svc, err := k8s.GetServiceE(s.t, s.kubectlOptions, "api7-ee-gateway-1")
+	if err != nil {
+		return nil, err
+	}
+	return svc, nil
+
 }
 
 func (s *Scaffold) newAPISIX() (*corev1.Service, error) {

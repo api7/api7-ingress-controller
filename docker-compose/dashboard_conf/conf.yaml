@@ -1,6 +1,6 @@
 server:
   listen:
-    disable: true
+    disable: false
     host: "0.0.0.0"
     port: 7080
   tls:

@@ -46,6 +46,15 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
+const (
+	DashboardHost = "api7-ee-dashboard"
+	DashboardPort = 7080
+)
+
+var (
+	tenyearsLicense = `mIlwqomVH6gbvQDUESKDQJaQuVWHkk3WSpYz-4mKPiWlYxWLuyChuvGoyN5SoNU-ezEVcaKD2W1SHsYhjac-kgi9CM7spxxCbcGfsJF4jsoq5_2DhxSLbAtikseX2wt2symV0KSgh24l3W-szK5gfLa_6nIAqbwN-spLRqbt3zxrXHpnTSb9fYQYL3uAb_6hVln7UXvP2KOFZxV_jiYCyTspIz_2P78NZSPGktoENFxRLNbGQ3JorOlq1wK5jJ6b4t5AZlzTOAYR9pb1A9RQEkzAoHjGnBWWW1rFBMlPeFLahJFxPNk0OhHICLK2EK1ULbZPFUOAl8c9lzbZhM4Vyw`
+)
+
 type Options struct {
 	Name                         string
 	Kubeconfig                   string
@@ -76,11 +85,13 @@ type Scaffold struct {
 	nodes              []corev1.Node
 	etcdService        *corev1.Service
 	apisixService      *corev1.Service
+	dataplaneService   *corev1.Service
 	httpbinService     *corev1.Service
 	testBackendService *corev1.Service
 	finalizers         []func()
 	label              map[string]string
 
+	gatewaygroupid         string
 	apisixAdminTunnel      *k8s.Tunnel
 	apisixHttpTunnel       *k8s.Tunnel
 	apisixHttpsTunnel      *k8s.Tunnel
@@ -139,9 +150,6 @@ func NewScaffold(o *Options) *Scaffold {
 	}
 	if o.ApisixResourceVersion == "" {
 		o.ApisixResourceVersion = ApisixResourceVersion().Default
-	}
-	if o.APISIXAdminAPIKey == "" {
-		o.APISIXAdminAPIKey = "edd1c9f034335f136f87ad84b625c8f1"
 	}
 	if o.ApisixResourceSyncInterval == "" {
 		o.ApisixResourceSyncInterval = "1h"
@@ -446,6 +454,8 @@ func (s *Scaffold) RestartIngressControllerDeploy() {
 
 func (s *Scaffold) beforeEach() {
 	var err error
+	err = s.UploadLicense()
+	assert.Nil(s.t, err, "uploading license")
 	s.namespace = fmt.Sprintf("ingress-apisix-e2e-tests-%s-%d", s.opts.Name, time.Now().Nanosecond())
 	s.kubectlOptions = &k8s.KubectlOptions{
 		ConfigPath: s.opts.Kubeconfig,
@@ -474,13 +484,33 @@ func (s *Scaffold) beforeEach() {
 	s.nodes, err = k8s.GetReadyNodesE(s.t, s.kubectlOptions)
 	assert.Nil(s.t, err, "querying ready nodes")
 
-	if s.opts.EnableEtcdServer {
-		s.DeployCompositeMode()
-	} else {
-		s.DeployAdminaAPIMode()
-	}
+	s.gatewaygroupid, err = s.CreateNewGatewayGroup()
+	assert.Nil(s.t, err, "creating new gateway group")
+
+	s.opts.APISIXAdminAPIKey, err = s.GetAPIKey()
+	assert.Nil(s.t, err, "getting api key")
+	fmt.Println("API KEY RETRIEVED ", s.opts.APISIXAdminAPIKey)
+	s.DeployDataplaneWithIngress()
 	s.DeployTestService()
 	s.DeployRetryTimeout()
+}
+
+func (s *Scaffold) DeployDataplaneWithIngress() {
+	var err error
+	s.dataplaneService, err = s.newDataplane()
+	assert.Nil(s.t, err, "deploying data plane")
+
+	err = s.waitAllAPISIXPodsAvailable()
+	assert.Nil(s.t, err, "waiting for apisix ready")
+
+	err = s.newIngressAPISIXController()
+	assert.Nil(s.t, err, "initializing ingress apisix controller")
+
+	err = s.WaitAllIngressControllerPodsAvailable()
+	assert.Nil(s.t, err, "waiting for ingress apisix controller ready")
+
+	err = s.newAPISIXTunnels()
+	assert.Nil(s.t, err, "creating apisix tunnels")
 }
 
 func (s *Scaffold) DeployAdminaAPIMode() {

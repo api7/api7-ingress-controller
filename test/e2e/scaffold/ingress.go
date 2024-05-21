@@ -455,7 +455,7 @@ spec:
             - --default-apisix-cluster-base-url
             - %s
             - --default-apisix-cluster-admin-key
-            - edd1c9f034335f136f87ad84b625c8f1
+            - %s
             - --namespace-selector
             - %s
             - --api-version
@@ -508,7 +508,7 @@ func (s *Scaffold) genIngressDeployment(replicas int, adminAPIVersion,
 	}
 
 	return s.FormatRegistry(fmt.Sprintf(_ingressAPISIXDeploymentTemplate, replicas, initContainers, adminAPIVersion, syncInterval, syncComparison,
-		apisixBaseURL, label, resourceVersion, publishAddr, webhooks, ingressClass, disableStatus, etcdserverEnabled, apisixContainer))
+		apisixBaseURL, s.opts.APISIXAdminAPIKey, label, resourceVersion, publishAddr, webhooks, ingressClass, disableStatus, etcdserverEnabled, apisixContainer))
 
 }
 
