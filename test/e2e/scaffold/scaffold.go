@@ -47,7 +47,7 @@ import (
 )
 
 const (
-	DashboardHost = "api7-ee-dashboard"
+	DashboardHost = "localhost"
 	DashboardPort = 7080
 )
 
@@ -484,7 +484,7 @@ func (s *Scaffold) beforeEach() {
 
 	s.gatewaygroupid, err = s.CreateNewGatewayGroup()
 	assert.Nil(s.t, err, "creating new gateway group")
-
+	fmt.Println("GID IS ", s.gatewaygroupid)
 	s.opts.APISIXAdminAPIKey, err = s.GetAPIKey()
 	assert.Nil(s.t, err, "getting api key")
 	fmt.Println("API KEY RETRIEVED ", s.opts.APISIXAdminAPIKey)
@@ -583,6 +583,7 @@ func (s *Scaffold) DeployTestService() {
 }
 
 func (s *Scaffold) afterEach() {
+	s.DeleteGatewayGroup()
 	defer ginkgo.GinkgoRecover()
 
 	if ginkgo.CurrentSpecReport().Failed() {

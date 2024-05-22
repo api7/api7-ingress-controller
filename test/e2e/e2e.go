@@ -21,7 +21,7 @@ import (
 	// _ "github.com/api7/api7-ingress-controller/test/e2e/suite-annotations"
 	// _ "github.com/api7/api7-ingress-controller/test/e2e/suite-chore"
 	// _ "github.com/api7/api7-ingress-controller/test/e2e/suite-cluster"
-	// _ "github.com/api7/api7-ingress-controller/test/e2e/suite-features"
+	_ "github.com/api7/api7-ingress-controller/test/e2e/suite-features"
 	// _ "github.com/api7/api7-ingress-controller/test/e2e/suite-gateway"
 	// _ "github.com/api7/api7-ingress-controller/test/e2e/suite-ingress/suite-ingress-features"
 	// _ "github.com/api7/api7-ingress-controller/test/e2e/suite-ingress/suite-ingress-resource"

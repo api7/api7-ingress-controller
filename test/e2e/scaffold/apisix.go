@@ -48,9 +48,11 @@ data:
       app: api7-ee-gateway-1
     ports:
       - protocol: TCP
+        name: http
         port: 9080
         targetPort: 9080
       - protocol: TCP
+        name: https
         port: 9443
         targetPort: 9443  
   `
@@ -115,7 +117,8 @@ func (s *Scaffold) newAPISIXConfigMap(cm *APISIXConfig) error {
 
 func (s *Scaffold) UploadLicense() error {
 	payload := []byte(fmt.Sprintf(`{"data":"%s"}`, tenyearsLicense))
-	req, err := http.NewRequest("PUT", fmt.Sprintf("%s:%d/api/license", DashboardHost, DashboardPort), bytes.NewBuffer(payload))
+	url := fmt.Sprintf("http://%s:%d/api/license", DashboardHost, DashboardPort)
+	req, err := http.NewRequest("PUT", url, bytes.NewBuffer(payload))
 	if err != nil {
 		return err
 	}
@@ -123,6 +126,7 @@ func (s *Scaffold) UploadLicense() error {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
+		fmt.Println("THE ERROR IS ", err.Error())
 		return err
 	}
 	defer resp.Body.Close()
@@ -136,11 +140,12 @@ type responseCreateGatewayValue struct {
 	ID             string `json:"id"`
 	TokenPlainText string `json:"token_plain_text"`
 	Key            string `json:"key"`
+	ErrorMsg       string `json:"error_msg"`
 }
 
 func (s *Scaffold) GetAPIKey() (string, error) {
 	gatewayGroupID := s.gatewaygroupid
-	url := fmt.Sprintf("%s:%d/api/gateway-groups/%s/admin_key", DashboardHost, DashboardPort, gatewayGroupID)
+	url := fmt.Sprintf("http://%s:%d/api/gateway_groups/%s/admin_key", DashboardHost, DashboardPort, gatewayGroupID)
 	req, err := http.NewRequest("PUT", url, nil)
 	if err != nil {
 		return "", err
@@ -158,19 +163,45 @@ func (s *Scaffold) GetAPIKey() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
 	//unmarshal into responseCreateGateway
 	var response responseCreateGateway
 	err = json.NewDecoder(resp.Body).Decode(&response)
 	if err != nil {
 		return "", err
 	}
+	if response.Value.ErrorMsg != "" {
+		return "", fmt.Errorf("error getting key: %s", response.Value.ErrorMsg)
+	}
 	return response.Value.Key, nil
 }
 
+func (s *Scaffold) DeleteGatewayGroup() error {
+	gatewayGroupID := s.gatewaygroupid
+	url := fmt.Sprintf("http://%s:%d/api/gateway_groups/%s", DashboardHost, DashboardPort, gatewayGroupID)
+	req, err := http.NewRequest("DELETE", url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Set basic authentication
+	req.SetBasicAuth("admin", "admin")
+
+	// Create an HTTP client
+	client := &http.Client{}
+
+	// Send the request
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return nil
+}
+
 func (s *Scaffold) CreateNewGatewayGroup() (string, error) {
-	payload := []byte(`{"name":"ingress","description":"","labels":{},"type":"api7_ingress_controller"}`)
-	url := fmt.Sprintf("%s:%d/api/gateway-groups", DashboardHost, DashboardPort)
+	payload := []byte(`{"name":"ingress10","description":"","labels":{},"type":"api7_ingress_controller"}`)
+	url := fmt.Sprintf("http://%s:%d/api/gateway_groups", DashboardHost, DashboardPort)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))
 	if err != nil {
 		return "", err
@@ -195,12 +226,16 @@ func (s *Scaffold) CreateNewGatewayGroup() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if response.Value.ErrorMsg != "" {
+		return "", fmt.Errorf("error creating gateway group: %s", response.Value.ErrorMsg)
+	}
+	fmt.Println("GOT THE ID ", response.Value.ID)
 	return response.Value.ID, nil
 }
 
 func (s *Scaffold) getTokenFromDashboard() (string, error) {
 	gatewayGroupID := s.gatewaygroupid
-	url := fmt.Sprintf("%s:%d/api/gateway-groups/%s/instance_token", DashboardHost, DashboardPort, gatewayGroupID)
+	url := fmt.Sprintf("http://%s:%d/api/gateway_groups/%s/instance_token", DashboardHost, DashboardPort, gatewayGroupID)
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		return "", err
@@ -239,10 +274,12 @@ func (s *Scaffold) newDataplane() (*corev1.Service, error) {
 	if err := s.CreateResourceFromString(_eeService); err != nil {
 		return nil, err
 	}
+	fmt.Println("Service is ", _eeService)
 	svc, err := k8s.GetServiceE(s.t, s.kubectlOptions, "api7-ee-gateway-1")
 	if err != nil {
 		return nil, err
 	}
+
 	return svc, nil
 
 }
@@ -276,7 +313,7 @@ func indent(data string) string {
 
 func (s *Scaffold) waitAllAPISIXPodsAvailable() error {
 	opts := metav1.ListOptions{
-		LabelSelector: "app=apisix-deployment-e2e-test",
+		LabelSelector: "app=api7-ee-gateway-1",
 	}
 	condFunc := func() (bool, error) {
 		items, err := k8s.ListPodsE(s.t, s.kubectlOptions, opts)
