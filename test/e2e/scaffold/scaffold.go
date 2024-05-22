@@ -83,8 +83,6 @@ type Scaffold struct {
 	namespace          string
 	t                  testing.TestingT
 	nodes              []corev1.Node
-	etcdService        *corev1.Service
-	apisixService      *corev1.Service
 	dataplaneService   *corev1.Service
 	httpbinService     *corev1.Service
 	testBackendService *corev1.Service
@@ -513,33 +511,33 @@ func (s *Scaffold) DeployDataplaneWithIngress() {
 	assert.Nil(s.t, err, "creating apisix tunnels")
 }
 
-func (s *Scaffold) DeployAdminaAPIMode() {
-	err := s.newAPISIXConfigMap(&APISIXConfig{
-		EtcdServiceFQDN: EtcdServiceName,
-	})
-	assert.Nil(s.t, err, "creating apisix configmap")
+// func (s *Scaffold) DeployAdminaAPIMode() {
+// 	err := s.newAPISIXConfigMap(&APISIXConfig{
+// 		EtcdServiceFQDN: EtcdServiceName,
+// 	})
+// 	assert.Nil(s.t, err, "creating apisix configmap")
 
-	s.etcdService, err = s.newEtcd()
-	assert.Nil(s.t, err, "initializing etcd")
+// 	s.etcdService, err = s.newEtcd()
+// 	assert.Nil(s.t, err, "initializing etcd")
 
-	err = s.waitAllEtcdPodsAvailable()
-	assert.Nil(s.t, err, "waiting for etcd ready")
+// 	err = s.waitAllEtcdPodsAvailable()
+// 	assert.Nil(s.t, err, "waiting for etcd ready")
 
-	s.apisixService, err = s.newAPISIX()
-	assert.Nil(s.t, err, "initializing Apache APISIX")
+// 	s.apisixService, err = s.newAPISIX()
+// 	assert.Nil(s.t, err, "initializing Apache APISIX")
 
-	err = s.waitAllAPISIXPodsAvailable()
-	assert.Nil(s.t, err, "waiting for apisix ready")
+// 	err = s.waitAllAPISIXPodsAvailable()
+// 	assert.Nil(s.t, err, "waiting for apisix ready")
 
-	err = s.newIngressAPISIXController()
-	assert.Nil(s.t, err, "initializing ingress apisix controller")
+// 	err = s.newIngressAPISIXController()
+// 	assert.Nil(s.t, err, "initializing ingress apisix controller")
 
-	err = s.WaitAllIngressControllerPodsAvailable()
-	assert.Nil(s.t, err, "waiting for ingress apisix controller ready")
+// 	err = s.WaitAllIngressControllerPodsAvailable()
+// 	assert.Nil(s.t, err, "waiting for ingress apisix controller ready")
 
-	err = s.newAPISIXTunnels()
-	assert.Nil(s.t, err, "creating apisix tunnels")
-}
+// 	err = s.newAPISIXTunnels()
+// 	assert.Nil(s.t, err, "creating apisix tunnels")
+// }
 
 func (s *Scaffold) DeployCompositeMode() {
 	err := s.newAPISIXConfigMap(&APISIXConfig{
@@ -794,4 +792,9 @@ func (s *Scaffold) NamespaceSelectorLabelStrings() []string {
 
 func (s *Scaffold) NamespaceSelectorLabel() map[string][]string {
 	return s.opts.NamespaceSelectorLabel
+}
+func (s *Scaffold) labelSelector(label string) metav1.ListOptions {
+	return metav1.ListOptions{
+		LabelSelector: label,
+	}
 }

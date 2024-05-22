@@ -72,7 +72,7 @@ data:
       spec:
         containers:
           - name: api7-ee-gateway-1
-            image: localhost:5000/api7-ee-3-integrated:dev
+            image: localhost:5000/api7-ee-3-gateway:dev
             ports:
               - containerPort: 9080
               - containerPort: 9443
@@ -88,111 +88,7 @@ data:
         volumes:
           - name: config-volume
             hostPath:
-              path: /path/to/gateway_conf
-`
-	_apisixDeployment = `
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: apisix-deployment-e2e-test
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: apisix-deployment-e2e-test
-  strategy:
-    rollingUpdate:
-      maxSurge: 50%%
-      maxUnavailable: 1
-    type: RollingUpdate
-  template:
-    metadata:
-      labels:
-        app: apisix-deployment-e2e-test
-    spec:
-      terminationGracePeriodSeconds: 0
-      initContainers:
-      - name: wait-etcd
-        image: localhost:5000/busybox:dev
-        imagePullPolicy: IfNotPresent
-        command: ['sh', '-c', "until nc -z %s 2379 ; do echo waiting for wait-etcd; sleep 2; done;"]
-      containers:
-        - livenessProbe:
-            failureThreshold: 3
-            initialDelaySeconds: 1
-            periodSeconds: 2
-            successThreshold: 1
-            tcpSocket:
-              port: 9080
-            timeoutSeconds: 2
-          readinessProbe:
-            failureThreshold: 3
-            initialDelaySeconds: 1
-            periodSeconds: 2
-            successThreshold: 1
-            tcpSocket:
-              port: 9080
-            timeoutSeconds: 2
-          image: "localhost:5000/apisix:dev"
-          imagePullPolicy: IfNotPresent
-          name: apisix-deployment-e2e-test
-          ports:
-            - containerPort: 9080
-              name: "http"
-              protocol: "TCP"
-            - containerPort: 9180
-              name: "http-admin"
-              protocol: "TCP"
-            - containerPort: 9443
-              name: "https"
-              protocol: "TCP"
-          volumeMounts:
-            - mountPath: /usr/local/apisix/conf/config.yaml
-              name: apisix-config-yaml-configmap
-              subPath: config.yaml
-      volumes:
-        - configMap:
-            name: apisix-gw-config.yaml
-          name: apisix-config-yaml-configmap
-`
-	_apisixService = `
-apiVersion: v1
-kind: Service
-metadata:
-  name: apisix-service-e2e-test
-spec:
-  selector:
-    app: apisix-deployment-e2e-test
-  ports:
-    - name: http
-      port: 9080
-      protocol: TCP
-      targetPort: 9080
-    - name: http-admin
-      port: 9180
-      protocol: TCP
-      targetPort: 9180
-    - name: https
-      port: 9443
-      protocol: TCP
-      targetPort: 9443
-    - name: tcp
-      port: 9100
-      protocol: TCP
-      targetPort: 9100
-    - name: tcp-tls
-      port: 9110
-      protocol: TCP
-      targetPort: 9110
-    - name: udp
-      port: 9200
-      protocol: UDP
-      targetPort: 9200
-    - name: http-control
-      port: 9090
-      protocol: TCP
-      targetPort: 9090
-  type: NodePort
+              path: ./gateway_conf
 `
 )
 
@@ -219,7 +115,7 @@ func (s *Scaffold) newAPISIXConfigMap(cm *APISIXConfig) error {
 
 func (s *Scaffold) UploadLicense() error {
 	payload := []byte(fmt.Sprintf(`{"data":"%s"}`, tenyearsLicense))
-	req, err := http.NewRequest("PUT", fmt.Sprintf("%s:%s/api/license", DashboardHost, DashboardPort), bytes.NewBuffer(payload))
+	req, err := http.NewRequest("PUT", fmt.Sprintf("%s:%d/api/license", DashboardHost, DashboardPort), bytes.NewBuffer(payload))
 	if err != nil {
 		return err
 	}
@@ -351,24 +247,24 @@ func (s *Scaffold) newDataplane() (*corev1.Service, error) {
 
 }
 
-func (s *Scaffold) newAPISIX() (*corev1.Service, error) {
-	deployment := fmt.Sprintf(_apisixDeployment, EtcdServiceName)
-	if err := s.CreateResourceFromString(
-		s.FormatRegistry(deployment),
-	); err != nil {
-		return nil, err
-	}
-	if err := s.CreateResourceFromString(_apisixService); err != nil {
-		return nil, err
-	}
+// func (s *Scaffold) newAPISIX() (*corev1.Service, error) {
+// 	deployment := fmt.Sprintf(_apisixDeployment, EtcdServiceName)
+// 	if err := s.CreateResourceFromString(
+// 		s.FormatRegistry(deployment),
+// 	); err != nil {
+// 		return nil, err
+// 	}
+// 	if err := s.CreateResourceFromString(_apisixService); err != nil {
+// 		return nil, err
+// 	}
 
-	svc, err := k8s.GetServiceE(s.t, s.kubectlOptions, "apisix-service-e2e-test")
-	if err != nil {
-		return nil, err
-	}
+// 	svc, err := k8s.GetServiceE(s.t, s.kubectlOptions, "apisix-service-e2e-test")
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	return svc, nil
-}
+// 	return svc, nil
+// }
 
 func indent(data string) string {
 	list := strings.Split(data, "\n")

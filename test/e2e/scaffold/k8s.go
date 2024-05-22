@@ -662,7 +662,7 @@ func (s *Scaffold) newAPISIXTunnels() error {
 		udpPort            int
 		controlPort        int
 	)
-	for _, port := range s.apisixService.Spec.Ports {
+	for _, port := range s.dataplaneService.Spec.Ports {
 		if port.Name == "http" {
 			httpNodePort = int(port.NodePort)
 			httpPort = int(port.Port)

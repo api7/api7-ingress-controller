@@ -94,7 +94,7 @@ pack-images: build-images push-images
 build-images: build-image
 ifeq ($(E2E_SKIP_BUILD), 0)
 	docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev
-	docker tag hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev $(REGISTRY)/hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev
+	docker tag hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev $(REGISTRY)/api7-ee-3-gateway:dev
 
 	docker pull bitnami/etcd:3.4.14-debian-10-r0
 	docker tag bitnami/etcd:3.4.14-debian-10-r0 $(REGISTRY)/etcd:$(IMAGE_TAG)
@@ -119,7 +119,7 @@ endif
 .PHONY: push-images
 push-images:
 ifeq ($(E2E_SKIP_BUILD), 0)
-	docker push $(REGISTRY)/hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev
+	docker push $(REGISTRY)/api7-ee-3-gateway:dev
 	docker push $(REGISTRY)/etcd:$(IMAGE_TAG)
 	docker push $(REGISTRY)/httpbin:$(IMAGE_TAG)
 	docker push $(REGISTRY)/test-backend:$(IMAGE_TAG)

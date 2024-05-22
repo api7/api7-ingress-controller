@@ -297,42 +297,6 @@ var _initContainers = `
         command: ['sh', '-c', "until nc -z apisix-service-e2e-test 9180 ; do echo waiting for apisix-admin; sleep 2; done;"]
 `
 
-var _apisixContainer = `
-        - livenessProbe:
-            failureThreshold: 3
-            initialDelaySeconds: 10
-            periodSeconds: 2
-            successThreshold: 1
-            tcpSocket:
-              port: 9080
-            timeoutSeconds: 2
-          readinessProbe:
-            failureThreshold: 3
-            initialDelaySeconds: 8
-            periodSeconds: 2
-            successThreshold: 1
-            tcpSocket:
-              port: 9080
-            timeoutSeconds: 1
-          name: apisix-container
-          image: "localhost:5000/apisix:dev"
-          imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: 9080
-              name: "http"
-              protocol: "TCP"
-            - containerPort: 9180
-              name: "http-admin"
-              protocol: "TCP"
-            - containerPort: 9443
-              name: "https"
-              protocol: "TCP"
-          volumeMounts:
-            - mountPath: /usr/local/apisix/conf/config.yaml
-              name: apisix-config-yaml-configmap
-              subPath: config.yaml
-`
-
 var _ingressAPISIXService = `
 apiVersion: v1
 kind: Service
@@ -467,7 +431,6 @@ spec:
             - --ingress-class
             - %s
             - --disable-status-updates=%t
-            - --etcd-server-enabled=%t
             - --etcd-server-listen-address
             - ":2379"
           volumeMounts:
@@ -494,21 +457,15 @@ func init() {
 
 func (s *Scaffold) genIngressDeployment(replicas int, adminAPIVersion,
 	syncInterval, syncComparison, label, resourceVersion, publishAddr string, webhooks bool,
-	ingressClass string, disableStatus bool, etcdserverEnabled bool) string {
+	ingressClass string, disableStatus bool) string {
 	var (
 		initContainers  = _initContainers
-		apisixBaseURL   = "http://apisix-service-e2e-test:9180/apisix/admin"
+		apisixBaseURL   = "http://api7-ee-gateway-1:7080/apisix/admin"
 		apisixContainer string
 	)
 
-	if etcdserverEnabled {
-		initContainers = ""
-		apisixBaseURL = "http://127.0.0.1:9180/apisix/admin"
-		apisixContainer = _apisixContainer
-	}
-
 	return s.FormatRegistry(fmt.Sprintf(_ingressAPISIXDeploymentTemplate, replicas, initContainers, adminAPIVersion, syncInterval, syncComparison,
-		apisixBaseURL, s.opts.APISIXAdminAPIKey, label, resourceVersion, publishAddr, webhooks, ingressClass, disableStatus, etcdserverEnabled, apisixContainer))
+		apisixBaseURL, s.opts.APISIXAdminAPIKey, label, resourceVersion, publishAddr, webhooks, ingressClass, disableStatus, apisixContainer))
 
 }
 
@@ -545,13 +502,13 @@ func (s *Scaffold) newIngressAPISIXController() error {
 		err = s.CreateResourceFromString(_ingressAPISIXService)
 		assert.Nil(s.t, err, "create ingress-apisix service")
 
-		s.apisixService, err = k8s.GetServiceE(s.t, s.kubectlOptions, "apisix-service-e2e-test")
+		s.dataplaneService, err = k8s.GetServiceE(s.t, s.kubectlOptions, "api7-ee-gateway-1")
 		assert.Nil(s.t, err, "get ingress-apisix service")
 	}
 
 	ingressAPISIXDeployment := s.genIngressDeployment(s.opts.IngressAPISIXReplicas, s.opts.APISIXAdminAPIVersion,
 		s.opts.ApisixResourceSyncInterval, s.opts.ApisixResourceSyncComparison, label, s.opts.ApisixResourceVersion, s.opts.APISIXPublishAddress,
-		s.opts.EnableWebhooks, s.opts.IngressClass, s.opts.DisableStatus, s.opts.EnableEtcdServer)
+		s.opts.EnableWebhooks, s.opts.IngressClass, s.opts.DisableStatus)
 
 	err = s.CreateResourceFromString(ingressAPISIXDeployment)
 	assert.Nil(s.t, err, "create deployment")
@@ -669,7 +626,7 @@ func (s *Scaffold) ScaleIngressController(desired int) error {
 
 	ingressDeployment := s.genIngressDeployment(desired, s.opts.APISIXAdminAPIVersion,
 		s.opts.ApisixResourceSyncInterval, s.opts.ApisixResourceSyncComparison, label, s.opts.ApisixResourceVersion, s.opts.APISIXPublishAddress,
-		s.opts.EnableWebhooks, s.opts.IngressClass, s.opts.DisableStatus, s.opts.EnableEtcdServer)
+		s.opts.EnableWebhooks, s.opts.IngressClass, s.opts.DisableStatus)
 
 	if err := s.CreateResourceFromString(ingressDeployment); err != nil {
 		return err
