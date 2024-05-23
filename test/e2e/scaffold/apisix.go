@@ -74,7 +74,7 @@ data:
       spec:
         containers:
           - name: api7-ee-gateway-1
-            image: localhost:5000/api7-ee-3-gateway:dev
+            image: localhost:5000/hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev
             ports:
               - containerPort: 9080
               - containerPort: 9443

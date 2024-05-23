@@ -64,6 +64,10 @@ echo "Registry Host: ${reg_host}"
 
 # create a cluster with the local registry enabled in containerd
 kind_node_image="kindest/node:${K8S_VERSION}"
+
+echo "REPOSITORY: ${REPOSITORY}"
+echo "reg_port: ${reg_port}"
+echo "reg_host: ${reg_host}"
 echo "Kubernetes version: ${kind_node_image}"
 cat <<EOF | kind create cluster --name "${KIND_CLUSTER_NAME}" --image ${kind_node_image} --config=-
 kind: Cluster

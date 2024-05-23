@@ -115,7 +115,7 @@ jobs:
 
           echo "creating images cache..."
           docker save \
-            ${REGISTRY}/api7-ee-3-gateway:dev \
+            ${REGISTRY}/hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev \
             ${REGISTRY}/etcd:dev \
             ${REGISTRY}/apisix-ingress-controller:dev \
             ${REGISTRY}/httpbin:dev \
