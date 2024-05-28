@@ -26,8 +26,8 @@ on:
       - '.github/**'
 jobs:
   update_release_draft:
-    if: github.repository == 'apache/apisix-ingress-controller'
-    runs-on: ubuntu-22.04
+    if: github.repository == 'api7/api7-ingress-controller'
+    runs-on: buildjet-2vcpu-ubuntu-2204
     steps:
       - name: Drafting release
         id: release_drafter
