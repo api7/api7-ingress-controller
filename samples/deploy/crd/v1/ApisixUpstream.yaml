@@ -43,6 +43,12 @@ spec:
               properties:
                 ingressClassName:
                   type: string
+                granularity:
+                  type: string
+                  enum:
+                    - service
+                    - endpoint
+                  default: endpoint
                 discovery:
                   description: Discovery is used to configure service discovery for
                     upstream

@@ -202,7 +202,7 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 				return err
 			}
 
-			upstreamName := apisixv1.ComposeUpstreamName(ar.Namespace, backend.ServiceName, backend.Subset, svcPort, backend.ResolveGranularity)
+			upstreamName := apisixv1.ComposeUpstreamName(ar.Namespace, backend.ServiceName, backend.Subset, svcPort)
 			route.UpstreamId = id.GenID(upstreamName)
 
 			if len(backends) > 0 {
@@ -221,7 +221,7 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 				route.Plugins["traffic-split"] = plugin
 			}
 			if !ctx.CheckUpstreamExist(upstreamName) {
-				ups, err := t.translateService(ar.Namespace, backend.ServiceName, backend.Subset, backend.ResolveGranularity, svcClusterIP, svcPort)
+				ups, err := t.translateService(ar.Namespace, backend.ServiceName, backend.Subset, svcClusterIP, svcPort)
 				if err != nil {
 					return err
 				}
@@ -484,9 +484,9 @@ func (t *translator) generateHTTPRouteV2DeleteMark(ctx *translation.TranslateCon
 			// others will be configured in traffic-split plugin.
 			backend := backends[0]
 
-			upstreamName := apisixv1.ComposeUpstreamName(ar.Namespace, backend.ServiceName, backend.Subset, backend.ServicePort.IntVal, backend.ResolveGranularity)
+			upstreamName := apisixv1.ComposeUpstreamName(ar.Namespace, backend.ServiceName, backend.Subset, backend.ServicePort.IntVal)
 			if !ctx.CheckUpstreamExist(upstreamName) {
-				ups, err := t.generateUpstreamDeleteMark(ar.Namespace, backend.ServiceName, backend.Subset, backend.ServicePort.IntVal, backend.ResolveGranularity)
+				ups, err := t.generateUpstreamDeleteMark(ar.Namespace, backend.ServiceName, backend.Subset, backend.ServicePort.IntVal)
 				if err != nil {
 					return err
 				}
@@ -560,7 +560,7 @@ func (t *translator) translateStreamRouteV2(ctx *translation.TranslateContext, a
 		sr.ID = id.GenID(name)
 		sr.ServerPort = part.Match.IngressPort
 		sr.SNI = part.Match.Host
-		ups, err := t.translateService(ar.Namespace, backend.ServiceName, backend.Subset, backend.ResolveGranularity, svcClusterIP, svcPort)
+		ups, err := t.translateService(ar.Namespace, backend.ServiceName, backend.Subset, svcClusterIP, svcPort)
 		if err != nil {
 			return err
 		}
@@ -584,7 +584,7 @@ func (t *translator) generateStreamRouteDeleteMarkV2(ctx *translation.TranslateC
 		sr.ID = id.GenID(name)
 		sr.ServerPort = part.Match.IngressPort
 		sr.SNI = part.Match.Host
-		ups, err := t.generateUpstreamDeleteMark(ar.Namespace, backend.ServiceName, backend.Subset, backend.ServicePort.IntVal, backend.ResolveGranularity)
+		ups, err := t.generateUpstreamDeleteMark(ar.Namespace, backend.ServiceName, backend.Subset, backend.ServicePort.IntVal)
 		if err != nil {
 			return err
 		}
@@ -603,13 +603,14 @@ func (t *translator) GetServiceClusterIPAndPort(backend *configv2.ApisixRouteHTT
 		return "", 0, err
 	}
 	svcPort := int32(-1)
-	if backend.ResolveGranularity == "service" && svc.Spec.ClusterIP == "" {
-		log.Errorw("ApisixRoute refers to a headless service but want to use the service level resolve granularity",
-			zap.Any("namespace", ns),
-			zap.Any("service", svc),
-		)
-		return "", 0, errors.New("conflict headless service and backend resolve granularity")
-	}
+	//LOOK HERE
+	// if backend.ResolveGranularity == "service" && svc.Spec.ClusterIP == "" {
+	// 	log.Errorw("ApisixRoute refers to a headless service but want to use the service level resolve granularity",
+	// 		zap.Any("namespace", ns),
+	// 		zap.Any("service", svc),
+	// 	)
+	// 	return "", 0, errors.New("conflict headless service and backend resolve granularity")
+	// }
 loop:
 	for _, port := range svc.Spec.Ports {
 		switch backend.ServicePort.Type {
