@@ -21,11 +21,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 
-	"github.com/apache/apisix-ingress-controller/pkg/id"
-	v2 "github.com/apache/apisix-ingress-controller/pkg/kube/apisix/apis/config/v2"
-	"github.com/apache/apisix-ingress-controller/pkg/providers/translation"
-	"github.com/apache/apisix-ingress-controller/pkg/providers/utils"
-	apisixv1 "github.com/apache/apisix-ingress-controller/pkg/types/apisix/v1"
+	"github.com/api7/api7-ingress-controller/pkg/id"
+	v2 "github.com/api7/api7-ingress-controller/pkg/kube/apisix/apis/config/v2"
+	"github.com/api7/api7-ingress-controller/pkg/providers/translation"
+	"github.com/api7/api7-ingress-controller/pkg/providers/utils"
+	apisixv1 "github.com/api7/api7-ingress-controller/pkg/types/apisix/v1"
 )
 
 // generateUpstreamDeleteMark translates Upstream nodes with a loose way, only generate ID and Name for delete Event.

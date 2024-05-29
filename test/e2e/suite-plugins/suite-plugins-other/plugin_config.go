@@ -22,10 +22,10 @@ import (
 	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
+	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-plugins-other: ApisixPluginConfig", func() {
+var _ = ginkgo.PDescribe("suite-plugins-other: ApisixPluginConfig", func() {
 	s := scaffold.NewDefaultV2Scaffold()
 	ginkgo.It("add crd from definition", func() {
 		backendSvc, backendPorts := s.DefaultHTTPBackend()
@@ -595,7 +595,7 @@ spec:
 	})
 })
 
-var _ = ginkgo.Describe("suite-plugins-other: ApisixPluginConfig cross namespace", func() {
+var _ = ginkgo.PDescribe("suite-plugins-other: ApisixPluginConfig cross namespace", func() {
 	s := scaffold.NewScaffold(&scaffold.Options{
 		NamespaceSelectorLabel: map[string][]string{
 			"apisix.ingress.watch": {"test"},

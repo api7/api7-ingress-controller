@@ -17,13 +17,14 @@ package apisix
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"go.uber.org/zap"
 
-	"github.com/apache/apisix-ingress-controller/pkg/apisix/cache"
-	"github.com/apache/apisix-ingress-controller/pkg/id"
-	"github.com/apache/apisix-ingress-controller/pkg/log"
-	v1 "github.com/apache/apisix-ingress-controller/pkg/types/apisix/v1"
+	"github.com/api7/api7-ingress-controller/pkg/apisix/cache"
+	"github.com/api7/api7-ingress-controller/pkg/id"
+	"github.com/api7/api7-ingress-controller/pkg/log"
+	v1 "github.com/api7/api7-ingress-controller/pkg/types/apisix/v1"
 )
 
 type globalRuleClient struct {
@@ -112,6 +113,17 @@ func (r *globalRuleClient) List(ctx context.Context) ([]*v1.GlobalRule, error) {
 func (r *globalRuleClient) Create(ctx context.Context, obj *v1.GlobalRule, shouldCompare bool) (*v1.GlobalRule, error) {
 	if v, skip := skipRequest(r.cluster, shouldCompare, r.url, obj.ID, obj); skip {
 		return v, nil
+	}
+
+	//Overwrite global rule ID with the plugin name
+	if len(obj.Plugins) == 0 { //This case will not happen as its handled at schema validation level
+		return nil, fmt.Errorf("global rule must have at least one plugin")
+	}
+
+	//This is checked on dashboard that global rule id should be the plugin name
+	for pluginName := range obj.Plugins {
+		obj.ID = pluginName
+		break
 	}
 
 	log.Debugw("try to create global_rule",

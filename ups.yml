@@ -1,0 +1,10 @@
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: httpbin
+  # namespace: ingress-apisix
+spec:
+  loadbalancer:
+    type: chash
+    hashOn: header
+    key: "user-agent"

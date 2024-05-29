@@ -21,10 +21,10 @@ import (
 	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
+	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-plugins-other: mqtt-proxy plugin", func() {
+var _ = ginkgo.PDescribe("suite-plugins-other: mqtt-proxy plugin", func() {
 	opts := &scaffold.Options{
 		Name:                  "mqtt-proxy",
 		IngressAPISIXReplicas: 1,

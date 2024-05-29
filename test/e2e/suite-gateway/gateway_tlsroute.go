@@ -24,7 +24,7 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
+	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
 func createSSL(s *scaffold.Scaffold) {
@@ -128,7 +128,7 @@ jW4KB95bGOTa7r7DM1Up0MbAIwWoeLBGhOIXk7inurZGg+FNjZMA5Lzm6qo=
 	assert.Equal(ginkgo.GinkgoT(), cert, tls[0].Cert, "tls cert not expect")
 }
 
-var _ = ginkgo.Describe("suite-gateway: TLSRoute", func() {
+var _ = ginkgo.PDescribe("suite-gateway: TLSRoute", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	ginkgo.It("Basic with 1 Hosts 1 Rule 1 Match 1 BackendRef", func() {

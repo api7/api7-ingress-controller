@@ -37,12 +37,12 @@ As an alternative way, you can also choose to install apisix-ingress-controller 
 
 ```shell
 kubectl create namespace ingress-apisix
-kubectl kustomize "github.com/apache/apisix-ingress-controller/samples/deploy?ref=master" | kubectl apply -f -
+kubectl kustomize "github.com/api7/api7-ingress-controller/samples/deploy?ref=master" | kubectl apply -f -
 ```
 
 Parameters are hardcoded so if the default values are not good for you, just tweak them manually.
 
-To tweak parameters, first you need to modify config files in _samples/deploy_ directory. There are many ways to acheive this. For example, you may insert a `sed` command after `kubectl kustomize`, that is, `kubectl kustomize "github.com/apache/apisix-ingress-controller/samples/deploy?ref=master" | sed "s@to-be-modified@after-modified@g" | kubectl apply -f -`. Another way is to use a local copy of _samples/deploy_ directory or a copy from your repo.
+To tweak parameters, first you need to modify config files in _samples/deploy_ directory. There are many ways to acheive this. For example, you may insert a `sed` command after `kubectl kustomize`, that is, `kubectl kustomize "github.com/api7/api7-ingress-controller/samples/deploy?ref=master" | sed "s@to-be-modified@after-modified@g" | kubectl apply -f -`. Another way is to use a local copy of _samples/deploy_ directory or a copy from your repo.
 
 Then you need to know which parameter need to be tweaked. If APISIX access token or the address of APISIX Admin API is changed, you need to modify `apisix.admin_key` or `apisix.base_url` respectively in field `.data.config.yaml` in file _samples/deploy/configmap/apisix-ingress-cm.yaml_. Another example is to install apisix-ingress-controller with different version, in which case you need to configure `.spec.template.spec.containers.[image]` to a desired version in file _samples/deploy/deployment/ingress-controller.yaml_.
 

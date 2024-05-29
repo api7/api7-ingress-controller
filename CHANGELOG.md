@@ -2034,7 +2034,7 @@ This release mainly improves the program robustness and adds some features.
 
 - Support Leader election to let only the leader process resources [#173](https://github.com/apache/apisix-ingress-controller/pull/173);
 - Let Controller itself generates resource ids instead of relying on APISIX [#199](https://github.com/apache/apisix-ingress-controller/pull/199);
-- Change go module name from `github.com/api7/ingress-controller` to `github.com/apache/apisix-ingress-controller` [#220](https://github.com/apache/apisix-ingress-controller/pull/220);
+- Change go module name from `github.com/api7/ingress-controller` to `github.com/api7/api7-ingress-controller` [#220](https://github.com/apache/apisix-ingress-controller/pull/220);
 - Re draw the design diagram [#214](https://github.com/apache/apisix-ingress-controller/pull/214);
 - Support gRPC scheme in ApisixUpstream [#225](https://github.com/apache/apisix-ingress-controller/pull/225);
 - SSL resource cache optimization [#203](https://github.com/apache/apisix-ingress-controller/pull/203);
