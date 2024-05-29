@@ -603,14 +603,6 @@ func (t *translator) GetServiceClusterIPAndPort(backend *configv2.ApisixRouteHTT
 		return "", 0, err
 	}
 	svcPort := int32(-1)
-	//LOOK HERE
-	// if backend.ResolveGranularity == "service" && svc.Spec.ClusterIP == "" {
-	// 	log.Errorw("ApisixRoute refers to a headless service but want to use the service level resolve granularity",
-	// 		zap.Any("namespace", ns),
-	// 		zap.Any("service", svc),
-	// 	)
-	// 	return "", 0, errors.New("conflict headless service and backend resolve granularity")
-	// }
 loop:
 	for _, port := range svc.Spec.Ports {
 		switch backend.ServicePort.Type {
@@ -644,13 +636,6 @@ func (t *translator) getStreamServiceClusterIPAndPortV2(backend configv2.ApisixR
 		return "", 0, err
 	}
 	svcPort := int32(-1)
-	if backend.ResolveGranularity == "service" && svc.Spec.ClusterIP == "" {
-		log.Errorw("ApisixRoute refers to a headless service but want to use the service level resolve granularity",
-			zap.String("ApisixRoute namespace", ns),
-			zap.Any("service", svc),
-		)
-		return "", 0, errors.New("conflict headless service and backend resolve granularity")
-	}
 loop:
 	for _, port := range svc.Spec.Ports {
 		switch backend.ServicePort.Type {

@@ -16,6 +16,7 @@ package apisix
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -349,6 +350,12 @@ func (c *apisixUpstreamController) updateUpstream(ctx context.Context, upsName s
 	newUps.Metadata = ups.Metadata
 
 	if cfg.Granularity == types.ResolveGranularity.Service {
+		if svcClusterIP == "" {
+			log.Errorw("ApisixRoute refers to a headless service but want to use the service level resolve granularity",
+				zap.String("ApisixUpstream name", upsName),
+			)
+			return errors.New("conflict headless service and backend resolve granularity")
+		}
 		for _, node := range ups.Nodes {
 			newUps.Nodes = append(newUps.Nodes, apisixv1.UpstreamNode{
 				Host:   svcClusterIP,
@@ -359,7 +366,6 @@ func (c *apisixUpstreamController) updateUpstream(ctx context.Context, upsName s
 	} else {
 		newUps.Nodes = ups.Nodes
 	}
-
 	log.Debugw("updating upstream since ApisixUpstream changed",
 		zap.Any("upstream", newUps),
 		zap.String("ApisixUpstream name", upsName),
