@@ -25,7 +25,6 @@ import (
 	"github.com/apache/apisix-ingress-controller/pkg/id"
 	v2 "github.com/apache/apisix-ingress-controller/pkg/kube/apisix/apis/config/v2"
 	"github.com/apache/apisix-ingress-controller/pkg/providers/translation"
-	"github.com/apache/apisix-ingress-controller/pkg/types"
 	apisixv1 "github.com/apache/apisix-ingress-controller/pkg/types/apisix/v1"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
@@ -470,7 +469,7 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err, "get httpbin service")
 			ip := svc.Spec.ClusterIP
 
-			upName := apisixv1.ComposeUpstreamName(s.Namespace(), "httpbin-temp", "", 80, types.ResolveGranularity.Service)
+			upName := apisixv1.ComposeUpstreamName(s.Namespace(), "httpbin-temp", "", 80)
 			upID := id.GenID(upName)
 
 			// -- validation --
