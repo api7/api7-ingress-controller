@@ -146,8 +146,7 @@ func TestTranslateTrafficSplitPlugin(t *testing.T) {
 				Type:   intstr.Int,
 				IntVal: 443,
 			},
-			ResolveGranularity: "service",
-			Weight:             &weight20,
+			Weight: &weight20,
 		},
 	}
 
@@ -543,14 +542,6 @@ func TestTranslateTrafficSplitPluginBadCases(t *testing.T) {
 	assert.Nil(t, cfg)
 	assert.NotNil(t, err)
 	assert.Equal(t, "service.spec.ports: port not defined", err.Error())
-
-	backends[1].ServicePort.StrVal = "port2"
-	backends[1].ResolveGranularity = "service"
-	ctx = &translation.TranslateContext{UpstreamMap: make(map[string]struct{})}
-	cfg, err = tr.translateTrafficSplitPlugin(ctx, ar1.Namespace, 30, backends)
-	assert.Nil(t, cfg)
-	assert.NotNil(t, err)
-	assert.Equal(t, "conflict headless service and backend resolve granularity", err.Error())
 }
 
 func TestTranslateConsumerKeyAuthPluginWithInPlaceValue(t *testing.T) {

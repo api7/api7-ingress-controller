@@ -49,7 +49,7 @@ func (t *translator) translateTrafficSplitPlugin(ctx *translation.TranslateConte
 		if err != nil {
 			return nil, err
 		}
-		ups, err := t.translateService(ns, backend.ServiceName, backend.Subset, backend.ResolveGranularity, svcClusterIP, svcPort)
+		ups, err := t.translateService(ns, backend.ServiceName, backend.Subset, svcClusterIP, svcPort)
 		if err != nil {
 			return nil, err
 		}

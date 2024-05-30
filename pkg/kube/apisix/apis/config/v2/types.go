@@ -87,11 +87,6 @@ type ApisixRouteHTTPBackend struct {
 	ServiceName string `json:"serviceName" yaml:"serviceName"`
 	// The service port, could be the name or the port number.
 	ServicePort intstr.IntOrString `json:"servicePort" yaml:"servicePort"`
-	// The resolve granularity, can be "endpoints" or "service",
-	// when set to "endpoints", the pod ips will be used; other
-	// wise, the service ClusterIP or ExternalIP will be used,
-	// default is endpoints.
-	ResolveGranularity string `json:"resolveGranularity,omitempty" yaml:"resolveGranularity,omitempty"`
 	// Weight of this backend.
 	Weight *int `json:"weight" yaml:"weight"`
 	// Subset specifies a subset for the target Service. The subset should be pre-defined
@@ -257,11 +252,6 @@ type ApisixRouteStreamBackend struct {
 	ServiceName string `json:"serviceName" yaml:"serviceName"`
 	// The service port, could be the name or the port number.
 	ServicePort intstr.IntOrString `json:"servicePort" yaml:"servicePort"`
-	// The resolve granularity, can be "endpoints" or "service",
-	// when set to "endpoints", the pod ips will be used; other
-	// wise, the service ClusterIP or ExternalIP will be used,
-	// default is endpoints.
-	ResolveGranularity string `json:"resolveGranularity,omitempty" yaml:"resolveGranularity,omitempty"`
 	// Subset specifies a subset for the target Service. The subset should be pre-defined
 	// in ApisixUpstream about this service.
 	Subset string `json:"subset,omitempty" yaml:"subset,omitempty"`
@@ -515,6 +505,7 @@ type ApisixUpstreamSpec struct {
 // ApisixUpstreamConfig contains rich features on APISIX Upstream, for instance
 // load balancer, health check, etc.
 type ApisixUpstreamConfig struct {
+	Granularity string `json:"granularity,omitempty" yaml:"scheme,omitempty"`
 	// LoadBalancer represents the load balancer configuration for Kubernetes Service.
 	// The default strategy is round robin.
 	// +optional

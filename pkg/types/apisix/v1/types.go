@@ -22,8 +22,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/apache/apisix-ingress-controller/pkg/types"
 )
 
 const (
@@ -595,7 +593,7 @@ func NewDefaultGlobalRule() *GlobalRule {
 // ComposeUpstreamName uses namespace, name, subset (optional), port, resolveGranularity info to compose
 // the upstream name.
 // the resolveGranularity is not composited in the upstream name when it is endpoint.
-func ComposeUpstreamName(namespace, name, subset string, port int32, resolveGranularity string) string {
+func ComposeUpstreamName(namespace, name, subset string, port int32) string {
 	pstr := strconv.Itoa(int(port))
 	// FIXME Use sync.Pool to reuse this buffer if the upstream
 	// name composing code path is hot.
@@ -603,9 +601,6 @@ func ComposeUpstreamName(namespace, name, subset string, port int32, resolveGran
 	plen := len(namespace) + len(name) + len(pstr) + 2
 	if subset != "" {
 		plen = plen + len(subset) + 1
-	}
-	if resolveGranularity == types.ResolveGranularity.Service {
-		plen = plen + len(resolveGranularity) + 1
 	}
 
 	p = make([]byte, 0, plen)
@@ -619,11 +614,6 @@ func ComposeUpstreamName(namespace, name, subset string, port int32, resolveGran
 		buf.WriteByte('_')
 	}
 	buf.WriteString(pstr)
-	if resolveGranularity == types.ResolveGranularity.Service {
-		buf.WriteByte('_')
-		buf.WriteString(resolveGranularity)
-	}
-
 	return buf.String()
 }
 
