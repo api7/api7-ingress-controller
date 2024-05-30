@@ -313,6 +313,7 @@ kind: ApisixUpstream
 metadata:
   name: %s
 spec:
+  resolveGranularity: service
   externalNodes:
   - type: %s
     name: %s
@@ -347,7 +348,6 @@ spec:
     backends:
     - serviceName: %s
       servicePort: %d
-      resolveGranularity: service
     plugins:
     - name: proxy-rewrite
       enable: true
