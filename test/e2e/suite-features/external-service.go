@@ -313,7 +313,7 @@ kind: ApisixUpstream
 metadata:
   name: %s
 spec:
-  resolveGranularity: service
+  granularity: service
   externalNodes:
   - type: %s
     name: %s

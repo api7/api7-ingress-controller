@@ -36,7 +36,7 @@ kind: ApisixUpstream
 metadata:
   name: %s
 spec:
-  resolveGranularity: service
+  granularity: service
 `, backendSvc)
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(au))
 			ar := fmt.Sprintf(`
@@ -55,7 +55,6 @@ spec:
    backends:
    - serviceName: %s
      servicePort: %d
-     resolveGranularity: service
    plugins:
    - name: api-breaker
      enable: true
@@ -102,7 +101,7 @@ kind: ApisixUpstream
 metadata:
   name: %s
 spec:
-  resolveGranularity: service
+  granularity: service
 `, backendSvc)
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(au))
 			ar := fmt.Sprintf(`
@@ -121,7 +120,6 @@ spec:
    backends:
    - serviceName: %s
      servicePort: %d
-     resolveGranularity: service
    plugins:
    - name: api-breaker
      enable: false
