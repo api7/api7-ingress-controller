@@ -124,9 +124,9 @@ metadata:
   name: %s
 spec:
   granularity: %s
-	externalNodes:
-	- type: %s
-	  name: %s
+  externalNodes:
+  - type: %s
+  name: %s
 `, name, granularity, nodeType, nodeName)
 		assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(au))
 	}
