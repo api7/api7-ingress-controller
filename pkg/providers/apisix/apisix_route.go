@@ -332,7 +332,7 @@ func (c *apisixRouteController) sync(ctx context.Context, ev *types.Event) error
 			}
 		}
 
-		log.Debugw("translated ApisixRoute",
+		log.Infow("translated ApisixRoute",
 			zap.Any("routes", tctx.Routes),
 			zap.Any("upstreams", tctx.Services),
 			zap.Any("apisix_route", ar),

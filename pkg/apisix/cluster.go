@@ -771,6 +771,7 @@ func (c *cluster) updateResource(ctx context.Context, url, resource string, body
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Content-Type", "application/json")
 	start := time.Now()
 	resp, err := c.do(req)
 	if err != nil {
