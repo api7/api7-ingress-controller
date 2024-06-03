@@ -475,8 +475,11 @@ spec:
 			// -- Data preparation --
 			PhaseCreateHttpbin(s, "httpbin-temp")
 			time.Sleep(time.Second * 10)
+			PhaseCreateApisixUpstream(s, "httpbin-upstream", v2.ExternalTypeDomain, "postman-echo.com")
 			PhaseCreateApisixRouteWithHostRewriteAndBackend(s, "httpbin-route", "httpbin-upstream", "postman-echo.com", "httpbin-temp", 80)
-			PhaseCreateApisixUpstreamWithGranularity(s, "httpbin-upstream", v2.ExternalTypeDomain, "postman-echo.com", "service")
+
+			//configure the created upstream with granularity service
+			PhaseCreateApisixUpstreamWithGranularity(s, "httpbin-temp", v2.ExternalTypeService, "httpbin-temp", "service")
 			time.Sleep(time.Second * 6)
 
 			svc, err := s.GetServiceByName("httpbin-temp")
