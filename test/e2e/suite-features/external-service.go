@@ -124,10 +124,7 @@ metadata:
   name: %s
 spec:
   granularity: %s
-  externalNodes:
-  - type: %s
-    name: %s
-`, name, granularity, nodeType, nodeName)
+`, name, granularity)
 		assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(au))
 	}
 
@@ -477,7 +474,6 @@ spec:
 			time.Sleep(time.Second * 10)
 			PhaseCreateApisixUpstream(s, "httpbin-upstream", v2.ExternalTypeDomain, "postman-echo.com")
 			PhaseCreateApisixRouteWithHostRewriteAndBackend(s, "httpbin-route", "httpbin-upstream", "postman-echo.com", "httpbin-temp", 80)
-
 			//configure the created upstream with granularity service
 			PhaseCreateApisixUpstreamWithGranularity(s, "httpbin-temp", v2.ExternalTypeService, "httpbin-temp", "service")
 			time.Sleep(time.Second * 6)
