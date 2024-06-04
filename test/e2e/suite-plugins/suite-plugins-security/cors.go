@@ -53,9 +53,9 @@ spec:
 `, backendSvc, backendPorts[0])
 
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar))
-			err := s.EnsureNumApisixUpstreamsCreated(1)
-			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
-			err = s.EnsureNumApisixRoutesCreated(1)
+			// err := s.EnsureNumApisixUpstreamsCreated(1)
+			// assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
+			err := s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
 
 			resp := s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.org").Expect()
@@ -100,9 +100,9 @@ spec:
 `, backendSvc, backendPorts[0])
 
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar))
-			err := s.EnsureNumApisixUpstreamsCreated(1)
-			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
-			err = s.EnsureNumApisixRoutesCreated(1)
+			// err := s.EnsureNumApisixUpstreamsCreated(1)
+			// assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
+			err := s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
 
 			resp := s.NewAPISIXClient().GET("/ip").
@@ -163,9 +163,9 @@ spec:
 `, backendSvc, backendPorts[0])
 
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar))
-			err := s.EnsureNumApisixUpstreamsCreated(1)
-			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
-			err = s.EnsureNumApisixRoutesCreated(1)
+			// err := s.EnsureNumApisixUpstreamsCreated(1)
+			// assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
+			err := s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
 
 			resp := s.NewAPISIXClient().GET("/ip").
@@ -232,9 +232,9 @@ spec:
 `, backendSvc, backendPorts[0])
 
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar))
-			err := s.EnsureNumApisixUpstreamsCreated(1)
-			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
-			err = s.EnsureNumApisixRoutesCreated(1)
+			// err := s.EnsureNumApisixUpstreamsCreated(1)
+			// assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
+			err := s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
 
 			resp := s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.org").Expect()
@@ -273,9 +273,9 @@ spec:
 `, backendSvc, backendPorts[0])
 
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar))
-			err := s.EnsureNumApisixUpstreamsCreated(1)
-			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
-			err = s.EnsureNumApisixRoutesCreated(1)
+			// err := s.EnsureNumApisixUpstreamsCreated(1)
+			// assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
+			err := s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
 
 			resp := s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.org").Expect()

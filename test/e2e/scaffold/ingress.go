@@ -294,7 +294,7 @@ var _initContainers = `
       - name: wait-apisix-admin
         image: 127.0.0.1:5000/busybox:dev
         imagePullPolicy: IfNotPresent
-        command: ['sh', '-c', "until nc -z apisix-service-e2e-test 9180 ; do echo waiting for apisix-admin; sleep 2; done;"]
+        command: ['sh', '-c', "until nc -z dashboard 7080 ; do echo waiting for apisix-admin; sleep 2; done;"]
 `
 
 var _ingressAPISIXService = `
@@ -460,7 +460,7 @@ func (s *Scaffold) genIngressDeployment(replicas int, adminAPIVersion,
 	ingressClass string, disableStatus bool) string {
 	var (
 		initContainers  = _initContainers
-		apisixBaseURL   = "http://api7-ee-gateway-1:7080/apisix/admin"
+		apisixBaseURL   = "http://dashboard:7080/apisix/admin"
 		apisixContainer string
 	)
 
@@ -512,7 +512,7 @@ func (s *Scaffold) newIngressAPISIXController() error {
 
 	err = s.CreateResourceFromString(ingressAPISIXDeployment)
 	assert.Nil(s.t, err, "create deployment")
-
+	fmt.Println(" I JUST CREATED ", ingressAPISIXDeployment)
 	return nil
 }
 

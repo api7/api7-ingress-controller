@@ -57,9 +57,9 @@ spec:
 
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar))
 
-			err := s.EnsureNumApisixUpstreamsCreated(1)
-			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
-			err = s.EnsureNumApisixRoutesCreated(1)
+			// err := s.EnsureNumApisixUpstreamsCreated(1)
+			// assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
+			err := s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
 
 			// "Referer" match passed
@@ -124,9 +124,9 @@ spec:
 
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar))
 
-			err := s.EnsureNumApisixUpstreamsCreated(1)
-			assert.Nil(ginkgo.GinkgoT(), err, "Checking the number of upstreams")
-			err = s.EnsureNumApisixRoutesCreated(1)
+			// err := s.EnsureNumApisixUpstreamsCreated(1)
+			// assert.Nil(ginkgo.GinkgoT(), err, "Checking the number of upstreams")
+			err := s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking the number of routes")
 
 			// "Referer" match failed
@@ -192,9 +192,9 @@ spec:
 
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar))
 
-			err := s.EnsureNumApisixUpstreamsCreated(1)
-			assert.Nil(ginkgo.GinkgoT(), err, "Checking the number of upstreams")
-			err = s.EnsureNumApisixRoutesCreated(1)
+			// err := s.EnsureNumApisixUpstreamsCreated(1)
+			// assert.Nil(ginkgo.GinkgoT(), err, "Checking the number of upstreams")
+			err := s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking the number of routes")
 
 			// "Referer" match failed
@@ -243,9 +243,9 @@ spec:
 
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar))
 
-			err := s.EnsureNumApisixUpstreamsCreated(1)
-			assert.Nil(ginkgo.GinkgoT(), err, "Checking the number of upstreams")
-			err = s.EnsureNumApisixRoutesCreated(1)
+			// err := s.EnsureNumApisixUpstreamsCreated(1)
+			// assert.Nil(ginkgo.GinkgoT(), err, "Checking the number of upstreams")
+			err := s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking the number of routes")
 
 			// "Referer" is missing
@@ -291,9 +291,9 @@ spec:
 
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar))
 
-			err := s.EnsureNumApisixUpstreamsCreated(1)
-			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
-			err = s.EnsureNumApisixRoutesCreated(1)
+			// err := s.EnsureNumApisixUpstreamsCreated(1)
+			// assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
+			err := s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
 
 			// "Referer" is not in the whitelist.

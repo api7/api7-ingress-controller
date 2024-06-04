@@ -30,7 +30,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.FDescribe("suite-features: external service discovery", func() {
+var _ = ginkgo.Describe("suite-features: external service discovery", func() {
 
 	PhaseCreateApisixRoute := func(s *scaffold.Scaffold, name, upstream string) {
 		ar := fmt.Sprintf(`
@@ -224,8 +224,6 @@ spec:
 			// We use it for service discovery
 			PhaseCreateApisixUpstream(s, "httpbin-upstream", "dns", "httpbin-temp")
 			PhaseCreateApisixRoute(s, "httpbin-route", "httpbin-upstream")
-			time.Sleep(time.Second * 6)
-
 			// -- validation --
 			upstreamId := PhaseValidateFirstUpstream(s, 1, fqdn, "dns")
 			PhaseValidateRouteAccess(s, upstreamId)

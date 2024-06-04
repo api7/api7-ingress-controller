@@ -1,6 +1,8 @@
 module github.com/api7/api7-ingress-controller/test/e2e
 
-go 1.20
+go 1.21
+
+toolchain go1.22.3
 
 require (
 	github.com/api7/api7-ingress-controller v0.0.0-20210105024109-72e53386de5a
@@ -16,7 +18,6 @@ require (
 	k8s.io/apimachinery v0.29.3
 	k8s.io/client-go v0.29.2
 )
-
 
 require (
 	github.com/TylerBrock/colorjson v0.0.0-20200706003622-8a50f05110d2 // indirect

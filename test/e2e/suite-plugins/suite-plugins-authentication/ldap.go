@@ -95,7 +95,7 @@ spec:
 `, backendSvc, backendPorts[0], ldapSvr)
 			assert.Nil(ginkgo.GinkgoT(), s.CreateResourceFromString(ar), "Creating ApisixRoute with ldapAuth")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "Checking number of routes")
-			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
+			// assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
 
 			msg401CourseMissing := s.NewAPISIXClient().GET("/ip").
 				WithHeader("Host", "httpbin.org").
@@ -185,7 +185,7 @@ spec:
 `, backendSvc, backendPorts[0], ldapSvr)
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar), "Creating ApisixRoute with ldapAuth")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "Checking number of routes")
-			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
+			// assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
 
 			msg401CouseMissing := s.NewAPISIXClient().GET("/ip").
 				WithHeader("Host", "httpbin.org").

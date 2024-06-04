@@ -254,6 +254,7 @@ func (c *apisixRouteController) syncApisixUpstreamRelationChanges(routeKey strin
 }
 
 func (c *apisixRouteController) sync(ctx context.Context, ev *types.Event) error {
+	fmt.Println("route controller running")
 	obj := ev.Object.(kube.ApisixRouteEvent)
 	namespace, name, err := cache.SplitMetaNamespaceKey(obj.Key)
 	if err != nil {

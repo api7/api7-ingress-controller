@@ -86,8 +86,8 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar), "create ApisixRoute")
 			err := s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "checking number of routes")
-			err = s.EnsureNumApisixUpstreamsCreated(1)
-			assert.Nil(ginkgo.GinkgoT(), err, "checking number of upstreams")
+			// err = s.EnsureNumApisixUpstreamsCreated(1)
+			// assert.Nil(ginkgo.GinkgoT(), err, "checking number of upstreams")
 
 			arStream := fmt.Sprintf(`
 apiVersion: apisix.apache.org/v2

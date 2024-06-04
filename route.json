@@ -1,0 +1,131 @@
+{
+	"routes": [
+		{
+			"id": "3ac9451f",
+			"name": "default_httpbin_route-1",
+			"desc": "Created by apisix-ingress-controller, DO NOT modify it manually",
+			"labels": {
+				"managed-by": "apisix-ingress-controller"
+			},
+			"hosts": [
+				"local.httpbin.org"
+			],
+			"paths": [
+				"/*"
+			],
+			"service_id": "5ce57b8e"
+		}
+	],
+	"upstreams": [
+		{
+			"id": "5ce57b8e",
+			"name": "default_httpbin_80",
+			"labels": {
+				"managed-by": "apisix-ingress-controller"
+			},
+			"upstream": {
+				"desc": "Created by apisix-ingress-controller, DO NOT modify it manually",
+				"labels": {
+					"managed-by": "apisix-ingress-controller"
+				},
+				"type": "roundrobin",
+				"nodes": [],
+				"scheme": "http"
+			}
+		}
+	],
+	"apisix_route": {
+		"Object": {
+			"kind": "ApisixRoute",
+			"apiVersion": "apisix.apache.org/v2",
+			"metadata": {
+				"name": "httpbin",
+				"namespace": "default",
+				"uid": "4bac3cdb-fafc-43a7-8380-d4a532b5bbac",
+				"resourceVersion": "9227",
+				"generation": 1,
+				"creationTimestamp": "2024-06-03T08:10:13Z",
+				"annotations": {
+					"kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apisix.apache.org/v2\",\"kind\":\"ApisixRoute\",\"metadata\":{\"annotations\":{},\"name\":\"httpbin\",\"namespace\":\"default\"},\"spec\":{\"http\":[{\"backends\":[{\"serviceName\":\"httpbin\",\"servicePort\":80}],\"match\":{\"hosts\":[\"local.httpbin.org\"],\"paths\":[\"/*\"]},\"name\":\"route-1\"}]}}\n"
+				},
+				"managedFields": [
+					{
+						"manager": "apisix-ingress-controller",
+						"operation": "Update",
+						"apiVersion": "apisix.apache.org/v2",
+						"time": "2024-06-03T08:10:13Z",
+						"fieldsType": "FieldsV1",
+						"fieldsV1": {
+							"f:status": {
+								".": {},
+								"f:conditions": {}
+							}
+						}
+					},
+					{
+						"manager": "kubectl-client-side-apply",
+						"operation": "Update",
+						"apiVersion": "apisix.apache.org/v2",
+						"time": "2024-06-03T08:10:13Z",
+						"fieldsType": "FieldsV1",
+						"fieldsV1": {
+							"f:metadata": {
+								"f:annotations": {
+									".": {},
+									"f:kubectl.kubernetes.io/last-applied-configuration": {}
+								}
+							},
+							"f:spec": {
+								".": {},
+								"f:http": {}
+							}
+						}
+					}
+				]
+			},
+			"spec": {
+				"http": [
+					{
+						"name": "route-1",
+						"match": {
+							"paths": [
+								"/*"
+							],
+							"hosts": [
+								"local.httpbin.org"
+							]
+						},
+						"backends": [
+							{
+								"serviceName": "httpbin",
+								"servicePort": 80,
+								"weight": null
+							}
+						],
+						"websocket": false,
+						"authentication": {
+							"enable": false,
+							"type": "",
+							"keyAuth": {},
+							"jwtAuth": {},
+							"ldapAuth": {}
+						}
+					}
+				]
+			},
+			"status": {
+				"conditions": [
+					{
+						"type": "ResourcesAvailable",
+						"status": "False",
+						"observedGeneration": 1,
+						"lastTransitionTime": null,
+						"reason": "ResourceSyncAborted",
+						"message": "1 error occurred:\n\t* unexpected status code 400; error message: {\"value\":{},\"error_msg\":\"request body has an error: doesn't match schema: Error at \\\"/upstream/nodes\\\": minimum number of items is 1\\nSchema:\\n  {\\n    \\\"description\\\": \\\"The upstream endpoints.\\\",\\n    \\\"items\\\": {\\n      \\\"description\\\": \\\"The definition for an upstream endpoint.\\\",\\n      \\\"properties\\\": {\\n        \\\"host\\\": {\\n          \\\"pattern\\\": \\\"^\\\\\\\\\\\\\\\\*?[0-9a-zA-Z-._]+$\\\",\\n          \\\"type\\\": \\\"string\\\"\\n        },\\n        \\\"port\\\": {\\n          \\\"maximum\\\": 65535,\\n          \\\"minimum\\\": 1,\\n          \\\"type\\\": \\\"integer\\\"\\n        },\\n        \\\"priority\\\": {\\n          \\\"default\\\": 0,\\n          \\\"description\\\": \\\"The node priority.\\\",\\n          \\\"type\\\": \\\"integer\\\"\\n        },\\n        \\\"weight\\\": {\\n          \\\"maximum\\\": 65535,\\n          \\\"minimum\\\": 0,\\n          \\\"type\\\": \\\"integer\\\"\\n        }\\n      },\\n      \\\"required\\\": [\\n        \\\"host\\\",\\n        \\\"port\\\",\\n        \\\"weight\\\"\\n      ],\\n      \\\"type\\\": \\\"object\\\"\\n    },\\n    \\\"maxItems\\\": 64,\\n    \\\"minItems\\\": 1,\\n    \\\"type\\\": \\\"array\\\"\\n  }\\n\\nValue:\\n  []\\n\"}\n\n"
+					}
+				]
+			}
+		}
+	},
+	"pluginConfigs": null
+}

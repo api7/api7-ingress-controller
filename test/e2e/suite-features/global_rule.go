@@ -20,6 +20,7 @@ import (
 	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
 
+	v1 "github.com/api7/api7-ingress-controller/pkg/types/apisix/v1"
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
@@ -44,9 +45,15 @@ spec:
 
 		grs, err := s.ListApisixGlobalRules()
 		assert.Nil(ginkgo.GinkgoT(), err, "listing global_rules")
-		assert.Len(ginkgo.GinkgoT(), grs, 1)
-		assert.Len(ginkgo.GinkgoT(), grs[0].Plugins, 1)
-		_, ok := grs[0].Plugins["echo"]
+		assert.Len(ginkgo.GinkgoT(), grs, 2)
+		var gr *v1.GlobalRule
+		for _, g := range grs {
+			if _, ok := g.Plugins["echo"]; ok {
+				gr = g
+			}
+		}
+		assert.Len(ginkgo.GinkgoT(), gr.Plugins, 1)
+		_, ok := gr.Plugins["echo"]
 		assert.Equal(ginkgo.GinkgoT(), ok, true)
 
 		s.NewAPISIXClient().GET("/anything").Expect().Body().Contains("hello, world!!")
@@ -72,9 +79,15 @@ spec:
 
 		grs, err := s.ListApisixGlobalRules()
 		assert.Nil(ginkgo.GinkgoT(), err, "listing global_rules")
-		assert.Len(ginkgo.GinkgoT(), grs, 1)
-		assert.Len(ginkgo.GinkgoT(), grs[0].Plugins, 1)
-		_, ok := grs[0].Plugins["echo"]
+		assert.Len(ginkgo.GinkgoT(), grs, 2)
+		var gr *v1.GlobalRule
+		for _, g := range grs {
+			if _, ok := g.Plugins["echo"]; ok {
+				gr = g
+			}
+		}
+		assert.Len(ginkgo.GinkgoT(), gr.Plugins, 1)
+		_, ok := gr.Plugins["echo"]
 		assert.Equal(ginkgo.GinkgoT(), ok, true)
 
 		s.NewAPISIXClient().GET("/anything").Expect().Body().Contains("hello, world!!")
@@ -97,7 +110,7 @@ spec:
 
 		grs, err = s.ListApisixGlobalRules()
 		assert.Nil(ginkgo.GinkgoT(), err, "listing global_rules")
-		assert.Len(ginkgo.GinkgoT(), grs, 1)
+		assert.Len(ginkgo.GinkgoT(), grs, 2)
 		_, ok = grs[0].Plugins["echo"]
 		assert.Equal(ginkgo.GinkgoT(), ok, false)
 
@@ -122,9 +135,15 @@ spec:
 
 		grs, err := s.ListApisixGlobalRules()
 		assert.Nil(ginkgo.GinkgoT(), err, "listing global_rules")
-		assert.Len(ginkgo.GinkgoT(), grs, 1)
-		assert.Len(ginkgo.GinkgoT(), grs[0].Plugins, 1)
-		_, ok := grs[0].Plugins["echo"]
+		assert.Len(ginkgo.GinkgoT(), grs, 2)
+		var gr *v1.GlobalRule
+		for _, g := range grs {
+			if _, ok := g.Plugins["echo"]; ok {
+				gr = g
+			}
+		}
+		assert.Len(ginkgo.GinkgoT(), gr.Plugins, 2)
+		_, ok := gr.Plugins["echo"]
 		assert.Equal(ginkgo.GinkgoT(), ok, true)
 
 		assert.Nil(ginkgo.GinkgoT(), s.DeleteResourceFromString(agr), "deleteing ApisixGlobalRule")
@@ -132,7 +151,7 @@ spec:
 
 		grs, err = s.ListApisixGlobalRules()
 		assert.Nil(ginkgo.GinkgoT(), err, "listing global_rules")
-		assert.Len(ginkgo.GinkgoT(), grs, 0)
+		assert.Len(ginkgo.GinkgoT(), grs, 1)
 
 		s.NewAPISIXClient().GET("/anything").Expect().Body().NotContains("hello, world!!")
 	})

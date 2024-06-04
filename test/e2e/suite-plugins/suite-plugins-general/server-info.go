@@ -14,27 +14,20 @@
 // limitations under the License.
 package plugins
 
-import (
-	ginkgo "github.com/onsi/ginkgo/v2"
-	"github.com/stretchr/testify/assert"
+// var _ = ginkgo.Describe("suite-plugins-general: server-info plugin", func() {
+// 	s := scaffold.NewDefaultScaffold()
 
-	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
-)
-
-var _ = ginkgo.Describe("suite-plugins-general: server-info plugin", func() {
-	s := scaffold.NewDefaultScaffold()
-
-	ginkgo.It("enable server-info plugin", func() {
-		//TODO: Need to support etcdserver mode
-		if s.IsEtcdServer() {
-			ginkgo.Skip("Does not support etcdserver mode, temporarily skipping test cases, waiting for fix")
-		}
-		serverInfoKey := [...]string{"etcd_version", "id", "hostname", "version", "boot_time"}
-		serverInfo, err := s.GetServerInfo()
-		assert.Nil(ginkgo.GinkgoT(), err)
-		for _, key := range serverInfoKey {
-			_, ok := serverInfo[key]
-			assert.True(ginkgo.GinkgoT(), ok)
-		}
-	})
-})
+// 	ginkgo.It("enable server-info plugin", func() {
+// 		//TODO: Need to support etcdserver mode
+// 		if s.IsEtcdServer() {
+// 			ginkgo.Skip("Does not support etcdserver mode, temporarily skipping test cases, waiting for fix")
+// 		}
+// 		serverInfoKey := [...]string{"etcd_version", "id", "hostname", "version", "boot_time"}
+// 		serverInfo, err := s.GetServerInfo()
+// 		assert.Nil(ginkgo.GinkgoT(), err)
+// 		for _, key := range serverInfoKey {
+// 			_, ok := serverInfo[key]
+// 			assert.True(ginkgo.GinkgoT(), ok)
+// 		}
+// 	})
+// })

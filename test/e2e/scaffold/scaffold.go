@@ -484,7 +484,7 @@ func (s *Scaffold) beforeEach() {
 
 	s.gatewaygroupid, err = s.CreateNewGatewayGroup()
 	assert.Nil(s.t, err, "creating new gateway group")
-	fmt.Println("GID IS ", s.gatewaygroupid)
+	fmt.Println("NEW GID CREATED IS ", s.gatewaygroupid)
 	s.opts.APISIXAdminAPIKey, err = s.GetAPIKey()
 	assert.Nil(s.t, err, "getting api key")
 	fmt.Println("API KEY RETRIEVED ", s.opts.APISIXAdminAPIKey)

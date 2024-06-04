@@ -663,6 +663,7 @@ func (c *cluster) listResource(ctx context.Context, url, resource string) (listR
 		zap.String("name", resource),
 		zap.String("url", url),
 	)
+	fmt.Println("PLEASE CHECK IT ", url, resource, c.name)
 	c.metricsCollector.IncrAPISIXReadRequest(resource)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -681,6 +682,7 @@ func (c *cluster) listResource(ctx context.Context, url, resource string) (listR
 	defer drainBody(resp.Body, url)
 	if resp.StatusCode != http.StatusOK {
 		body := readBody(resp.Body, url)
+		fmt.Println("DISABLED ERR: ", body)
 		if c.isFunctionDisabled(body) {
 			return listResponse{}, ErrFunctionDisabled
 		}

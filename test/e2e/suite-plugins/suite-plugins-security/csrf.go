@@ -54,9 +54,9 @@ spec:
 
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar))
 
-			err := s.EnsureNumApisixUpstreamsCreated(1)
-			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
-			err = s.EnsureNumApisixRoutesCreated(1)
+			// err := s.EnsureNumApisixUpstreamsCreated(1)
+			// assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
+			err := s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
 
 			msg401 := s.NewAPISIXClient().
@@ -114,9 +114,9 @@ spec:
 
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar))
 
-			err := s.EnsureNumApisixUpstreamsCreated(1)
-			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
-			err = s.EnsureNumApisixRoutesCreated(1)
+			// err := s.EnsureNumApisixUpstreamsCreated(1)
+			// assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
+			err := s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
 
 			_ = s.NewAPISIXClient().

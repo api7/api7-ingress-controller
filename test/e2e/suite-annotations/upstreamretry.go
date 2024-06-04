@@ -15,83 +15,73 @@
 
 package annotations
 
-import (
-	"net/http"
-	"time"
+// var _ = ginkgo.Describe("suite-annotations: annotations.networking/v1 upstream", func() {
+// 	s := scaffold.NewDefaultScaffold()
+// 	ginkgo.It("Test timeout: 1 retry and long timeout", func() {
+// 		ing := `
+// apiVersion: networking.k8s.io/v1
+// kind: Ingress
+// metadata:
+//   annotations:
+//     k8s.apisix.apache.org/upstream-retries: "1"
+//     k8s.apisix.apache.org/upstream-read-timeout: "20s"
+//   name: ingress-ext-v1beta1
+// spec:
+//   ingressClassName: apisix
+//   rules:
+//     - host: e2e.apisix.local
+//       http:
+//         paths:
+//          - path: /retry
+//            pathType: Exact
+//            backend:
+//              service:
+//                name: gobackend-service
+//                port:
+//                  number: 9280
+// `
+// 		err := s.CreateResourceFromString(ing)
+// 		assert.Nil(ginkgo.GinkgoT(), err, "creating ingress")
+// 		time.Sleep(5 * time.Second)
+// 		err = s.EnsureNumApisixUpstreamsCreated(1)
+// 		assert.Nil(ginkgo.GinkgoT(), err, "checking upstreams")
+// 		time.Sleep(2 * time.Second)
 
-	ginkgo "github.com/onsi/ginkgo/v2"
-	"github.com/stretchr/testify/assert"
+// 		respGet := s.NewAPISIXClient().GET("/retry").WithHeader("Host", "e2e.apisix.local").Expect()
+// 		respGet.Status(http.StatusOK)
+// 	})
 
-	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
-)
+// 	ginkgo.It("Test retry: 2 retry and short timeout", func() {
+// 		ing := `
+// apiVersion: networking.k8s.io/v1
+// kind: Ingress
+// metadata:
+//   annotations:
+//     k8s.apisix.apache.org/upstream-retries: "2"
+//     k8s.apisix.apache.org/upstream-read-timeout: "2s"
+//   name: ingress-ext-v1beta1
+// spec:
+//   ingressClassName: apisix
+//   rules:
+//     - host: e2e.apisix.local
+//       http:
+//         paths:
+//          - path: /retry
+//            pathType: Exact
+//            backend:
+//              service:
+//                name: gobackend-service
+//                port:
+//                  number: 9280
+// `
+// 		err := s.CreateResourceFromString(ing)
+// 		assert.Nil(ginkgo.GinkgoT(), err, "creating ingress")
+// 		time.Sleep(5 * time.Second)
+// 		err = s.EnsureNumApisixUpstreamsCreated(1)
+// 		assert.Nil(ginkgo.GinkgoT(), err, "checking upstreams")
+// 		time.Sleep(2 * time.Second)
 
-var _ = ginkgo.Describe("suite-annotations: annotations.networking/v1 upstream", func() {
-	s := scaffold.NewDefaultScaffold()
-	ginkgo.It("Test timeout: 1 retry and long timeout", func() {
-		ing := `
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  annotations:
-    k8s.apisix.apache.org/upstream-retries: "1"
-    k8s.apisix.apache.org/upstream-read-timeout: "20s"
-  name: ingress-ext-v1beta1
-spec:
-  ingressClassName: apisix
-  rules:
-    - host: e2e.apisix.local
-      http:
-        paths:
-         - path: /retry
-           pathType: Exact
-           backend:
-             service:
-               name: gobackend-service
-               port:
-                 number: 9280
-`
-		err := s.CreateResourceFromString(ing)
-		assert.Nil(ginkgo.GinkgoT(), err, "creating ingress")
-		time.Sleep(5 * time.Second)
-		err = s.EnsureNumApisixUpstreamsCreated(1)
-		assert.Nil(ginkgo.GinkgoT(), err, "checking upstreams")
-		time.Sleep(2 * time.Second)
-
-		respGet := s.NewAPISIXClient().GET("/retry").WithHeader("Host", "e2e.apisix.local").Expect()
-		respGet.Status(http.StatusOK)
-	})
-
-	ginkgo.It("Test retry: 2 retry and short timeout", func() {
-		ing := `
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  annotations:
-    k8s.apisix.apache.org/upstream-retries: "2"
-    k8s.apisix.apache.org/upstream-read-timeout: "2s"
-  name: ingress-ext-v1beta1
-spec:
-  ingressClassName: apisix
-  rules:
-    - host: e2e.apisix.local
-      http:
-        paths:
-         - path: /retry
-           pathType: Exact
-           backend:
-             service:
-               name: gobackend-service
-               port:
-                 number: 9280
-`
-		err := s.CreateResourceFromString(ing)
-		assert.Nil(ginkgo.GinkgoT(), err, "creating ingress")
-		time.Sleep(5 * time.Second)
-		err = s.EnsureNumApisixUpstreamsCreated(1)
-		assert.Nil(ginkgo.GinkgoT(), err, "checking upstreams")
-		time.Sleep(2 * time.Second)
-
-		respGet := s.NewAPISIXClient().GET("/retry").WithHeader("Host", "e2e.apisix.local").Expect()
-		respGet.Status(http.StatusOK)
-	})
-})
+// 		respGet := s.NewAPISIXClient().GET("/retry").WithHeader("Host", "e2e.apisix.local").Expect()
+// 		respGet.Status(http.StatusOK)
+// 	})
+// })

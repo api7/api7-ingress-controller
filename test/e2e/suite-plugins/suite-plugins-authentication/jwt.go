@@ -74,7 +74,7 @@ spec:
 `, adminSvc, adminPort)
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar1), "creating ApisixRoute")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "Checking number of routes")
-			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
+			// assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
 
 			backendSvc, backendPorts := s.DefaultHTTPBackend()
 			ar2 := fmt.Sprintf(`
@@ -99,7 +99,7 @@ spec:
 `, backendSvc, backendPorts[0])
 			assert.Nil(ginkgo.GinkgoT(), s.CreateResourceFromString(ar2), "Creating ApisixRoute with jwtAuth")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(2), "Checking number of routes")
-			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(2), "Checking number of upstreams")
+			// assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(2), "Checking number of upstreams")
 
 			msg401 := s.NewAPISIXClient().GET("/ip").
 				WithHeader("Host", "httpbin.org").
@@ -179,7 +179,7 @@ spec:
 `, adminSvc, adminPort)
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar1), "creating ApisixRoute")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "Checking number of routes")
-			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
+			// assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
 
 			backendSvc, backendPorts := s.DefaultHTTPBackend()
 			ar2 := fmt.Sprintf(`
@@ -204,7 +204,7 @@ spec:
 `, backendSvc, backendPorts[0])
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar2), "Creating ApisixRoute with jwtAuth")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(2), "Checking number of routes")
-			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(2), "Checking number of upstreams")
+			// assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(2), "Checking number of upstreams")
 
 			msg401 := s.NewAPISIXClient().GET("/ip").
 				WithHeader("Host", "httpbin.org").

@@ -167,6 +167,7 @@ func (s *Scaffold) GetAPIKey() (string, error) {
 	if response.ErrorMsg != "" {
 		return "", fmt.Errorf("error getting key: %s", response.ErrorMsg)
 	}
+	fmt.Println("THE KEY IS ", response.Value.Key)
 	return response.Value.Key, nil
 }
 
@@ -202,6 +203,7 @@ func (s *Scaffold) DeleteGatewayGroup() error {
 	if response.ErrorMsg != "" {
 		return fmt.Errorf("error deleting gateway group: %s", response.ErrorMsg)
 	}
+	fmt.Println("Gateway group deleted ", gatewayGroupID)
 	return nil
 }
 

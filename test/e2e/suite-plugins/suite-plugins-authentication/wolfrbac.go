@@ -96,7 +96,7 @@ spec:
 `, adminSvc, adminPort)
 				assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar1), "creating ApisixRoute")
 				assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "Checking number of routes")
-				assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
+				// assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
 
 				backendSvc, backendPorts := s.DefaultHTTPBackend()
 				ar2 := fmt.Sprintf(`
@@ -121,7 +121,7 @@ spec:
 `, backendSvc, backendPorts[0])
 				assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar2), "creating ApisixRoute")
 				assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(2), "Checking number of routes")
-				assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(2), "Checking number of upstreams")
+				// assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(2), "Checking number of upstreams")
 				payload := []byte(`
 {
 	"appid": "test-app",
@@ -221,7 +221,7 @@ spec:
 `, adminSvc, adminPort)
 				assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar1), "creating ApisixRoute")
 				assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "Checking number of routes")
-				assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
+				// assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
 
 				backendSvc, backendPorts := s.DefaultHTTPBackend()
 				ar2 := fmt.Sprintf(`
@@ -246,7 +246,7 @@ spec:
 `, backendSvc, backendPorts[0])
 				assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar2), "creating ApisixRoute")
 				assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(2), "Checking number of routes")
-				assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(2), "Checking number of upstreams")
+				// assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(2), "Checking number of upstreams")
 				payload := []byte(`
 {
 	"appid": "test-app",

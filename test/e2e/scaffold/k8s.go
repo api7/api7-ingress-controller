@@ -269,7 +269,7 @@ func (s *Scaffold) ensureNumApisixCRDsCreated(url string, desired int) error {
 func (s *Scaffold) EnsureNumApisixConsumersCreated(desired int) error {
 	u := url.URL{
 		Scheme: "http",
-		Host:   s.apisixAdminTunnel.Endpoint(),
+		Host:   "localhost:7080",
 		Path:   "/apisix/admin/consumers",
 	}
 	return s.ensureNumApisixCRDsCreated(u.String(), desired)
@@ -280,7 +280,7 @@ func (s *Scaffold) EnsureNumApisixConsumersCreated(desired int) error {
 func (s *Scaffold) EnsureNumApisixRoutesCreated(desired int) error {
 	u := url.URL{
 		Scheme: "http",
-		Host:   s.apisixAdminTunnel.Endpoint(),
+		Host:   "localhost:7080",
 		Path:   "/apisix/admin/routes",
 	}
 	return s.ensureNumApisixCRDsCreated(u.String(), desired)
@@ -291,7 +291,7 @@ func (s *Scaffold) EnsureNumApisixRoutesCreated(desired int) error {
 func (s *Scaffold) EnsureNumApisixStreamRoutesCreated(desired int) error {
 	u := url.URL{
 		Scheme: "http",
-		Host:   s.apisixAdminTunnel.Endpoint(),
+		Host:   "localhost:7080",
 		Path:   "/apisix/admin/stream_routes",
 	}
 	return s.ensureNumApisixCRDsCreated(u.String(), desired)
@@ -302,7 +302,7 @@ func (s *Scaffold) EnsureNumApisixStreamRoutesCreated(desired int) error {
 func (s *Scaffold) EnsureNumApisixUpstreamsCreated(desired int) error {
 	u := url.URL{
 		Scheme: "http",
-		Host:   s.apisixAdminTunnel.Endpoint(),
+		Host:   "localhost:7080",
 		Path:   "/apisix/admin/upstreams",
 	}
 	return s.ensureNumApisixCRDsCreated(u.String(), desired)
@@ -313,7 +313,7 @@ func (s *Scaffold) EnsureNumApisixUpstreamsCreated(desired int) error {
 func (s *Scaffold) EnsureNumApisixPluginConfigCreated(desired int) error {
 	u := url.URL{
 		Scheme: "http",
-		Host:   s.apisixAdminTunnel.Endpoint(),
+		Host:   "localhost:7080",
 		Path:   "/apisix/admin/plugin_configs",
 	}
 	return s.ensureNumApisixCRDsCreated(u.String(), desired)
@@ -324,7 +324,7 @@ func (s *Scaffold) EnsureNumApisixPluginConfigCreated(desired int) error {
 func (s *Scaffold) EnsureNumApisixTlsCreated(desired int) error {
 	u := url.URL{
 		Scheme: "http",
-		Host:   s.apisixAdminTunnel.Endpoint(),
+		Host:   "localhost:7080",
 		Path:   "/apisix/admin/ssl",
 	}
 	if s.opts.APISIXAdminAPIVersion == "v3" {
@@ -351,7 +351,7 @@ func (s *Scaffold) EnsureNumListUpstreamNodesNth(n, desired int) error {
 func (s *Scaffold) CreateApisixRouteByApisixAdmin(routeID string, body []byte) error {
 	u := url.URL{
 		Scheme: "http",
-		Host:   s.apisixAdminTunnel.Endpoint(),
+		Host:   "localhost:7080",
 		Path:   "/apisix/admin/routes/" + routeID,
 	}
 	return s.ensureAdminOperationIsSuccessful(u.String(), "PUT", body)
@@ -361,7 +361,7 @@ func (s *Scaffold) CreateApisixRouteByApisixAdmin(routeID string, body []byte) e
 func (s *Scaffold) CreateApisixConsumerByApisixAdmin(body []byte) error {
 	u := url.URL{
 		Scheme: "http",
-		Host:   s.apisixAdminTunnel.Endpoint(),
+		Host:   "localhost:7080",
 		Path:   "/apisix/admin/consumers",
 	}
 	return s.ensureAdminOperationIsSuccessful(u.String(), "PUT", body)
@@ -370,7 +370,7 @@ func (s *Scaffold) CreateApisixConsumerByApisixAdmin(body []byte) error {
 func (s *Scaffold) CreateApisixPluginMetadataByApisixAdmin(pluginName string, body []byte) error {
 	u := url.URL{
 		Scheme: "http",
-		Host:   s.apisixAdminTunnel.Endpoint(),
+		Host:   "localhost:7080",
 		Path:   "/apisix/admin/plugin_metadata/" + pluginName,
 	}
 	return s.ensureAdminOperationIsSuccessful(u.String(), "PUT", body)
@@ -380,7 +380,7 @@ func (s *Scaffold) CreateApisixPluginMetadataByApisixAdmin(pluginName string, bo
 func (s *Scaffold) DeleteApisixRouteByApisixAdmin(routeID string) error {
 	u := url.URL{
 		Scheme: "http",
-		Host:   s.apisixAdminTunnel.Endpoint(),
+		Host:   "localhost:7080",
 		Path:   "/apisix/admin/routes/" + routeID,
 	}
 	return s.ensureAdminOperationIsSuccessful(u.String(), "DELETE", nil)
@@ -390,7 +390,7 @@ func (s *Scaffold) DeleteApisixRouteByApisixAdmin(routeID string) error {
 func (s *Scaffold) DeleteApisixConsumerByApisixAdmin(consumerName string) error {
 	u := url.URL{
 		Scheme: "http",
-		Host:   s.apisixAdminTunnel.Endpoint(),
+		Host:   "localhost:7080",
 		Path:   "/apisix/admin/consumers/" + consumerName,
 	}
 	return s.ensureAdminOperationIsSuccessful(u.String(), "DELETE", nil)
@@ -453,7 +453,7 @@ func (s *Scaffold) NewAPISIX() (apisix.APISIX, error) {
 func (s *Scaffold) ListApisixServices() ([]*v1.Service, error) {
 	u := url.URL{
 		Scheme: "http",
-		Host:   s.apisixAdminTunnel.Endpoint(),
+		Host:   "localhost:7080",
 		Path:   "/apisix/admin",
 	}
 	cli, err := s.NewAPISIX()
@@ -475,7 +475,7 @@ func (s *Scaffold) ListApisixServices() ([]*v1.Service, error) {
 func (s *Scaffold) ListApisixGlobalRules() ([]*v1.GlobalRule, error) {
 	u := url.URL{
 		Scheme: "http",
-		Host:   s.apisixAdminTunnel.Endpoint(),
+		Host:   "localhost:7080",
 		Path:   "/apisix/admin",
 	}
 	cli, err := s.NewAPISIX()
@@ -497,7 +497,7 @@ func (s *Scaffold) ListApisixGlobalRules() ([]*v1.GlobalRule, error) {
 func (s *Scaffold) ListApisixRoutes() ([]*v1.Route, error) {
 	u := url.URL{
 		Scheme: "http",
-		Host:   s.apisixAdminTunnel.Endpoint(),
+		Host:   "localhost:7080",
 		Path:   "/apisix/admin",
 	}
 	cli, err := s.NewAPISIX()
@@ -518,7 +518,7 @@ func (s *Scaffold) ListApisixRoutes() ([]*v1.Route, error) {
 func (s *Scaffold) ListPluginMetadatas() ([]*v1.PluginMetadata, error) {
 	u := url.URL{
 		Scheme: "http",
-		Host:   s.apisixAdminTunnel.Endpoint(),
+		Host:   "localhost:7080",
 		Path:   "/apisix/admin",
 	}
 	cli, err := s.NewAPISIX()
@@ -539,7 +539,7 @@ func (s *Scaffold) ListPluginMetadatas() ([]*v1.PluginMetadata, error) {
 func (s *Scaffold) ClusterClient() (apisix.Cluster, error) {
 	u := url.URL{
 		Scheme: "http",
-		Host:   s.apisixAdminTunnel.Endpoint(),
+		Host:   "localhost:7080",
 		Path:   "/apisix/admin",
 	}
 	cli, err := s.NewAPISIX()
@@ -561,7 +561,7 @@ func (s *Scaffold) ClusterClient() (apisix.Cluster, error) {
 func (s *Scaffold) ListApisixConsumers() ([]*v1.Consumer, error) {
 	u := url.URL{
 		Scheme: "http",
-		Host:   s.apisixAdminTunnel.Endpoint(),
+		Host:   "localhost:7080",
 		Path:   "apisix/admin",
 	}
 	cli, err := s.NewAPISIX()
@@ -583,7 +583,7 @@ func (s *Scaffold) ListApisixConsumers() ([]*v1.Consumer, error) {
 func (s *Scaffold) ListApisixStreamRoutes() ([]*v1.StreamRoute, error) {
 	u := url.URL{
 		Scheme: "http",
-		Host:   s.apisixAdminTunnel.Endpoint(),
+		Host:   "localhost:7080",
 		Path:   "/apisix/admin",
 	}
 	cli, err := s.NewAPISIX()
@@ -605,7 +605,7 @@ func (s *Scaffold) ListApisixStreamRoutes() ([]*v1.StreamRoute, error) {
 func (s *Scaffold) ListApisixSsl() ([]*v1.Ssl, error) {
 	u := url.URL{
 		Scheme: "http",
-		Host:   s.apisixAdminTunnel.Endpoint(),
+		Host:   "localhost:7080",
 		Path:   "/apisix/admin",
 	}
 	cli, err := s.NewAPISIX()
@@ -627,7 +627,7 @@ func (s *Scaffold) ListApisixSsl() ([]*v1.Ssl, error) {
 func (s *Scaffold) ListApisixPluginConfig() ([]*v1.PluginConfig, error) {
 	u := url.URL{
 		Scheme: "http",
-		Host:   s.apisixAdminTunnel.Endpoint(),
+		Host:   "localhost:7080",
 		Path:   "/apisix/admin",
 	}
 	cli, err := s.NewAPISIX()
@@ -647,20 +647,10 @@ func (s *Scaffold) ListApisixPluginConfig() ([]*v1.PluginConfig, error) {
 
 func (s *Scaffold) newAPISIXTunnels() error {
 	var (
-		adminNodePort      int
-		httpNodePort       int
-		httpsNodePort      int
-		tcpNodePort        int
-		tlsOverTcpNodePort int
-		udpNodePort        int
-		controlNodePort    int
-		adminPort          int
-		httpPort           int
-		httpsPort          int
-		tcpPort            int
-		tlsOverTcpPort     int
-		udpPort            int
-		controlPort        int
+		httpNodePort  int
+		httpsNodePort int
+		httpPort      int
+		httpsPort     int
 	)
 	for _, port := range s.dataplaneService.Spec.Ports {
 		if port.Name == "http" {
@@ -669,43 +659,13 @@ func (s *Scaffold) newAPISIXTunnels() error {
 		} else if port.Name == "https" {
 			httpsNodePort = int(port.NodePort)
 			httpsPort = int(port.Port)
-		} else if port.Name == "http-admin" {
-			adminNodePort = int(port.NodePort)
-			adminPort = int(port.Port)
-		} else if port.Name == "tcp" {
-			tcpNodePort = int(port.NodePort)
-			tcpPort = int(port.Port)
-		} else if port.Name == "tcp-tls" {
-			tlsOverTcpNodePort = int(port.NodePort)
-			tlsOverTcpPort = int(port.Port)
-		} else if port.Name == "udp" {
-			udpNodePort = int(port.NodePort)
-			udpPort = int(port.Port)
-		} else if port.Name == "http-control" {
-			controlNodePort = int(port.NodePort)
-			controlPort = int(port.Port)
 		}
 	}
-
-	s.apisixAdminTunnel = k8s.NewTunnel(s.kubectlOptions, k8s.ResourceTypeService, "api7-ee-gateway-1",
-		adminNodePort, adminPort)
 	s.apisixHttpTunnel = k8s.NewTunnel(s.kubectlOptions, k8s.ResourceTypeService, "api7-ee-gateway-1",
 		httpNodePort, httpPort)
 	s.apisixHttpsTunnel = k8s.NewTunnel(s.kubectlOptions, k8s.ResourceTypeService, "api7-ee-gateway-1",
 		httpsNodePort, httpsPort)
-	s.apisixTCPTunnel = k8s.NewTunnel(s.kubectlOptions, k8s.ResourceTypeService, "api7-ee-gateway-1",
-		tcpNodePort, tcpPort)
-	s.apisixTLSOverTCPTunnel = k8s.NewTunnel(s.kubectlOptions, k8s.ResourceTypeService, "api7-ee-gateway-1",
-		tlsOverTcpNodePort, tlsOverTcpPort)
-	s.apisixUDPTunnel = k8s.NewTunnel(s.kubectlOptions, k8s.ResourceTypeService, "api7-ee-gateway-1",
-		udpNodePort, udpPort)
-	s.apisixControlTunnel = k8s.NewTunnel(s.kubectlOptions, k8s.ResourceTypeService, "api7-ee-gateway-1",
-		controlNodePort, controlPort)
 
-	if err := s.apisixAdminTunnel.ForwardPortE(s.t); err != nil {
-		return err
-	}
-	s.addFinalizers(s.apisixAdminTunnel.Close)
 	if err := s.apisixHttpTunnel.ForwardPortE(s.t); err != nil {
 		return err
 	}
@@ -714,23 +674,6 @@ func (s *Scaffold) newAPISIXTunnels() error {
 		return err
 	}
 	s.addFinalizers(s.apisixHttpsTunnel.Close)
-	if err := s.apisixTCPTunnel.ForwardPortE(s.t); err != nil {
-		return err
-	}
-	s.addFinalizers(s.apisixTCPTunnel.Close)
-	if err := s.apisixTLSOverTCPTunnel.ForwardPortE(s.t); err != nil {
-		return err
-	}
-	s.addFinalizers(s.apisixTLSOverTCPTunnel.Close)
-	if err := s.apisixUDPTunnel.ForwardPortE(s.t); err != nil {
-		return err
-	}
-	s.addFinalizers(s.apisixUDPTunnel.Close)
-	if err := s.apisixControlTunnel.ForwardPortE(s.t); err != nil {
-		return err
-	}
-	s.addFinalizers(s.apisixControlTunnel.Close)
-
 	return nil
 }
 
