@@ -31,7 +31,6 @@ import (
 	"github.com/apache/apisix-ingress-controller/pkg/providers/translation"
 	providertypes "github.com/apache/apisix-ingress-controller/pkg/providers/types"
 	"github.com/apache/apisix-ingress-controller/pkg/providers/utils"
-	"github.com/apache/apisix-ingress-controller/pkg/types"
 	apisixv1 "github.com/apache/apisix-ingress-controller/pkg/types/apisix/v1"
 )
 
@@ -90,7 +89,7 @@ func (c *baseEndpointController) syncEndpoint(ctx context.Context, ep kube.Endpo
 						zap.Int32("port", port.Port),
 					)
 				}
-				name := apisixv1.ComposeUpstreamName(namespace, svcName, subset.Name, port.Port, types.ResolveGranularity.Endpoint)
+				name := apisixv1.ComposeUpstreamName(namespace, svcName, subset.Name, port.Port)
 				for _, cluster := range clusters {
 					if err := c.SyncUpstreamNodesChangeToCluster(ctx, cluster, nodes, name); err != nil {
 						return err

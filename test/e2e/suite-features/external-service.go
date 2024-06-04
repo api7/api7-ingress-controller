@@ -25,7 +25,6 @@ import (
 	"github.com/apache/apisix-ingress-controller/pkg/id"
 	v2 "github.com/apache/apisix-ingress-controller/pkg/kube/apisix/apis/config/v2"
 	"github.com/apache/apisix-ingress-controller/pkg/providers/translation"
-	"github.com/apache/apisix-ingress-controller/pkg/types"
 	apisixv1 "github.com/apache/apisix-ingress-controller/pkg/types/apisix/v1"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
@@ -114,6 +113,18 @@ spec:
   - type: %s
     name: %s
 `, name, nodeType, nodeName)
+		assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(au))
+	}
+
+	PhaseCreateApisixUpstreamWithGranularity := func(s *scaffold.Scaffold, name string, nodeType v2.ApisixUpstreamExternalType, nodeName, granularity string) {
+		au := fmt.Sprintf(`
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: %s
+spec:
+  granularity: %s
+`, name, granularity)
 		assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(au))
 	}
 
@@ -348,7 +359,6 @@ spec:
     backends:
     - serviceName: %s
       servicePort: %d
-      resolveGranularity: service
     plugins:
     - name: proxy-rewrite
       enable: true
@@ -464,13 +474,15 @@ spec:
 			time.Sleep(time.Second * 10)
 			PhaseCreateApisixUpstream(s, "httpbin-upstream", v2.ExternalTypeDomain, "postman-echo.com")
 			PhaseCreateApisixRouteWithHostRewriteAndBackend(s, "httpbin-route", "httpbin-upstream", "postman-echo.com", "httpbin-temp", 80)
+			//configure the created upstream with granularity service
+			PhaseCreateApisixUpstreamWithGranularity(s, "httpbin-temp", v2.ExternalTypeService, "httpbin-temp", "service")
 			time.Sleep(time.Second * 6)
 
 			svc, err := s.GetServiceByName("httpbin-temp")
 			assert.Nil(ginkgo.GinkgoT(), err, "get httpbin service")
 			ip := svc.Spec.ClusterIP
 
-			upName := apisixv1.ComposeUpstreamName(s.Namespace(), "httpbin-temp", "", 80, types.ResolveGranularity.Service)
+			upName := apisixv1.ComposeUpstreamName(s.Namespace(), "httpbin-temp", "", 80)
 			upID := id.GenID(upName)
 
 			// -- validation --

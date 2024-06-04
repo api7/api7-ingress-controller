@@ -26,6 +26,7 @@ on:
     branches:
       - master
       - 1.8.0
+      - release/1.8.2
 
 jobs:
   changes:

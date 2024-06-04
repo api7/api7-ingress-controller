@@ -25,33 +25,23 @@ import (
 	v2 "github.com/apache/apisix-ingress-controller/pkg/kube/apisix/apis/config/v2"
 	"github.com/apache/apisix-ingress-controller/pkg/providers/translation"
 	"github.com/apache/apisix-ingress-controller/pkg/providers/utils"
-	"github.com/apache/apisix-ingress-controller/pkg/types"
 	apisixv1 "github.com/apache/apisix-ingress-controller/pkg/types/apisix/v1"
 )
 
 // generateUpstreamDeleteMark translates Upstream nodes with a loose way, only generate ID and Name for delete Event.
-func (t *translator) generateUpstreamDeleteMark(namespace, svcName, subset string, svcPort int32, resolveGranularity string) (*apisixv1.Upstream, error) {
+func (t *translator) generateUpstreamDeleteMark(namespace, svcName, subset string, svcPort int32) (*apisixv1.Upstream, error) {
 	ups := &apisixv1.Upstream{}
-	ups.Name = apisixv1.ComposeUpstreamName(namespace, svcName, subset, svcPort, resolveGranularity)
+	ups.Name = apisixv1.ComposeUpstreamName(namespace, svcName, subset, svcPort)
 	ups.ID = id.GenID(ups.Name)
 	return ups, nil
 }
 
-func (t *translator) translateService(namespace, svcName, subset, svcResolveGranularity, svcClusterIP string, svcPort int32) (*apisixv1.Upstream, error) {
+func (t *translator) translateService(namespace, svcName, subset, _ string, svcPort int32) (*apisixv1.Upstream, error) {
 	ups, err := t.TranslateService(namespace, svcName, subset, svcPort)
 	if err != nil {
 		return nil, err
 	}
-	if svcResolveGranularity == types.ResolveGranularity.Service {
-		ups.Nodes = apisixv1.UpstreamNodes{
-			{
-				Host:   svcClusterIP,
-				Port:   int(svcPort),
-				Weight: translation.DefaultWeight,
-			},
-		}
-	}
-	ups.Name = apisixv1.ComposeUpstreamName(namespace, svcName, subset, svcPort, svcResolveGranularity)
+	ups.Name = apisixv1.ComposeUpstreamName(namespace, svcName, subset, svcPort)
 	ups.ID = id.GenID(ups.Name)
 	return ups, nil
 }

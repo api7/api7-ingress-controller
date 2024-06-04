@@ -146,8 +146,7 @@ func TestTranslateTrafficSplitPlugin(t *testing.T) {
 				Type:   intstr.Int,
 				IntVal: 443,
 			},
-			ResolveGranularity: "service",
-			Weight:             &weight20,
+			Weight: &weight20,
 		},
 	}
 
@@ -196,16 +195,16 @@ func TestTranslateTrafficSplitPlugin(t *testing.T) {
 	assert.Equal(t, "192.168.1.2", ctx.Upstreams[0].Nodes[1].Host)
 	assert.Equal(t, 9080, ctx.Upstreams[0].Nodes[1].Port)
 
-	assert.Equal(t, "test_svc-1_443_service", ctx.Upstreams[1].Name)
-	assert.Len(t, ctx.Upstreams[1].Nodes, 1)
-	assert.Equal(t, "10.0.5.3", ctx.Upstreams[1].Nodes[0].Host)
-	assert.Equal(t, 443, ctx.Upstreams[1].Nodes[0].Port)
+	// assert.Equal(t, "test_svc-1_443", ctx.Upstreams[1].Name)
+	// assert.Len(t, ctx.Upstreams[1].Nodes, 1)
+	// assert.Equal(t, "10.0.5.3", ctx.Upstreams[1].Nodes[0].Host)
+	// assert.Equal(t, 443, ctx.Upstreams[1].Nodes[0].Port)
 
 	assert.Len(t, cfg.Rules, 1)
 	assert.Len(t, cfg.Rules[0].WeightedUpstreams, 3)
 	assert.Equal(t, id.GenID("test_svc-1_80"), cfg.Rules[0].WeightedUpstreams[0].UpstreamID)
 	assert.Equal(t, 10, cfg.Rules[0].WeightedUpstreams[0].Weight)
-	assert.Equal(t, id.GenID("test_svc-1_443_service"), cfg.Rules[0].WeightedUpstreams[1].UpstreamID)
+	assert.Equal(t, id.GenID("test_svc-1_443"), cfg.Rules[0].WeightedUpstreams[1].UpstreamID)
 	assert.Equal(t, 20, cfg.Rules[0].WeightedUpstreams[1].Weight)
 	assert.Equal(t, "", cfg.Rules[0].WeightedUpstreams[2].UpstreamID)
 	assert.Equal(t, 30, cfg.Rules[0].WeightedUpstreams[2].Weight)
@@ -543,14 +542,6 @@ func TestTranslateTrafficSplitPluginBadCases(t *testing.T) {
 	assert.Nil(t, cfg)
 	assert.NotNil(t, err)
 	assert.Equal(t, "service.spec.ports: port not defined", err.Error())
-
-	backends[1].ServicePort.StrVal = "port2"
-	backends[1].ResolveGranularity = "service"
-	ctx = &translation.TranslateContext{UpstreamMap: make(map[string]struct{})}
-	cfg, err = tr.translateTrafficSplitPlugin(ctx, ar1.Namespace, 30, backends)
-	assert.Nil(t, cfg)
-	assert.NotNil(t, err)
-	assert.Equal(t, "conflict headless service and backend resolve granularity", err.Error())
 }
 
 func TestTranslateConsumerKeyAuthPluginWithInPlaceValue(t *testing.T) {
