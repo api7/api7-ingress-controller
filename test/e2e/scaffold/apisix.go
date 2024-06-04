@@ -21,11 +21,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	ginkgo "github.com/onsi/ginkgo/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+var GatewayGroupName = uuid.NewString()
 
 var (
 	_apisixConfigMap = `
@@ -74,7 +77,7 @@ data:
       spec:
         containers:
           - name: api7-ee-gateway-1
-            image: localhost:5000/hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev
+            image: 127.0.0.1:5000/hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev
             ports:
               - containerPort: 9080
               - containerPort: 9443
@@ -83,14 +86,6 @@ data:
                 value: '["http://dp-manager:7900"]'
               - name: API7_CONTROL_PLANE_TOKEN
                 value: %s
-            volumeMounts:
-              - name: config-volume
-                mountPath: /usr/local/apisix/conf
-                readOnly: true
-        volumes:
-          - name: config-volume
-            hostPath:
-              path: ./gateway_conf
 `
 )
 
@@ -134,13 +129,13 @@ func (s *Scaffold) UploadLicense() error {
 }
 
 type responseCreateGateway struct {
-	Value responseCreateGatewayValue `json:"value"`
+	Value    responseCreateGatewayValue `json:"value"`
+	ErrorMsg string                     `json:"error_msg"`
 }
 type responseCreateGatewayValue struct {
 	ID             string `json:"id"`
 	TokenPlainText string `json:"token_plain_text"`
 	Key            string `json:"key"`
-	ErrorMsg       string `json:"error_msg"`
 }
 
 func (s *Scaffold) GetAPIKey() (string, error) {
@@ -169,8 +164,8 @@ func (s *Scaffold) GetAPIKey() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if response.Value.ErrorMsg != "" {
-		return "", fmt.Errorf("error getting key: %s", response.Value.ErrorMsg)
+	if response.ErrorMsg != "" {
+		return "", fmt.Errorf("error getting key: %s", response.ErrorMsg)
 	}
 	return response.Value.Key, nil
 }
@@ -196,11 +191,22 @@ func (s *Scaffold) DeleteGatewayGroup() error {
 		return err
 	}
 	defer resp.Body.Close()
+
+	//unmarshal into responseCreateGateway
+	var response responseCreateGateway
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return err
+	}
+
+	if response.ErrorMsg != "" {
+		return fmt.Errorf("error deleting gateway group: %s", response.ErrorMsg)
+	}
 	return nil
 }
 
 func (s *Scaffold) CreateNewGatewayGroup() (string, error) {
-	payload := []byte(`{"name":"ingress10","description":"","labels":{},"type":"api7_ingress_controller"}`)
+	payload := []byte(fmt.Sprintf(`{"name":"%s","description":"","labels":{},"type":"api7_ingress_controller"}`, GatewayGroupName))
 	url := fmt.Sprintf("http://%s:%d/api/gateway_groups", DashboardHost, DashboardPort)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))
 	if err != nil {
@@ -210,7 +216,6 @@ func (s *Scaffold) CreateNewGatewayGroup() (string, error) {
 
 	// Set basic authentication
 	req.SetBasicAuth("admin", "admin")
-
 	// Create an HTTP client
 	client := &http.Client{}
 
@@ -226,10 +231,10 @@ func (s *Scaffold) CreateNewGatewayGroup() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if response.Value.ErrorMsg != "" {
-		return "", fmt.Errorf("error creating gateway group: %s", response.Value.ErrorMsg)
+
+	if response.ErrorMsg != "" {
+		return "", fmt.Errorf("error creating gateway group: %s", response.ErrorMsg)
 	}
-	fmt.Println("GOT THE ID ", response.Value.ID)
 	return response.Value.ID, nil
 }
 
@@ -244,7 +249,7 @@ func (s *Scaffold) getTokenFromDashboard() (string, error) {
 
 	// Set basic authentication
 	req.SetBasicAuth("admin", "admin")
-
+	fmt.Println("THE URL IS", url)
 	// Create an HTTP client
 	client := &http.Client{}
 
@@ -268,6 +273,7 @@ func (s *Scaffold) newDataplane() (*corev1.Service, error) {
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("BHAI TOKEN YE HAI", token)
 	if err := s.CreateResourceFromString(fmt.Sprintf(_eeDeployment, token)); err != nil {
 		return nil, err
 	}

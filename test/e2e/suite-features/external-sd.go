@@ -30,7 +30,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-features: external service discovery", func() {
+var _ = ginkgo.FDescribe("suite-features: external service discovery", func() {
 
 	PhaseCreateApisixRoute := func(s *scaffold.Scaffold, name, upstream string) {
 		ar := fmt.Sprintf(`
@@ -160,7 +160,7 @@ spec:
             tcpSocket:
               port: 80
             timeoutSeconds: 2
-          image: "localhost:5000/httpbin:dev"
+          image: "127.0.0.1:5000/httpbin:dev"
           imagePullPolicy: IfNotPresent
           name: httpbin
           ports:

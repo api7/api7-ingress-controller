@@ -704,7 +704,7 @@ func (s *Scaffold) renderConfig(path string, config any) (string, error) {
 func (s *Scaffold) FormatRegistry(workloadTemplate string) string {
 	customRegistry, isExist := os.LookupEnv("REGISTRY")
 	if isExist {
-		return strings.Replace(workloadTemplate, "localhost:5000", customRegistry, -1)
+		return strings.Replace(workloadTemplate, "127.0.0.1:5000", customRegistry, -1)
 	} else {
 		return workloadTemplate
 	}

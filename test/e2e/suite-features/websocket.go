@@ -41,7 +41,7 @@ metadata:
 spec:
   containers:
   - name: websocket-server
-    image: localhost:5000/echo-server:dev
+    image: 127.0.0.1:5000/echo-server:dev
     ports:
     - containerPort: 8080
 ---

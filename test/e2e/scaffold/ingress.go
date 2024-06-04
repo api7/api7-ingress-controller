@@ -292,7 +292,7 @@ webhooks:
 var _initContainers = `
       initContainers:
       - name: wait-apisix-admin
-        image: localhost:5000/busybox:dev
+        image: 127.0.0.1:5000/busybox:dev
         imagePullPolicy: IfNotPresent
         command: ['sh', '-c', "until nc -z apisix-service-e2e-test 9180 ; do echo waiting for apisix-admin; sleep 2; done;"]
 `
@@ -385,7 +385,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-          image: "localhost:5000/apisix-ingress-controller:dev"
+          image: "127.0.0.1:5000/apisix-ingress-controller:dev"
           imagePullPolicy: IfNotPresent
           name: ingress-apisix-controller-deployment-e2e-test
           ports:
