@@ -869,7 +869,11 @@ func (c *apisixUpstreamController) recordStatus(at interface{}, reason string, e
 		}
 		if utils.VerifyConditions(&v.Status.Conditions, condition) {
 			meta.SetStatusCondition(&v.Status.Conditions, condition)
-			log.Errorw("update status", zap.Any("status", v.Status))
+			if message == utils.CommonSuccessMessage {
+				log.Infow("update status", zap.Any("status", v.Status))
+			} else {
+				log.Errorw("update status", zap.Any("status", v.Status))
+			}
 			if _, errRecord := apisixClient.ApisixV2().ApisixUpstreams(v.Namespace).
 				UpdateStatus(context.TODO(), v, metav1.UpdateOptions{}); errRecord != nil {
 				log.Errorw("failed to record status change for ApisixUpstream",
