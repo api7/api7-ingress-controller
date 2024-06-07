@@ -25,7 +25,7 @@ import (
 )
 
 // PASSING
-var _ = ginkgo.FDescribe("suite-features: ApisiGlobalRule", func() {
+var _ = ginkgo.Describe("suite-features: ApisiGlobalRule", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	ginkgo.It("enable echo global rule in apisix", func() {
