@@ -1,6 +1,6 @@
 module github.com/api7/api7-ingress-controller
 
-go 1.20
+go 1.22
 
 require (
 	github.com/api7/etcd-adapter v0.2.4

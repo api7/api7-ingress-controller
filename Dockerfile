@@ -16,7 +16,7 @@
 ARG ENABLE_PROXY=false
 ARG BASE_IMAGE_TAG=nonroot
 
-FROM golang:1.20 AS build-env
+FROM golang:1.22 AS build-env
 LABEL maintainer="gxthrj@163.com"
 
 WORKDIR /build
