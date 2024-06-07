@@ -25,6 +25,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
+// PASSING
 var _ = ginkgo.Describe("suite-chore: ApisixRoute resolvegranularity Testing", func() {
 	s := scaffold.NewDefaultScaffold()
 	ginkgo.It("service and upstream [1:m]", func() {

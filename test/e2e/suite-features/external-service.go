@@ -33,6 +33,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
+// PASSING
 var _ = ginkgo.Describe("suite-features: external services", func() {
 	PhaseCreateExternalService := func(s *scaffold.Scaffold, name, externalName string) {
 		extService := fmt.Sprintf(`
@@ -271,7 +272,7 @@ spec:
 
 			// -- update --
 			PhaseCreateApisixRouteWithHostRewrite(s, "httpbin-route", "httpbin-upstream", "httpbin.org")
-			time.Sleep(time.Second * 6)
+			time.Sleep(time.Second * 10)
 
 			// -- validation --
 			upstreamId := PhaseValidateFirstUpstream(s, 1, "httpbin.org", 80, translation.DefaultWeight)

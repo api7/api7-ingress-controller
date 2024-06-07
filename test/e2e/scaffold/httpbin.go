@@ -88,6 +88,70 @@ spec:
 `
 )
 
+var (
+	_httpbinDeploymentTemplate2 = `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: httpbin-deployment-e2e-test-2
+spec:
+  replicas: %d
+  selector:
+    matchLabels:
+      app: httpbin-deployment-e2e-test-2
+  strategy:
+    rollingUpdate:
+      maxSurge: 50%%
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: httpbin-deployment-e2e-test-2
+    spec:
+      terminationGracePeriodSeconds: 0
+      containers:
+        - livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            successThreshold: 1
+            tcpSocket:
+              port: 8080
+            timeoutSeconds: 2
+          readinessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            successThreshold: 1
+            tcpSocket:
+              port: 8080
+            timeoutSeconds: 2
+          image: "127.0.0.1:5000/mockbin:dev"
+          imagePullPolicy: IfNotPresent
+          name: httpbin-deployment-e2e-test-2
+          ports:
+            - containerPort: 8080
+              name: "http"
+              protocol: "TCP"
+`
+	_httpService2 = `
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpbin-service-e2e-test-2
+spec:
+  selector:
+    app: httpbin-deployment-e2e-test-2
+  ports:
+    - name: http
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+  type: ClusterIP
+`
+)
+
 func (s *Scaffold) newHTTPBIN() (*corev1.Service, error) {
 	httpbinDeployment := fmt.Sprintf(s.FormatRegistry(_httpbinDeploymentTemplate), 1)
 	if err := s.CreateResourceFromString(httpbinDeployment); err != nil {
@@ -97,6 +161,21 @@ func (s *Scaffold) newHTTPBIN() (*corev1.Service, error) {
 		return nil, err
 	}
 	svc, err := k8s.GetServiceE(s.t, s.kubectlOptions, "httpbin-service-e2e-test")
+	if err != nil {
+		return nil, err
+	}
+	return svc, nil
+}
+
+func (s *Scaffold) newHTTPBIN2() (*corev1.Service, error) {
+	httpbinDeployment := fmt.Sprintf(s.FormatRegistry(_httpbinDeploymentTemplate2), 1)
+	if err := s.CreateResourceFromString(httpbinDeployment); err != nil {
+		return nil, err
+	}
+	if err := s.CreateResourceFromString(_httpService2); err != nil {
+		return nil, err
+	}
+	svc, err := k8s.GetServiceE(s.t, s.kubectlOptions, "httpbin-service-e2e-test-2")
 	if err != nil {
 		return nil, err
 	}

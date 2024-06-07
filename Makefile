@@ -102,6 +102,9 @@ ifeq ($(E2E_SKIP_BUILD), 0)
 	docker pull kennethreitz/httpbin
 	docker tag kennethreitz/httpbin $(REGISTRY)/httpbin:$(IMAGE_TAG)
 
+	docker pull mashape/mockbin
+	docker tag mashape/mockbin $(REGISTRY)/mockbin:$(IMAGE_TAG)
+
 	docker build -t test-backend:$(IMAGE_TAG) --build-arg ENABLE_PROXY=$(ENABLE_PROXY) ./test/e2e/testbackend
 	docker build -t test-timeout:$(IMAGE_TAG) --build-arg ENABLE_PROXY=$(ENABLE_PROXY) ./test/e2e/testtimeout	
 	docker tag test-backend:$(IMAGE_TAG) $(REGISTRY)/test-backend:$(IMAGE_TAG)
@@ -306,6 +309,7 @@ kind-load-images:
             $(REGISTRY)/etcd:dev \
             $(REGISTRY)/apisix-ingress-controller:dev \
             $(REGISTRY)/httpbin:dev \
+						$(REGISTRY)/mockbin:dev \
             $(REGISTRY)/test-backend:dev \
 			$(REGISTRY)/test-timeout:dev \
             $(REGISTRY)/echo-server:dev \

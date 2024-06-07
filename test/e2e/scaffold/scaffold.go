@@ -19,7 +19,9 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -52,8 +54,25 @@ const (
 )
 
 var (
-	tenyearsLicense = `mIlwqomVH6gbvQDUESKDQJaQuVWHkk3WSpYz-4mKPiWlYxWLuyChuvGoyN5SoNU-ezEVcaKD2W1SHsYhjac-kgi9CM7spxxCbcGfsJF4jsoq5_2DhxSLbAtikseX2wt2symV0KSgh24l3W-szK5gfLa_6nIAqbwN-spLRqbt3zxrXHpnTSb9fYQYL3uAb_6hVln7UXvP2KOFZxV_jiYCyTspIz_2P78NZSPGktoENFxRLNbGQ3JorOlq1wK5jJ6b4t5AZlzTOAYR9pb1A9RQEkzAoHjGnBWWW1rFBMlPeFLahJFxPNk0OhHICLK2EK1ULbZPFUOAl8c9lzbZhM4Vyw`
+	tenyearsLicense []byte
 )
+
+func init() {
+	f, err := os.Open("./dev-34-05-05-license")
+	if err != nil {
+		panic(err)
+	}
+	byt, err := io.ReadAll(f)
+	if err != nil {
+		panic(err)
+	}
+	m := make(map[string]interface{})
+	m["data"] = string(byt)
+	tenyearsLicense, err = json.Marshal(m)
+	if err != nil {
+		panic(err)
+	}
+}
 
 type Options struct {
 	Name                         string
@@ -76,7 +95,6 @@ type Options struct {
 	DisableNamespaceSelector bool
 	DisableNamespaceLabel    bool
 }
-
 type Scaffold struct {
 	opts               *Options
 	kubectlOptions     *k8s.KubectlOptions
@@ -85,18 +103,22 @@ type Scaffold struct {
 	nodes              []corev1.Node
 	dataplaneService   *corev1.Service
 	httpbinService     *corev1.Service
+	httpbinService2    *corev1.Service
 	testBackendService *corev1.Service
 	finalizers         []func()
 	label              map[string]string
 
 	gatewaygroupid         string
-	apisixAdminTunnel      *k8s.Tunnel
 	apisixHttpTunnel       *k8s.Tunnel
 	apisixHttpsTunnel      *k8s.Tunnel
 	apisixTCPTunnel        *k8s.Tunnel
 	apisixTLSOverTCPTunnel *k8s.Tunnel
 	apisixUDPTunnel        *k8s.Tunnel
-	apisixControlTunnel    *k8s.Tunnel
+	// apisixControlTunnel    *k8s.Tunnel
+}
+
+func (s *Scaffold) AdminKey() string {
+	return s.opts.APISIXAdminAPIKey
 }
 
 type apisixResourceVersionInfo struct {
@@ -252,11 +274,20 @@ func (s *Scaffold) DefaultHTTPBackend() (string, []int32) {
 	return s.httpbinService.Name, ports
 }
 
-// ApisixAdminServiceAndPort returns the apisix service name and
-// it's admin port.
-func (s *Scaffold) ApisixAdminServiceAndPort() (string, int32) {
-	return "apisix-service-e2e-test", 9180
+// DefaultHTTPBackend returns the service name and service ports
+// of the  http backend2.
+func (s *Scaffold) HTTPBackend2() (string, []int32) {
+	var ports []int32
+	for _, p := range s.httpbinService2.Spec.Ports {
+		ports = append(ports, p.Port)
+	}
+	return s.httpbinService2.Name, ports
 }
+
+// ApisixAdminServiceAndPort returns the dashboard host and port
+// func (s *Scaffold) ApisixAdminServiceAndPort() (string, int32) {
+// 	return "apisix-service-e2e-test", 7080
+// }
 
 // NewAPISIXClient creates the default HTTP client.
 func (s *Scaffold) NewAPISIXClient() *httpexpect.Expect {
@@ -303,31 +334,31 @@ func (s *Scaffold) NewAPISIXClientWithTCPProxy() *httpexpect.Expect {
 	})
 }
 
-// NewAPISIXClientWithTLSOverTCP creates a TSL over TCP client
-func (s *Scaffold) NewAPISIXClientWithTLSOverTCP(host string) *httpexpect.Expect {
-	u := url.URL{
-		Scheme: "https",
-		Host:   s.apisixTLSOverTCPTunnel.Endpoint(),
-	}
-	return httpexpect.WithConfig(httpexpect.Config{
-		BaseURL: u.String(),
-		Client: &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					// accept any certificate; for testing only!
-					InsecureSkipVerify: true,
-					ServerName:         host,
-				},
-			},
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
-		Reporter: httpexpect.NewAssertReporter(
-			httpexpect.NewAssertReporter(ginkgo.GinkgoT()),
-		),
-	})
-}
+// // NewAPISIXClientWithTLSOverTCP creates a TSL over TCP client
+// func (s *Scaffold) NewAPISIXClientWithTLSOverTCP(host string) *httpexpect.Expect {
+// 	u := url.URL{
+// 		Scheme: "https",
+// 		Host:   s.apisixTLSOverTCPTunnel.Endpoint(),
+// 	}
+// 	return httpexpect.WithConfig(httpexpect.Config{
+// 		BaseURL: u.String(),
+// 		Client: &http.Client{
+// 			Transport: &http.Transport{
+// 				TLSClientConfig: &tls.Config{
+// 					// accept any certificate; for testing only!
+// 					InsecureSkipVerify: true,
+// 					ServerName:         host,
+// 				},
+// 			},
+// 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+// 				return http.ErrUseLastResponse
+// 			},
+// 		},
+// 		Reporter: httpexpect.NewAssertReporter(
+// 			httpexpect.NewAssertReporter(ginkgo.GinkgoT()),
+// 		),
+// 	})
+// }
 
 func (s *Scaffold) NewMQTTClient() mqtt.Client {
 	opts := mqtt.NewClientOptions()
@@ -484,10 +515,8 @@ func (s *Scaffold) beforeEach() {
 
 	s.gatewaygroupid, err = s.CreateNewGatewayGroup()
 	assert.Nil(s.t, err, "creating new gateway group")
-	fmt.Println("NEW GID CREATED IS ", s.gatewaygroupid)
 	s.opts.APISIXAdminAPIKey, err = s.GetAPIKey()
 	assert.Nil(s.t, err, "getting api key")
-	fmt.Println("API KEY RETRIEVED ", s.opts.APISIXAdminAPIKey)
 	s.DeployDataplaneWithIngress()
 	s.DeployTestService()
 	s.DeployRetryTimeout()
@@ -577,6 +606,10 @@ func (s *Scaffold) DeployTestService() {
 	assert.Nil(s.t, err, "initializing httpbin")
 	s.EnsureNumEndpointsReady(s.t, s.httpbinService.Name, 1)
 
+	//Need for testing traffic split
+	s.httpbinService2, err = s.newHTTPBIN2()
+	assert.Nil(s.t, err, "initializing httpbin 2")
+	s.EnsureNumEndpointsReady(s.t, s.httpbinService.Name, 1)
 	s.testBackendService, err = s.newTestBackend()
 	assert.Nil(s.t, err, "initializing test backend")
 	s.EnsureNumEndpointsReady(s.t, s.testBackendService.Name, 1)

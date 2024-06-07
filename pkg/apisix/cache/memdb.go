@@ -65,6 +65,9 @@ func (c *dbCache) InsertGlobalRule(gr *v1.GlobalRule) error {
 func (c *dbCache) InsertConsumer(consumer *v1.Consumer) error {
 	return c.insert("consumer", consumer.DeepCopy())
 }
+func (c *dbCache) InsertStreamRoute(sr *v1.StreamRoute) error {
+	return c.insert("stream_route", sr.DeepCopy())
+}
 
 func (c *dbCache) InsertSchema(schema *v1.Schema) error {
 	return c.insert("schema", schema.DeepCopy())
@@ -126,6 +129,14 @@ func (c *dbCache) GetConsumer(username string) (*v1.Consumer, error) {
 		return nil, err
 	}
 	return obj.(*v1.Consumer).DeepCopy(), nil
+}
+
+func (c *dbCache) GetStreamRoute(id string) (*v1.StreamRoute, error) {
+	obj, err := c.get("stream_route", id)
+	if err != nil {
+		return nil, err
+	}
+	return obj.(*v1.StreamRoute).DeepCopy(), nil
 }
 
 func (c *dbCache) GetSchema(name string) (*v1.Schema, error) {
@@ -214,6 +225,18 @@ func (c *dbCache) ListGlobalRules() ([]*v1.GlobalRule, error) {
 		globalRules = append(globalRules, raw.(*v1.GlobalRule).DeepCopy())
 	}
 	return globalRules, nil
+}
+
+func (c *dbCache) ListStreamRoutes() ([]*v1.StreamRoute, error) {
+	raws, err := c.list("stream_route")
+	if err != nil {
+		return nil, err
+	}
+	streamRoutes := make([]*v1.StreamRoute, 0, len(raws))
+	for _, raw := range raws {
+		streamRoutes = append(streamRoutes, raw.(*v1.StreamRoute).DeepCopy())
+	}
+	return streamRoutes, nil
 }
 
 func (c *dbCache) ListConsumers() ([]*v1.Consumer, error) {

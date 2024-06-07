@@ -421,29 +421,29 @@ func (s *Scaffold) ensureAdminOperationIsSuccessful(url, method string, body []b
 }
 
 // GetServerInfo collect server info from "/v1/server_info" (Control API) exposed by server-info plugin
-func (s *Scaffold) GetServerInfo() (map[string]interface{}, error) {
-	u := url.URL{
-		Scheme: "http",
-		Host:   s.apisixControlTunnel.Endpoint(),
-		Path:   "/v1/server_info",
-	}
-	resp, err := http.Get(u.String())
-	if err != nil {
-		ginkgo.GinkgoT().Logf("failed to get response from Control API: %s", err.Error())
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		ginkgo.GinkgoT().Logf("got status code %d from Control API", resp.StatusCode)
-		return nil, err
-	}
-	var ret map[string]interface{}
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&ret); err != nil {
-		return nil, err
-	}
-	return ret, nil
-}
+// func (s *Scaffold) GetServerInfo() (map[string]interface{}, error) {
+// 	u := url.URL{
+// 		Scheme: "http",
+// 		Host:   s.apisixControlTunnel.Endpoint(),
+// 		Path:   "/v1/server_info",
+// 	}
+// 	resp, err := http.Get(u.String())
+// 	if err != nil {
+// 		ginkgo.GinkgoT().Logf("failed to get response from Control API: %s", err.Error())
+// 		return nil, err
+// 	}
+// 	defer resp.Body.Close()
+// 	if resp.StatusCode != http.StatusOK {
+// 		ginkgo.GinkgoT().Logf("got status code %d from Control API", resp.StatusCode)
+// 		return nil, err
+// 	}
+// 	var ret map[string]interface{}
+// 	dec := json.NewDecoder(resp.Body)
+// 	if err := dec.Decode(&ret); err != nil {
+// 		return nil, err
+// 	}
+// 	return ret, nil
+// }
 
 func (s *Scaffold) NewAPISIX() (apisix.APISIX, error) {
 	return apisix.NewClient(s.opts.APISIXAdminAPIVersion)
@@ -678,13 +678,8 @@ func (s *Scaffold) newAPISIXTunnels() error {
 }
 
 func (s *Scaffold) shutdownApisixTunnel() {
-	s.apisixAdminTunnel.Close()
 	s.apisixHttpTunnel.Close()
 	s.apisixHttpsTunnel.Close()
-	s.apisixTCPTunnel.Close()
-	s.apisixTLSOverTCPTunnel.Close()
-	s.apisixUDPTunnel.Close()
-	s.apisixControlTunnel.Close()
 }
 
 // Namespace returns the current working namespace.

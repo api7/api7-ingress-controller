@@ -15,7 +15,6 @@
 package translation
 
 import (
-	"github.com/api7/api7-ingress-controller/pkg/id"
 	configv2 "github.com/api7/api7-ingress-controller/pkg/kube/apisix/apis/config/v2"
 	apisixv1 "github.com/api7/api7-ingress-controller/pkg/types/apisix/v1"
 )
@@ -30,7 +29,6 @@ type skywalkingPluginConfig struct {
 
 func (t *translator) TranslateClusterConfigV2(acc *configv2.ApisixClusterConfig) (*apisixv1.GlobalRule, error) {
 	globalRule := &apisixv1.GlobalRule{
-		ID:      id.GenID(acc.Name),
 		Plugins: make(apisixv1.Plugins),
 	}
 
@@ -39,11 +37,13 @@ func (t *translator) TranslateClusterConfigV2(acc *configv2.ApisixClusterConfig)
 			globalRule.Plugins["prometheus"] = &prometheusPluginConfig{
 				PreferName: acc.Spec.Monitoring.Prometheus.PreferName,
 			}
+			globalRule.ID = "prometheus"
 		}
 		if acc.Spec.Monitoring.Skywalking.Enable {
 			globalRule.Plugins["skywalking"] = &skywalkingPluginConfig{
 				SampleRatio: acc.Spec.Monitoring.Skywalking.SampleRatio,
 			}
+			globalRule.ID = "skywalking"
 		}
 	}
 

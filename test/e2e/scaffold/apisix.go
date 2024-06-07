@@ -28,8 +28,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var GatewayGroupName = uuid.NewString()
-
 var (
 	_apisixConfigMap = `
 kind: ConfigMap
@@ -110,28 +108,30 @@ func (s *Scaffold) newAPISIXConfigMap(cm *APISIXConfig) error {
 	return nil
 }
 
+type responseCreateGateway struct {
+	Value    responseCreateGatewayValue `json:"value"`
+	ErrorMsg string                     `json:"error_msg"`
+}
+
 func (s *Scaffold) UploadLicense() error {
-	payload := []byte(fmt.Sprintf(`{"data":"%s"}`, tenyearsLicense))
+	payload := tenyearsLicense
 	url := fmt.Sprintf("http://%s:%d/api/license", DashboardHost, DashboardPort)
 	req, err := http.NewRequest("PUT", url, bytes.NewBuffer(payload))
 	if err != nil {
 		return err
 	}
+	// Set basic authentication
+	req.SetBasicAuth("admin", "admin")
 	req.Header.Set("Content-Type", "application/json")
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("THE ERROR IS ", err.Error())
 		return err
 	}
 	defer resp.Body.Close()
 	return nil
 }
 
-type responseCreateGateway struct {
-	Value    responseCreateGatewayValue `json:"value"`
-	ErrorMsg string                     `json:"error_msg"`
-}
 type responseCreateGatewayValue struct {
 	ID             string `json:"id"`
 	TokenPlainText string `json:"token_plain_text"`
@@ -167,7 +167,6 @@ func (s *Scaffold) GetAPIKey() (string, error) {
 	if response.ErrorMsg != "" {
 		return "", fmt.Errorf("error getting key: %s", response.ErrorMsg)
 	}
-	fmt.Println("THE KEY IS ", response.Value.Key)
 	return response.Value.Key, nil
 }
 
@@ -203,12 +202,12 @@ func (s *Scaffold) DeleteGatewayGroup() error {
 	if response.ErrorMsg != "" {
 		return fmt.Errorf("error deleting gateway group: %s", response.ErrorMsg)
 	}
-	fmt.Println("Gateway group deleted ", gatewayGroupID)
 	return nil
 }
 
 func (s *Scaffold) CreateNewGatewayGroup() (string, error) {
-	payload := []byte(fmt.Sprintf(`{"name":"%s","description":"","labels":{},"type":"api7_ingress_controller"}`, GatewayGroupName))
+	gatewayGroupName := uuid.NewString()
+	payload := []byte(fmt.Sprintf(`{"name":"%s","description":"","labels":{},"type":"api7_ingress_controller"}`, gatewayGroupName))
 	url := fmt.Sprintf("http://%s:%d/api/gateway_groups", DashboardHost, DashboardPort)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))
 	if err != nil {
@@ -251,7 +250,6 @@ func (s *Scaffold) getTokenFromDashboard() (string, error) {
 
 	// Set basic authentication
 	req.SetBasicAuth("admin", "admin")
-	fmt.Println("THE URL IS", url)
 	// Create an HTTP client
 	client := &http.Client{}
 
@@ -275,14 +273,12 @@ func (s *Scaffold) newDataplane() (*corev1.Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("BHAI TOKEN YE HAI", token)
 	if err := s.CreateResourceFromString(fmt.Sprintf(_eeDeployment, token)); err != nil {
 		return nil, err
 	}
 	if err := s.CreateResourceFromString(_eeService); err != nil {
 		return nil, err
 	}
-	fmt.Println("Service is ", _eeService)
 	svc, err := k8s.GetServiceE(s.t, s.kubectlOptions, "api7-ee-gateway-1")
 	if err != nil {
 		return nil, err

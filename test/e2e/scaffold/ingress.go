@@ -512,7 +512,6 @@ func (s *Scaffold) newIngressAPISIXController() error {
 
 	err = s.CreateResourceFromString(ingressAPISIXDeployment)
 	assert.Nil(s.t, err, "create deployment")
-	fmt.Println(" I JUST CREATED ", ingressAPISIXDeployment)
 	return nil
 }
 

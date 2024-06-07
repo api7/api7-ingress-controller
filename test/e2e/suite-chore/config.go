@@ -51,6 +51,7 @@ data:
 `
 )
 
+// PASSING
 var _ = ginkgo.Describe("suite-chore: deploy ingress controller with config", func() {
 	s := scaffold.NewDefaultScaffold()
 	ginkgo.It("use configmap with env", func() {
@@ -89,10 +90,10 @@ var _ = ginkgo.Describe("suite-chore: deploy ingress controller with config", fu
 		})
 		spec.Containers[0].Env = append(spec.Containers[0].Env, v1.EnvVar{
 			Name:  "DEFAULT_CLUSTER_BASE_URL",
-			Value: "http://apisix-service-e2e-test:9180/apisix/admin",
+			Value: "http://dashboard:7080/apisix/admin",
 		}, v1.EnvVar{
 			Name:  "DEFAULT_CLUSTER_ADMIN_KEY",
-			Value: "edd1c9f034335f136f87ad84b625c8f1",
+			Value: s.AdminKey(),
 		})
 
 		_, err = client.AppsV1().Deployments(s.Namespace()).Update(context.Background(), deployment, metav1.UpdateOptions{})

@@ -25,6 +25,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
+// PASSING
 var _ = ginkgo.Describe("suite-plugins-security: consumer-restriction plugin", func() {
 	suites := func(scaffoldFunc func() *scaffold.Scaffold) {
 		s := scaffoldFunc()
@@ -46,15 +47,17 @@ var _ = ginkgo.Describe("suite-plugins-security: consumer-restriction plugin", f
 			assert.Len(ginkgo.GinkgoT(), grs[0].Plugins, 1)
 			assert.Len(ginkgo.GinkgoT(), grs[1].Plugins, 1)
 
-			username := grs[0].Username
 			basicAuth := grs[0].Plugins["basic-auth"]
-			assert.Equal(ginkgo.GinkgoT(), basicAuth, map[string]interface{}{
+
+			username2 := grs[1].Username
+			basicAuth2 := grs[1].Plugins["basic-auth"]
+
+			assert.Equal(ginkgo.GinkgoT(), basicAuth2, map[string]interface{}{
 				"username": "jack1-username",
 				"password": "jack1-password",
 			})
 
-			basicAuth2 := grs[1].Plugins["basic-auth"]
-			assert.Equal(ginkgo.GinkgoT(), basicAuth2, map[string]interface{}{
+			assert.Equal(ginkgo.GinkgoT(), basicAuth, map[string]interface{}{
 				"username": "jack2-username",
 				"password": "jack2-password",
 			})
@@ -86,7 +89,7 @@ spec:
      config:
        whitelist:
        - "%s"
-`, backendSvc, backendPorts[0], username)
+`, backendSvc, backendPorts[0], username2)
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar), "creating ApisixRoute with basicAuth")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "Checking number of routes")
 			// assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
@@ -135,14 +138,16 @@ spec:
 
 			username := grs[0].Username
 			basicAuth := grs[0].Plugins["basic-auth"]
-			assert.Equal(ginkgo.GinkgoT(), basicAuth, map[string]interface{}{
+
+			username2 := grs[1].Username
+			basicAuth2 := grs[1].Plugins["basic-auth"]
+
+			assert.Equal(ginkgo.GinkgoT(), basicAuth2, map[string]interface{}{
 				"username": "jack1-username",
 				"password": "jack1-password",
 			})
 
-			username2 := grs[1].Username
-			basicAuth2 := grs[1].Plugins["basic-auth"]
-			assert.Equal(ginkgo.GinkgoT(), basicAuth2, map[string]interface{}{
+			assert.Equal(ginkgo.GinkgoT(), basicAuth, map[string]interface{}{
 				"username": "jack2-username",
 				"password": "jack2-password",
 			})
@@ -180,7 +185,7 @@ spec:
        - user: "%s"
          methods:
          - "GET"
-`, backendSvc, backendPorts[0], username, username2)
+`, backendSvc, backendPorts[0], username2, username)
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar), "creating ApisixRoute with basicAuth")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "Checking number of routes")
 			// assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")

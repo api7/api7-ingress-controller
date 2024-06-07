@@ -26,6 +26,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/testbackend/client"
 )
 
+// PASSING
 var _ = ginkgo.Describe("suite-features: choose scheme", func() {
 	suites := func(scaffoldFunc func() *scaffold.Scaffold) {
 		s := scaffoldFunc()
@@ -85,7 +86,7 @@ spec:
        servicePort: 50051
 `)
 			assert.Nil(ginkgo.GinkgoT(), err)
-			time.Sleep(2 * time.Second)
+			time.Sleep(6 * time.Second)
 			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Len(ginkgo.GinkgoT(), ups, 1)

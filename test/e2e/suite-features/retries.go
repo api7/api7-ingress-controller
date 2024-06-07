@@ -24,6 +24,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
+// Passing
 var _ = ginkgo.Describe("suite-features: retries", func() {
 	suites := func(scaffoldFunc func() *scaffold.Scaffold) {
 		s := scaffoldFunc()

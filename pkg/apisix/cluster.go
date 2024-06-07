@@ -207,6 +207,7 @@ func newCluster(ctx context.Context, o *ClusterOptions) (Cluster, error) {
 		c.route = newRouteClient(c)
 		c.service = newServiceClient(c)
 		c.ssl = newSSLClient(c)
+		c.streamRoute = newStreamRouteClient(c)
 		c.globalRules = newGlobalRuleClient(c)
 		c.consumer = newConsumerClient(c)
 		c.plugin = newPluginClient(c)
@@ -663,7 +664,6 @@ func (c *cluster) listResource(ctx context.Context, url, resource string) (listR
 		zap.String("name", resource),
 		zap.String("url", url),
 	)
-	fmt.Println("PLEASE CHECK IT ", url, resource, c.name)
 	c.metricsCollector.IncrAPISIXReadRequest(resource)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -682,7 +682,6 @@ func (c *cluster) listResource(ctx context.Context, url, resource string) (listR
 	defer drainBody(resp.Body, url)
 	if resp.StatusCode != http.StatusOK {
 		body := readBody(resp.Body, url)
-		fmt.Println("DISABLED ERR: ", body)
 		if c.isFunctionDisabled(body) {
 			return listResponse{}, ErrFunctionDisabled
 		}
@@ -717,7 +716,6 @@ func (c *cluster) createResource(ctx context.Context, url, resource string, body
 		zap.ByteString("body", body),
 	)
 	c.metricsCollector.IncrAPISIXWriteRequest(resource)
-
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err

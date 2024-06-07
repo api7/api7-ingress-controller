@@ -125,6 +125,18 @@ func (i *listItem) route() (*v1.Route, error) {
 	return &route, nil
 }
 
+func (i *listItem) streamRoute() (*v1.StreamRoute, error) {
+	byt, err := json.Marshal(i)
+	if err != nil {
+		return nil, err
+	}
+	var streamRoute v1.StreamRoute
+	if err := json.Unmarshal(byt, &streamRoute); err != nil {
+		return nil, err
+	}
+	return &streamRoute, nil
+}
+
 func (i *getResponse) streamRoute() (*v1.StreamRoute, error) {
 	byt, err := json.Marshal(i.Value)
 	if err != nil {

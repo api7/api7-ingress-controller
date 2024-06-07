@@ -60,7 +60,6 @@ func (t *translator) GenerateRouteV2DeleteMark(ar *configv2.ApisixRoute) (*trans
 }
 
 func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar *configv2.ApisixRoute) error {
-	fmt.Println("OKAY I RAN")
 	ruleNameMap := make(map[string]struct{})
 	for _, part := range ar.Spec.HTTP {
 		if _, ok := ruleNameMap[part.Name]; ok {
@@ -226,7 +225,6 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 				if err != nil {
 					return err
 				}
-				fmt.Println("CREATED SERVICE ", *ups)
 				ctx.AddService(ups)
 			}
 		}

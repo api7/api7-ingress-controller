@@ -25,6 +25,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
+// PASSING
 var _ = ginkgo.Describe("suite-chore: endpoints", func() {
 	suites := func(s *scaffold.Scaffold) {
 		ginkgo.It("ignore applied only if there is an ApisixRoute referenced", func() {
@@ -73,7 +74,7 @@ spec:
       servicePort: %d
 `, backendSvc, backendSvcPort[0])
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(apisixRoute))
-			// assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "checking number of upstreams")
+			time.Sleep(6 * time.Second)
 			s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.com").Expect().Status(http.StatusOK)
 
 			// Now delete the backend httpbin service resource.

@@ -206,8 +206,12 @@ func (c *apisixUpstreamController) sync(ctx context.Context, ev *types.Event) er
 					errRecord = err
 					goto updateStatus
 				}
+			} else {
+				newSvc = &apisixv1.Service{}
 			}
-			newSvc.Metadata.Labels = au.Labels
+			newSvc.Metadata = apisixv1.Metadata{
+				Labels: au.Labels,
+			}
 			if len(au.Spec.ExternalNodes) != 0 {
 				errRecord = c.updateExternalNodes(ctx, au, nil, newSvc, au.Namespace, au.Name, ev.Type.IsSyncEvent())
 				goto updateStatus

@@ -40,8 +40,10 @@ func (t *translator) TranslateGlobalRule(agr kube.ApisixGlobalRule) (*translatio
 func (t *translator) translateGlobalRuleV2(config *configv2.ApisixGlobalRule) (*translation.TranslateContext, error) {
 	ctx := translation.DefaultEmptyTranslateContext()
 	pluginMap := make(apisixv1.Plugins)
+	var name string
 	if len(config.Spec.Plugins) > 0 {
 		for _, plugin := range config.Spec.Plugins {
+			name = plugin.Name
 			if !plugin.Enable {
 				continue
 			}
@@ -62,7 +64,7 @@ func (t *translator) translateGlobalRuleV2(config *configv2.ApisixGlobalRule) (*
 		}
 	}
 	pc := apisixv1.NewDefaultGlobalRule()
-	pc.ID = id.GenID(apisixv1.ComposeGlobalRuleName(config.Namespace, config.Name))
+	pc.ID = name
 	pc.Plugins = pluginMap
 	ctx.AddGlobalRule(pc)
 	return ctx, nil

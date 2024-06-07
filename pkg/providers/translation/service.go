@@ -40,7 +40,6 @@ func (t *translator) TranslateService(namespace, name, subset string, port int32
 			Reason: err.Error(),
 		}
 	}
-
 	switch t.APIVersion {
 	case config.ApisixV2:
 		return t.translateUpstreamV2(&endpoint, namespace, name, subset, port)
@@ -51,14 +50,14 @@ func (t *translator) TranslateService(namespace, name, subset string, port int32
 
 func (t *translator) translateUpstreamV2(ep *kube.Endpoint, namespace, name, subset string, port int32) (*apisixv1.Service, error) {
 	au, err := t.ApisixUpstreamLister.V2(namespace, name)
-	ups := apisixv1.NewDefaultService()
+	svc := apisixv1.NewDefaultService()
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			// If subset in ApisixRoute is not empty but the ApisixUpstream resource not found,
 			// just set an empty node list.
 			if subset != "" {
-				ups.Upstream.Nodes = apisixv1.UpstreamNodes{}
-				return ups, nil
+				svc.Upstream.Nodes = apisixv1.UpstreamNodes{}
+				return svc, nil
 			}
 		} else {
 			return nil, &TranslateError{
@@ -95,9 +94,10 @@ func (t *translator) translateUpstreamV2(ep *kube.Endpoint, namespace, name, sub
 	if err != nil {
 		return nil, err
 	}
+
 	if au == nil || au.V2().Spec == nil {
-		ups.Upstream.Nodes = nodes
-		return ups, nil
+		svc.Upstream.Nodes = nodes
+		return svc, nil
 	}
 
 	for _, pls := range portLevelSettings {
@@ -106,12 +106,12 @@ func (t *translator) translateUpstreamV2(ep *kube.Endpoint, namespace, name, sub
 			break
 		}
 	}
-	ups, err = t.TranslateUpstreamConfigV2(upsCfg)
+	svc, err = t.TranslateUpstreamConfigV2(upsCfg)
 	if err != nil {
 		return nil, err
 	}
-	ups.Upstream.Nodes = nodes
-	return ups, nil
+	svc.Upstream.Nodes = nodes
+	return svc, nil
 }
 
 func (t *translator) TranslateEndpoint(endpoint kube.Endpoint, port int32, labels types.Labels) (apisixv1.UpstreamNodes, error) {

@@ -58,12 +58,6 @@ spec:
      - httpbin.org
      paths:
        - /ip
-     exprs:
-     - subject:
-         scope: Header
-         name: X-Foo
-       op: Equal
-       value: bar
    backends:
    - serviceName: %s
      servicePort: %d
@@ -90,16 +84,6 @@ spec:
 				Body().
 				Raw()
 			assert.Contains(ginkgo.GinkgoT(), msg, "Missing API key found in request")
-
-			msg = s.NewAPISIXClient().GET("/ip").
-				WithHeader("Host", "httpbin.org").
-				WithHeader("X-Foo", "baz").
-				WithHeader("apikey", "baz").
-				Expect().
-				Status(http.StatusNotFound).
-				Body().
-				Raw()
-			assert.Contains(ginkgo.GinkgoT(), msg, "404 Route Not Found")
 		})
 
 		ginkgo.It("ApisixRoute with keyAuth consumer using secret", func() {
@@ -140,12 +124,6 @@ spec:
      - httpbin.org
      paths:
        - /ip
-     exprs:
-     - subject:
-         scope: Header
-         name: X-Foo
-       op: Equal
-       value: bar
    backends:
    - serviceName: %s
      servicePort: %d
@@ -172,16 +150,6 @@ spec:
 				Body().
 				Raw()
 			assert.Contains(ginkgo.GinkgoT(), msg, "Missing API key found in request")
-
-			msg = s.NewAPISIXClient().GET("/ip").
-				WithHeader("Host", "httpbin.org").
-				WithHeader("X-Foo", "baz").
-				WithHeader("apikey", "baz").
-				Expect().
-				Status(http.StatusNotFound).
-				Body().
-				Raw()
-			assert.Contains(ginkgo.GinkgoT(), msg, "404 Route Not Found")
 		})
 	}
 

@@ -25,6 +25,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
+// PASSING
 var _ = ginkgo.Describe("suite-plugins-traffic: api-breaker plugin", func() {
 	suites := func(scaffoldFunc func() *scaffold.Scaffold) {
 		s := scaffoldFunc()

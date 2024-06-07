@@ -25,6 +25,8 @@ import v1 "github.com/api7/api7-ingress-controller/pkg/types/apisix/v1"
 type Cache interface {
 	// InsertRoute adds or updates route to cache.
 	InsertRoute(*v1.Route) error
+	// InsertStreamRoute adds or updates stream_route to cache.
+	InsertStreamRoute(*v1.StreamRoute) error
 	// InsertSSL adds or updates ssl to cache.
 	InsertSSL(*v1.Ssl) error
 	// InsertUpstream adds or updates upstream to cache.
@@ -42,6 +44,7 @@ type Cache interface {
 
 	// GetRoute finds the route from cache according to the primary index (id).
 	GetRoute(string) (*v1.Route, error)
+	GetStreamRoute(string) (*v1.StreamRoute, error)
 	// GetSSL finds the ssl from cache according to the primary index (id).
 	GetSSL(string) (*v1.Ssl, error)
 	// GetUpstream finds the upstream from cache according to the primary index (id).
@@ -59,6 +62,8 @@ type Cache interface {
 
 	// ListRoutes lists all routes in cache.
 	ListRoutes() ([]*v1.Route, error)
+	// ListStreamRoutes lists all stream_route objects in cache.
+	ListStreamRoutes() ([]*v1.StreamRoute, error)
 	// ListSSL lists all ssl objects in cache.
 	ListSSL() ([]*v1.Ssl, error)
 	// ListUpstreams lists all upstreams in cache.
@@ -76,6 +81,8 @@ type Cache interface {
 
 	// DeleteRoute deletes the specified route in cache.
 	DeleteRoute(*v1.Route) error
+	// DeleteStreamRoute deletes the specified stream_route in cache.
+	DeleteStreamRoute(*v1.StreamRoute) error
 	// DeleteSSL deletes the specified ssl in cache.
 	DeleteSSL(*v1.Ssl) error
 	// DeleteUpstream deletes the specified upstream in cache.
