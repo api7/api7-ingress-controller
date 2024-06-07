@@ -47,7 +47,7 @@ jobs:
               - ".github/**"
   build:
     name: Build
-    runs-on: buildjet-2vcpu-ubuntu-2204
+    runs-on: ubuntu-20.04
     needs: changes
     if: needs.changes.outputs.go == 'true'
     steps:
@@ -140,7 +140,7 @@ jobs:
       - changes
       - prepare
       - build
-    runs-on: buildjet-2vcpu-ubuntu-2204
+    runs-on: ubuntu-20.04
     strategy:
       fail-fast: false # If false, GitHub will not cancels all in-progress jobs in the matrix if any matrix job fails.
       matrix:
