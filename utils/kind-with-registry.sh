@@ -51,8 +51,15 @@ fi
 
 # start api7 control plane
 export API7_NETWORK="${kind_network}"
-echo "Kind network: ${kind_network}
-"
+echo "Creating kind network: ${kind_network}"
+if ! docker network ls | grep -q "$kind_network"; then
+  # Create the network
+  docker network create "$kind_network"
+  echo "Network '$kind_network' created."
+else
+  echo "Network '$kind_network' already exists."
+fi
+
 ./docker-compose/generate_env.sh
 ./docker-compose/run_control_plane.sh start
 
