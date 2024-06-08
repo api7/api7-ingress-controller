@@ -178,6 +178,14 @@ jobs:
         with:
           name: docker-dev.tar.gz
 
+      -
+        name: Login to Private Registry
+        uses: docker/login-action@v3
+        with:
+          registry: hkccr.ccs.tencentyun.com
+          username: 100033089146
+          password: "{e>rw2[#EDAD"
+
       - name: Create K8s cluster
         shell: bash
         run: |
