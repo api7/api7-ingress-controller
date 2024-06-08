@@ -46,8 +46,8 @@ func (t *translator) TranslateGatewayTCPRouteV1Alpha2(tcpRoute *gatewayv1alpha2.
 			}
 			ups.Name = apisixv1.ComposeUpstreamName(ns, string(backend.Name), "", int32(*backend.Port), "")
 			ups.ID = id.GenID(ups.Name)
-			sr.UpstreamId = ups.ID
-			if !ctx.CheckUpstreamExist(ups.Name) {
+			sr.ServiceID = ups.ID
+			if !ctx.CheckServiceExist(ups.Name) {
 				ctx.AddService(ups)
 			}
 		}

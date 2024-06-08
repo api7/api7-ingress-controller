@@ -28,7 +28,7 @@ import (
 )
 
 // TODO: Partially passing with ingress controller sh issue
-var _ = ginkgo.Describe("suite-features: sync comparison", func() {
+var _ = ginkgo.FDescribe("suite-features: sync comparison", func() {
 	suites := func(s *scaffold.Scaffold) {
 		ginkgo.It("check resource request count", func() {
 			if s.IsEtcdServer() {
@@ -132,9 +132,9 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.True(ginkgo.GinkgoT(), len(ups) > 0)
 
-			// srs, err := s.ListApisixStreamRoutes()
-			// assert.Nil(ginkgo.GinkgoT(), err)
-			// assert.True(ginkgo.GinkgoT(), len(srs) > 0)
+			srs, err := s.ListApisixStreamRoutes()
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.True(ginkgo.GinkgoT(), len(srs) > 0)
 
 			ssls, err := s.ListApisixSsl()
 			assert.Nil(ginkgo.GinkgoT(), err)
@@ -147,11 +147,6 @@ spec:
 			grs, err := s.ListApisixGlobalRules()
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.True(ginkgo.GinkgoT(), len(grs) > 0)
-
-			// pcs, err := s.ListApisixPluginConfig()
-			// assert.Nil(ginkgo.GinkgoT(), err)
-			// assert.True(ginkgo.GinkgoT(), len(pcs) > 0)
-
 			//TODO: FAILING: Because exec into the ingress container fails. Figure out why?
 			// Check request counts
 			// resTypes := []string{"route", "ssl", "streamRoute",

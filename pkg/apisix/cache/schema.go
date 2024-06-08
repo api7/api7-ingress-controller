@@ -84,10 +84,10 @@ var (
 						Unique:  true,
 						Indexer: &memdb.StringFieldIndex{Field: "ID"},
 					},
-					"upstream_id": {
-						Name:         "upstream_id",
+					"service_id": {
+						Name:         "service_id",
 						Unique:       false,
-						Indexer:      &memdb.StringFieldIndex{Field: "UpstreamId"},
+						Indexer:      &memdb.StringFieldIndex{Field: "ServiceID"},
 						AllowMissing: true,
 					},
 				},

@@ -127,11 +127,19 @@ type Upstream struct {
 	DiscoveryArgs map[string]string `json:"discovery_args,omitempty" yaml:"discovery_args,omitempty"`
 }
 
+type ServiceType string
+
+const (
+	ServiceTypeHTTP   ServiceType = "http"
+	ServiceTypeStream ServiceType = "stream"
+)
+
 // Upstream is the apisix upstream definition.
 // +k8s:deepcopy-gen=true
 type Service struct {
 	Metadata `json:",inline" yaml:",inline"`
-	Upstream Upstream `json:"upstream,omitempty" yaml:"upstream,omitempty"`
+	Type     ServiceType `json:"type,omitempty" yaml:"type,omitempty"`
+	Upstream Upstream    `json:"upstream,omitempty" yaml:"upstream,omitempty"`
 }
 
 // Route apisix route object
@@ -486,12 +494,12 @@ type MutualTLSClientConfig struct {
 type StreamRoute struct {
 	// TODO metadata should use Metadata type
 	ID         string            `json:"id,omitempty" yaml:"id,omitempty"`
+	Name       string            `json:"name,omitempty" yaml:"name,omitempty"`
 	Desc       string            `json:"desc,omitempty" yaml:"desc,omitempty"`
 	Labels     map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
 	ServerPort int32             `json:"server_port,omitempty" yaml:"server_port,omitempty"`
 	SNI        string            `json:"sni,omitempty" yaml:"sni,omitempty"`
-	UpstreamId string            `json:"upstream_id,omitempty" yaml:"upstream_id,omitempty"`
-	Upstream   *Upstream         `json:"upstream,omitempty" yaml:"upstream,omitempty"`
+	ServiceID  string            `json:"service_id,omitempty" yaml:"service_id,omitempty"`
 	Plugins    Plugins           `json:"plugins,omitempty" yaml:"plugins,omitempty"`
 }
 

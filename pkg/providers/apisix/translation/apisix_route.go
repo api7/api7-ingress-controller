@@ -220,7 +220,7 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 				}
 				route.Plugins["traffic-split"] = plugin
 			}
-			if !ctx.CheckUpstreamExist(upstreamName) {
+			if !ctx.CheckServiceExist(upstreamName) {
 				ups, err := t.translateService(ar.Namespace, backend.ServiceName, backend.Subset, backend.ResolveGranularity, svcClusterIP, svcPort)
 				if err != nil {
 					return err
@@ -488,7 +488,7 @@ func (t *translator) generateHTTPRouteV2DeleteMark(ctx *translation.TranslateCon
 			backend := backends[0]
 
 			upstreamName := apisixv1.ComposeUpstreamName(ar.Namespace, backend.ServiceName, backend.Subset, backend.ServicePort.IntVal, backend.ResolveGranularity)
-			if !ctx.CheckUpstreamExist(upstreamName) {
+			if !ctx.CheckServiceExist(upstreamName) {
 				ups, err := t.generateUpstreamDeleteMark(ar.Namespace, backend.ServiceName, backend.Subset, backend.ServicePort.IntVal, backend.ResolveGranularity)
 				if err != nil {
 					return err
@@ -500,7 +500,7 @@ func (t *translator) generateHTTPRouteV2DeleteMark(ctx *translation.TranslateCon
 			upstreams := part.Upstreams
 			for _, upstream := range upstreams {
 				upstreamName := apisixv1.ComposeExternalUpstreamName(ar.Namespace, upstream.Name)
-				if !ctx.CheckUpstreamExist(upstreamName) {
+				if !ctx.CheckServiceExist(upstreamName) {
 					ups := &apisixv1.Service{}
 					ups.Name = upstreamName
 					ups.ID = id.GenID(ups.Name)
@@ -563,16 +563,18 @@ func (t *translator) translateStreamRouteV2(ctx *translation.TranslateContext, a
 		sr.ID = id.GenID(name)
 		sr.ServerPort = part.Match.IngressPort
 		sr.SNI = part.Match.Host
-		ups, err := t.translateService(ar.Namespace, backend.ServiceName, backend.Subset, backend.ResolveGranularity, svcClusterIP, svcPort)
+		svc, err := t.translateService(ar.Namespace, backend.ServiceName, backend.Subset, backend.ResolveGranularity, svcClusterIP, svcPort)
 		if err != nil {
 			return err
 		}
-		sr.UpstreamId = ups.ID
+		sr.ServiceID = svc.ID
 		sr.Plugins = pluginMap
-		if !ctx.CheckUpstreamExist(ups.Name) {
-			ctx.AddService(ups)
+		sr.Name = name
+		svc.Type = apisixv1.ServiceTypeStream
+		ctx.AddStreamRoute(sr)
+		if !ctx.CheckServiceExist(svc.Name) {
+			ctx.AddService(svc)
 		}
-
 	}
 	return nil
 }
@@ -586,13 +588,13 @@ func (t *translator) generateStreamRouteDeleteMarkV2(ctx *translation.TranslateC
 		sr.ID = id.GenID(name)
 		sr.ServerPort = part.Match.IngressPort
 		sr.SNI = part.Match.Host
-		ups, err := t.generateUpstreamDeleteMark(ar.Namespace, backend.ServiceName, backend.Subset, backend.ServicePort.IntVal, backend.ResolveGranularity)
+		svc, err := t.generateUpstreamDeleteMark(ar.Namespace, backend.ServiceName, backend.Subset, backend.ServicePort.IntVal, backend.ResolveGranularity)
 		if err != nil {
 			return err
 		}
-		sr.UpstreamId = ups.ID
-		if !ctx.CheckUpstreamExist(ups.Name) {
-			ctx.AddService(ups)
+		sr.ServiceID = svc.ID
+		if !ctx.CheckServiceExist(svc.Name) {
+			ctx.AddService(svc)
 		}
 	}
 	return nil
@@ -695,10 +697,10 @@ func (t *translator) translateOldRouteV2(ar *configv2.ApisixRoute) (*translation
 		if err != nil || sr == nil {
 			continue
 		}
-		if sr.UpstreamId != "" {
-			ups := apisixv1.NewDefaultService()
-			ups.ID = sr.UpstreamId
-			oldCtx.AddService(ups)
+		if sr.ServiceID != "" {
+			svc := apisixv1.NewDefaultService()
+			svc.ID = sr.ServiceID
+			oldCtx.AddService(svc)
 		}
 	}
 	for _, part := range ar.Spec.HTTP {

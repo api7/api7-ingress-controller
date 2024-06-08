@@ -76,6 +76,6 @@ func TestTranslateContext(t *testing.T) {
 	assert.Equal(t, pc1, ctx.PluginConfigs[0])
 	assert.Equal(t, pc2, ctx.PluginConfigs[1])
 
-	assert.Equal(t, true, ctx.CheckUpstreamExist("aaa"))
-	assert.Equal(t, false, ctx.CheckUpstreamExist("bbb"))
+	assert.Equal(t, true, ctx.CheckServiceExist("aaa"))
+	assert.Equal(t, false, ctx.CheckServiceExist("bbb"))
 }

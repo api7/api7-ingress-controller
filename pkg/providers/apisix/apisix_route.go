@@ -345,6 +345,7 @@ func (c *apisixRouteController) sync(ctx context.Context, ev *types.Event) error
 			Routes:        tctx.Routes,
 			Services:      tctx.Services,
 			PluginConfigs: tctx.PluginConfigs,
+			StreamRoutes:  tctx.StreamRoutes,
 		}
 		var (
 			added   *utils.Manifest

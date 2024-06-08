@@ -557,11 +557,6 @@ func (in *StreamRoute) DeepCopyInto(out *StreamRoute) {
 			(*out)[key] = val
 		}
 	}
-	if in.Upstream != nil {
-		in, out := &in.Upstream, &out.Upstream
-		*out = new(Upstream)
-		(*in).DeepCopyInto(*out)
-	}
 	in.Plugins.DeepCopyInto(&out.Plugins)
 	return
 }
