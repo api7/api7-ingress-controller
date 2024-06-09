@@ -88,7 +88,7 @@ type Config struct {
 	IngressStatusAddress         []string           `json:"ingress_status_address" yaml:"ingress_status_address"`
 	EnableProfiling              bool               `json:"enable_profiling" yaml:"enable_profiling"`
 	Kubernetes                   KubernetesConfig   `json:"kubernetes" yaml:"kubernetes"`
-	Dashboard                    DashboardConfig    `json:"dashboard" yaml:"apisix"`
+	Dashboard                    DashboardConfig    `json:"dashboard" yaml:"dashboard"`
 	ApisixResourceSyncInterval   types.TimeDuration `json:"apisix_resource_sync_interval" yaml:"apisix_resource_sync_interval"`
 	ApisixResourceSyncComparison bool               `json:"apisix_resource_sync_comparison" yaml:"apisix_resource_sync_comparison"`
 	PluginMetadataConfigMap      string             `json:"plugin_metadata_cm" yaml:"plugin_metadata_cm"`
