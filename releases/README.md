@@ -17,7 +17,7 @@
 #
 -->
 
-## apisix-ingress-controller release process
+## api7-ingress-controller release process
 
 1. Create release pull request with release notes.
 

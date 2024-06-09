@@ -27,12 +27,12 @@ func newVersionCommand() *cobra.Command {
 	var long bool
 	cmd := &cobra.Command{
 		Use:   "version",
-		Short: "version for apisix-ingress-controller",
+		Short: "version for api7-ingress-controller",
 		Run: func(cmd *cobra.Command, _ []string) {
 			if long {
 				fmt.Print(version.Long())
 			} else {
-				fmt.Printf("apisix-ingress-controller version %s\n", version.Short())
+				fmt.Printf("api7-ingress-controller version %s\n", version.Short())
 			}
 		},
 	}
@@ -41,10 +41,10 @@ func newVersionCommand() *cobra.Command {
 	return cmd
 }
 
-// NewAPISIXIngressControllerCommand creates the apisix-ingress-controller command.
+// NewAPISIXIngressControllerCommand creates the api7-ingress-controller command.
 func NewAPISIXIngressControllerCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "apisix-ingress-controller [command]",
+		Use:     "api7-ingress-controller [command]",
 		Long:    "Yet another Ingress controller for Kubernetes using Apache APISIX as the high performance reverse proxy.",
 		Version: version.Short(),
 	}

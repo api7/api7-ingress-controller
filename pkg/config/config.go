@@ -72,7 +72,7 @@ var (
 )
 
 // Config contains all config items which are necessary for
-// apisix-ingress-controller's running.
+// api7-ingress-controller's running.
 type Config struct {
 	CertFilePath                 string             `json:"cert_file" yaml:"cert_file"`
 	KeyFilePath                  string             `json:"key_file" yaml:"key_file"`

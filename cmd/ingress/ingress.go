@@ -57,7 +57,7 @@ func contextWithSignalCancel(ctx context.Context, signals ...os.Signal) context.
 	return newCtx
 }
 
-// NewIngressCommand creates the ingress sub command for apisix-ingress-controller.
+// NewIngressCommand creates the ingress sub command for api7-ingress-controller.
 func NewIngressCommand() *cobra.Command {
 	var configPath string
 	cfg := config.NewDefaultConfig()
@@ -66,30 +66,30 @@ func NewIngressCommand() *cobra.Command {
 		Use: "ingress [flags]",
 		Long: `launch the ingress controller
 
-You can run apisix-ingress-controller from configuration file or command line options,
+You can run api7-ingress-controller from configuration file or command line options,
 if you run it from configuration file, other command line options will be ignored.
 
 Run from configuration file:
 
-    apisix-ingress-controller ingress --config-path /path/to/config.json
+    api7-ingress-controller ingress --config-path /path/to/config.json
 
 Both json and yaml are supported as the configuration file format.
 
 Run from command line options:
 
-    apisix-ingress-controller ingress --default-apisix-cluster-base-url http://apisix-service:9180/apisix/admin --kubeconfig /path/to/kubeconfig
+    api7-ingress-controller ingress --default-apisix-cluster-base-url http://dashboard:7080/apisix/admin --kubeconfig /path/to/kubeconfig
 
 For Kubernetes cluster version older than v1.19.0, you should always set the --ingress-version option to networking/v1beta1:
 
-    apisix-ingress-controller ingress \
-      --default-apisix-cluster-base-url http://apisix-service:9180/apisix/admin \
+    api7-ingress-controller ingress \
+      --default-apisix-cluster-base-url http://dashboard:7080/apisix/admin \
       --kubeconfig /path/to/kubeconfig \
       --ingress-version networking/v1beta1
 
-If you run apisix-ingress-controller outside the Kubernetes cluster, --kubeconfig option (or kubeconfig item in configuration file) should be specified explicitly,
+If you run api7-ingress-controller outside the Kubernetes cluster, --kubeconfig option (or kubeconfig item in configuration file) should be specified explicitly,
 or if you run it inside cluster, leave it alone and in-cluster configuration will be discovered and used.
 
-Before you run apisix-ingress-controller, be sure all related resources, like CRDs (ApisixRoute, ApisixUpstream and etc),
+Before you run api7-ingress-controller, be sure all related resources, like CRDs (ApisixRoute, ApisixUpstream and etc),
 the apisix cluster and others are created`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if configPath != "" {
@@ -153,7 +153,7 @@ the apisix cluster and others are created`,
 		},
 	}
 
-	cmd.PersistentFlags().StringVar(&configPath, "config-path", "", "configuration file path for apisix-ingress-controller")
+	cmd.PersistentFlags().StringVar(&configPath, "config-path", "", "configuration file path for api7-ingress-controller")
 	cmd.PersistentFlags().StringVar(&cfg.LogLevel, "log-level", "info", "error log level")
 	cmd.PersistentFlags().StringVar(&cfg.LogOutput, "log-output", "stderr", "error log output file")
 	cmd.PersistentFlags().StringVar(&cfg.LogRotateOutputPath, "log-rotate-output-path", "", "rotate log output path")

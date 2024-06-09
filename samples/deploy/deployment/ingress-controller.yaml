@@ -24,7 +24,7 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: apisix-ingress-controller
+      app: api7-ingress-controller
       tier: backend
   strategy:
     rollingUpdate:
@@ -35,13 +35,13 @@ spec:
     metadata:
       annotations: {}
       labels:
-        app: apisix-ingress-controller
+        app: api7-ingress-controller
         tier: backend
     spec:
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       containers:
-        - image: apache/apisix-ingress-controller:1.0.0
+        - image: apache/api7-ingress-controller:1.0.0
           imagePullPolicy: IfNotPresent
           name: ingress-controller
           ports:

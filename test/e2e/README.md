@@ -28,7 +28,7 @@ a e2e test scaffold is prepared to run test cases easily. The source codes are i
 * Create a brand new namespace;
 * Create etcd deployment and etcd service in the specified namespace;
 * Create apisix deployment and apisix service in the specified namespace (note both the control plane and data plane are created);
-* Create apisix-ingress-controller deployment in the specified namespace;
+* Create api7-ingress-controller deployment in the specified namespace;
 * Create a http server with [kennethreitz/httpbin](https://hub.docker.com/r/kennethreitz/httpbin/) as the upstream.
 
 The above mentioned steps are run before each case starts and all resources will be destroyed after the case finishes.

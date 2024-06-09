@@ -28,7 +28,7 @@ import (
 )
 
 // TODO: Partially passing with ingress controller sh issue
-var _ = ginkgo.FDescribe("suite-features: sync comparison", func() {
+var _ = ginkgo.Describe("suite-features: sync comparison", func() {
 	suites := func(s *scaffold.Scaffold) {
 		ginkgo.It("check resource request count", func() {
 			if s.IsEtcdServer() {

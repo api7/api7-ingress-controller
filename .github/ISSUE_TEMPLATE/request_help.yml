@@ -24,8 +24,8 @@ body:
       label: Environment
       description: Request help without environment information will be ignored or closed.
       value: |
-        - your apisix-ingress-controller version (output of apisix-ingress-controller version --long):
+        - your api7-ingress-controller version (output of api7-ingress-controller version --long):
         - your Kubernetes cluster version (output of kubectl version):
-        - if you run apisix-ingress-controller in Bare-metal environment, also show your OS version (uname -a):
+        - if you run api7-ingress-controller in Bare-metal environment, also show your OS version (uname -a):
     validations:
       required: true

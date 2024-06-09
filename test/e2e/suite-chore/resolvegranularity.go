@@ -98,7 +98,7 @@ spec:
 			WithHeader("Host", "httpbin.com").
 			Expect().
 			Status(http.StatusOK)
-		// Verify consistency after apisix-ingress-controller restart
+		// Verify consistency after api7-ingress-controller restart
 		verify := func() {
 			s.RestartIngressControllerDeploy()
 			time.Sleep(15 * time.Second)

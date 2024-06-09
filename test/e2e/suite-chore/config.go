@@ -68,13 +68,13 @@ var _ = ginkgo.Describe("suite-chore: deploy ingress controller with config", fu
 
 		spec := &deployment.Spec.Template.Spec
 		spec.Containers[0].Command = []string{
-			"/ingress-apisix/apisix-ingress-controller",
+			"/ingress-apisix/api7-ingress-controller",
 			"ingress",
 			"--config-path",
 			"/ingress-apisix/conf/config.yaml",
 		}
 		spec.Volumes = append(spec.Volumes, v1.Volume{
-			Name: "apisix-ingress-controller-config",
+			Name: "api7-ingress-controller-config",
 			VolumeSource: v1.VolumeSource{
 				ConfigMap: &v1.ConfigMapVolumeSource{
 					LocalObjectReference: v1.LocalObjectReference{
@@ -84,7 +84,7 @@ var _ = ginkgo.Describe("suite-chore: deploy ingress controller with config", fu
 			},
 		})
 		spec.Containers[0].VolumeMounts = append(spec.Containers[0].VolumeMounts, v1.VolumeMount{
-			Name:      "apisix-ingress-controller-config",
+			Name:      "api7-ingress-controller-config",
 			MountPath: "/ingress-apisix/conf/config.yaml",
 			SubPath:   "config.yaml",
 		})

@@ -70,9 +70,9 @@ func (ios *intOrDescOneString) UnmarshalJSON(p []byte) error {
 }
 
 // ApisixRoute is the ApisixRoute CRD definition.
-// We don't use the definition in apisix-ingress-controller,
+// We don't use the definition in api7-ingress-controller,
 // since the k8s dependencies in terratest and
-// apisix-ingress-controller are conflicted.
+// api7-ingress-controller are conflicted.
 type apisixRoute struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`

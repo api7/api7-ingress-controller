@@ -543,7 +543,7 @@ func NewDefaultService() *Service {
 	return &Service{
 		Metadata: Metadata{
 			Labels: map[string]string{
-				"managed-by": "apisix-ingress-controller",
+				"managed-by": "api7-ingress-controller",
 			},
 		},
 		Upstream: Upstream{
@@ -552,9 +552,9 @@ func NewDefaultService() *Service {
 			Nodes:  make(UpstreamNodes, 0),
 			Scheme: SchemeHTTP,
 			Metadata: Metadata{
-				Desc: "Created by apisix-ingress-controller, DO NOT modify it manually",
+				Desc: "Created by api7-ingress-controller, DO NOT modify it manually",
 				Labels: map[string]string{
-					"managed-by": "apisix-ingress-controller",
+					"managed-by": "api7-ingress-controller",
 				},
 			},
 		},
@@ -565,9 +565,9 @@ func NewDefaultService() *Service {
 func NewDefaultRoute() *Route {
 	return &Route{
 		Metadata: Metadata{
-			Desc: "Created by apisix-ingress-controller, DO NOT modify it manually",
+			Desc: "Created by api7-ingress-controller, DO NOT modify it manually",
 			Labels: map[string]string{
-				"managed-by": "apisix-ingress-controller",
+				"managed-by": "api7-ingress-controller",
 			},
 		},
 	}
@@ -576,9 +576,9 @@ func NewDefaultRoute() *Route {
 // NewDefaultStreamRoute returns an empty StreamRoute with default values.
 func NewDefaultStreamRoute() *StreamRoute {
 	return &StreamRoute{
-		Desc: "Created by apisix-ingress-controller, DO NOT modify it manually",
+		Desc: "Created by api7-ingress-controller, DO NOT modify it manually",
 		Labels: map[string]string{
-			"managed-by": "apisix-ingress-controller",
+			"managed-by": "api7-ingress-controller",
 		},
 	}
 }
@@ -586,9 +586,9 @@ func NewDefaultStreamRoute() *StreamRoute {
 // NewDefaultConsumer returns an empty Consumer with default values.
 func NewDefaultConsumer() *Consumer {
 	return &Consumer{
-		Desc: "Created by apisix-ingress-controller, DO NOT modify it manually",
+		Desc: "Created by api7-ingress-controller, DO NOT modify it manually",
 		Labels: map[string]string{
-			"managed-by": "apisix-ingress-controller",
+			"managed-by": "api7-ingress-controller",
 		},
 	}
 }
@@ -597,9 +597,9 @@ func NewDefaultConsumer() *Consumer {
 func NewDefaultPluginConfig() *PluginConfig {
 	return &PluginConfig{
 		Metadata: Metadata{
-			Desc: "Created by apisix-ingress-controller, DO NOT modify it manually",
+			Desc: "Created by api7-ingress-controller, DO NOT modify it manually",
 			Labels: map[string]string{
-				"managed-by": "apisix-ingress-controller",
+				"managed-by": "api7-ingress-controller",
 			},
 		},
 		Plugins: make(Plugins),

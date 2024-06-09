@@ -22,7 +22,7 @@ import (
 	apisix "github.com/api7/api7-ingress-controller/pkg/types/apisix/v1"
 )
 
-// Handler abstracts the behavior so that the apisix-ingress-controller knows
+// Handler abstracts the behavior so that the api7-ingress-controller knows
 // how to parse some annotations and convert them to APISIX plugins.
 type PluginAnnotationsHandler interface {
 	// Handle parses the target annotation and converts it to the type-agnostic structure.

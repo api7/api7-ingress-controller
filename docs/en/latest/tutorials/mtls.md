@@ -88,7 +88,7 @@ It should output:
 
 Before configuring SSL, we must have certificates. Certificates often authorized by certificate provider, which also known as Certification Authority (CA).
 
-You can use [OpenSSL](https://en.wikipedia.org/wiki/Openssl) to generate self-signed certificates for testing purposes. Some pre-generated certificates for this guide are [here](https://github.com/apache/apisix-ingress-controller/tree/master/docs/en/latest/tutorials/mtls).
+You can use [OpenSSL](https://en.wikipedia.org/wiki/Openssl) to generate self-signed certificates for testing purposes. Some pre-generated certificates for this guide are [here](https://github.com/apache/api7-ingress-controller/tree/master/docs/en/latest/tutorials/mtls).
 
 - `ca.pem`: The root CA.
 - `server.pem` and `server.key`: Server certificate used to enable SSL (https). Contains correct `subjectAltName` matches domain `mtls.httpbin.local`.
@@ -120,7 +120,7 @@ Replace the `foo.crt` and `foo.key` with the actual names of certificate and pri
 
 **Example Keys and Certificates**
 
-The examples we use in this guide are available on [GitHub](https://github.com/apache/apisix-ingress-controller/tree/master/docs/en/latest/tutorials/mtls).
+The examples we use in this guide are available on [GitHub](https://github.com/apache/api7-ingress-controller/tree/master/docs/en/latest/tutorials/mtls).
 
 **Creating the Secret**
 
@@ -181,7 +181,7 @@ Now, we configured SSL successfully.
 
 Like `server-secret`, we will create a `client-ca-secret` to store the CA that verify the certificate client presents.
 
-The keys and certificates used in the examples [are here](https://github.com/apache/apisix-ingress-controller/tree/master/docs/en/latest/tutorials/mtls).
+The keys and certificates used in the examples [are here](https://github.com/apache/api7-ingress-controller/tree/master/docs/en/latest/tutorials/mtls).
 
 ```bash
 kubectl apply -f ./mtls/client-ca-secret.yaml -n default
@@ -229,7 +229,7 @@ That means our mutual authentication has been enabled successfully.
 
 Now, we need to transfer our client cert to the APISIX container to verify the mTLS functionality.
 
-The keys and certificates used in the examples [are here](https://github.com/apache/apisix-ingress-controller/tree/master/docs/en/latest/tutorials/mtls).
+The keys and certificates used in the examples [are here](https://github.com/apache/api7-ingress-controller/tree/master/docs/en/latest/tutorials/mtls).
 
 ```bash
 # Transfer client certificate

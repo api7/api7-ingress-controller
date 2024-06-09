@@ -34,7 +34,7 @@ import (
 )
 
 const (
-	IngressControllerServiceName = "apisix-ingress-controller"
+	IngressControllerServiceName = "api7-ingress-controller"
 )
 
 var (
@@ -385,7 +385,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-          image: "127.0.0.1:5000/apisix-ingress-controller:dev"
+          image: "127.0.0.1:5000/api7-ingress-controller:dev"
           imagePullPolicy: IfNotPresent
           name: ingress-apisix-controller-deployment-e2e-test
           ports:
@@ -399,7 +399,7 @@ spec:
               name: "etcd-server"
               protocol: "TCP"
           command:
-            - /ingress-apisix/apisix-ingress-controller
+            - /ingress-apisix/api7-ingress-controller
             - ingress
             - --log-level
             - debug
@@ -609,7 +609,7 @@ func (s *Scaffold) WaitGetLeaderLease() (*coordinationv1.Lease, error) {
 }
 
 // GetIngressPodDetails returns a batch of pod description
-// about apisix-ingress-controller.
+// about api7-ingress-controller.
 func (s *Scaffold) GetIngressPodDetails() ([]corev1.Pod, error) {
 	return k8s.ListPodsE(s.t, s.kubectlOptions, metav1.ListOptions{
 		LabelSelector: "app=ingress-apisix-controller-deployment-e2e-test",

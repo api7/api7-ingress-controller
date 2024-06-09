@@ -90,7 +90,7 @@ const (
 	AnnotationsSvcNamespace = AnnotationsPrefix + "svc-namespace"
 )
 
-// Handler abstracts the behavior so that the apisix-ingress-controller knows
+// Handler abstracts the behavior so that the api7-ingress-controller knows
 type IngressAnnotationsParser interface {
 	// Handle parses the target annotation and converts it to the type-agnostic structure.
 	// The return value might be nil since some features have an explicit switch, users should

@@ -91,7 +91,7 @@ This will create the five resources mentioned below:
 
 * `apisix-gateway`: dataplane the process the traffic.
 * `apisix-admin`: control plane that processes all configuration changes.
-* `apisix-ingress-controller`: ingress controller which exposes APISIX.
+* `api7-ingress-controller`: ingress controller which exposes APISIX.
 * `apisix-etcd` and `apisix-etcd-headless`: stores configuration and handles internal communication.
 
 You should now be able to use APISIX ingress controller. You can try running this [minimal example](../tutorials/proxy-the-httpbin-service.md) to see if everything is working perfectly.

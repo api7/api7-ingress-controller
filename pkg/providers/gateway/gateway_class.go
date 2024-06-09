@@ -87,7 +87,7 @@ func (c *gatewayClassController) markAsUpdated(gatewayClass *v1beta1.GatewayClas
 		Type:               string(v1beta1.GatewayClassConditionStatusAccepted),
 		Status:             metav1.ConditionTrue,
 		Reason:             "Updated",
-		Message:            fmt.Sprintf("Updated by apisix-ingress-controller, sync at %v", time.Now()),
+		Message:            fmt.Sprintf("Updated by api7-ingress-controller, sync at %v", time.Now()),
 		LastTransitionTime: metav1.Now(),
 	}
 

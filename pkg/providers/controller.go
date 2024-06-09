@@ -98,7 +98,7 @@ func NewController(cfg *config.Config) (*Controller, error) {
 		podName = os.Getenv("HOSTNAME")
 	}
 	if podName == "" {
-		podName = "apisix-ingress-controller"
+		podName = "api7-ingress-controller"
 	}
 	podNamespace := os.Getenv("POD_NAMESPACE")
 	if podNamespace == "" {

@@ -27,7 +27,7 @@ This tutorial will detail how to manage secrets of ApisixTls using cert-manager.
 
 * Prepare an available Kubernetes cluster in your workstation, we recommend you to use [KIND](https://kind.sigs.k8s.io/docs/user/quick-start/) to create a local Kubernetes cluster.
 * Install Apache APISIX in Kubernetes by [Helm Chart](https://github.com/apache/apisix-helm-chart).
-* Install [apisix-ingress-controller](https://github.com/apache/apisix-ingress-controller/blob/master/install.md).
+* Install [api7-ingress-controller](https://github.com/apache/api7-ingress-controller/blob/master/install.md).
 * Install [cert-manager](https://cert-manager.io/docs/installation/#default-static-install).
 
 In this guide, we assume that your APISIX is installed with `ssl` enabled, which is not enabled by default in the Helm Chart. To enable it, you need to set `apisix.ssl.enabled=true` during installation.
@@ -49,7 +49,7 @@ Assume that the SSL port is `9443`.
 
 ## Create Issuer
 
-For testing purposes, we will use a simple CA issuer. All required files can be found [here](https://github.com/apache/apisix-ingress-controller/tree/master/docs/en/latest/tutorials/cert-manager).
+For testing purposes, we will use a simple CA issuer. All required files can be found [here](https://github.com/apache/api7-ingress-controller/tree/master/docs/en/latest/tutorials/cert-manager).
 
 To create a CA issuer, use the following commands:
 

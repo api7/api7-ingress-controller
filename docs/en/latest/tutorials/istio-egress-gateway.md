@@ -209,7 +209,7 @@ This error indicates that the traffic has been sent to APISIX correctly. However
 
 In the Istio configuration, we have successfully directed traffic from the mesh to APISIX, but APISIX doesn't currently have any route.
 
-Here, we will use the [external service](https://github.com/apache/apisix-ingress-controller/blob/master/docs/en/latest/tutorials/external-service.md) feature to direct traffic to the external service.
+Here, we will use the [external service](https://github.com/apache/api7-ingress-controller/blob/master/docs/en/latest/tutorials/external-service.md) feature to direct traffic to the external service.
 
 ```yaml
 apiVersion: apisix.apache.org/v2

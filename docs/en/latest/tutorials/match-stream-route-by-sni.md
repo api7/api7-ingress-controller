@@ -140,7 +140,7 @@ kubectl create secret tls redis-2-secret --cert=./redis-2.crt --key=./redis-2.ke
 ## Create ApisixTls associated with Secret
 
 Create ApisixTls associated with Secret resource, note the hosts field should match the domain or hostname in the certificate.
-The apisix-ingress-controller will generate an APISIX SSL object in the APISIX.
+The api7-ingress-controller will generate an APISIX SSL object in the APISIX.
 
 ```yaml
 apiVersion: apisix.apache.org/v2

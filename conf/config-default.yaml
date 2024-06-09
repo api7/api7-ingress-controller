@@ -55,7 +55,7 @@ apisix_resource_sync_interval: "1h" # Default interval for synchronizing Kuberne
 kubernetes:
   kubeconfig: ""                       # the Kubernetes configuration file path, default is
                                        # "", so the in-cluster configuration will be used.
-  resync_interval: "6h"                # how long should apisix-ingress-controller
+  resync_interval: "6h"                # how long should api7-ingress-controller
                                        # re-synchronizes with Kubernetes, default is 6h,
                                        # and the minimal resync interval is 30s.
   namespace_selector: [""]             # namespace_selector represent basis for selecting managed namespaces.

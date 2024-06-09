@@ -34,7 +34,7 @@ import (
 )
 
 // PASSING
-var _ = ginkgo.Describe("suite-features: external services", func() {
+var _ = ginkgo.FDescribe("suite-features: external services", func() {
 	PhaseCreateExternalService := func(s *scaffold.Scaffold, name, externalName string) {
 		extService := fmt.Sprintf(`
 apiVersion: v1

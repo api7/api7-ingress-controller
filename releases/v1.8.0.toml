@@ -18,10 +18,10 @@
 commit = "HEAD"
 
 # project_name is used to refer to the project in the notes
-project_name = "apisix-ingress-controller"
+project_name = "api7-ingress-controller"
 
 # github_repo is the github project, only github is currently supported
-github_repo = "apache/apisix-ingress-controller"
+github_repo = "apache/api7-ingress-controller"
 
 # match_deps is a pattern to determine which dependencies should be included
 # as part of this release. The changelog will also include changes for these

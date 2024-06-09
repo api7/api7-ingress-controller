@@ -18,10 +18,10 @@
 commit = "HEAD"
 
 # project_name is used to refer to the project in the notes
-project_name = "apisix-ingress-controller"
+project_name = "api7-ingress-controller"
 
 # github_repo is the github project, only github is currently supported
-github_repo = "apache/apisix-ingress-controller"
+github_repo = "apache/api7-ingress-controller"
 
 # match_deps is a pattern to determine which dependencies should be included
 # as part of this release. The changelog will also include changes for these
@@ -42,7 +42,7 @@ This is a feature release.
 
 ## Highlights
 
-The API version of all custom resources has been upgraded to v2 in v1.5 release. In 1.6 we removed the v2beta2 API. Please go to [#707](https://github.com/apache/apisix-ingress-controller/issues/707) for detail.
+The API version of all custom resources has been upgraded to v2 in v1.5 release. In 1.6 we removed the v2beta2 API. Please go to [#707](https://github.com/apache/api7-ingress-controller/issues/707) for detail.
 
 In this version we added more Gateway API support. e.g. TCPRoute/UDPRoute/HTTPRouteFilter etc.
 

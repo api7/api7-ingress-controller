@@ -26,7 +26,7 @@ ifeq ($(APISIX_ADMIN_API_VERSION),"v2")
     TARGET_APISIX_VERSION ?= "2.15.3-centos"
 endif
 
-RELEASE_SRC = apache-apisix-ingress-controller-${VERSION}-src
+RELEASE_SRC = apache-api7-ingress-controller-${VERSION}-src
 REPOSITORY="127.0.0.1"
 REGISTRY_PORT ?= "5000"
 REGISTRY ?="${REPOSITORY}:$(REGISTRY_PORT)"
@@ -58,32 +58,32 @@ E2E_SKIP_BUILD ?= 0
 # E2E_ENV = "debug"	Keep only debug logs and testing environment
 E2E_ENV ?= "dev"
 
-### build:                Build apisix-ingress-controller
+### build:                Build api7-ingress-controller
 .PHONY: build
 build:
 	CGO_ENABLED=0 go build \
-		-o apisix-ingress-controller \
+		-o api7-ingress-controller \
 		-ldflags $(GO_LDFLAGS) \
 		main.go
 
-### clean-image:          clean apisix-ingress-controller image
+### clean-image:          clean api7-ingress-controller image
 .PHONY: clean-image
 clean-image: ## Removes local image
-	echo "removing old image $(REGISTRY)/apisix-ingress-controller:$(IMAGE_TAG)"
-	docker rmi -f $(REGISTRY)/apisix-ingress-controller:$(IMAGE_TAG) || true
+	echo "removing old image $(REGISTRY)/api7-ingress-controller:$(IMAGE_TAG)"
+	docker rmi -f $(REGISTRY)/api7-ingress-controller:$(IMAGE_TAG) || true
 
-### build-image:          Build apisix-ingress-controller image
+### build-image:          Build api7-ingress-controller image
 .PHONY: build-image
 build-image:
 ifeq ($(E2E_SKIP_BUILD), 0)
-	DOCKER_BUILDKIT=1 docker build -t apache/apisix-ingress-controller:$(IMAGE_TAG) --build-arg ENABLE_PROXY=$(ENABLE_PROXY) --build-arg BASE_IMAGE_TAG=$(BASE_IMAGE_TAG) .
-	docker tag apache/apisix-ingress-controller:$(IMAGE_TAG) $(REGISTRY)/apisix-ingress-controller:$(IMAGE_TAG)
+	DOCKER_BUILDKIT=1 docker build -t api7/api7-ingress-controller:$(IMAGE_TAG) --build-arg ENABLE_PROXY=$(ENABLE_PROXY) --build-arg BASE_IMAGE_TAG=$(BASE_IMAGE_TAG) .
+	docker tag api7/api7-ingress-controller:$(IMAGE_TAG) $(REGISTRY)/api7-ingress-controller:$(IMAGE_TAG)
 endif
 
 ### pack-image:   Build and push Ingress image used in e2e test suites to kind or custom registry.
 .PHONY: pack-image
 pack-image: build-image
-	docker push $(REGISTRY)/apisix-ingress-controller:$(IMAGE_TAG)
+	docker push $(REGISTRY)/api7-ingress-controller:$(IMAGE_TAG)
 
 ### pack-images:          Build and push images used in e2e test suites to kind or custom registry.
 .PHONY: pack-images
@@ -109,7 +109,7 @@ ifeq ($(E2E_SKIP_BUILD), 0)
 	docker build -t test-timeout:$(IMAGE_TAG) --build-arg ENABLE_PROXY=$(ENABLE_PROXY) ./test/e2e/testtimeout	
 	docker tag test-backend:$(IMAGE_TAG) $(REGISTRY)/test-backend:$(IMAGE_TAG)
 	docker tag test-timeout:$(IMAGE_TAG) $(REGISTRY)/test-timeout:$(IMAGE_TAG)
-	docker tag apache/apisix-ingress-controller:$(IMAGE_TAG) $(REGISTRY)/apisix-ingress-controller:$(IMAGE_TAG)
+	docker tag api7/api7-ingress-controller:$(IMAGE_TAG) $(REGISTRY)/api7-ingress-controller:$(IMAGE_TAG)
 
 	docker pull jmalloc/echo-server:latest
 	docker tag  jmalloc/echo-server:latest $(REGISTRY)/echo-server:$(IMAGE_TAG)
@@ -127,7 +127,7 @@ ifeq ($(E2E_SKIP_BUILD), 0)
 	docker push $(REGISTRY)/httpbin:$(IMAGE_TAG)
 	docker push $(REGISTRY)/test-backend:$(IMAGE_TAG)
 	docker push $(REGISTRY)/test-timeout:$(IMAGE_TAG)
-	docker push $(REGISTRY)/apisix-ingress-controller:$(IMAGE_TAG)
+	docker push $(REGISTRY)/api7-ingress-controller:$(IMAGE_TAG)
 	docker push $(REGISTRY)/echo-server:$(IMAGE_TAG)
 	docker push $(REGISTRY)/busybox:$(IMAGE_TAG)
 endif
@@ -307,7 +307,7 @@ kind-load-images:
 	kind load docker-image --name=apisix \
 			$(REGISTRY)/apisix:dev \
             $(REGISTRY)/etcd:dev \
-            $(REGISTRY)/apisix-ingress-controller:dev \
+            $(REGISTRY)/api7-ingress-controller:dev \
             $(REGISTRY)/httpbin:dev \
 						$(REGISTRY)/mockbin:dev \
             $(REGISTRY)/test-backend:dev \

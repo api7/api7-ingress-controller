@@ -495,22 +495,22 @@ APISIX Ingress controller supports the Kubernetes Ingress API, Gateway API, and 
 First we will create a ServiceAccount and a corresponding ClusterRole to ensure that the Ingress controller has sufficient permissions to access the required resources:
 
 ```bash
-git clone https://github.com/apache/apisix-ingress-controller.git --depth 1
-cd apisix-ingress-controller/
+git clone https://github.com/apache/api7-ingress-controller.git --depth 1
+cd api7-ingress-controller/
 kubectl apply -k samples/deploy/rbac/apisix_view_clusterrole.yaml # apply cluster role
-kubectl -n apisix create serviceaccount apisix-ingress-controller # create service account
+kubectl -n apisix create serviceaccount api7-ingress-controller # create service account
 # bind cluster role and service account
-kubectl create clusterrolebinding apisix-viewer --clusterrole=apisix-view-clusterrole --serviceaccount=apisix:apisix-ingress-controller
+kubectl create clusterrolebinding apisix-viewer --clusterrole=apisix-view-clusterrole --serviceaccount=apisix:api7-ingress-controller
 ```
 
 Once you apply it to your cluster, you have to create the [ApisixRoute](https://apisix.apache.org/docs/ingress-controller/concepts/apisix_route) CRD:
 
 ```bash
-# Under apisix-ingress-controller git repo
+# Under api7-ingress-controller git repo
 kubectl apply -k samples/deploy/crd
 ```
 
-See [samples](http://github.com/apache/apisix-ingress-controller/blob/master/samples/deploy/crd) for details.
+See [samples](http://github.com/apache/api7-ingress-controller/blob/master/samples/deploy/crd) for details.
 
 For the Ingress controller to work with APISIX, you need to create a config file containing the APISIX Admin API URL and key. You can do this by creating a ConfigMap:
 
@@ -542,7 +542,7 @@ metadata:
     app.kubernetes.io/name: ingress-controller
 ```
 
-See [conf/config-default.yaml](http://github.com/apache/apisix-ingress-controller/blob/master/conf/config-default.yaml) for a list of all the available configurations.
+See [conf/config-default.yaml](http://github.com/apache/api7-ingress-controller/blob/master/conf/config-default.yaml) for a list of all the available configurations.
 
 Now we will create a Service for the Ingress controller to access the Admin API:
 
@@ -577,7 +577,7 @@ Now we can create a Deployment to install the Ingress controller in our cluster:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: apisix-ingress-controller
+  name: api7-ingress-controller
   namespace: apisix
   labels:
     app.kubernetes.io/name: ingress-controller
@@ -591,7 +591,7 @@ spec:
       labels:
         app.kubernetes.io/name: ingress-controller
     spec:
-      serviceAccountName: apisix-ingress-controller
+      serviceAccountName: api7-ingress-controller
       volumes:
         - name: configuration
           configMap:
@@ -606,11 +606,11 @@ spec:
       containers:
         - name: ingress-controller
           command:
-            - /ingress-apisix/apisix-ingress-controller
+            - /ingress-apisix/api7-ingress-controller
             - ingress
             - --config-path
             - /ingress-apisix/conf/config.yaml
-          image: "apache/apisix-ingress-controller:1.6.0"
+          image: "apache/api7-ingress-controller:1.6.0"
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

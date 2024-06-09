@@ -44,7 +44,7 @@ func (t *translator) TranslateSSLV2(tls *configv2.ApisixTls) (*apisixv1.Ssl, err
 		Labels: map[string]string{
 			translation.MetaSecretNamespace: tls.Spec.Secret.Namespace,
 			translation.MetaSecretName:      tls.Spec.Secret.Name,
-			"managed-by":                    "apisix-ingress-controller",
+			"managed-by":                    "api7-ingress-controller",
 		},
 	}
 	if tls.Spec.Client != nil {

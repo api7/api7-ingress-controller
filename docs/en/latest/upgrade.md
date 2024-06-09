@@ -63,14 +63,14 @@ When the CRD exists, Helm Chart will not automatically update the CRD when upgra
 - Using Helm (Helm version >= 3.7.0)
 
 ```sh
-helm show crds apisix/apisix-ingress-controller | kubectl apply -f -
+helm show crds apisix/api7-ingress-controller | kubectl apply -f -
 ```
 
 > If the Helm version does not support it, you need to obtain it from the [apisix-helm-chart](https://github.com/apache/apisix-helm-chart) repository.
-> CRDs directory: `charts/apisix-ingress-controller/crds/customresourcedefinitions.yaml`
+> CRDs directory: `charts/api7-ingress-controller/crds/customresourcedefinitions.yaml`
 >
 > ```sh
-> kubectl apply -f  https://raw.githubusercontent.com/apache/apisix-helm-chart/apisix-1.1.0/charts/apisix-ingress-controller/crds/customresourcedefinitions.yaml
+> kubectl apply -f  https://raw.githubusercontent.com/apache/apisix-helm-chart/apisix-1.1.0/charts/api7-ingress-controller/crds/customresourcedefinitions.yaml
 > ```
 
 3. Upgrade APISIX Ingress
@@ -95,7 +95,7 @@ Compatible upgrades can be made without changing any resources.
 
 [Relevant version information and compatibility of apisix-helm-chart](https://github.com/apache/apisix-helm-chart#compatibility-matrix).
 
-If you use the `apisix-ingress-controller` chart, you need to focus on the configuration item  [adminAPIVersion](https://github.com/apache/apisix-helm-chart/blob/apisix-ingress-controller-0.11.3/charts/apisix-ingress-controller/values.yaml#L134).
+If you use the `api7-ingress-controller` chart, you need to focus on the configuration item  [adminAPIVersion](https://github.com/apache/apisix-helm-chart/blob/api7-ingress-controller-0.11.3/charts/api7-ingress-controller/values.yaml#L134).
 
 :::
 
@@ -105,8 +105,8 @@ You need to select the corresponding chart version according to the APISIX versi
 |--| ---|--|
 |apisix-1.1.0| >= 3.0.0 | |
 |apisix-0.13.0| <= 2.15.x | |
-|apisix-ingress-controller-0.11.3| >= 3.0.0| adminAPIVersion=v3 |
-|apisix-ingress-controller-0.11.3| <= 2.15.x| |
+|api7-ingress-controller-0.11.3| >= 3.0.0| adminAPIVersion=v3 |
+|api7-ingress-controller-0.11.3| <= 2.15.x| |
 
 For `APISIX:3.x.x`, Use `apisix` chart to upgrade:
 
@@ -114,20 +114,20 @@ For `APISIX:3.x.x`, Use `apisix` chart to upgrade:
 helm upgrade apisix apisix/apisix --version 1.1.0 ***  # omit some configuration
 ```
 
-For `APISIX:3.x.x`, use `apisix-ingress-controller` chart to upgrade:
+For `APISIX:3.x.x`, use `api7-ingress-controller` chart to upgrade:
 
 ```sh
-helm upgrade apisix apisix/apisix-ingress-controller \
+helm upgrade apisix apisix/api7-ingress-controller \
   --version 0.11.3 \
   --set config.apisix.adminAPIVersion=v3 # omit some configuration
 ```
 
 #### ***1.4 to 1.5***
 
-The chart version corresponding to `apisix-ingress-controller:1.5`:
+The chart version corresponding to `api7-ingress-controller:1.5`:
 
 * `apisix-0.11.3`
-* `apisix-ingress-controller-0.10.1`
+* `api7-ingress-controller-0.10.1`
 
 ```sh
 helm upgrade apisix apisix/apisix --version 0.11.3 ***  # omit some configuration
@@ -137,10 +137,10 @@ helm upgrade apisix apisix/apisix --version 0.11.3 ***  # omit some configuratio
 
 #### ***1.3 to 1.4***
 
-The chart version corresponding to `apisix-ingress-controller:1.4`:
+The chart version corresponding to `api7-ingress-controller:1.4`:
 
 * `apisix-0.10.2`
-* `apisix-ingress-controller-0.9.3`
+* `api7-ingress-controller-0.9.3`
 
 ```sh
 helm upgrade apisix apisix/apisix --version 0.10.2 ***  # omit some configuration

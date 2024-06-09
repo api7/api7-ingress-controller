@@ -99,7 +99,7 @@ jobs:
           docker save \
             ${REGISTRY}/hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev \
             ${REGISTRY}/etcd:dev \
-            ${REGISTRY}/apisix-ingress-controller:dev \
+            ${REGISTRY}/api7-ingress-controller:dev \
             ${REGISTRY}/httpbin:dev \
             ${REGISTRY}/mockbin:dev \
             ${REGISTRY}/test-backend:dev \

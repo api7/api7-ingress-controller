@@ -656,7 +656,7 @@ func TestTranslateApisixRouteV2WithUpstream(t *testing.T) {
 			Name: upsName,
 			Desc: "",
 			Labels: map[string]string{
-				"managed-by":  "apisix-ingress-controller",
+				"managed-by":  "api7-ingress-controller",
 				"meta_weight": "1",
 			},
 		},

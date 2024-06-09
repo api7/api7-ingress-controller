@@ -12,11 +12,11 @@
   ],
   "replacementPatterns": [
     {
-      "pattern": "^https://github.com/apache/apisix-ingress-controller/blob/master/",
+      "pattern": "^https://github.com/apache/api7-ingress-controller/blob/master/",
       "replacement": "{{BASEURL}}/"
     },
     {
-      "pattern": "^https://github.com/apache/apisix-ingress-controller/tree/master/",
+      "pattern": "^https://github.com/apache/api7-ingress-controller/tree/master/",
       "replacement": "{{BASEURL}}/"
     },
     {

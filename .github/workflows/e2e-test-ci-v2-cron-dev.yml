@@ -111,7 +111,7 @@ jobs:
           docker save \
             ${REGISTRY}/apisix:dev \
             ${REGISTRY}/etcd:dev \
-            ${REGISTRY}/apisix-ingress-controller:dev \
+            ${REGISTRY}/api7-ingress-controller:dev \
             $(REGISTRY)/httpbin:dev \
             $(REGISTRY)/mockbin:dev \
             ${REGISTRY}/test-backend:dev \

@@ -435,15 +435,15 @@ spec:
 			assert.Equal(ginkgo.GinkgoT(), routes[0].Paths, []string{"/ip"})
 			assert.Equal(ginkgo.GinkgoT(), routes[0].Hosts, []string{"httpbin.com"})
 			assert.Equal(ginkgo.GinkgoT(), routes[0].Desc,
-				"Created by apisix-ingress-controller, DO NOT modify it manually")
-			assert.Equal(ginkgo.GinkgoT(), routes[0].Labels["managed-by"], "apisix-ingress-controller")
+				"Created by api7-ingress-controller, DO NOT modify it manually")
+			assert.Equal(ginkgo.GinkgoT(), routes[0].Labels["managed-by"], "api7-ingress-controller")
 
 			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err, "listing upstreams")
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
 			assert.Equal(ginkgo.GinkgoT(), ups[0].Desc,
-				"Created by apisix-ingress-controller, DO NOT modify it manually")
-			assert.Equal(ginkgo.GinkgoT(), ups[0].Labels["managed-by"], "apisix-ingress-controller")
+				"Created by api7-ingress-controller, DO NOT modify it manually")
+			assert.Equal(ginkgo.GinkgoT(), ups[0].Labels["managed-by"], "api7-ingress-controller")
 
 			pluginConfigs, err := s.ListApisixPluginConfig()
 			assert.Nil(ginkgo.GinkgoT(), err, "listing pluginConfigs")

@@ -44,7 +44,7 @@ APISIX Ingress controller does not support configuring `admin_key` for APISIX. R
 
 <!-- ### 5. Failed to create route with `ApisixRoute`
 
-When `apisix-ingress-controller` creates a route with CRD, it checks the `Endpoint` resources in Kubernetes (matched by namespace_name_port). If the corresponding endpoint information is not found, the route will not be created and wait for the next retry.
+When `api7-ingress-controller` creates a route with CRD, it checks the `Endpoint` resources in Kubernetes (matched by namespace_name_port). If the corresponding endpoint information is not found, the route will not be created and wait for the next retry.
 
 Tips: The failure caused by empty upstream nodes is a limitation of Apache APISIX, related [issue](https://github.com/apache/apisix/issues/3072) -->
 
@@ -74,7 +74,7 @@ These CRDs are not templated but will be installed by default when running `helm
 
 ## Why is there an error like "no matches for kind "ApisixRoute" in version "apisix.apache.org/v2beta3"" when I try to create a Route?
 
-Make sure that you have the correct version of the CRDs installed in your cluster (see [updating CRDs](#how-do-i-update-the-crds-when-updating-apisix-ingress-controller)). `ApisixRoute` has two versions: `v2beta3` and `v2`.
+Make sure that you have the correct version of the CRDs installed in your cluster (see [updating CRDs](#how-do-i-update-the-crds-when-updating-api7-ingress-controller)). `ApisixRoute` has two versions: `v2beta3` and `v2`.
 
 Also check your `ApisixRoute` definition for the correct version by running:
 
@@ -86,7 +86,7 @@ kubectl get crd apisixroutes.apisix.apache.org -o jsonpath='{ .spec.versions[*].
 
 You can change the Admin API key in two ways:
 
-1. Modify the key in both [apisix/values.yaml](https://github.com/apache/apisix-helm-chart/blob/57cdbe461765cd49af2195cc6a1976cc55262e9b/charts/apisix/values.yaml#L181) and [apisix/apisix-ingress-controller/values.yaml](https://github.com/apache/apisix-helm-chart/blob/57cdbe461765cd49af2195cc6a1976cc55262e9b/charts/apisix-ingress-controller/values.yaml#L128) files.
+1. Modify the key in both [apisix/values.yaml](https://github.com/apache/apisix-helm-chart/blob/57cdbe461765cd49af2195cc6a1976cc55262e9b/charts/apisix/values.yaml#L181) and [apisix/api7-ingress-controller/values.yaml](https://github.com/apache/apisix-helm-chart/blob/57cdbe461765cd49af2195cc6a1976cc55262e9b/charts/api7-ingress-controller/values.yaml#L128) files.
 2. You can also set this imperatively by passing the flag `--set ingress-controller.config.apisix.adminKey=<new key> --set admin.credentials.admin=<new key>` to the `helm install` command.
 
 ## Why does my Ingress resource not have an address?
