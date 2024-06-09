@@ -400,7 +400,7 @@ func (c *apisixRouteController) checkPluginNameIfNotEmptyV2(ctx context.Context,
 			if v.PluginConfigNamespace != "" {
 				ns = v.PluginConfigNamespace
 			}
-			_, err := c.APISIX.Cluster(c.Config.APISIX.DefaultClusterName).PluginConfig().Get(ctx, apisixv1.ComposePluginConfigName(ns, v.PluginConfigName))
+			_, err := c.APISIX.Cluster(c.Config.Dashboard.DefaultClusterName).PluginConfig().Get(ctx, apisixv1.ComposePluginConfigName(ns, v.PluginConfigName))
 			if err != nil {
 				if err == apisixcache.ErrNotFound {
 					log.Errorw("checkPluginNameIfNotEmptyV2 error: plugin_config not found",

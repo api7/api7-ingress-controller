@@ -88,7 +88,7 @@ type Config struct {
 	IngressStatusAddress         []string           `json:"ingress_status_address" yaml:"ingress_status_address"`
 	EnableProfiling              bool               `json:"enable_profiling" yaml:"enable_profiling"`
 	Kubernetes                   KubernetesConfig   `json:"kubernetes" yaml:"kubernetes"`
-	APISIX                       APISIXConfig       `json:"apisix" yaml:"apisix"`
+	Dashboard                    DashboardConfig    `json:"dashboard" yaml:"apisix"`
 	ApisixResourceSyncInterval   types.TimeDuration `json:"apisix_resource_sync_interval" yaml:"apisix_resource_sync_interval"`
 	ApisixResourceSyncComparison bool               `json:"apisix_resource_sync_comparison" yaml:"apisix_resource_sync_comparison"`
 	PluginMetadataConfigMap      string             `json:"plugin_metadata_cm" yaml:"plugin_metadata_cm"`
@@ -118,7 +118,7 @@ type KubernetesConfig struct {
 }
 
 // APISIXConfig contains all APISIX related config items.
-type APISIXConfig struct {
+type DashboardConfig struct {
 	// AdminAPIVersion is the APISIX admin API version
 	AdminAPIVersion string `json:"admin_api_version" yaml:"admin_api_version"`
 	// DefaultClusterName is the name of default cluster.
@@ -161,7 +161,7 @@ func NewDefaultConfig() *Config {
 			DisableStatusUpdates: false,
 			EnableAdmission:      false,
 		},
-		APISIX: APISIXConfig{
+		Dashboard: DashboardConfig{
 			AdminAPIVersion:    "v2",
 			DefaultClusterName: "default",
 		},
@@ -218,10 +218,10 @@ func (cfg *Config) Validate() error {
 	if cfg.Kubernetes.ResyncInterval.Duration < _minimalResyncInterval {
 		return errors.New("controller resync interval too small")
 	}
-	if cfg.APISIX.DefaultClusterName == "" {
-		cfg.APISIX.DefaultClusterName = "default"
+	if cfg.Dashboard.DefaultClusterName == "" {
+		cfg.Dashboard.DefaultClusterName = "default"
 	}
-	if cfg.APISIX.DefaultClusterBaseURL == "" {
+	if cfg.Dashboard.DefaultClusterBaseURL == "" {
 		return errors.New("apisix base url is required")
 	}
 	switch cfg.Kubernetes.IngressVersion {

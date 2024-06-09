@@ -180,7 +180,7 @@ func findRedundant(src map[string]string, dest *sync.Map) map[string]string {
 }
 
 func (p *apisixProvider) listRouteCache(ctx context.Context, routeMapA6 map[string]string) error {
-	routesInA6, err := p.common.APISIX.Cluster(p.common.Config.APISIX.DefaultClusterName).Route().List(ctx)
+	routesInA6, err := p.common.APISIX.Cluster(p.common.Config.Dashboard.DefaultClusterName).Route().List(ctx)
 	if err != nil {
 		return err
 	} else {
@@ -192,7 +192,7 @@ func (p *apisixProvider) listRouteCache(ctx context.Context, routeMapA6 map[stri
 }
 
 func (p *apisixProvider) listSSLCache(ctx context.Context, sslMapA6 map[string]string) error {
-	sslInA6, err := p.common.APISIX.Cluster(p.common.Config.APISIX.DefaultClusterName).SSL().List(ctx)
+	sslInA6, err := p.common.APISIX.Cluster(p.common.Config.Dashboard.DefaultClusterName).SSL().List(ctx)
 	if err != nil {
 		return err
 	} else {
@@ -204,7 +204,7 @@ func (p *apisixProvider) listSSLCache(ctx context.Context, sslMapA6 map[string]s
 }
 
 func (p *apisixProvider) listConsumerCache(ctx context.Context, consumerMapA6 map[string]string) error {
-	consumerInA6, err := p.common.APISIX.Cluster(p.common.Config.APISIX.DefaultClusterName).Consumer().List(ctx)
+	consumerInA6, err := p.common.APISIX.Cluster(p.common.Config.Dashboard.DefaultClusterName).Consumer().List(ctx)
 	if err != nil {
 		return err
 	} else {

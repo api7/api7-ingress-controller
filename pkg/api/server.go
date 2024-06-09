@@ -84,9 +84,9 @@ func NewServer(cfg *config.Config) (*Server, error) {
 			admission.Use(gin.Recovery(), gin.Logger())
 			apirouter.MountWebhooks(admission, &apisix.ClusterOptions{
 				AdminAPIVersion:  cfg.Kubernetes.APIVersion,
-				Name:             cfg.APISIX.DefaultClusterName,
-				AdminKey:         cfg.APISIX.DefaultClusterAdminKey,
-				BaseURL:          cfg.APISIX.DefaultClusterBaseURL,
+				Name:             cfg.Dashboard.DefaultClusterName,
+				AdminKey:         cfg.Dashboard.DefaultClusterAdminKey,
+				BaseURL:          cfg.Dashboard.DefaultClusterBaseURL,
 				MetricsCollector: metrics.NewPrometheusCollector(),
 				SchemaSynced:     true,
 			})

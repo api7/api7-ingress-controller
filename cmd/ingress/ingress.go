@@ -131,7 +131,7 @@ the apisix cluster and others are created`,
 			// We should make sure that the cfg that's logged out is sanitized.
 			cfgCopy := new(config.Config)
 			*cfgCopy = *cfg
-			cfgCopy.APISIX.DefaultClusterAdminKey = "******"
+			cfgCopy.Dashboard.DefaultClusterAdminKey = "******"
 			data, err := json.MarshalIndent(cfgCopy, "", "  ")
 			if err != nil {
 				dief("failed to marshal configuration: %s", err)
@@ -181,10 +181,10 @@ For example, no available LB exists in the bare metal environment.`)
 	cmd.PersistentFlags().BoolVar(&cfg.Kubernetes.WatchEndpointSlices, "watch-endpointslices", false, "whether to watch endpointslices rather than endpoints")
 	cmd.PersistentFlags().BoolVar(&cfg.Kubernetes.EnableGatewayAPI, "enable-gateway-api", false, "whether to enable support for Gateway API")
 	cmd.PersistentFlags().BoolVar(&cfg.Kubernetes.DisableStatusUpdates, "disable-status-updates", false, "Disable resource status updates")
-	cmd.PersistentFlags().StringVar(&cfg.APISIX.AdminAPIVersion, "apisix-admin-api-version", "v2", `the APISIX admin API version. can be "v2" or "v3". Default value is v2.`)
-	cmd.PersistentFlags().StringVar(&cfg.APISIX.DefaultClusterBaseURL, "default-apisix-cluster-base-url", "", "the base URL of admin api / manager api for the default APISIX cluster")
-	cmd.PersistentFlags().StringVar(&cfg.APISIX.DefaultClusterAdminKey, "default-apisix-cluster-admin-key", "", "admin key used for the authorization of admin api / manager api for the default APISIX cluster")
-	cmd.PersistentFlags().StringVar(&cfg.APISIX.DefaultClusterName, "default-apisix-cluster-name", "default", "name of the default apisix cluster")
+	cmd.PersistentFlags().StringVar(&cfg.Dashboard.AdminAPIVersion, "apisix-admin-api-version", "v2", `the APISIX admin API version. can be "v2" or "v3". Default value is v2.`)
+	cmd.PersistentFlags().StringVar(&cfg.Dashboard.DefaultClusterBaseURL, "default-apisix-cluster-base-url", "", "the base URL of admin api / manager api for the default APISIX cluster")
+	cmd.PersistentFlags().StringVar(&cfg.Dashboard.DefaultClusterAdminKey, "default-apisix-cluster-admin-key", "", "admin key used for the authorization of admin api / manager api for the default APISIX cluster")
+	cmd.PersistentFlags().StringVar(&cfg.Dashboard.DefaultClusterName, "default-apisix-cluster-name", "default", "name of the default apisix cluster")
 	cmd.PersistentFlags().BoolVar(&cfg.Kubernetes.EnableAdmission, "enable-admission", false, "can verify crd resources")
 	cmd.PersistentFlags().DurationVar(&cfg.ApisixResourceSyncInterval.Duration, "apisix-resource-sync-interval", 1*time.Hour, "interval of periodic sync in seconds. Default value is 1h. Set to 0 to disable. Min is 60s.")
 	cmd.PersistentFlags().BoolVar(&cfg.ApisixResourceSyncComparison, "apisix-resource-sync-comparison", true, "enable comparison in periodic sync")

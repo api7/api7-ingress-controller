@@ -51,7 +51,7 @@ func TestNewConfigFromFile(t *testing.T) {
 			APIVersion:           DefaultAPIVersion,
 			DisableStatusUpdates: true,
 		},
-		APISIX: APISIXConfig{
+		Dashboard: DashboardConfig{
 			AdminAPIVersion:        "v2",
 			DefaultClusterName:     "apisix",
 			DefaultClusterBaseURL:  "http://127.0.0.1:8080/apisix",
@@ -155,7 +155,7 @@ func TestConfigWithEnvVar(t *testing.T) {
 			APIVersion:           DefaultAPIVersion,
 			DisableStatusUpdates: true,
 		},
-		APISIX: APISIXConfig{
+		Dashboard: DashboardConfig{
 			AdminAPIVersion:        "v2",
 			DefaultClusterName:     "apisix",
 			DefaultClusterBaseURL:  "http://127.0.0.1:8080/apisix",
@@ -290,8 +290,8 @@ apisix:
 	assert.Nil(t, newCfg.Validate(), "failed to validate config")
 
 	defaultCfg := NewDefaultConfig()
-	defaultCfg.APISIX.DefaultClusterBaseURL = "http://127.0.0.1:8080/apisix"
-	defaultCfg.APISIX.DefaultClusterName = "default"
+	defaultCfg.Dashboard.DefaultClusterBaseURL = "http://127.0.0.1:8080/apisix"
+	defaultCfg.Dashboard.DefaultClusterName = "default"
 
 	assert.Equal(t, defaultCfg, newCfg, "bad configuration")
 }

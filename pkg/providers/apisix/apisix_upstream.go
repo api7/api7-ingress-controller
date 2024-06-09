@@ -341,7 +341,7 @@ func (c *apisixUpstreamController) updateStatus(obj kube.ApisixUpstream, statusE
 
 func (c *apisixUpstreamController) updateUpstream(ctx context.Context, upsName string, cfg *configv2.ApisixUpstreamConfig, shouldCompare bool) error {
 	// TODO: multi cluster
-	clusterName := c.Config.APISIX.DefaultClusterName
+	clusterName := c.Config.Dashboard.DefaultClusterName
 
 	ups, err := c.APISIX.Cluster(clusterName).Service().Get(ctx, upsName)
 	if err != nil {
@@ -380,7 +380,7 @@ func (c *apisixUpstreamController) updateUpstream(ctx context.Context, upsName s
 }
 
 func (c *apisixUpstreamController) updateExternalNodes(ctx context.Context, au *configv2.ApisixUpstream, old *configv2.ApisixUpstream, newSvc *apisixv1.Service, ns, name string, shouldCompare bool) error {
-	clusterName := c.Config.APISIX.DefaultClusterName
+	clusterName := c.Config.Dashboard.DefaultClusterName
 
 	// TODO: if old is not nil, diff the external nodes change first
 
