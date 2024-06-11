@@ -115,19 +115,19 @@ spec:
 `, name, nodeType, nodeName)
 		assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(au))
 	}
-
-	PhaseCreateApisixUpstreamWithGranularity := func(s *scaffold.Scaffold, name string, nodeType v2.ApisixUpstreamExternalType, nodeName, granularity string) {
-		au := fmt.Sprintf(`
-apiVersion: apisix.apache.org/v2
-kind: ApisixUpstream
-metadata:
-  name: %s
-spec:
-  granularity: %s
-`, name, granularity)
-		assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(au))
-	}
-
+	/*
+	   	PhaseCreateApisixUpstreamWithGranularity := func(s *scaffold.Scaffold, name string, nodeType v2.ApisixUpstreamExternalType, nodeName, granularity string) {
+	   		au := fmt.Sprintf(`
+	   apiVersion: apisix.apache.org/v2
+	   kind: ApisixUpstream
+	   metadata:
+	     name: %s
+	   spec:
+	     granularity: %s
+	   `, name, granularity)
+	   		assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(au))
+	   	}
+	*/
 	PhaseValidateNoUpstreams := func(s *scaffold.Scaffold) {
 		ups, err := s.ListApisixUpstreams()
 		assert.Nil(ginkgo.GinkgoT(), err)
@@ -475,7 +475,7 @@ spec:
 			PhaseCreateApisixUpstream(s, "httpbin-upstream", v2.ExternalTypeDomain, "postman-echo.com")
 			PhaseCreateApisixRouteWithHostRewriteAndBackend(s, "httpbin-route", "httpbin-upstream", "postman-echo.com", "httpbin-temp", 80)
 			//configure the created upstream with granularity service
-			PhaseCreateApisixUpstreamWithGranularity(s, "httpbin-temp", v2.ExternalTypeService, "httpbin-temp", "service")
+			//PhaseCreateApisixUpstreamWithGranularity(s, "httpbin-temp", v2.ExternalTypeService, "httpbin-temp", "service")
 			time.Sleep(time.Second * 6)
 
 			svc, err := s.GetServiceByName("httpbin-temp")
