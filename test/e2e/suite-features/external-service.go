@@ -478,16 +478,16 @@ spec:
 			//PhaseCreateApisixUpstreamWithGranularity(s, "httpbin-temp", v2.ExternalTypeService, "httpbin-temp", "service")
 			time.Sleep(time.Second * 6)
 
-			svc, err := s.GetServiceByName("httpbin-temp")
-			assert.Nil(ginkgo.GinkgoT(), err, "get httpbin service")
-			ip := svc.Spec.ClusterIP
+			ips, err := s.GetEndpointIPs("httpbin-temp")
+			assert.Nil(ginkgo.GinkgoT(), err, "get httpbin service endpoint")
+			assert.Len(ginkgo.GinkgoT(), ips, 1, "httpbin service endpoint count")
 
 			upName := apisixv1.ComposeUpstreamName(s.Namespace(), "httpbin-temp", "", 80)
 			upID := id.GenID(upName)
 
 			// -- validation --
 			PhaseValidateTrafficSplit(s, 2, upID, map[string]*validateFactor{
-				ip: {
+				ips[0]: {
 					port:   80,
 					weight: translation.DefaultWeight,
 				},

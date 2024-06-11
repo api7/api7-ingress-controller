@@ -702,34 +702,36 @@ func (s *Scaffold) newAPISIXTunnels() error {
 	s.apisixControlTunnel = k8s.NewTunnel(s.kubectlOptions, k8s.ResourceTypeService, "apisix-service-e2e-test",
 		controlNodePort, controlPort)
 
-	if err := s.apisixAdminTunnel.ForwardPortE(s.t); err != nil {
-		return err
-	}
-	s.addFinalizers(s.apisixAdminTunnel.Close)
-	if err := s.apisixHttpTunnel.ForwardPortE(s.t); err != nil {
-		return err
-	}
-	s.addFinalizers(s.apisixHttpTunnel.Close)
-	if err := s.apisixHttpsTunnel.ForwardPortE(s.t); err != nil {
-		return err
-	}
-	s.addFinalizers(s.apisixHttpsTunnel.Close)
-	if err := s.apisixTCPTunnel.ForwardPortE(s.t); err != nil {
-		return err
-	}
-	s.addFinalizers(s.apisixTCPTunnel.Close)
-	if err := s.apisixTLSOverTCPTunnel.ForwardPortE(s.t); err != nil {
-		return err
-	}
-	s.addFinalizers(s.apisixTLSOverTCPTunnel.Close)
-	if err := s.apisixUDPTunnel.ForwardPortE(s.t); err != nil {
-		return err
-	}
-	s.addFinalizers(s.apisixUDPTunnel.Close)
-	if err := s.apisixControlTunnel.ForwardPortE(s.t); err != nil {
-		return err
-	}
-	s.addFinalizers(s.apisixControlTunnel.Close)
+	/*
+		if err := s.apisixAdminTunnel.ForwardPortE(s.t); err != nil {
+			return err
+		}
+		s.addFinalizers(s.apisixAdminTunnel.Close)
+		if err := s.apisixHttpTunnel.ForwardPortE(s.t); err != nil {
+			return err
+		}
+		s.addFinalizers(s.apisixHttpTunnel.Close)
+		if err := s.apisixHttpsTunnel.ForwardPortE(s.t); err != nil {
+			return err
+		}
+		s.addFinalizers(s.apisixHttpsTunnel.Close)
+		if err := s.apisixTCPTunnel.ForwardPortE(s.t); err != nil {
+			return err
+		}
+		s.addFinalizers(s.apisixTCPTunnel.Close)
+		if err := s.apisixTLSOverTCPTunnel.ForwardPortE(s.t); err != nil {
+			return err
+		}
+		s.addFinalizers(s.apisixTLSOverTCPTunnel.Close)
+		if err := s.apisixUDPTunnel.ForwardPortE(s.t); err != nil {
+			return err
+		}
+		s.addFinalizers(s.apisixUDPTunnel.Close)
+		if err := s.apisixControlTunnel.ForwardPortE(s.t); err != nil {
+			return err
+		}
+		s.addFinalizers(s.apisixControlTunnel.Close)
+	*/
 
 	return nil
 }
@@ -781,6 +783,25 @@ func (s *Scaffold) GetKubernetesClient() *kubernetes.Clientset {
 	client, err := k8s.GetKubernetesClientFromOptionsE(s.t, s.kubectlOptions)
 	assert.Nil(ginkgo.GinkgoT(), err, "get kubernetes client")
 	return client
+}
+
+func (s *Scaffold) GetEndpoints(endpointsName string) (*corev1.Endpoints, error) {
+	e := s.GetKubernetesClient()
+	return e.CoreV1().Endpoints(s.Namespace()).Get(context.Background(), endpointsName, metav1.GetOptions{})
+}
+
+func (s *Scaffold) GetEndpointIPs(endpointsName string) ([]string, error) {
+	endpoints, err := s.GetEndpoints(endpointsName)
+	if err != nil {
+		return nil, err
+	}
+	ips := make([]string, 0)
+	for _, subset := range endpoints.Subsets {
+		for _, addr := range subset.Addresses {
+			ips = append(ips, addr.IP)
+		}
+	}
+	return ips, nil
 }
 
 func (s *Scaffold) RunKubectlAndGetOutput(args ...string) (string, error) {
