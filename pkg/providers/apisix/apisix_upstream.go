@@ -16,7 +16,6 @@ package apisix
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -192,13 +191,6 @@ func (c *apisixUpstreamController) sync(ctx context.Context, ev *types.Event) er
 		if au.Spec == nil {
 			return nil
 		}
-		svc, err := c.SvcLister.Services(namespace).Get(name)
-		if err != nil {
-			log.Errorf("failed to get service %s: %s", key, err)
-			errRecord = err
-			goto updateStatus
-		}
-
 		// We will prioritize ExternalNodes and Discovery.
 		if len(au.Spec.ExternalNodes) != 0 || au.Spec.Discovery != nil {
 			var newUps *apisixv1.Upstream
@@ -228,7 +220,7 @@ func (c *apisixUpstreamController) sync(ctx context.Context, ev *types.Event) er
 			}
 			// updateUpstream for real
 			upsName := apisixv1.ComposeExternalUpstreamName(au.Namespace, au.Name)
-			errRecord = c.updateUpstream(ctx, upsName, &au.Spec.ApisixUpstreamConfig, ev.Type.IsSyncEvent(), svc.Spec.ClusterIP)
+			errRecord = c.updateUpstream(ctx, upsName, &au.Spec.ApisixUpstreamConfig, ev.Type.IsSyncEvent())
 			if err == apisix.ErrNotFound {
 				errRecord = fmt.Errorf("%s", "upstream doesn't exist. It will be created after ApisixRoute is created referencing it.")
 			}
@@ -242,6 +234,14 @@ func (c *apisixUpstreamController) sync(ctx context.Context, ev *types.Event) er
 				portLevelSettings[port.Port] = port.ApisixUpstreamConfig
 			}
 		}
+
+		svc, err := c.SvcLister.Services(namespace).Get(name)
+		if err != nil {
+			log.Errorf("failed to get service %s: %s", key, err)
+			errRecord = err
+			goto updateStatus
+		}
+
 		var subsets []configv2.ApisixUpstreamSubset
 		subsets = append(subsets, configv2.ApisixUpstreamSubset{})
 		if len(au.Spec.Subsets) > 0 {
@@ -257,7 +257,7 @@ func (c *apisixUpstreamController) sync(ctx context.Context, ev *types.Event) er
 						cfg = au.Spec.ApisixUpstreamConfig
 					}
 				}
-				err := c.updateUpstream(ctx, apisixv1.ComposeUpstreamName(namespace, name, subset.Name, port.Port), &cfg, ev.Type.IsSyncEvent(), svc.Spec.ClusterIP)
+				err := c.updateUpstream(ctx, apisixv1.ComposeUpstreamName(namespace, name, subset.Name, port.Port), &cfg, ev.Type.IsSyncEvent())
 				if err != nil {
 					if err == apisix.ErrNotFound {
 						errRecord = fmt.Errorf("%s", "upstream doesn't exist. It will be created after ApisixRoute is created referencing it.")
@@ -325,7 +325,7 @@ func (c *apisixUpstreamController) updateStatus(obj kube.ApisixUpstream, statusE
 	}
 }
 
-func (c *apisixUpstreamController) updateUpstream(ctx context.Context, upsName string, cfg *configv2.ApisixUpstreamConfig, shouldCompare bool, svcClusterIP string) error {
+func (c *apisixUpstreamController) updateUpstream(ctx context.Context, upsName string, cfg *configv2.ApisixUpstreamConfig, shouldCompare bool) error {
 	// TODO: multi cluster
 	clusterName := c.Config.APISIX.DefaultClusterName
 
@@ -348,24 +348,8 @@ func (c *apisixUpstreamController) updateUpstream(ctx context.Context, upsName s
 	}
 
 	newUps.Metadata = ups.Metadata
+	newUps.Nodes = ups.Nodes
 
-	if cfg.Granularity == types.ResolveGranularity.Service {
-		if svcClusterIP == "" {
-			log.Errorw("ApisixRoute refers to a headless service but want to use the service level resolve granularity",
-				zap.String("ApisixUpstream name", upsName),
-			)
-			return errors.New("conflict headless service and backend resolve granularity")
-		}
-		for _, node := range ups.Nodes {
-			newUps.Nodes = append(newUps.Nodes, apisixv1.UpstreamNode{
-				Host:   svcClusterIP,
-				Port:   node.Port,
-				Weight: node.Weight,
-			})
-		}
-	} else {
-		newUps.Nodes = ups.Nodes
-	}
 	log.Debugw("updating upstream since ApisixUpstream changed",
 		zap.Any("upstream", newUps),
 		zap.String("ApisixUpstream name", upsName),

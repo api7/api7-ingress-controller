@@ -30,15 +30,6 @@ var _ = ginkgo.Describe("suite-plugins-traffic: api-breaker plugin", func() {
 		s := scaffoldFunc()
 		ginkgo.It("sanity", func() {
 			backendSvc, backendPorts := s.DefaultHTTPBackend()
-			au := fmt.Sprintf(`
-apiVersion: apisix.apache.org/v2
-kind: ApisixUpstream
-metadata:
-  name: %s
-spec:
-  granularity: service
-`, backendSvc)
-			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(au))
 			ar := fmt.Sprintf(`
 apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
@@ -95,15 +86,6 @@ spec:
 		})
 		ginkgo.It("disable plugin", func() {
 			backendSvc, backendPorts := s.DefaultHTTPBackend()
-			au := fmt.Sprintf(`
-apiVersion: apisix.apache.org/v2
-kind: ApisixUpstream
-metadata:
-  name: %s
-spec:
-  granularity: service
-`, backendSvc)
-			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(au))
 			ar := fmt.Sprintf(`
 apiVersion: apisix.apache.org/v2
 kind: ApisixRoute

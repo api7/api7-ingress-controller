@@ -783,6 +783,25 @@ func (s *Scaffold) GetKubernetesClient() *kubernetes.Clientset {
 	return client
 }
 
+func (s *Scaffold) GetEndpoints(endpointsName string) (*corev1.Endpoints, error) {
+	e := s.GetKubernetesClient()
+	return e.CoreV1().Endpoints(s.Namespace()).Get(context.Background(), endpointsName, metav1.GetOptions{})
+}
+
+func (s *Scaffold) GetEndpointIPs(endpointsName string) ([]string, error) {
+	endpoints, err := s.GetEndpoints(endpointsName)
+	if err != nil {
+		return nil, err
+	}
+	ips := make([]string, 0)
+	for _, subset := range endpoints.Subsets {
+		for _, addr := range subset.Addresses {
+			ips = append(ips, addr.IP)
+		}
+	}
+	return ips, nil
+}
+
 func (s *Scaffold) RunKubectlAndGetOutput(args ...string) (string, error) {
 	return k8s.RunKubectlAndGetOutputE(ginkgo.GinkgoT(), s.kubectlOptions, args...)
 }
