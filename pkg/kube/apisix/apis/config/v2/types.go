@@ -505,7 +505,8 @@ type ApisixUpstreamSpec struct {
 // ApisixUpstreamConfig contains rich features on APISIX Upstream, for instance
 // load balancer, health check, etc.
 type ApisixUpstreamConfig struct {
-	Granularity string `json:"granularity,omitempty" yaml:"scheme,omitempty"`
+	// TODO: Improve or abandon, the next step is to improve or abandon it
+	Granularity string `json:"granularity,omitempty" yaml:"granularity,omitempty"`
 	// LoadBalancer represents the load balancer configuration for Kubernetes Service.
 	// The default strategy is round robin.
 	// +optional
