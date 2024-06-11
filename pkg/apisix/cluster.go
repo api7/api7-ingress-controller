@@ -147,6 +147,13 @@ func newCluster(ctx context.Context, o *ClusterOptions) (Cluster, error) {
 	if err != nil {
 		return nil, err
 	}
+	if u.Port() == "" {
+		if u.Scheme == "http" {
+			u.Host = u.Host + ":80"
+		} else if u.Scheme == "https" {
+			u.Host = u.Host + ":443"
+		}
+	}
 
 	// if the version is not v3, then fallback to v2
 	adminVersion := o.AdminAPIVersion
