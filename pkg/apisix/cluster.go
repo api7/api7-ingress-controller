@@ -185,6 +185,7 @@ func newCluster(ctx context.Context, o *ClusterOptions) (Cluster, error) {
 		)
 		c.adapter = adapter.NewEtcdAdapter(nil)
 		c.route = newRouteMem(c)
+		c.streamRoute = newStreamRouteMem(c)
 		c.service = newServiceMem(c)
 		c.ssl = newSSLMem(c)
 		c.globalRules = newGlobalRuleMem(c)

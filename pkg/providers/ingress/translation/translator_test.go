@@ -28,8 +28,6 @@ import (
 	"github.com/api7/api7-ingress-controller/pkg/providers/apisix/translation"
 )
 
-const _ingressKey string = "kubernetes.io/ingress.class"
-
 func TestTranslateIngressTLS(t *testing.T) {
 	secretName := "secret"
 	cert := `

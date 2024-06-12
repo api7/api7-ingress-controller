@@ -1,8 +1,6 @@
 module github.com/api7/api7-ingress-controller/test/e2e
 
-go 1.22
-
-toolchain go1.22.3
+go 1.21
 
 require (
 	github.com/api7/api7-ingress-controller v0.0.0-20210105024109-72e53386de5a

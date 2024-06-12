@@ -69,7 +69,7 @@ func TestRetryParsing(t *testing.T) {
 	assert.Equal(t, 2, ups.Retry)
 
 	anno[annotations.AnnotationsUpstreamRetry] = "asdf"
-	out, err = u.Parse(annotations.NewExtractor(anno))
+	_, err = u.Parse(annotations.NewExtractor(anno))
 	assert.NotNil(t, err, "checking given error")
 }
 
@@ -93,6 +93,6 @@ func TestTimeoutParsing(t *testing.T) {
 	assert.Equal(t, 3, ups.TimeoutRead)
 	assert.Equal(t, 4, ups.TimeoutSend)
 	anno[annotations.AnnotationsUpstreamRetry] = "asdf"
-	out, err = u.Parse(annotations.NewExtractor(anno))
+	_, err = u.Parse(annotations.NewExtractor(anno))
 	assert.NotNil(t, err, "checking given error")
 }
