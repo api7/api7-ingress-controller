@@ -23,7 +23,6 @@ on:
     - cron: '0 0 * * *'
   pull_request:
     branches:
-      - master
       - 1.8.0
 
 concurrency:

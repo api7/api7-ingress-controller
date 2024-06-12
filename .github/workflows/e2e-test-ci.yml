@@ -47,7 +47,7 @@ jobs:
               - ".github/**"
   build:
     name: Build
-    runs-on: ubuntu-20.04
+    runs-on: buildjet-2vcpu-ubuntu-2204
     needs: changes
     if: needs.changes.outputs.go == 'true'
     steps:
@@ -91,6 +91,7 @@ jobs:
           REGISTRY: 127.0.0.1:5000
           ENABLE_PROXY: "false"
           BASE_IMAGE_TAG: "debug"
+          USE_BUILDKIT: 0
         run: |
           echo "building images..."
           make clean-image build-images
@@ -117,7 +118,7 @@ jobs:
   prepare:
     needs: changes
     if: needs.changes.outputs.go == 'true'
-    runs-on: ubuntu-20.04
+    runs-on: buildjet-2vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v4
         with:
@@ -140,13 +141,12 @@ jobs:
       - changes
       - prepare
       - build
-    runs-on: ubuntu-20.04
+    runs-on: buildjet-2vcpu-ubuntu-2204
     strategy:
       fail-fast: false # If false, GitHub will not cancels all in-progress jobs in the matrix if any matrix job fails.
       matrix:
         suite: ${{ fromJson(needs.prepare.outputs.matrix) }}
         ingress-class-values: [ "apisix", "apisix-and-all" ]
-        enabled-etcdserver: [ true, false ]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -195,7 +195,6 @@ jobs:
           E2E_FOCUS: "${{ matrix.suite }}"
           ENABLE_PROXY: "false"
           INGRESS_CLASS: "${{ matrix.ingress-class-values }}"
-          ENABLED_ETCD_SERVER: "${{ matrix.enabled-etcdserver }}"
           E2E_SKIP_BUILD: "1"
           E2E_FLAKE_ATTEMPTS: "2"
           E2E_ENV: "ci"
