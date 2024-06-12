@@ -115,8 +115,15 @@ func (t *translator) translateExternalApisixUpstream(namespace, upstream string)
 	multiVersioned, err := t.ApisixUpstreamLister.V2(namespace, upstream)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
-			// TODO: Should retry
-			return nil, err
+			//No service found so the upstream will be created with 0 nodes
+			return &apisixv1.Upstream{
+				Metadata: apisixv1.Metadata{
+					Name:   apisixv1.ComposeExternalUpstreamName(namespace, upstream),
+					ID:     id.GenID(apisixv1.ComposeExternalUpstreamName(namespace, upstream)),
+					Labels: make(map[string]string),
+				},
+				Nodes: []apisixv1.UpstreamNode{},
+			}, nil
 		}
 		return nil, err
 	}
