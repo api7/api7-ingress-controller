@@ -18,8 +18,9 @@ package apisix
 import (
 	"context"
 
-	"github.com/api7/api7-ingress-controller/pkg/log"
 	"go.uber.org/zap"
+
+	"github.com/api7/api7-ingress-controller/pkg/log"
 )
 
 type pluginClient struct {

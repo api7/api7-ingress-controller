@@ -18,14 +18,11 @@ import (
 	"os"
 
 	"github.com/api7/api7-ingress-controller/pkg/log"
-	// _ "github.com/api7/api7-ingress-controller/test/e2e/suite-annotations"
+
 	_ "github.com/api7/api7-ingress-controller/test/e2e/suite-chore"
 	_ "github.com/api7/api7-ingress-controller/test/e2e/suite-cluster"
 	_ "github.com/api7/api7-ingress-controller/test/e2e/suite-features"
 
-	// _ "github.com/api7/api7-ingress-controller/test/e2e/suite-gateway"
-	// _ "github.com/api7/api7-ingress-controller/test/e2e/suite-ingress/suite-ingress-features"
-	// _ "github.com/api7/api7-ingress-controller/test/e2e/suite-ingress/suite-ingress-resource"
 	_ "github.com/api7/api7-ingress-controller/test/e2e/suite-plugins/suite-plugins-authentication"
 	_ "github.com/api7/api7-ingress-controller/test/e2e/suite-plugins/suite-plugins-general"
 	_ "github.com/api7/api7-ingress-controller/test/e2e/suite-plugins/suite-plugins-other"

@@ -510,8 +510,6 @@ Once you apply it to your cluster, you have to create the [ApisixRoute](https://
 kubectl apply -k samples/deploy/crd
 ```
 
-See [samples](http://github.com/apache/api7-ingress-controller/blob/master/samples/deploy/crd) for details.
-
 For the Ingress controller to work with APISIX, you need to create a config file containing the APISIX Admin API URL and key. You can do this by creating a ConfigMap:
 
 ```yaml title="apisix-config.yaml"
@@ -541,8 +539,6 @@ metadata:
   labels:
     app.kubernetes.io/name: ingress-controller
 ```
-
-See [conf/config-default.yaml](http://github.com/apache/api7-ingress-controller/blob/master/conf/config-default.yaml) for a list of all the available configurations.
 
 Now we will create a Service for the Ingress controller to access the Admin API:
 

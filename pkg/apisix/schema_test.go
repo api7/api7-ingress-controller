@@ -21,9 +21,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/api7/api7-ingress-controller/pkg/metrics"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/nettest"
+
+	"github.com/api7/api7-ingress-controller/pkg/metrics"
 )
 
 type fakeAPISIXSchemaSrv struct {

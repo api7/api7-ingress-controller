@@ -91,14 +91,6 @@ Compatible upgrades can be made without changing any resources.
 
 #### ***1.5 to 1.6***
 
-:::note
-
-[Relevant version information and compatibility of apisix-helm-chart](https://github.com/apache/apisix-helm-chart#compatibility-matrix).
-
-If you use the `api7-ingress-controller` chart, you need to focus on the configuration item  [adminAPIVersion](https://github.com/apache/apisix-helm-chart/blob/api7-ingress-controller-0.11.3/charts/api7-ingress-controller/values.yaml#L134).
-
-:::
-
 You need to select the corresponding chart version according to the APISIX version as shown to install or upgrade:
 
 |Chart version| APISIX version | Values |

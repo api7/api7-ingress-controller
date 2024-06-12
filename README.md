@@ -54,7 +54,6 @@ This project is currently general availability.
 * [How to install](./install.md)
 * [Get Started](./docs/en/latest/getting-started.md)
 * [Design introduction](./docs/en/latest/design.md)
-* [FAQ](./docs/en/latest/FAQ.md)
 
 ## Prerequisites
 
