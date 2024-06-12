@@ -91,9 +91,9 @@ func DiffRoutes(olds, news []*apisixv1.Route) (added, updated, deleted []*apisix
 	return
 }
 
-func DiffUpstreams(olds, news []*apisixv1.Upstream) (added, updated, deleted []*apisixv1.Upstream) {
-	oldMap := make(map[string]*apisixv1.Upstream, len(olds))
-	newMap := make(map[string]*apisixv1.Upstream, len(news))
+func DiffServices(olds, news []*apisixv1.Service) (added, updated, deleted []*apisixv1.Service) {
+	oldMap := make(map[string]*apisixv1.Service, len(olds))
+	newMap := make(map[string]*apisixv1.Service, len(news))
 	for _, u := range olds {
 		oldMap[u.ID] = u
 	}
@@ -218,7 +218,7 @@ func DiffGlobalRules(olds, news []*apisixv1.GlobalRule) (added, updated, deleted
 
 type Manifest struct {
 	Routes          []*apisixv1.Route
-	Upstreams       []*apisixv1.Upstream
+	Services        []*apisixv1.Service
 	StreamRoutes    []*apisixv1.StreamRoute
 	SSLs            []*apisixv1.Ssl
 	PluginConfigs   []*apisixv1.PluginConfig
@@ -229,7 +229,7 @@ type Manifest struct {
 func (m *Manifest) Diff(om *Manifest) (added, updated, deleted *Manifest) {
 	sa, su, sd := DiffSSL(om.SSLs, m.SSLs)
 	ar, ur, dr := DiffRoutes(om.Routes, m.Routes)
-	au, uu, du := DiffUpstreams(om.Upstreams, m.Upstreams)
+	au, uu, du := DiffServices(om.Services, m.Services)
 	asr, usr, dsr := DiffStreamRoutes(om.StreamRoutes, m.StreamRoutes)
 	apc, upc, dpc := DiffPluginConfigs(om.PluginConfigs, m.PluginConfigs)
 	apm, upm, dpm := DiffPluginMetadatas(om.PluginMetadatas, m.PluginMetadatas)
@@ -237,7 +237,7 @@ func (m *Manifest) Diff(om *Manifest) (added, updated, deleted *Manifest) {
 
 	added = &Manifest{
 		Routes:          ar,
-		Upstreams:       au,
+		Services:        au,
 		StreamRoutes:    asr,
 		SSLs:            sa,
 		PluginConfigs:   apc,
@@ -246,7 +246,7 @@ func (m *Manifest) Diff(om *Manifest) (added, updated, deleted *Manifest) {
 	}
 	updated = &Manifest{
 		Routes:          ur,
-		Upstreams:       uu,
+		Services:        uu,
 		StreamRoutes:    usr,
 		SSLs:            su,
 		PluginConfigs:   upc,
@@ -255,7 +255,7 @@ func (m *Manifest) Diff(om *Manifest) (added, updated, deleted *Manifest) {
 	}
 	deleted = &Manifest{
 		Routes:          dr,
-		Upstreams:       du,
+		Services:        du,
 		StreamRoutes:    dsr,
 		SSLs:            sd,
 		PluginConfigs:   dpc,
@@ -277,8 +277,8 @@ func SyncManifests(ctx context.Context, apisix apisix.APISIX, clusterName string
 				merr = multierror.Append(merr, err)
 			}
 		}
-		for _, u := range added.Upstreams {
-			if _, err := apisix.Cluster(clusterName).Upstream().Create(ctx, u, shouldCompare); err != nil {
+		for _, u := range added.Services {
+			if _, err := apisix.Cluster(clusterName).Service().Create(ctx, u, shouldCompare); err != nil {
 				merr = multierror.Append(merr, err)
 			}
 		}
@@ -314,8 +314,8 @@ func SyncManifests(ctx context.Context, apisix apisix.APISIX, clusterName string
 				merr = multierror.Append(merr, err)
 			}
 		}
-		for _, r := range updated.Upstreams {
-			if _, err := apisix.Cluster(clusterName).Upstream().Update(ctx, r, false); err != nil {
+		for _, r := range updated.Services {
+			if _, err := apisix.Cluster(clusterName).Service().Update(ctx, r, false); err != nil {
 				merr = multierror.Append(merr, err)
 			}
 		}
@@ -365,8 +365,8 @@ func SyncManifests(ctx context.Context, apisix apisix.APISIX, clusterName string
 				merr = multierror.Append(merr, err)
 			}
 		}
-		for _, u := range deleted.Upstreams {
-			if err := apisix.Cluster(clusterName).Upstream().Delete(ctx, u); err != nil {
+		for _, u := range deleted.Services {
+			if err := apisix.Cluster(clusterName).Service().Delete(ctx, u); err != nil {
 				// Upstream might be referenced by other routes.
 				if err != cache.ErrStillInUse {
 					merr = multierror.Append(merr, err)
@@ -386,7 +386,7 @@ func SyncManifests(ctx context.Context, apisix apisix.APISIX, clusterName string
 							found := false
 
 							for _, r := range deleted.Routes {
-								if r.UpstreamId == u.ID {
+								if r.ServiceID == u.ID {
 									found = true
 									log.Debugw("a deleted route is referencing upstream",
 										zap.Any("route", r),
@@ -410,7 +410,7 @@ func SyncManifests(ctx context.Context, apisix apisix.APISIX, clusterName string
 
 						found := false
 						for _, r := range routes {
-							if r.UpstreamId == u.ID {
+							if r.ServiceID == u.ID {
 								found = true
 								log.Debugw("route is referencing upstream",
 									zap.Any("route", r),

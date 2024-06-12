@@ -16,7 +16,7 @@
 ARG ENABLE_PROXY=false
 ARG BASE_IMAGE_TAG=nonroot
 
-FROM golang:1.20 AS build-env
+FROM golang:1.21 AS build-env
 LABEL maintainer="gxthrj@163.com"
 
 WORKDIR /build
@@ -33,7 +33,7 @@ LABEL maintainer="gxthrj@163.com"
 ENV TZ=Hongkong
 
 WORKDIR /ingress-apisix
-COPY --from=build-env /build/apisix-ingress-controller .
+COPY --from=build-env /build/api7-ingress-controller .
 COPY ./conf/apisix-schema.json ./conf/apisix-schema.json
 
-ENTRYPOINT ["/ingress-apisix/apisix-ingress-controller", "ingress", "--config-path", "/ingress-apisix/conf/config.yaml"]
+ENTRYPOINT ["/ingress-apisix/api7-ingress-controller", "ingress", "--config-path", "/ingress-apisix/conf/config.yaml"]

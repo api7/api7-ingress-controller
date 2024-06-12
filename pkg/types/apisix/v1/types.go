@@ -104,22 +104,59 @@ type Metadata struct {
 	Labels map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
 }
 
+// Upstream is the apisix upstream definition.
+// +k8s:deepcopy-gen=true
+type Upstream struct {
+	Metadata `json:",inline" yaml:",inline"`
+
+	Type         string               `json:"type,omitempty" yaml:"type,omitempty"`
+	HashOn       string               `json:"hash_on,omitempty" yaml:"hash_on,omitempty"`
+	Key          string               `json:"key,omitempty" yaml:"key,omitempty"`
+	Checks       *UpstreamHealthCheck `json:"checks,omitempty" yaml:"checks,omitempty"`
+	Nodes        UpstreamNodes        `json:"nodes" yaml:"nodes"`
+	Scheme       string               `json:"scheme,omitempty" yaml:"scheme,omitempty"`
+	Retries      *int                 `json:"retries,omitempty" yaml:"retries,omitempty"`
+	Timeout      *UpstreamTimeout     `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	TLS          *ClientTLS           `json:"tls,omitempty" yaml:"tls,omitempty"`
+	PassHost     string               `json:"pass_host,omitempty" yaml:"pass_host,omitempty"`
+	UpstreamHost string               `json:"upstream_host,omitempty" yaml:"upstream_host,omitempty"`
+
+	// for Service Discovery
+	ServiceName   string            `json:"service_name,omitempty" yaml:"service_name,omitempty"`
+	DiscoveryType string            `json:"discovery_type,omitempty" yaml:"discovery_type,omitempty"`
+	DiscoveryArgs map[string]string `json:"discovery_args,omitempty" yaml:"discovery_args,omitempty"`
+}
+
+type ServiceType string
+
+const (
+	ServiceTypeHTTP   ServiceType = "http"
+	ServiceTypeStream ServiceType = "stream"
+)
+
+// Upstream is the apisix upstream definition.
+// +k8s:deepcopy-gen=true
+type Service struct {
+	Metadata `json:",inline" yaml:",inline"`
+	Type     ServiceType `json:"type,omitempty" yaml:"type,omitempty"`
+	Upstream Upstream    `json:"upstream,omitempty" yaml:"upstream,omitempty"`
+}
+
 // Route apisix route object
 // +k8s:deepcopy-gen=true
 type Route struct {
-	Metadata `json:",inline" yaml:",inline"`
-
+	Metadata        `json:",inline" yaml:",inline"`
 	Host            string           `json:"host,omitempty" yaml:"host,omitempty"`
 	Hosts           []string         `json:"hosts,omitempty" yaml:"hosts,omitempty"`
 	Uri             string           `json:"uri,omitempty" yaml:"uri,omitempty"`
 	Priority        int              `json:"priority,omitempty" yaml:"priority,omitempty"`
 	Timeout         *UpstreamTimeout `json:"timeout,omitempty" yaml:"timeout,omitempty"`
 	Vars            Vars             `json:"vars,omitempty" yaml:"vars,omitempty"`
-	Uris            []string         `json:"uris,omitempty" yaml:"uris,omitempty"`
+	Paths           []string         `json:"paths,omitempty" yaml:"paths,omitempty"`
 	Methods         []string         `json:"methods,omitempty" yaml:"methods,omitempty"`
 	EnableWebsocket bool             `json:"enable_websocket,omitempty" yaml:"enable_websocket,omitempty"`
 	RemoteAddrs     []string         `json:"remote_addrs,omitempty" yaml:"remote_addrs,omitempty"`
-	UpstreamId      string           `json:"upstream_id,omitempty" yaml:"upstream_id,omitempty"`
+	ServiceID       string           `json:"service_id,omitempty" yaml:"service_id,omitempty"`
 	Plugins         Plugins          `json:"plugins,omitempty" yaml:"plugins,omitempty"`
 	PluginConfigId  string           `json:"plugin_config_id,omitempty" yaml:"plugin_config_id,omitempty"`
 	FilterFunc      string           `json:"filter_func,omitempty" yaml:"filter_func,omitempty"`
@@ -196,29 +233,6 @@ func (p *Plugins) DeepCopy() *Plugins {
 	out := new(Plugins)
 	p.DeepCopyInto(out)
 	return out
-}
-
-// Upstream is the apisix upstream definition.
-// +k8s:deepcopy-gen=true
-type Upstream struct {
-	Metadata `json:",inline" yaml:",inline"`
-
-	Type         string               `json:"type,omitempty" yaml:"type,omitempty"`
-	HashOn       string               `json:"hash_on,omitempty" yaml:"hash_on,omitempty"`
-	Key          string               `json:"key,omitempty" yaml:"key,omitempty"`
-	Checks       *UpstreamHealthCheck `json:"checks,omitempty" yaml:"checks,omitempty"`
-	Nodes        UpstreamNodes        `json:"nodes" yaml:"nodes"`
-	Scheme       string               `json:"scheme,omitempty" yaml:"scheme,omitempty"`
-	Retries      *int                 `json:"retries,omitempty" yaml:"retries,omitempty"`
-	Timeout      *UpstreamTimeout     `json:"timeout,omitempty" yaml:"timeout,omitempty"`
-	TLS          *ClientTLS           `json:"tls,omitempty" yaml:"tls,omitempty"`
-	PassHost     string               `json:"pass_host,omitempty" yaml:"pass_host,omitempty"`
-	UpstreamHost string               `json:"upstream_host,omitempty" yaml:"upstream_host,omitempty"`
-
-	// for Service Discovery
-	ServiceName   string            `json:"service_name,omitempty" yaml:"service_name,omitempty"`
-	DiscoveryType string            `json:"discovery_type,omitempty" yaml:"discovery_type,omitempty"`
-	DiscoveryArgs map[string]string `json:"discovery_args,omitempty" yaml:"discovery_args,omitempty"`
 }
 
 // ClientTLS is tls cert and key use in mTLS
@@ -480,12 +494,12 @@ type MutualTLSClientConfig struct {
 type StreamRoute struct {
 	// TODO metadata should use Metadata type
 	ID         string            `json:"id,omitempty" yaml:"id,omitempty"`
+	Name       string            `json:"name,omitempty" yaml:"name,omitempty"`
 	Desc       string            `json:"desc,omitempty" yaml:"desc,omitempty"`
 	Labels     map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
 	ServerPort int32             `json:"server_port,omitempty" yaml:"server_port,omitempty"`
 	SNI        string            `json:"sni,omitempty" yaml:"sni,omitempty"`
-	UpstreamId string            `json:"upstream_id,omitempty" yaml:"upstream_id,omitempty"`
-	Upstream   *Upstream         `json:"upstream,omitempty" yaml:"upstream,omitempty"`
+	ServiceID  string            `json:"service_id,omitempty" yaml:"service_id,omitempty"`
 	Plugins    Plugins           `json:"plugins,omitempty" yaml:"plugins,omitempty"`
 }
 
@@ -525,16 +539,23 @@ type UpstreamServiceRelation struct {
 }
 
 // NewDefaultUpstream returns an empty Upstream with default values.
-func NewDefaultUpstream() *Upstream {
-	return &Upstream{
-		Type:   LbRoundRobin,
-		Key:    "",
-		Nodes:  make(UpstreamNodes, 0),
-		Scheme: SchemeHTTP,
+func NewDefaultService() *Service {
+	return &Service{
 		Metadata: Metadata{
-			Desc: "Created by apisix-ingress-controller, DO NOT modify it manually",
 			Labels: map[string]string{
-				"managed-by": "apisix-ingress-controller",
+				"managed-by": "api7-ingress-controller",
+			},
+		},
+		Upstream: Upstream{
+			Type:   LbRoundRobin,
+			Key:    "",
+			Nodes:  make(UpstreamNodes, 0),
+			Scheme: SchemeHTTP,
+			Metadata: Metadata{
+				Desc: "Created by api7-ingress-controller, DO NOT modify it manually",
+				Labels: map[string]string{
+					"managed-by": "api7-ingress-controller",
+				},
 			},
 		},
 	}
@@ -544,9 +565,9 @@ func NewDefaultUpstream() *Upstream {
 func NewDefaultRoute() *Route {
 	return &Route{
 		Metadata: Metadata{
-			Desc: "Created by apisix-ingress-controller, DO NOT modify it manually",
+			Desc: "Created by api7-ingress-controller, DO NOT modify it manually",
 			Labels: map[string]string{
-				"managed-by": "apisix-ingress-controller",
+				"managed-by": "api7-ingress-controller",
 			},
 		},
 	}
@@ -555,9 +576,9 @@ func NewDefaultRoute() *Route {
 // NewDefaultStreamRoute returns an empty StreamRoute with default values.
 func NewDefaultStreamRoute() *StreamRoute {
 	return &StreamRoute{
-		Desc: "Created by apisix-ingress-controller, DO NOT modify it manually",
+		Desc: "Created by api7-ingress-controller, DO NOT modify it manually",
 		Labels: map[string]string{
-			"managed-by": "apisix-ingress-controller",
+			"managed-by": "api7-ingress-controller",
 		},
 	}
 }
@@ -565,9 +586,9 @@ func NewDefaultStreamRoute() *StreamRoute {
 // NewDefaultConsumer returns an empty Consumer with default values.
 func NewDefaultConsumer() *Consumer {
 	return &Consumer{
-		Desc: "Created by apisix-ingress-controller, DO NOT modify it manually",
+		Desc: "Created by api7-ingress-controller, DO NOT modify it manually",
 		Labels: map[string]string{
-			"managed-by": "apisix-ingress-controller",
+			"managed-by": "api7-ingress-controller",
 		},
 	}
 }
@@ -576,9 +597,9 @@ func NewDefaultConsumer() *Consumer {
 func NewDefaultPluginConfig() *PluginConfig {
 	return &PluginConfig{
 		Metadata: Metadata{
-			Desc: "Created by apisix-ingress-controller, DO NOT modify it manually",
+			Desc: "Created by api7-ingress-controller, DO NOT modify it manually",
 			Labels: map[string]string{
-				"managed-by": "apisix-ingress-controller",
+				"managed-by": "api7-ingress-controller",
 			},
 		},
 		Plugins: make(Plugins),

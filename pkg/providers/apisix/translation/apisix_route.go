@@ -163,7 +163,7 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 		route.RemoteAddrs = part.Match.RemoteAddrs
 		route.Vars = exprs
 		route.Hosts = part.Match.Hosts
-		route.Uris = part.Match.Paths
+		route.Paths = part.Match.Paths
 		route.Methods = part.Match.Methods
 		route.EnableWebsocket = part.Websocket
 		route.Plugins = pluginMap
@@ -203,7 +203,7 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 			}
 
 			upstreamName := apisixv1.ComposeUpstreamName(ar.Namespace, backend.ServiceName, backend.Subset, svcPort, backend.ResolveGranularity)
-			route.UpstreamId = id.GenID(upstreamName)
+			route.ServiceID = id.GenID(upstreamName)
 
 			if len(backends) > 0 {
 				weight := translation.DefaultWeight
@@ -220,22 +220,22 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 				}
 				route.Plugins["traffic-split"] = plugin
 			}
-			if !ctx.CheckUpstreamExist(upstreamName) {
+			if !ctx.CheckServiceExist(upstreamName) {
 				ups, err := t.translateService(ar.Namespace, backend.ServiceName, backend.Subset, backend.ResolveGranularity, svcClusterIP, svcPort)
 				if err != nil {
 					return err
 				}
-				ctx.AddUpstream(ups)
+				ctx.AddService(ups)
 			}
 		}
 
 		if len(part.Backends) == 0 && len(part.Upstreams) > 0 {
 			// Only have Upstreams
 			upName := apisixv1.ComposeExternalUpstreamName(ar.Namespace, part.Upstreams[0].Name)
-			route.UpstreamId = id.GenID(upName)
+			route.ServiceID = id.GenID(upName)
 		}
 		// --- translate Upstreams ---
-		var ups []*apisixv1.Upstream
+		var svcs []*apisixv1.Service
 		for i, au := range part.Upstreams {
 			up, err := t.translateExternalApisixUpstream(ar.Namespace, au.Name)
 			if err != nil {
@@ -245,22 +245,25 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 				)
 				continue
 			}
+			if up.Labels == nil {
+				up.Labels = make(map[string]string)
+			}
 			if au.Weight != nil {
 				up.Labels["meta_weight"] = strconv.Itoa(*au.Weight)
 			} else {
 				up.Labels["meta_weight"] = strconv.Itoa(translation.DefaultWeight)
 			}
-			ups = append(ups, up)
+			svcs = append(svcs, up)
 		}
 
-		if len(ups) == 0 {
+		if len(svcs) == 0 {
 			continue
 		}
 
 		var wups []apisixv1.TrafficSplitConfigRuleWeightedUpstream
 		if len(part.Backends) == 0 {
-			if len(ups) > 1 {
-				for i, up := range ups {
+			if len(svcs) > 1 {
+				for i, up := range svcs {
 					weight, err := strconv.Atoi(up.Labels["meta_weight"])
 					if err != nil {
 						// shouldn't happen
@@ -277,7 +280,7 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 						})
 					} else {
 						wups = append(wups, apisixv1.TrafficSplitConfigRuleWeightedUpstream{
-							UpstreamID: ups[i].ID,
+							UpstreamID: svcs[i].ID,
 							Weight:     weight,
 						})
 					}
@@ -300,7 +303,7 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 					Weight: weight,
 				})
 			}
-			for i, up := range ups {
+			for i, up := range svcs {
 				weight, err := strconv.Atoi(up.Labels["meta_weight"])
 				if err != nil {
 					// shouldn't happen
@@ -311,7 +314,7 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 					continue
 				}
 				wups = append(wups, apisixv1.TrafficSplitConfigRuleWeightedUpstream{
-					UpstreamID: ups[i].ID,
+					UpstreamID: svcs[i].ID,
 					Weight:     weight,
 				})
 			}
@@ -326,8 +329,8 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 			}
 		}
 
-		for _, up := range ups {
-			ctx.AddUpstream(up)
+		for _, svc := range svcs {
+			ctx.AddService(svc)
 		}
 	}
 	return nil
@@ -485,23 +488,23 @@ func (t *translator) generateHTTPRouteV2DeleteMark(ctx *translation.TranslateCon
 			backend := backends[0]
 
 			upstreamName := apisixv1.ComposeUpstreamName(ar.Namespace, backend.ServiceName, backend.Subset, backend.ServicePort.IntVal, backend.ResolveGranularity)
-			if !ctx.CheckUpstreamExist(upstreamName) {
+			if !ctx.CheckServiceExist(upstreamName) {
 				ups, err := t.generateUpstreamDeleteMark(ar.Namespace, backend.ServiceName, backend.Subset, backend.ServicePort.IntVal, backend.ResolveGranularity)
 				if err != nil {
 					return err
 				}
-				ctx.AddUpstream(ups)
+				ctx.AddService(ups)
 			}
 		}
 		if len(part.Upstreams) > 0 {
 			upstreams := part.Upstreams
 			for _, upstream := range upstreams {
 				upstreamName := apisixv1.ComposeExternalUpstreamName(ar.Namespace, upstream.Name)
-				if !ctx.CheckUpstreamExist(upstreamName) {
-					ups := &apisixv1.Upstream{}
+				if !ctx.CheckServiceExist(upstreamName) {
+					ups := &apisixv1.Service{}
 					ups.Name = upstreamName
 					ups.ID = id.GenID(ups.Name)
-					ctx.AddUpstream(ups)
+					ctx.AddService(ups)
 				}
 			}
 		}
@@ -560,17 +563,18 @@ func (t *translator) translateStreamRouteV2(ctx *translation.TranslateContext, a
 		sr.ID = id.GenID(name)
 		sr.ServerPort = part.Match.IngressPort
 		sr.SNI = part.Match.Host
-		ups, err := t.translateService(ar.Namespace, backend.ServiceName, backend.Subset, backend.ResolveGranularity, svcClusterIP, svcPort)
+		svc, err := t.translateService(ar.Namespace, backend.ServiceName, backend.Subset, backend.ResolveGranularity, svcClusterIP, svcPort)
 		if err != nil {
 			return err
 		}
-		sr.UpstreamId = ups.ID
+		sr.ServiceID = svc.ID
 		sr.Plugins = pluginMap
+		sr.Name = name
+		svc.Type = apisixv1.ServiceTypeStream
 		ctx.AddStreamRoute(sr)
-		if !ctx.CheckUpstreamExist(ups.Name) {
-			ctx.AddUpstream(ups)
+		if !ctx.CheckServiceExist(svc.Name) {
+			ctx.AddService(svc)
 		}
-
 	}
 	return nil
 }
@@ -584,14 +588,13 @@ func (t *translator) generateStreamRouteDeleteMarkV2(ctx *translation.TranslateC
 		sr.ID = id.GenID(name)
 		sr.ServerPort = part.Match.IngressPort
 		sr.SNI = part.Match.Host
-		ups, err := t.generateUpstreamDeleteMark(ar.Namespace, backend.ServiceName, backend.Subset, backend.ServicePort.IntVal, backend.ResolveGranularity)
+		svc, err := t.generateUpstreamDeleteMark(ar.Namespace, backend.ServiceName, backend.Subset, backend.ServicePort.IntVal, backend.ResolveGranularity)
 		if err != nil {
 			return err
 		}
-		sr.UpstreamId = ups.ID
-		ctx.AddStreamRoute(sr)
-		if !ctx.CheckUpstreamExist(ups.Name) {
-			ctx.AddUpstream(ups)
+		sr.ServiceID = svc.ID
+		if !ctx.CheckServiceExist(svc.Name) {
+			ctx.AddService(svc)
 		}
 	}
 	return nil
@@ -694,12 +697,11 @@ func (t *translator) translateOldRouteV2(ar *configv2.ApisixRoute) (*translation
 		if err != nil || sr == nil {
 			continue
 		}
-		if sr.UpstreamId != "" {
-			ups := apisixv1.NewDefaultUpstream()
-			ups.ID = sr.UpstreamId
-			oldCtx.AddUpstream(ups)
+		if sr.ServiceID != "" {
+			svc := apisixv1.NewDefaultService()
+			svc.ID = sr.ServiceID
+			oldCtx.AddService(svc)
 		}
-		oldCtx.AddStreamRoute(sr)
 	}
 	for _, part := range ar.Spec.HTTP {
 		name := apisixv1.ComposeRouteName(ar.Namespace, ar.Name, part.Name)
@@ -707,10 +709,10 @@ func (t *translator) translateOldRouteV2(ar *configv2.ApisixRoute) (*translation
 		if err != nil || r == nil {
 			continue
 		}
-		if r.UpstreamId != "" {
-			ups := apisixv1.NewDefaultUpstream()
-			ups.ID = r.UpstreamId
-			oldCtx.AddUpstream(ups)
+		if r.ServiceID != "" {
+			ups := apisixv1.NewDefaultService()
+			ups.ID = r.ServiceID
+			oldCtx.AddService(ups)
 		}
 		oldCtx.AddRoute(r)
 	}

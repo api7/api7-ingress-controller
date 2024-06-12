@@ -19,7 +19,9 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -46,6 +48,32 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
+const (
+	DashboardHost = "localhost"
+	DashboardPort = 7080
+)
+
+var (
+	tenyearsLicense []byte
+)
+
+func init() {
+	f, err := os.Open("./dev-34-05-05-license")
+	if err != nil {
+		panic(err)
+	}
+	byt, err := io.ReadAll(f)
+	if err != nil {
+		panic(err)
+	}
+	m := make(map[string]interface{})
+	m["data"] = string(byt)
+	tenyearsLicense, err = json.Marshal(m)
+	if err != nil {
+		panic(err)
+	}
+}
+
 type Options struct {
 	Name                         string
 	Kubeconfig                   string
@@ -67,27 +95,30 @@ type Options struct {
 	DisableNamespaceSelector bool
 	DisableNamespaceLabel    bool
 }
-
 type Scaffold struct {
 	opts               *Options
 	kubectlOptions     *k8s.KubectlOptions
 	namespace          string
 	t                  testing.TestingT
 	nodes              []corev1.Node
-	etcdService        *corev1.Service
-	apisixService      *corev1.Service
+	dataplaneService   *corev1.Service
 	httpbinService     *corev1.Service
+	httpbinService2    *corev1.Service
 	testBackendService *corev1.Service
 	finalizers         []func()
 	label              map[string]string
 
-	apisixAdminTunnel      *k8s.Tunnel
+	gatewaygroupid         string
 	apisixHttpTunnel       *k8s.Tunnel
 	apisixHttpsTunnel      *k8s.Tunnel
 	apisixTCPTunnel        *k8s.Tunnel
 	apisixTLSOverTCPTunnel *k8s.Tunnel
 	apisixUDPTunnel        *k8s.Tunnel
-	apisixControlTunnel    *k8s.Tunnel
+	// apisixControlTunnel    *k8s.Tunnel
+}
+
+func (s *Scaffold) AdminKey() string {
+	return s.opts.APISIXAdminAPIKey
 }
 
 type apisixResourceVersionInfo struct {
@@ -139,9 +170,6 @@ func NewScaffold(o *Options) *Scaffold {
 	}
 	if o.ApisixResourceVersion == "" {
 		o.ApisixResourceVersion = ApisixResourceVersion().Default
-	}
-	if o.APISIXAdminAPIKey == "" {
-		o.APISIXAdminAPIKey = "edd1c9f034335f136f87ad84b625c8f1"
 	}
 	if o.ApisixResourceSyncInterval == "" {
 		o.ApisixResourceSyncInterval = "1h"
@@ -246,11 +274,20 @@ func (s *Scaffold) DefaultHTTPBackend() (string, []int32) {
 	return s.httpbinService.Name, ports
 }
 
-// ApisixAdminServiceAndPort returns the apisix service name and
-// it's admin port.
-func (s *Scaffold) ApisixAdminServiceAndPort() (string, int32) {
-	return "apisix-service-e2e-test", 9180
+// DefaultHTTPBackend returns the service name and service ports
+// of the  http backend2.
+func (s *Scaffold) HTTPBackend2() (string, []int32) {
+	var ports []int32
+	for _, p := range s.httpbinService2.Spec.Ports {
+		ports = append(ports, p.Port)
+	}
+	return s.httpbinService2.Name, ports
 }
+
+// ApisixAdminServiceAndPort returns the dashboard host and port
+// func (s *Scaffold) ApisixAdminServiceAndPort() (string, int32) {
+// 	return "apisix-service-e2e-test", 7080
+// }
 
 // NewAPISIXClient creates the default HTTP client.
 func (s *Scaffold) NewAPISIXClient() *httpexpect.Expect {
@@ -297,31 +334,31 @@ func (s *Scaffold) NewAPISIXClientWithTCPProxy() *httpexpect.Expect {
 	})
 }
 
-// NewAPISIXClientWithTLSOverTCP creates a TSL over TCP client
-func (s *Scaffold) NewAPISIXClientWithTLSOverTCP(host string) *httpexpect.Expect {
-	u := url.URL{
-		Scheme: "https",
-		Host:   s.apisixTLSOverTCPTunnel.Endpoint(),
-	}
-	return httpexpect.WithConfig(httpexpect.Config{
-		BaseURL: u.String(),
-		Client: &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					// accept any certificate; for testing only!
-					InsecureSkipVerify: true,
-					ServerName:         host,
-				},
-			},
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
-		Reporter: httpexpect.NewAssertReporter(
-			httpexpect.NewAssertReporter(ginkgo.GinkgoT()),
-		),
-	})
-}
+// // NewAPISIXClientWithTLSOverTCP creates a TSL over TCP client
+// func (s *Scaffold) NewAPISIXClientWithTLSOverTCP(host string) *httpexpect.Expect {
+// 	u := url.URL{
+// 		Scheme: "https",
+// 		Host:   s.apisixTLSOverTCPTunnel.Endpoint(),
+// 	}
+// 	return httpexpect.WithConfig(httpexpect.Config{
+// 		BaseURL: u.String(),
+// 		Client: &http.Client{
+// 			Transport: &http.Transport{
+// 				TLSClientConfig: &tls.Config{
+// 					// accept any certificate; for testing only!
+// 					InsecureSkipVerify: true,
+// 					ServerName:         host,
+// 				},
+// 			},
+// 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+// 				return http.ErrUseLastResponse
+// 			},
+// 		},
+// 		Reporter: httpexpect.NewAssertReporter(
+// 			httpexpect.NewAssertReporter(ginkgo.GinkgoT()),
+// 		),
+// 	})
+// }
 
 func (s *Scaffold) NewMQTTClient() mqtt.Client {
 	opts := mqtt.NewClientOptions()
@@ -446,6 +483,8 @@ func (s *Scaffold) RestartIngressControllerDeploy() {
 
 func (s *Scaffold) beforeEach() {
 	var err error
+	err = s.UploadLicense()
+	assert.Nil(s.t, err, "uploading license")
 	s.namespace = fmt.Sprintf("ingress-apisix-e2e-tests-%s-%d", s.opts.Name, time.Now().Nanosecond())
 	s.kubectlOptions = &k8s.KubectlOptions{
 		ConfigPath: s.opts.Kubeconfig,
@@ -474,29 +513,19 @@ func (s *Scaffold) beforeEach() {
 	s.nodes, err = k8s.GetReadyNodesE(s.t, s.kubectlOptions)
 	assert.Nil(s.t, err, "querying ready nodes")
 
-	if s.opts.EnableEtcdServer {
-		s.DeployCompositeMode()
-	} else {
-		s.DeployAdminaAPIMode()
-	}
+	s.gatewaygroupid, err = s.CreateNewGatewayGroup()
+	assert.Nil(s.t, err, "creating new gateway group")
+	s.opts.APISIXAdminAPIKey, err = s.GetAPIKey()
+	assert.Nil(s.t, err, "getting api key")
+	s.DeployDataplaneWithIngress()
 	s.DeployTestService()
 	s.DeployRetryTimeout()
 }
 
-func (s *Scaffold) DeployAdminaAPIMode() {
-	err := s.newAPISIXConfigMap(&APISIXConfig{
-		EtcdServiceFQDN: EtcdServiceName,
-	})
-	assert.Nil(s.t, err, "creating apisix configmap")
-
-	s.etcdService, err = s.newEtcd()
-	assert.Nil(s.t, err, "initializing etcd")
-
-	err = s.waitAllEtcdPodsAvailable()
-	assert.Nil(s.t, err, "waiting for etcd ready")
-
-	s.apisixService, err = s.newAPISIX()
-	assert.Nil(s.t, err, "initializing Apache APISIX")
+func (s *Scaffold) DeployDataplaneWithIngress() {
+	var err error
+	s.dataplaneService, err = s.newDataplane()
+	assert.Nil(s.t, err, "deploying data plane")
 
 	err = s.waitAllAPISIXPodsAvailable()
 	assert.Nil(s.t, err, "waiting for apisix ready")
@@ -510,6 +539,34 @@ func (s *Scaffold) DeployAdminaAPIMode() {
 	err = s.newAPISIXTunnels()
 	assert.Nil(s.t, err, "creating apisix tunnels")
 }
+
+// func (s *Scaffold) DeployAdminaAPIMode() {
+// 	err := s.newAPISIXConfigMap(&APISIXConfig{
+// 		EtcdServiceFQDN: EtcdServiceName,
+// 	})
+// 	assert.Nil(s.t, err, "creating apisix configmap")
+
+// 	s.etcdService, err = s.newEtcd()
+// 	assert.Nil(s.t, err, "initializing etcd")
+
+// 	err = s.waitAllEtcdPodsAvailable()
+// 	assert.Nil(s.t, err, "waiting for etcd ready")
+
+// 	s.apisixService, err = s.newAPISIX()
+// 	assert.Nil(s.t, err, "initializing Apache APISIX")
+
+// 	err = s.waitAllAPISIXPodsAvailable()
+// 	assert.Nil(s.t, err, "waiting for apisix ready")
+
+// 	err = s.newIngressAPISIXController()
+// 	assert.Nil(s.t, err, "initializing ingress apisix controller")
+
+// 	err = s.WaitAllIngressControllerPodsAvailable()
+// 	assert.Nil(s.t, err, "waiting for ingress apisix controller ready")
+
+// 	err = s.newAPISIXTunnels()
+// 	assert.Nil(s.t, err, "creating apisix tunnels")
+// }
 
 func (s *Scaffold) DeployCompositeMode() {
 	err := s.newAPISIXConfigMap(&APISIXConfig{
@@ -549,12 +606,17 @@ func (s *Scaffold) DeployTestService() {
 	assert.Nil(s.t, err, "initializing httpbin")
 	s.EnsureNumEndpointsReady(s.t, s.httpbinService.Name, 1)
 
+	//Need for testing traffic split
+	s.httpbinService2, err = s.newHTTPBIN2()
+	assert.Nil(s.t, err, "initializing httpbin 2")
+	s.EnsureNumEndpointsReady(s.t, s.httpbinService.Name, 1)
 	s.testBackendService, err = s.newTestBackend()
 	assert.Nil(s.t, err, "initializing test backend")
 	s.EnsureNumEndpointsReady(s.t, s.testBackendService.Name, 1)
 }
 
 func (s *Scaffold) afterEach() {
+	s.DeleteGatewayGroup()
 	defer ginkgo.GinkgoRecover()
 
 	if ginkgo.CurrentSpecReport().Failed() {
@@ -675,7 +737,7 @@ func (s *Scaffold) renderConfig(path string, config any) (string, error) {
 func (s *Scaffold) FormatRegistry(workloadTemplate string) string {
 	customRegistry, isExist := os.LookupEnv("REGISTRY")
 	if isExist {
-		return strings.Replace(workloadTemplate, "localhost:5000", customRegistry, -1)
+		return strings.Replace(workloadTemplate, "127.0.0.1:5000", customRegistry, -1)
 	} else {
 		return workloadTemplate
 	}
@@ -764,4 +826,9 @@ func (s *Scaffold) NamespaceSelectorLabelStrings() []string {
 
 func (s *Scaffold) NamespaceSelectorLabel() map[string][]string {
 	return s.opts.NamespaceSelectorLabel
+}
+func (s *Scaffold) labelSelector(label string) metav1.ListOptions {
+	return metav1.ListOptions{
+		LabelSelector: label,
+	}
 }

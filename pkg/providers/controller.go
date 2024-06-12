@@ -98,13 +98,13 @@ func NewController(cfg *config.Config) (*Controller, error) {
 		podName = os.Getenv("HOSTNAME")
 	}
 	if podName == "" {
-		podName = "apisix-ingress-controller"
+		podName = "api7-ingress-controller"
 	}
 	podNamespace := os.Getenv("POD_NAMESPACE")
 	if podNamespace == "" {
 		podNamespace = "default"
 	}
-	client, err := apisix.NewClient(cfg.APISIX.AdminAPIVersion)
+	client, err := apisix.NewClient(cfg.Dashboard.AdminAPIVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -393,10 +393,10 @@ func (c *Controller) run(ctx context.Context) {
 	defer cancelFunc()
 
 	clusterOpts := &apisix.ClusterOptions{
-		AdminAPIVersion:   c.cfg.APISIX.AdminAPIVersion,
-		Name:              c.cfg.APISIX.DefaultClusterName,
-		AdminKey:          c.cfg.APISIX.DefaultClusterAdminKey,
-		BaseURL:           c.cfg.APISIX.DefaultClusterBaseURL,
+		AdminAPIVersion:   c.cfg.Dashboard.AdminAPIVersion,
+		Name:              c.cfg.Dashboard.DefaultClusterName,
+		AdminKey:          c.cfg.Dashboard.DefaultClusterAdminKey,
+		BaseURL:           c.cfg.Dashboard.DefaultClusterBaseURL,
 		MetricsCollector:  c.MetricsCollector,
 		SyncComparison:    c.cfg.ApisixResourceSyncComparison,
 		EnableEtcdServer:  c.cfg.EtcdServer.Enabled,
@@ -413,7 +413,7 @@ func (c *Controller) run(ctx context.Context) {
 		return
 	}
 
-	if err := c.apisix.Cluster(c.cfg.APISIX.DefaultClusterName).HasSynced(ctx); err != nil {
+	if err := c.apisix.Cluster(c.cfg.Dashboard.DefaultClusterName).HasSynced(ctx); err != nil {
 		// TODO give up the leader role
 		log.Errorf("failed to wait the default cluster to be ready: %s", err)
 
@@ -486,7 +486,7 @@ func (c *Controller) run(ctx context.Context) {
 		c.gatewayProvider, err = gateway.NewGatewayProvider(&gateway.ProviderOptions{
 			Cfg:               c.cfg,
 			APISIX:            c.apisix,
-			APISIXClusterName: c.cfg.APISIX.DefaultClusterName,
+			APISIXClusterName: c.cfg.Dashboard.DefaultClusterName,
 			KubeTranslator:    c.translator,
 			RestConfig:        nil,
 			KubeClient:        c.kubeClient.Client,
@@ -586,7 +586,7 @@ func (c *Controller) checkClusterHealth(ctx context.Context, cancelFunc context.
 		case <-t.C:
 		}
 
-		err := c.apisix.Cluster(c.cfg.APISIX.DefaultClusterName).HealthCheck(ctx)
+		err := c.apisix.Cluster(c.cfg.Dashboard.DefaultClusterName).HealthCheck(ctx)
 		if err != nil {
 			c.apiServer.HealthState.Lock()
 			c.apiServer.HealthState.Err = err

@@ -154,12 +154,12 @@ func (c *Common) SyncManifests(ctx context.Context, added, updated, deleted *uti
 	if !c.Elector.IsLeader() && !c.Config.EtcdServer.Enabled {
 		return nil
 	}
-	return utils.SyncManifests(ctx, c.APISIX, c.Config.APISIX.DefaultClusterName, added, updated, deleted, shouldCompare)
+	return utils.SyncManifests(ctx, c.APISIX, c.Config.Dashboard.DefaultClusterName, added, updated, deleted, shouldCompare)
 }
 
 // TODO: support multiple cluster
 func (c *Common) SyncClusterManifests(ctx context.Context, clusterName string, added, updated, deleted *utils.Manifest, shouldCompare bool) error {
-	if clusterName != c.Config.APISIX.DefaultClusterName {
+	if clusterName != c.Config.Dashboard.DefaultClusterName {
 		log.Errorw("cluster does not exist",
 			zap.String("cluster_name", clusterName),
 		)
@@ -172,7 +172,7 @@ func (c *Common) SyncSSL(ctx context.Context, ssl *apisixv1.Ssl, event types.Eve
 	var (
 		err error
 	)
-	clusterName := c.Config.APISIX.DefaultClusterName
+	clusterName := c.Config.Dashboard.DefaultClusterName
 	if event == types.EventDelete {
 		err = c.APISIX.Cluster(clusterName).SSL().Delete(ctx, ssl)
 	} else if event == types.EventUpdate {
@@ -184,7 +184,7 @@ func (c *Common) SyncSSL(ctx context.Context, ssl *apisixv1.Ssl, event types.Eve
 }
 
 func (c *Common) SyncPluginMetadata(ctx context.Context, pm *apisixv1.PluginMetadata, event types.EventType) (err error) {
-	clusterName := c.Config.APISIX.DefaultClusterName
+	clusterName := c.Config.Dashboard.DefaultClusterName
 	if event == types.EventDelete {
 		err = c.APISIX.Cluster(clusterName).PluginMetadata().Delete(ctx, pm)
 	} else if event == types.EventUpdate {
@@ -196,7 +196,7 @@ func (c *Common) SyncPluginMetadata(ctx context.Context, pm *apisixv1.PluginMeta
 }
 
 func (c *Common) SyncConsumer(ctx context.Context, consumer *apisixv1.Consumer, event types.EventType) (err error) {
-	clusterName := c.Config.APISIX.DefaultClusterName
+	clusterName := c.Config.Dashboard.DefaultClusterName
 	if event == types.EventDelete {
 		err = c.APISIX.Cluster(clusterName).Consumer().Delete(ctx, consumer)
 	} else if event == types.EventUpdate {
@@ -213,7 +213,7 @@ func (c *Common) SyncUpstreamNodesChangeToCluster(ctx context.Context, cluster a
 		zap.String("upstream_name", upsName),
 		zap.Any("nodes", nodes),
 	)
-	upstream, err := cluster.Upstream().Get(ctx, upsName)
+	upstream, err := cluster.Service().Get(ctx, upsName)
 	if err != nil {
 		if err != apisix.ErrNotFound {
 			log.Errorw("failed to get upstream",
@@ -234,16 +234,16 @@ func (c *Common) SyncUpstreamNodesChangeToCluster(ctx context.Context, cluster a
 	// * Nodes
 	// * Service discovery
 	// When this logic is executed, the Nodes pattern is used.
-	if compareUpstreamNodes(upstream.Nodes, nodes) {
+	if compareUpstreamNodes(upstream.Upstream.Nodes, nodes) {
 		log.Debugw("upstream nodes not changed",
 			zap.String("cluster", cluster.String()),
 			zap.String("upstream_name", upsName),
-			zap.Any("old_nodes", upstream.Nodes),
+			zap.Any("old_nodes", upstream.Upstream.Nodes),
 			zap.Any("new_nodes", nodes),
 		)
 		return nil
 	}
-	upstream.Nodes = nodes
+	upstream.Upstream.Nodes = nodes
 
 	log.Debugw("upstream binds new nodes",
 		zap.Any("upstream", upstream),
@@ -251,7 +251,9 @@ func (c *Common) SyncUpstreamNodesChangeToCluster(ctx context.Context, cluster a
 	)
 
 	updated := &utils.Manifest{
-		Upstreams: []*apisixv1.Upstream{upstream},
+		Services: []*apisixv1.Service{
+			upstream,
+		},
 	}
 	return c.SyncManifests(ctx, nil, updated, nil, false)
 }

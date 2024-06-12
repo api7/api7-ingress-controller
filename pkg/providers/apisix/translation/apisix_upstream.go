@@ -30,20 +30,20 @@ import (
 )
 
 // generateUpstreamDeleteMark translates Upstream nodes with a loose way, only generate ID and Name for delete Event.
-func (t *translator) generateUpstreamDeleteMark(namespace, svcName, subset string, svcPort int32, resolveGranularity string) (*apisixv1.Upstream, error) {
-	ups := &apisixv1.Upstream{}
+func (t *translator) generateUpstreamDeleteMark(namespace, svcName, subset string, svcPort int32, resolveGranularity string) (*apisixv1.Service, error) {
+	ups := &apisixv1.Service{}
 	ups.Name = apisixv1.ComposeUpstreamName(namespace, svcName, subset, svcPort, resolveGranularity)
 	ups.ID = id.GenID(ups.Name)
 	return ups, nil
 }
 
-func (t *translator) translateService(namespace, svcName, subset, svcResolveGranularity, svcClusterIP string, svcPort int32) (*apisixv1.Upstream, error) {
+func (t *translator) translateService(namespace, svcName, subset, svcResolveGranularity, svcClusterIP string, svcPort int32) (*apisixv1.Service, error) {
 	ups, err := t.TranslateService(namespace, svcName, subset, svcPort)
 	if err != nil {
 		return nil, err
 	}
 	if svcResolveGranularity == types.ResolveGranularity.Service {
-		ups.Nodes = apisixv1.UpstreamNodes{
+		ups.Upstream.Nodes = apisixv1.UpstreamNodes{
 			{
 				Host:   svcClusterIP,
 				Port:   int(svcPort),
@@ -121,7 +121,7 @@ func (t *translator) TranslateApisixUpstreamExternalNodes(au *v2.ApisixUpstream)
 }
 
 // TODO: Retry when ApisixUpstream/ExternalName service not found
-func (t *translator) translateExternalApisixUpstream(namespace, upstream string) (*apisixv1.Upstream, error) {
+func (t *translator) translateExternalApisixUpstream(namespace, upstream string) (*apisixv1.Service, error) {
 	multiVersioned, err := t.ApisixUpstreamLister.V2(namespace, upstream)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
@@ -137,16 +137,16 @@ func (t *translator) translateExternalApisixUpstream(namespace, upstream string)
 		return nil, fmt.Errorf("%s/%s has empty ExternalNodes or Discovery configuration", namespace, upstream)
 	}
 
-	ups, err := t.TranslateUpstreamConfigV2(&au.Spec.ApisixUpstreamConfig)
+	svc, err := t.TranslateUpstreamConfigV2(&au.Spec.ApisixUpstreamConfig)
 	if err != nil {
 		return nil, err
 	}
 	for k, v := range au.ObjectMeta.Labels {
-		ups.Metadata.Labels[k] = v
+		svc.Metadata.Labels[k] = v
 	}
-	ups.Name = apisixv1.ComposeExternalUpstreamName(namespace, upstream)
-	ups.ID = id.GenID(ups.Name)
-
+	svc.Name = apisixv1.ComposeExternalUpstreamName(namespace, upstream)
+	svc.ID = id.GenID(svc.Name)
+	svc.Upstream.Metadata = svc.Metadata
 	// APISIX does not allow discovery_type and nodes to exist at the same time.
 	// https://github.com/apache/apisix/blob/01b4b49eb2ba642b337f7a1fbe1894a77942910b/apisix/schema_def.lua#L501-L504
 	if len(au.Spec.ExternalNodes) != 0 {
@@ -155,8 +155,7 @@ func (t *translator) translateExternalApisixUpstream(namespace, upstream string)
 			return nil, err
 		}
 
-		ups.Nodes = append(ups.Nodes, externalNodes...)
+		svc.Upstream.Nodes = append(svc.Upstream.Nodes, externalNodes...)
 	}
-
-	return ups, nil
+	return svc, nil
 }

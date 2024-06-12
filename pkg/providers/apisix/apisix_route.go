@@ -332,9 +332,9 @@ func (c *apisixRouteController) sync(ctx context.Context, ev *types.Event) error
 			}
 		}
 
-		log.Debugw("translated ApisixRoute",
+		log.Infow("translated ApisixRoute",
 			zap.Any("routes", tctx.Routes),
-			zap.Any("upstreams", tctx.Upstreams),
+			zap.Any("upstreams", tctx.Services),
 			zap.Any("apisix_route", ar),
 			zap.Any("pluginConfigs", tctx.PluginConfigs),
 		)
@@ -343,9 +343,9 @@ func (c *apisixRouteController) sync(ctx context.Context, ev *types.Event) error
 	{
 		m := &utils.Manifest{
 			Routes:        tctx.Routes,
-			Upstreams:     tctx.Upstreams,
-			StreamRoutes:  tctx.StreamRoutes,
+			Services:      tctx.Services,
 			PluginConfigs: tctx.PluginConfigs,
+			StreamRoutes:  tctx.StreamRoutes,
 		}
 		var (
 			added   *utils.Manifest
@@ -362,8 +362,7 @@ func (c *apisixRouteController) sync(ctx context.Context, ev *types.Event) error
 			if oldCtx != nil {
 				om := &utils.Manifest{
 					Routes:        oldCtx.Routes,
-					Upstreams:     oldCtx.Upstreams,
-					StreamRoutes:  oldCtx.StreamRoutes,
+					Services:      oldCtx.Services,
 					PluginConfigs: oldCtx.PluginConfigs,
 				}
 				added, updated, deleted = m.Diff(om)
@@ -401,7 +400,7 @@ func (c *apisixRouteController) checkPluginNameIfNotEmptyV2(ctx context.Context,
 			if v.PluginConfigNamespace != "" {
 				ns = v.PluginConfigNamespace
 			}
-			_, err := c.APISIX.Cluster(c.Config.APISIX.DefaultClusterName).PluginConfig().Get(ctx, apisixv1.ComposePluginConfigName(ns, v.PluginConfigName))
+			_, err := c.APISIX.Cluster(c.Config.Dashboard.DefaultClusterName).PluginConfig().Get(ctx, apisixv1.ComposePluginConfigName(ns, v.PluginConfigName))
 			if err != nil {
 				if err == apisixcache.ErrNotFound {
 					log.Errorw("checkPluginNameIfNotEmptyV2 error: plugin_config not found",

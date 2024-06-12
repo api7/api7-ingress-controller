@@ -25,4 +25,4 @@ This document was inspired by the [Kubernetes Enhancement Proposals (KEPs)](http
 
 By recording the long-term plan Proposal of the current Apache APISIX Ingress project in this directory, it is convenient for the community to participate in and contribute.
 
-The most successful example before this is [Proposal: add ApisixPluginConfig CRD](https://github.com/apache/apisix-ingress-controller/issues/638). But this way is not friendly enough.
+The most successful example before this is [Proposal: add ApisixPluginConfig CRD](https://github.com/apache/api7-ingress-controller/issues/638). But this way is not friendly enough.

@@ -29,23 +29,20 @@ import (
 // Find out the rest of objects in APISIX
 // AND warn them in log.
 // This func is NOT concurrency safe.
-// cc https://github.com/apache/apisix-ingress-controller/pull/742#discussion_r757197791
+// cc https://github.com/apache/api7-ingress-controller/pull/742#discussion_r757197791
 func (p *apisixProvider) Init(ctx context.Context) error {
 	var (
-		wg                 sync.WaitGroup
-		routeMapK8S        = new(sync.Map)
-		streamRouteMapK8S  = new(sync.Map)
-		upstreamMapK8S     = new(sync.Map)
-		sslMapK8S          = new(sync.Map)
-		consumerMapK8S     = new(sync.Map)
-		pluginConfigMapK8S = new(sync.Map)
+		wg                sync.WaitGroup
+		routeMapK8S       = new(sync.Map)
+		streamRouteMapK8S = new(sync.Map)
+		upstreamMapK8S    = new(sync.Map)
+		sslMapK8S         = new(sync.Map)
+		consumerMapK8S    = new(sync.Map)
 
-		routeMapA6        = make(map[string]string)
-		streamRouteMapA6  = make(map[string]string)
-		upstreamMapA6     = make(map[string]string)
-		sslMapA6          = make(map[string]string)
-		consumerMapA6     = make(map[string]string)
-		pluginConfigMapA6 = make(map[string]string)
+		routeMapA6       = make(map[string]string)
+		streamRouteMapA6 = make(map[string]string)
+		sslMapA6         = make(map[string]string)
+		consumerMapA6    = make(map[string]string)
 	)
 
 	namespaces := p.namespaceProvider.WatchingNamespaces()
@@ -73,21 +70,13 @@ func (p *apisixProvider) Init(ctx context.Context) error {
 							for _, route := range tc.Routes {
 								routeMapK8S.Store(route.ID, route.ID)
 							}
-							// streamRoutes
-							for _, stRoute := range tc.StreamRoutes {
-								streamRouteMapK8S.Store(stRoute.ID, stRoute.ID)
-							}
 							// upstreams
-							for _, upstream := range tc.Upstreams {
+							for _, upstream := range tc.Services {
 								upstreamMapK8S.Store(upstream.ID, upstream.ID)
 							}
 							// ssl
 							for _, ssl := range tc.SSL {
 								sslMapK8S.Store(ssl.ID, ssl.ID)
-							}
-							// pluginConfigs
-							for _, pluginConfig := range tc.PluginConfigs {
-								pluginConfigMapK8S.Store(pluginConfig.ID, pluginConfig.ID)
 							}
 						}
 					}
@@ -147,35 +136,26 @@ func (p *apisixProvider) Init(ctx context.Context) error {
 	if err := p.listRouteCache(ctx, routeMapA6); err != nil {
 		return err
 	}
-	if err := p.listStreamRouteCache(ctx, streamRouteMapA6); err != nil {
-		return err
-	}
-	if err := p.listUpstreamCache(ctx, upstreamMapA6); err != nil {
-		return err
-	}
+
 	if err := p.listSSLCache(ctx, sslMapA6); err != nil {
 		return err
 	}
 	if err := p.listConsumerCache(ctx, consumerMapA6); err != nil {
 		return err
 	}
-	if err := p.listPluginConfigCache(ctx, pluginConfigMapA6); err != nil {
-		return err
-	}
+	// if err := p.listPluginConfigCache(ctx, pluginConfigMapA6); err != nil {
+	// 	return err
+	// }
 	// 3.compare
 	routeResult := findRedundant(routeMapA6, routeMapK8S)
 	streamRouteResult := findRedundant(streamRouteMapA6, streamRouteMapK8S)
-	upstreamResult := findRedundant(upstreamMapA6, upstreamMapK8S)
 	sslResult := findRedundant(sslMapA6, sslMapK8S)
 	consumerResult := findRedundant(consumerMapA6, consumerMapK8S)
-	pluginConfigResult := findRedundant(pluginConfigMapA6, pluginConfigMapK8S)
 	// 4.warn
 	warnRedundantResources(routeResult, "route")
 	warnRedundantResources(streamRouteResult, "streamRoute")
-	warnRedundantResources(upstreamResult, "upstream")
 	warnRedundantResources(sslResult, "ssl")
 	warnRedundantResources(consumerResult, "consumer")
-	warnRedundantResources(pluginConfigResult, "pluginConfig")
 
 	return nil
 }
@@ -200,7 +180,7 @@ func findRedundant(src map[string]string, dest *sync.Map) map[string]string {
 }
 
 func (p *apisixProvider) listRouteCache(ctx context.Context, routeMapA6 map[string]string) error {
-	routesInA6, err := p.common.APISIX.Cluster(p.common.Config.APISIX.DefaultClusterName).Route().List(ctx)
+	routesInA6, err := p.common.APISIX.Cluster(p.common.Config.Dashboard.DefaultClusterName).Route().List(ctx)
 	if err != nil {
 		return err
 	} else {
@@ -211,32 +191,8 @@ func (p *apisixProvider) listRouteCache(ctx context.Context, routeMapA6 map[stri
 	return nil
 }
 
-func (p *apisixProvider) listStreamRouteCache(ctx context.Context, streamRouteMapA6 map[string]string) error {
-	streamRoutesInA6, err := p.common.APISIX.Cluster(p.common.Config.APISIX.DefaultClusterName).StreamRoute().List(ctx)
-	if err != nil {
-		return err
-	} else {
-		for _, ra := range streamRoutesInA6 {
-			streamRouteMapA6[ra.ID] = ra.ID
-		}
-	}
-	return nil
-}
-
-func (p *apisixProvider) listUpstreamCache(ctx context.Context, upstreamMapA6 map[string]string) error {
-	upstreamsInA6, err := p.common.APISIX.Cluster(p.common.Config.APISIX.DefaultClusterName).Upstream().List(ctx)
-	if err != nil {
-		return err
-	} else {
-		for _, ra := range upstreamsInA6 {
-			upstreamMapA6[ra.ID] = ra.ID
-		}
-	}
-	return nil
-}
-
 func (p *apisixProvider) listSSLCache(ctx context.Context, sslMapA6 map[string]string) error {
-	sslInA6, err := p.common.APISIX.Cluster(p.common.Config.APISIX.DefaultClusterName).SSL().List(ctx)
+	sslInA6, err := p.common.APISIX.Cluster(p.common.Config.Dashboard.DefaultClusterName).SSL().List(ctx)
 	if err != nil {
 		return err
 	} else {
@@ -248,24 +204,12 @@ func (p *apisixProvider) listSSLCache(ctx context.Context, sslMapA6 map[string]s
 }
 
 func (p *apisixProvider) listConsumerCache(ctx context.Context, consumerMapA6 map[string]string) error {
-	consumerInA6, err := p.common.APISIX.Cluster(p.common.Config.APISIX.DefaultClusterName).Consumer().List(ctx)
+	consumerInA6, err := p.common.APISIX.Cluster(p.common.Config.Dashboard.DefaultClusterName).Consumer().List(ctx)
 	if err != nil {
 		return err
 	} else {
 		for _, con := range consumerInA6 {
 			consumerMapA6[con.Username] = con.Username
-		}
-	}
-	return nil
-}
-
-func (p *apisixProvider) listPluginConfigCache(ctx context.Context, pluginConfigMapA6 map[string]string) error {
-	pluginConfigInA6, err := p.common.APISIX.Cluster(p.common.Config.APISIX.DefaultClusterName).PluginConfig().List(ctx)
-	if err != nil {
-		return err
-	} else {
-		for _, ra := range pluginConfigInA6 {
-			pluginConfigMapA6[ra.ID] = ra.ID
 		}
 	}
 	return nil

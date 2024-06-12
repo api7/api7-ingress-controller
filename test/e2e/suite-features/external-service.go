@@ -33,7 +33,8 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-features: external services", func() {
+// PASSING
+var _ = ginkgo.FDescribe("suite-features: external services", func() {
 	PhaseCreateExternalService := func(s *scaffold.Scaffold, name, externalName string) {
 		extService := fmt.Sprintf(`
 apiVersion: v1
@@ -118,7 +119,7 @@ spec:
 	}
 
 	PhaseValidateNoUpstreams := func(s *scaffold.Scaffold) {
-		ups, err := s.ListApisixUpstreams()
+		ups, err := s.ListApisixServices()
 		assert.Nil(ginkgo.GinkgoT(), err)
 		assert.Len(ginkgo.GinkgoT(), ups, 0, "upstream count")
 	}
@@ -130,14 +131,14 @@ spec:
 	}
 
 	PhaseValidateFirstUpstream := func(s *scaffold.Scaffold, length int, node string, port, weight int) string {
-		ups, err := s.ListApisixUpstreams()
+		ups, err := s.ListApisixServices()
 		assert.Nil(ginkgo.GinkgoT(), err)
 		assert.Len(ginkgo.GinkgoT(), ups, length, "upstream count")
 		upstream := ups[0]
-		assert.Len(ginkgo.GinkgoT(), upstream.Nodes, 1)
-		assert.Equal(ginkgo.GinkgoT(), node, upstream.Nodes[0].Host)
-		assert.Equal(ginkgo.GinkgoT(), port, upstream.Nodes[0].Port)
-		assert.Equal(ginkgo.GinkgoT(), weight, upstream.Nodes[0].Weight)
+		assert.Len(ginkgo.GinkgoT(), upstream.Upstream.Nodes, 1)
+		assert.Equal(ginkgo.GinkgoT(), node, upstream.Upstream.Nodes[0].Host)
+		assert.Equal(ginkgo.GinkgoT(), port, upstream.Upstream.Nodes[0].Port)
+		assert.Equal(ginkgo.GinkgoT(), weight, upstream.Upstream.Nodes[0].Weight)
 
 		return upstream.ID
 	}
@@ -146,7 +147,7 @@ spec:
 		routes, err := s.ListApisixRoutes()
 		assert.Nil(ginkgo.GinkgoT(), err)
 		assert.Len(ginkgo.GinkgoT(), routes, 1, "route count")
-		assert.Equal(ginkgo.GinkgoT(), upstreamId, routes[0].UpstreamId)
+		assert.Equal(ginkgo.GinkgoT(), upstreamId, routes[0].ServiceID)
 
 		_ = s.NewAPISIXClient().GET("/ip").
 			WithHeader("Host", "httpbin.org").
@@ -159,7 +160,7 @@ spec:
 	// 	routes, err := s.ListApisixRoutes()
 	// 	assert.Nil(ginkgo.GinkgoT(), err)
 	// 	assert.Len(ginkgo.GinkgoT(), routes, 1, "route count")
-	// 	assert.Equal(ginkgo.GinkgoT(), upstreamId, routes[0].UpstreamId)
+	// 	assert.Equal(ginkgo.GinkgoT(), upstreamId, routes[0].ServiceID)
 
 	// 	_ = s.NewAPISIXClient().GET("/ip").
 	// 		WithHeader("Host", "httpbin.org").
@@ -207,7 +208,7 @@ spec:
             tcpSocket:
               port: 80
             timeoutSeconds: 2
-          image: "localhost:5000/httpbin:dev"
+          image: "127.0.0.1:5000/httpbin:dev"
           imagePullPolicy: IfNotPresent
           name: httpbin
           ports:
@@ -271,7 +272,7 @@ spec:
 
 			// -- update --
 			PhaseCreateApisixRouteWithHostRewrite(s, "httpbin-route", "httpbin-upstream", "httpbin.org")
-			time.Sleep(time.Second * 6)
+			time.Sleep(time.Second * 10)
 
 			// -- validation --
 			upstreamId := PhaseValidateFirstUpstream(s, 1, "httpbin.org", 80, translation.DefaultWeight)
@@ -388,13 +389,13 @@ spec:
 		}
 		// Note: expected nodes has unique host
 		PhaseValidateMultipleNodes := func(s *scaffold.Scaffold, length int, nodes map[string]*validateFactor) {
-			ups, err := s.ListApisixUpstreams()
+			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Len(ginkgo.GinkgoT(), ups, 1, "upstream count")
 
 			upstream := ups[0]
-			assert.Len(ginkgo.GinkgoT(), upstream.Nodes, length)
-			for _, node := range upstream.Nodes {
+			assert.Len(ginkgo.GinkgoT(), upstream.Upstream.Nodes, length)
+			for _, node := range upstream.Upstream.Nodes {
 				host := node.Host
 				if factor, ok := nodes[host]; ok {
 					assert.Equal(ginkgo.GinkgoT(), factor.port, node.Port)
@@ -408,23 +409,23 @@ spec:
 			routes, err := s.ListApisixRoutes()
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Len(ginkgo.GinkgoT(), routes, 1, "route count")
-			assert.Equal(ginkgo.GinkgoT(), ups[0].ID, routes[0].UpstreamId)
+			assert.Equal(ginkgo.GinkgoT(), ups[0].ID, routes[0].ServiceID)
 
 			validateHttpbinAndPostmanAreAccessed()
 		}
 
 		// Note: expected nodes has unique host
 		PhaseValidateTrafficSplit := func(s *scaffold.Scaffold, length int, upstreamId string, nodes map[string]*validateFactor) {
-			ups, err := s.ListApisixUpstreams()
+			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Len(ginkgo.GinkgoT(), ups, length, "upstream count")
 
 			for _, upstream := range ups {
-				assert.Len(ginkgo.GinkgoT(), upstream.Nodes, 1)
-				host := upstream.Nodes[0].Host
+				assert.Len(ginkgo.GinkgoT(), upstream.Upstream.Nodes, 1)
+				host := upstream.Upstream.Nodes[0].Host
 				if factor, ok := nodes[host]; ok {
-					assert.Equal(ginkgo.GinkgoT(), factor.port, upstream.Nodes[0].Port)
-					assert.Equal(ginkgo.GinkgoT(), factor.weight, upstream.Nodes[0].Weight)
+					assert.Equal(ginkgo.GinkgoT(), factor.port, upstream.Upstream.Nodes[0].Port)
+					assert.Equal(ginkgo.GinkgoT(), factor.weight, upstream.Upstream.Nodes[0].Weight)
 				} else {
 					err := fmt.Errorf("host %s appear but it shouldn't", host)
 					assert.Nil(ginkgo.GinkgoT(), err)
@@ -434,7 +435,7 @@ spec:
 			routes, err := s.ListApisixRoutes()
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Len(ginkgo.GinkgoT(), routes, 1, "route count")
-			assert.Equal(ginkgo.GinkgoT(), upstreamId, routes[0].UpstreamId)
+			assert.Equal(ginkgo.GinkgoT(), upstreamId, routes[0].ServiceID)
 
 			validateHttpbinAndPostmanAreAccessed()
 		}

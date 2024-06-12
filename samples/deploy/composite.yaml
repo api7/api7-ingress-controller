@@ -385,9 +385,9 @@ spec:
             successThreshold: 1
             failureThreshold: 3
           name: ingress-apisix
-          image: apache/apisix-ingress-controller:1.7.0
+          image: apache/api7-ingress-controller:1.7.0
           command:
-            - /ingress-apisix/apisix-ingress-controller
+            - /ingress-apisix/api7-ingress-controller
             - ingress
             - "--log-output"
             - stdout

@@ -60,8 +60,6 @@ func (r *pluginMetadataClient) Get(ctx context.Context, name string) (*v1.Plugin
 	if err != nil {
 		log.Errorw("failed to convert pluginMetadata item",
 			zap.String("url", r.url),
-			zap.String("pluginMetadata_key", resp.Key),
-			zap.String("pluginMetadata_value", string(resp.Value)),
 			zap.Error(err),
 		)
 		return nil, err
@@ -81,20 +79,17 @@ func (r *pluginMetadataClient) List(ctx context.Context) ([]*v1.PluginMetadata, 
 	}
 
 	var items []*v1.PluginMetadata
-	for i, item := range pluginMetadataItems {
+	for _, item := range pluginMetadataItems.List {
 		pluginMetadata, err := item.pluginMetadata()
 		if err != nil {
 			log.Errorw("failed to convert pluginMetadata item",
 				zap.String("url", r.url),
-				zap.String("pluginMetadata_key", item.Key),
-				zap.String("pluginMetadata_value", string(item.Value)),
 				zap.Error(err),
 			)
 			return nil, err
 		}
 
 		items = append(items, pluginMetadata)
-		log.Debugf("list pluginMetadata #%d, body: %s", i, string(item.Value))
 	}
 
 	return items, nil
@@ -208,8 +203,6 @@ func (r *pluginMetadataMem) Get(ctx context.Context, name string) (*v1.PluginMet
 	if err != nil {
 		log.Errorw("failed to convert pluginMetadata item",
 			zap.String("url", r.url),
-			zap.String("pluginMetadata_key", resp.Key),
-			zap.String("pluginMetadata_value", string(resp.Value)),
 			zap.Error(err),
 		)
 		return nil, err
@@ -232,20 +225,17 @@ func (r *pluginMetadataMem) List(ctx context.Context) ([]*v1.PluginMetadata, err
 	}
 
 	var items []*v1.PluginMetadata
-	for i, item := range pluginMetadataItems {
+	for _, item := range pluginMetadataItems.List {
 		pluginMetadata, err := item.pluginMetadata()
 		if err != nil {
 			log.Errorw("failed to convert pluginMetadata item",
 				zap.String("url", r.url),
-				zap.String("pluginMetadata_key", item.Key),
-				zap.String("pluginMetadata_value", string(item.Value)),
 				zap.Error(err),
 			)
 			return nil, err
 		}
 
 		items = append(items, pluginMetadata)
-		log.Debugf("list pluginMetadata #%d, body: %s", i, string(item.Value))
 	}
 
 	return items, nil

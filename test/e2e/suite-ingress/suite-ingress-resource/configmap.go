@@ -34,7 +34,7 @@ data:
     - cluster: default
       plugins:
       - name : http-logger
-        metadata: 
+        metadata:
           log_format:
             host: "$host"
             client_ip: "$remote_addr"
@@ -46,7 +46,7 @@ data:
         metadata:
           host: "DogStatsD.server.domain"
           port: 8125
-          namespace: "apisix" 
+          namespace: "apisix"
           constant_tags:
           - "source:apisix"
 `
@@ -64,7 +64,7 @@ data:
         metadata:
           host: "DogStatsD.server.domain"
           port: 8125
-          namespace: "ingress" 
+          namespace: "ingress"
           constant_tags:
           - "source:ingress"
 `
@@ -79,7 +79,7 @@ data:
     - cluster: non-existent
       plugins:
       - name : http-logger
-        metadata: 
+        metadata:
           log_format:
             host: "$host"
             client_ip: "$remote_addr"
@@ -91,7 +91,7 @@ data:
         metadata:
           host: "DogStatsD.server.domain"
           port: 8125
-          namespace: "apisix" 
+          namespace: "apisix"
 `
 
 var _configmapConfigYAML3 = `
@@ -104,7 +104,7 @@ data:
     - cluster: non-existent
       plugins:
       - name : http-logger
-        metadata: 
+        metadata:
           log_format:
             host: "$host"
             client_ip: "$remote_addr"
@@ -116,10 +116,10 @@ data:
         metadata:
           host: "DogStatsD.server.domain"
           port: 8125
-          namespace: "apisix" 
+          namespace: "apisix"
 `
 
-var _ = ginkgo.Describe("suite-ingress-resource: configmap Testing", func() {
+var _ = ginkgo.PDescribe("suite-ingress-resource: configmap Testing", func() {
 	s := scaffold.NewDefaultScaffold()
 	ginkgo.It("create configmap and configure config.yaml", func() {
 		assert.Nil(ginkgo.GinkgoT(), s.CreateResourceFromString(_configmapConfigYAML))

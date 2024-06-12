@@ -19,12 +19,12 @@
 
 # API7 Ingress Controller
 
-All configurations in `apisix-ingress-controller` are defined with Kubernetes CRDs (Custom Resource Definitions).
+All configurations in `api7-ingress-controller` are defined with Kubernetes CRDs (Custom Resource Definitions).
 Support configuring [plugins](https://github.com/apache/apisix/blob/master/docs/en/latest/plugins), service registration discovery mechanism for upstreams, load balancing and more in Apache APISIX.
 
-`apisix-ingress-controller` is an Apache APISIX control plane component. Currently it serves for Kubernetes clusters. In the future, we plan to separate the submodule to adapt to more deployment modes, such as virtual machine clusters.
+`api7-ingress-controller` is an Apache APISIX control plane component. Currently it serves for Kubernetes clusters. In the future, we plan to separate the submodule to adapt to more deployment modes, such as virtual machine clusters.
 
-The technical architecture of `apisix-ingress-controller`:
+The technical architecture of `api7-ingress-controller`:
 
 <img src="./docs/assets/images/module-0.png" alt="Architecture" width="743" height="559" />
 
@@ -54,7 +54,6 @@ This project is currently general availability.
 * [How to install](./install.md)
 * [Get Started](./docs/en/latest/getting-started.md)
 * [Design introduction](./docs/en/latest/design.md)
-* [FAQ](./docs/en/latest/FAQ.md)
 
 ## Prerequisites
 
@@ -63,11 +62,11 @@ From the version 1.0.0, APISIX-ingress-controller need to work with Apache APISI
 
 ## Works with APISIX Dashboard
 
-Currently, APISIX Ingress Controller automatically manipulates some APISIX resources, which is not very compatible with APISIX Dashboard. In addition, users should not modify resources labeled `managed-by: apisix-ingress-controllers` via APISIX Dashboard.
+Currently, APISIX Ingress Controller automatically manipulates some APISIX resources, which is not very compatible with APISIX Dashboard. In addition, users should not modify resources labeled `managed-by: api7-ingress-controllers` via APISIX Dashboard.
 
-## Internal Architecture
+## Internal Architecture (Image below to be updated)
 
-<img src="./docs/assets/images/apisix-ingress-controller-arch.png" alt="module" width="74.3%" height="55.9%" />
+<img src="./docs/assets/images/api7-ingress-controller-arch.png" alt="module" width="74.3%" height="55.9%" />
 
 ## Apache APISIX Ingress vs. Kubernetes Ingress Nginx
 
@@ -78,5 +77,5 @@ Currently, APISIX Ingress Controller automatically manipulates some APISIX resou
 * [Rich plugins and ecology.](https://github.com/apache/apisix/tree/master/docs/en/latest/plugins)
 * Supports APISIX custom resources and Kubernetes native Ingress resources.
 
-* APISIX Ingress: the whole service that contains the proxy ([Apache APISIX](https://apisix.apache.org)) and ingress controller (apisix-ingress-controller).
-* apisix-ingress-controller: the ingress controller component.
+* APISIX Ingress: the whole service that contains the proxy ([Apache APISIX](https://apisix.apache.org)) and ingress controller (api7-ingress-controller).
+* api7-ingress-controller: the ingress controller component.

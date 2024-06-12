@@ -92,20 +92,17 @@ func (r *routeClient) List(ctx context.Context) ([]*v1.Route, error) {
 	}
 
 	var items []*v1.Route
-	for i, item := range routeItems {
+	for _, item := range routeItems.List {
 		route, err := item.route()
 		if err != nil {
 			log.Errorw("failed to convert route item",
 				zap.String("url", r.url),
-				zap.String("route_key", item.Key),
-				zap.String("route_value", string(item.Value)),
 				zap.Error(err),
 			)
 			return nil, err
 		}
 
 		items = append(items, route)
-		log.Debugf("list route #%d, body: %s", i, string(item.Value))
 	}
 
 	return items, nil
@@ -115,7 +112,7 @@ func (r *routeClient) Create(ctx context.Context, obj *v1.Route, shouldCompare b
 	if v, skip := skipRequest(r.cluster, shouldCompare, r.url, obj.ID, obj); skip {
 		return v, nil
 	}
-
+	obj.Name = obj.ID
 	log.Debugw("try to create route",
 		zap.Strings("hosts", obj.Hosts),
 		zap.String("name", obj.Name),

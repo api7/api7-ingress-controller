@@ -97,20 +97,17 @@ func (r *streamRouteClient) List(ctx context.Context) ([]*v1.StreamRoute, error)
 	}
 
 	var items []*v1.StreamRoute
-	for i, item := range streamRouteItems {
+	for _, item := range streamRouteItems.List {
 		streamRoute, err := item.streamRoute()
 		if err != nil {
 			log.Errorw("failed to convert stream_route item",
 				zap.String("url", r.url),
-				zap.String("stream_route_key", item.Key),
-				zap.String("stream_route_value", string(item.Value)),
 				zap.Error(err),
 			)
 			return nil, err
 		}
 
 		items = append(items, streamRoute)
-		log.Debugf("list stream_route #%d, body: %s", i, string(item.Value))
 	}
 	return items, nil
 }
@@ -137,7 +134,7 @@ func (r *streamRouteClient) Create(ctx context.Context, obj *v1.StreamRoute, sho
 	}
 
 	url := r.url + "/" + obj.ID
-	log.Debugw("creating stream_route", zap.ByteString("body", data), zap.String("url", url))
+	log.Infow("creating stream_route", zap.ByteString("body", data), zap.String("url", url))
 	resp, err := r.cluster.createResource(ctx, url, "streamRoute", data)
 	if err != nil {
 		log.Errorf("failed to create stream_route: %s", err)

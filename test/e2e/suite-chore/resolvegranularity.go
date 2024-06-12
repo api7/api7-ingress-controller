@@ -25,6 +25,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
+// PASSING
 var _ = ginkgo.Describe("suite-chore: ApisixRoute resolvegranularity Testing", func() {
 	s := scaffold.NewDefaultScaffold()
 	ginkgo.It("service and upstream [1:m]", func() {
@@ -55,10 +56,10 @@ spec:
 `, backendSvc, backendSvcPort[0])
 		assert.Nil(ginkgo.GinkgoT(), s.CreateResourceFromString(route1))
 		assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "checking number of routes")
-		ups, err := s.ListApisixUpstreams()
+		ups, err := s.ListApisixServices()
 		assert.Nil(ginkgo.GinkgoT(), err)
 		assert.Len(ginkgo.GinkgoT(), ups, 1)
-		assert.Len(ginkgo.GinkgoT(), ups[0].Nodes, 1)
+		assert.Len(ginkgo.GinkgoT(), ups[0].Upstream.Nodes, 1)
 		_ = s.NewAPISIXClient().GET("/ip").
 			WithHeader("Host", "httpbin.org").
 			Expect().
@@ -84,32 +85,32 @@ spec:
 `, backendSvc, backendSvcPort[0])
 		assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(route2))
 		assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(2), "checking number of routes")
-		ups, err = s.ListApisixUpstreams()
+		ups, err = s.ListApisixServices()
 		assert.Nil(ginkgo.GinkgoT(), err)
 		assert.Len(ginkgo.GinkgoT(), ups, 2)
-		if len(ups[0].Nodes) == 1 {
-			assert.Len(ginkgo.GinkgoT(), ups[1].Nodes, 2)
+		if len(ups[0].Upstream.Nodes) == 1 {
+			assert.Len(ginkgo.GinkgoT(), ups[1].Upstream.Nodes, 2)
 		} else {
-			assert.Len(ginkgo.GinkgoT(), ups[0].Nodes, 2)
-			assert.Len(ginkgo.GinkgoT(), ups[1].Nodes, 1)
+			assert.Len(ginkgo.GinkgoT(), ups[0].Upstream.Nodes, 2)
+			assert.Len(ginkgo.GinkgoT(), ups[1].Upstream.Nodes, 1)
 		}
 		_ = s.NewAPISIXClient().GET("/get").
 			WithHeader("Host", "httpbin.com").
 			Expect().
 			Status(http.StatusOK)
-		// Verify consistency after apisix-ingress-controller restart
+		// Verify consistency after api7-ingress-controller restart
 		verify := func() {
 			s.RestartIngressControllerDeploy()
 			time.Sleep(15 * time.Second)
 
-			ups, err = s.ListApisixUpstreams()
+			ups, err = s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Len(ginkgo.GinkgoT(), ups, 2)
-			if len(ups[0].Nodes) == 1 {
-				assert.Len(ginkgo.GinkgoT(), ups[1].Nodes, 2)
+			if len(ups[0].Upstream.Nodes) == 1 {
+				assert.Len(ginkgo.GinkgoT(), ups[1].Upstream.Nodes, 2)
 			} else {
-				assert.Len(ginkgo.GinkgoT(), ups[0].Nodes, 2)
-				assert.Len(ginkgo.GinkgoT(), ups[1].Nodes, 1)
+				assert.Len(ginkgo.GinkgoT(), ups[0].Upstream.Nodes, 2)
+				assert.Len(ginkgo.GinkgoT(), ups[1].Upstream.Nodes, 1)
 			}
 
 			_ = s.NewAPISIXClient().GET("/ip").

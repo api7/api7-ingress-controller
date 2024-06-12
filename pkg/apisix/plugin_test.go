@@ -46,7 +46,11 @@ func (srv *fakeAPISIXPluginSrv) ServeHTTP(w http.ResponseWriter, r *http.Request
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-
+	if strings.HasPrefix(r.URL.Path, "/apisix/admin/plugins/list") {
+		byt, _ := json.Marshal(fakePluginNames)
+		w.Write(byt)
+		return
+	}
 	fakePluginsResp := make(map[string]interface{}, len(srv.plugins))
 	for _, fp := range srv.plugins {
 		fakePluginsResp[fp] = struct{}{}

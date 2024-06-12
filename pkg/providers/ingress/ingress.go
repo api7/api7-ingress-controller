@@ -186,7 +186,7 @@ func (c *ingressController) sync(ctx context.Context, ev *types.Event) error {
 		log.Debugw("translated ingress resource to a couple of routes, upstreams and pluginConfigs",
 			zap.Any("ingress", ing),
 			zap.Any("routes", tctx.Routes),
-			zap.Any("upstreams", tctx.Upstreams),
+			zap.Any("upstreams", tctx.Services),
 			zap.Any("ssl", tctx.SSL),
 			zap.Any("pluginConfigs", tctx.PluginConfigs),
 		)
@@ -195,7 +195,7 @@ func (c *ingressController) sync(ctx context.Context, ev *types.Event) error {
 		m := &utils.Manifest{
 			SSLs:          tctx.SSL,
 			Routes:        tctx.Routes,
-			Upstreams:     tctx.Upstreams,
+			Services:      tctx.Services,
 			PluginConfigs: tctx.PluginConfigs,
 		}
 
@@ -213,7 +213,7 @@ func (c *ingressController) sync(ctx context.Context, ev *types.Event) error {
 			oldCtx, _ := c.translator.TranslateOldIngress(ingEv.OldObject)
 			om := &utils.Manifest{
 				Routes:        oldCtx.Routes,
-				Upstreams:     oldCtx.Upstreams,
+				Services:      oldCtx.Services,
 				SSLs:          oldCtx.SSL,
 				PluginConfigs: oldCtx.PluginConfigs,
 			}

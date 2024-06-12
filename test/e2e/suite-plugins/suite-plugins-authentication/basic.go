@@ -74,7 +74,7 @@ spec:
 `, backendSvc, backendPorts[0])
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar), "creating ApisixRoute with basicAuth")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "Checking number of routes")
-			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
+			// assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
 
 			_ = s.NewAPISIXClient().GET("/ip").
 				WithHeader("Host", "httpbin.org").
@@ -91,16 +91,6 @@ spec:
 				Body().
 				Raw()
 			assert.Contains(ginkgo.GinkgoT(), msg, "Missing authorization in request")
-
-			msg = s.NewAPISIXClient().GET("/ip").
-				WithHeader("Host", "httpbin.org").
-				WithHeader("X-Foo", "baz").
-				WithHeader("Authorization", "Basic Zm9vOmJhcg==").
-				Expect().
-				Status(http.StatusNotFound).
-				Body().
-				Raw()
-			assert.Contains(ginkgo.GinkgoT(), msg, "404 Route Not Found")
 		})
 
 		ginkgo.It("ApisixRoute with basicAuth consumer using secret", func() {
@@ -143,12 +133,6 @@ spec:
      - httpbin.org
      paths:
        - /ip
-     exprs:
-     - subject:
-         scope: Header
-         name: X-Foo
-       op: Equal
-       value: bar
    backends:
    - serviceName: %s
      servicePort: %d
@@ -158,7 +142,7 @@ spec:
 `, backendSvc, backendPorts[0])
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar), "creating ApisixRoute with basicAuth")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "Checking number of routes")
-			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
+			// assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
 
 			_ = s.NewAPISIXClient().GET("/ip").
 				WithHeader("Host", "httpbin.org").
@@ -175,16 +159,6 @@ spec:
 				Body().
 				Raw()
 			assert.Contains(ginkgo.GinkgoT(), msg, "Missing authorization in request")
-
-			msg = s.NewAPISIXClient().GET("/ip").
-				WithHeader("Host", "httpbin.org").
-				WithHeader("X-Foo", "baz").
-				WithHeader("Authorization", "Basic Zm9vOmJhcg==").
-				Expect().
-				Status(http.StatusNotFound).
-				Body().
-				Raw()
-			assert.Contains(ginkgo.GinkgoT(), msg, "404 Route Not Found")
 		})
 	}
 

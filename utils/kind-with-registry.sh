@@ -49,6 +49,20 @@ if [ "${running}" != 'true' ]; then
     registry:2
 fi
 
+# start api7 control plane
+export API7_NETWORK="${kind_network}"
+echo "Creating kind network: ${kind_network}"
+if ! docker network ls | grep -q "$kind_network"; then
+  # Create the network
+  docker network create "$kind_network"
+  echo "Network '$kind_network' created."
+else
+  echo "Network '$kind_network' already exists."
+fi
+
+./docker-compose/generate_env.sh
+./docker-compose/run_control_plane.sh start
+
 reg_host="${reg_name}"
 if [ "${kind_network}" = "bridge" ]; then
     reg_host="$(docker inspect -f '{{.NetworkSettings.IPAddress}}' "${reg_name}")"
@@ -57,6 +71,10 @@ echo "Registry Host: ${reg_host}"
 
 # create a cluster with the local registry enabled in containerd
 kind_node_image="kindest/node:${K8S_VERSION}"
+
+echo "REPOSITORY: ${REPOSITORY}"
+echo "reg_port: ${reg_port}"
+echo "reg_host: ${reg_host}"
 echo "Kubernetes version: ${kind_node_image}"
 cat <<EOF | kind create cluster --name "${KIND_CLUSTER_NAME}" --image ${kind_node_image} --config=-
 kind: Cluster

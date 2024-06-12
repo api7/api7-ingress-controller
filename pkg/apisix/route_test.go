@@ -21,8 +21,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sort"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -34,27 +32,7 @@ import (
 )
 
 type fakeAPISIXRouteSrv struct {
-	route map[string]json.RawMessage
-}
-
-type fakeListResp struct {
-	Count string   `json:"count"`
-	Node  fakeNode `json:"node"`
-}
-
-type fakeCreateResp struct {
-	Action string   `json:"action"`
-	Node   fakeItem `json:"node"`
-}
-
-type fakeNode struct {
-	Key   string     `json:"key"`
-	Items []fakeItem `json:"nodes"`
-}
-
-type fakeItem struct {
-	Key   string          `json:"key"`
-	Value json.RawMessage `json:"value"`
+	route map[string]map[string]interface{}
 }
 
 func (srv *fakeAPISIXRouteSrv) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -66,32 +44,39 @@ func (srv *fakeAPISIXRouteSrv) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	}
 
 	if r.Method == http.MethodGet {
-		resp := fakeListResp{
-			Count: strconv.Itoa(len(srv.route)),
-			Node: fakeNode{
-				Key: "/apisix/routes",
-			},
+		//For individual resource, the getcreate response is sent
+		var key string
+		if strings.HasPrefix(r.URL.Path, "/apisix/admin/routes/") && strings.TrimPrefix(r.URL.Path, "/apisix/admin/routes/") != "" {
+			key = strings.TrimPrefix(r.URL.Path, "/apisix/admin/routes/")
 		}
-		var keys []string
-		for key := range srv.route {
-			keys = append(keys, key)
+		if key != "" {
+			resp := fakeGetCreateResp{
+				fakeGetCreateItem{
+					Key:   key,
+					Value: srv.route[key],
+				},
+			}
+			resp.fakeGetCreateItem.Value = srv.route[key]
+			w.WriteHeader(http.StatusOK)
+			data, _ := json.Marshal(resp)
+			_, _ = w.Write(data)
+		} else {
+			resp := fakeListResp{}
+			resp.Total = fmt.Sprintf("%d", len(srv.route))
+			resp.List = make([]fakeListItem, 0, len(srv.route))
+			for _, v := range srv.route {
+				resp.List = append(resp.List, v)
+			}
+			data, _ := json.Marshal(resp)
+			_, _ = w.Write(data)
 		}
-		sort.Strings(keys)
-		for _, key := range keys {
-			resp.Node.Items = append(resp.Node.Items, fakeItem{
-				Key:   key,
-				Value: srv.route[key],
-			})
-		}
-		w.WriteHeader(http.StatusOK)
-		data, _ := json.Marshal(resp)
-		_, _ = w.Write(data)
+
 		return
 	}
 
 	if r.Method == http.MethodDelete {
 		id := strings.TrimPrefix(r.URL.Path, "/apisix/admin/routes/")
-		id = "/apisix/routes/" + id
+		id = "/apisix/admin/routes/" + id
 		code := http.StatusNotFound
 		if _, ok := srv.route[id]; ok {
 			delete(srv.route, id)
@@ -102,15 +87,18 @@ func (srv *fakeAPISIXRouteSrv) ServeHTTP(w http.ResponseWriter, r *http.Request)
 
 	if r.Method == http.MethodPut {
 		paths := strings.Split(r.URL.Path, "/")
-		key := fmt.Sprintf("/apisix/routes/%s", paths[len(paths)-1])
+		key := fmt.Sprintf("/apisix/admin/routes/%s", paths[len(paths)-1])
 		data, _ := io.ReadAll(r.Body)
-		srv.route[key] = data
 		w.WriteHeader(http.StatusCreated)
-		resp := fakeCreateResp{
-			Action: "create",
-			Node: fakeItem{
+		gr := make(map[string]interface{}, 0)
+		json.Unmarshal(data, &gr)
+		srv.route[key] = gr
+		var val Value
+		json.Unmarshal(data, &val)
+		resp := fakeGetCreateResp{
+			fakeGetCreateItem{
+				Value: val,
 				Key:   key,
-				Value: json.RawMessage(data),
 			},
 		}
 		data, _ = json.Marshal(resp)
@@ -120,25 +108,34 @@ func (srv *fakeAPISIXRouteSrv) ServeHTTP(w http.ResponseWriter, r *http.Request)
 
 	if r.Method == http.MethodPatch {
 		id := strings.TrimPrefix(r.URL.Path, "/apisix/admin/routes/")
-		id = "/apisix/routes/" + id
+		id = "/apisix/admin/routes/" + id
 		if _, ok := srv.route[id]; !ok {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
 		data, _ := io.ReadAll(r.Body)
-		srv.route[id] = data
-
+		var val Value
+		json.Unmarshal(data, &val)
+		gr := make(map[string]interface{}, 0)
+		json.Unmarshal(data, &gr)
+		srv.route[id] = gr
 		w.WriteHeader(http.StatusOK)
-		output := fmt.Sprintf(`{"action": "compareAndSwap", "node": {"key": "%s", "value": %s}}`, id, string(data))
-		_, _ = w.Write([]byte(output))
+		resp := fakeGetCreateResp{
+			fakeGetCreateItem{
+				Value: val,
+				Key:   id,
+			},
+		}
+		byt, _ := json.Marshal(resp)
+		_, _ = w.Write([]byte(byt))
 		return
 	}
 }
 
 func runFakeRouteSrv(t *testing.T) *http.Server {
 	srv := &fakeAPISIXRouteSrv{
-		route: make(map[string]json.RawMessage),
+		route: make(map[string]map[string]interface{}),
 	}
 
 	ln, _ := nettest.NewLocalListener("tcp")
@@ -186,9 +183,9 @@ func TestRouteClient(t *testing.T) {
 			ID:   "1",
 			Name: "test",
 		},
-		Host:       "www.foo.com",
-		Uri:        "/bar",
-		UpstreamId: "1",
+		Host:      "www.foo.com",
+		Uri:       "/bar",
+		ServiceID: "1",
 	}, false)
 	assert.Nil(t, err)
 	assert.Equal(t, "1", obj.ID)
@@ -198,9 +195,9 @@ func TestRouteClient(t *testing.T) {
 			ID:   "2",
 			Name: "test",
 		},
-		Host:       "www.foo.com",
-		Uri:        "/bar",
-		UpstreamId: "1",
+		Host:      "www.foo.com",
+		Uri:       "/bar",
+		ServiceID: "1",
 	}, false)
 	assert.Nil(t, err)
 	assert.Equal(t, "2", obj.ID)
@@ -225,9 +222,9 @@ func TestRouteClient(t *testing.T) {
 			ID:   "2",
 			Name: "test",
 		},
-		Host:       "www.foo.com",
-		Uri:        "/bar",
-		UpstreamId: "112",
+		Host:      "www.foo.com",
+		Uri:       "/bar",
+		ServiceID: "112",
 	}, false)
 	assert.Nil(t, err)
 	objs, err = cli.List(context.Background())

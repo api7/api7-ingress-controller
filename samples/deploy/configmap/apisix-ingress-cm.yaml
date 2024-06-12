@@ -40,7 +40,7 @@ data:
     kubernetes:
       kubeconfig: ""         # the Kubernetes configuration file path, default is
                              # "", so the in-cluster configuration will be used.
-      resync_interval: "6h" # how long should apisix-ingress-controller
+      resync_interval: "6h" # how long should api7-ingress-controller
                              # re-synchronizes with Kubernetes, default is 6h,
                              # and the minimal resync interval is 30s.
 

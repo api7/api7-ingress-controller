@@ -24,6 +24,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
+// PASSING
 var _ = ginkgo.Describe("suite-chore: Chaos Testing", func() {
 	s := scaffold.NewDefaultScaffold()
 	ginkgo.Context("simulate apisix deployment restart", func() {

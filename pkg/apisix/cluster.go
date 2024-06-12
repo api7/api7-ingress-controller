@@ -18,6 +18,7 @@ package apisix
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -75,6 +76,7 @@ var (
 		}).DialContext,
 		ResponseHeaderTimeout: 30 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 	}
 )
 
@@ -112,7 +114,7 @@ type cluster struct {
 	cacheSyncErr            error
 	syncComparison          bool
 	route                   Route
-	upstream                Upstream
+	service                 Service
 	ssl                     SSL
 	streamRoute             StreamRoute
 	globalRules             GlobalRule
@@ -145,6 +147,13 @@ func newCluster(ctx context.Context, o *ClusterOptions) (Cluster, error) {
 	if err != nil {
 		return nil, err
 	}
+	if u.Port() == "" {
+		if u.Scheme == "http" {
+			u.Host = u.Host + ":80"
+		} else if u.Scheme == "https" {
+			u.Host = u.Host + ":443"
+		}
+	}
 
 	// if the version is not v3, then fallback to v2
 	adminVersion := o.AdminAPIVersion
@@ -176,9 +185,9 @@ func newCluster(ctx context.Context, o *ClusterOptions) (Cluster, error) {
 		)
 		c.adapter = adapter.NewEtcdAdapter(nil)
 		c.route = newRouteMem(c)
-		c.upstream = newUpstreamMem(c)
-		c.ssl = newSSLMem(c)
 		c.streamRoute = newStreamRouteMem(c)
+		c.service = newServiceMem(c)
+		c.ssl = newSSLMem(c)
 		c.globalRules = newGlobalRuleMem(c)
 		c.consumer = newConsumerMem(c)
 		c.plugin = newPluginClient(c)
@@ -206,7 +215,7 @@ func newCluster(ctx context.Context, o *ClusterOptions) (Cluster, error) {
 		go c.adapter.Serve(ctx, ln)
 	} else {
 		c.route = newRouteClient(c)
-		c.upstream = newUpstreamClient(c)
+		c.service = newServiceClient(c)
 		c.ssl = newSSLClient(c)
 		c.streamRoute = newStreamRouteClient(c)
 		c.globalRules = newGlobalRuleClient(c)
@@ -298,19 +307,9 @@ func (c *cluster) syncCacheOnce(ctx context.Context) (bool, error) {
 		log.Errorf("failed to list routes in APISIX: %s", err)
 		return false, err
 	}
-	upstreams, err := c.upstream.List(ctx)
-	if err != nil {
-		log.Errorf("failed to list upstreams in APISIX: %s", err)
-		return false, err
-	}
 	ssl, err := c.ssl.List(ctx)
 	if err != nil {
 		log.Errorf("failed to list ssl in APISIX: %s", err)
-		return false, err
-	}
-	streamRoutes, err := c.streamRoute.List(ctx)
-	if err != nil {
-		log.Errorf("failed to list stream_routes in APISIX: %s", err)
 		return false, err
 	}
 	globalRules, err := c.globalRules.List(ctx)
@@ -321,11 +320,6 @@ func (c *cluster) syncCacheOnce(ctx context.Context) (bool, error) {
 	consumers, err := c.consumer.List(ctx)
 	if err != nil {
 		log.Errorf("failed to list consumers in APISIX: %s", err)
-		return false, err
-	}
-	pluginConfigs, err := c.pluginConfig.List(ctx)
-	if err != nil {
-		log.Errorf("failed to list plugin_configs in APISIX: %s", err)
 		return false, err
 	}
 
@@ -339,30 +333,10 @@ func (c *cluster) syncCacheOnce(ctx context.Context) (bool, error) {
 			return false, err
 		}
 	}
-	for _, u := range upstreams {
-		if err := c.cache.InsertUpstream(u); err != nil {
-			log.Errorw("failed to insert upstream to cache",
-				zap.String("upstream", u.ID),
-				zap.String("cluster", c.name),
-				zap.String("error", err.Error()),
-			)
-			return false, err
-		}
-	}
 	for _, s := range ssl {
 		if err := c.cache.InsertSSL(s); err != nil {
 			log.Errorw("failed to insert ssl to cache",
 				zap.String("ssl", s.ID),
-				zap.String("cluster", c.name),
-				zap.String("error", err.Error()),
-			)
-			return false, err
-		}
-	}
-	for _, sr := range streamRoutes {
-		if err := c.cache.InsertStreamRoute(sr); err != nil {
-			log.Errorw("failed to insert stream_route to cache",
-				zap.Any("stream_route", sr),
 				zap.String("cluster", c.name),
 				zap.String("error", err.Error()),
 			)
@@ -388,16 +362,16 @@ func (c *cluster) syncCacheOnce(ctx context.Context) (bool, error) {
 			)
 		}
 	}
-	for _, u := range pluginConfigs {
-		if err := c.cache.InsertPluginConfig(u); err != nil {
-			log.Errorw("failed to insert pluginConfig to cache",
-				zap.String("pluginConfig", u.ID),
-				zap.String("cluster", c.name),
-				zap.String("error", err.Error()),
-			)
-			return false, err
-		}
-	}
+	// for _, u := range pluginConfigs {
+	// 	if err := c.cache.InsertPluginConfig(u); err != nil {
+	// 		log.Errorw("failed to insert pluginConfig to cache",
+	// 			zap.String("pluginConfig", u.ID),
+	// 			zap.String("cluster", c.name),
+	// 			zap.String("error", err.Error()),
+	// 		)
+	// 		return false, err
+	// 	}
+	// }
 	return true, nil
 }
 
@@ -427,7 +401,7 @@ func (c *cluster) HasSynced(ctx context.Context) error {
 		return ctx.Err()
 	case <-c.cacheSynced:
 		if c.cacheSyncErr != nil {
-			// See https://github.com/apache/apisix-ingress-controller/issues/448
+			// See https://github.com/apache/api7-ingress-controller/issues/448
 			// for more details.
 			return c.cacheSyncErr
 		}
@@ -522,8 +496,8 @@ func (c *cluster) Route() Route {
 }
 
 // Upstream implements Cluster.Upstream method.
-func (c *cluster) Upstream() Upstream {
-	return c.upstream
+func (c *cluster) Service() Service {
+	return c.service
 }
 
 // SSL implements Cluster.SSL method.
@@ -641,7 +615,7 @@ func (c *cluster) isFunctionDisabled(body string) bool {
 	return strings.Contains(body, "is disabled")
 }
 
-func (c *cluster) getResource(ctx context.Context, url, resource string) (*item, error) {
+func (c *cluster) getResource(ctx context.Context, url, resource string) (*getResponse, error) {
 	log.Debugw("get resource in cluster",
 		zap.String("cluster_name", c.name),
 		zap.String("name", resource),
@@ -677,7 +651,7 @@ func (c *cluster) getResource(ctx context.Context, url, resource string) (*item,
 	}
 
 	if c.adminVersion == "v3" {
-		var res item
+		var res getResponse
 
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&res); err != nil {
@@ -691,10 +665,10 @@ func (c *cluster) getResource(ctx context.Context, url, resource string) (*item,
 	if err := dec.Decode(&res); err != nil {
 		return nil, err
 	}
-	return &res.Item, nil
+	return &res, nil
 }
 
-func (c *cluster) listResource(ctx context.Context, url, resource string) (items, error) {
+func (c *cluster) listResource(ctx context.Context, url, resource string) (listResponse, error) {
 	log.Debugw("list resource in cluster",
 		zap.String("cluster_name", c.name),
 		zap.String("name", resource),
@@ -704,13 +678,14 @@ func (c *cluster) listResource(ctx context.Context, url, resource string) (items
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, err
+		return listResponse{}, err
 	}
 	start := time.Now()
 	resp, err := c.do(req)
 	if err != nil {
-		return nil, err
+		return listResponse{}, err
 	}
+	//count and node
 	c.metricsCollector.RecordAPISIXLatency(time.Since(start), "list")
 	c.metricsCollector.RecordAPISIXCode(resp.StatusCode, resource)
 
@@ -718,32 +693,32 @@ func (c *cluster) listResource(ctx context.Context, url, resource string) (items
 	if resp.StatusCode != http.StatusOK {
 		body := readBody(resp.Body, url)
 		if c.isFunctionDisabled(body) {
-			return nil, ErrFunctionDisabled
+			return listResponse{}, ErrFunctionDisabled
 		}
 		err = multierr.Append(err, fmt.Errorf("unexpected status code %d", resp.StatusCode))
 		err = multierr.Append(err, fmt.Errorf("error message: %s", body))
-		return nil, err
+		return listResponse{}, err
 	}
-
 	if c.adminVersion == "v3" {
-		var list listResponseV3
-
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&list); err != nil {
-			return nil, err
+		var list listResponse
+		byt, _ := io.ReadAll(resp.Body)
+		err := json.Unmarshal(byt, &list)
+		if err != nil {
+			return listResponse{}, err
 		}
-		return list.List, nil
+		return list, nil
 	}
 	var list listResponse
 
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&list); err != nil {
-		return nil, err
+	byt, _ := io.ReadAll(resp.Body)
+	err = json.Unmarshal(byt, &list)
+	if err != nil {
+		return listResponse{}, err
 	}
-	return list.Node.Items, nil
+	return list, nil
 }
 
-func (c *cluster) createResource(ctx context.Context, url, resource string, body []byte) (*item, error) {
+func (c *cluster) createResource(ctx context.Context, url, resource string, body []byte) (*getResponse, error) {
 	log.Debugw("creating resource in cluster",
 		zap.String("cluster_name", c.name),
 		zap.String("name", resource),
@@ -751,11 +726,11 @@ func (c *cluster) createResource(ctx context.Context, url, resource string, body
 		zap.ByteString("body", body),
 	)
 	c.metricsCollector.IncrAPISIXWriteRequest(resource)
-
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Content-Type", "application/json")
 	start := time.Now()
 	resp, err := c.do(req)
 	if err != nil {
@@ -763,9 +738,7 @@ func (c *cluster) createResource(ctx context.Context, url, resource string, body
 	}
 	c.metricsCollector.RecordAPISIXLatency(time.Since(start), "create")
 	c.metricsCollector.RecordAPISIXCode(resp.StatusCode, resource)
-
 	defer drainBody(resp.Body, url)
-
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 		body := readBody(resp.Body, url)
 		if c.isFunctionDisabled(body) {
@@ -777,24 +750,25 @@ func (c *cluster) createResource(ctx context.Context, url, resource string, body
 	}
 
 	if c.adminVersion == "v3" {
-		var cr createResponseV3
+		var cr getResponse
 
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&cr); err != nil {
+		byt, err := io.ReadAll(resp.Body)
+		if err != nil {
 			return nil, err
 		}
-
-		return &cr.item, nil
+		json.Unmarshal(byt, &cr)
+		return &cr, nil
 	}
-	var cr createResponse
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&cr); err != nil {
+	var cr getResponse
+	byt, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return nil, err
 	}
-	return &cr.Item, nil
+	json.Unmarshal(byt, &cr)
+	return &cr, nil
 }
 
-func (c *cluster) updateResource(ctx context.Context, url, resource string, body []byte) (*item, error) {
+func (c *cluster) updateResource(ctx context.Context, url, resource string, body []byte) (*getResponse, error) {
 	log.Debugw("updating resource in cluster",
 		zap.String("cluster_name", c.name),
 		zap.String("name", resource),
@@ -807,6 +781,7 @@ func (c *cluster) updateResource(ctx context.Context, url, resource string, body
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Content-Type", "application/json")
 	start := time.Now()
 	resp, err := c.do(req)
 	if err != nil {
@@ -838,25 +813,23 @@ func (c *cluster) updateResource(ctx context.Context, url, resource string, body
 			return nil, err
 		}
 
-		return &ur.item, nil
+		return &ur, nil
 	}
 	var ur updateResponse
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&ur); err != nil {
 		return nil, err
 	}
-	return &ur.Item, nil
+	return &ur, nil
 }
 
 func (c *cluster) deleteResource(ctx context.Context, url, resource string) error {
-	url = url + "?force=true"
 	log.Debugw("deleting resource in cluster",
 		zap.String("cluster_name", c.name),
 		zap.String("name", resource),
 		zap.String("url", url),
 	)
 	c.metricsCollector.IncrAPISIXWriteRequest(resource)
-
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return err
@@ -921,8 +894,9 @@ func readBody(r io.ReadCloser, url string) string {
 }
 
 // getSchema returns the schema of APISIX object.
-func (c *cluster) getSchema(ctx context.Context, url, resource string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+func (c *cluster) getSchema(_ context.Context, url, resource string) (string, error) {
+	//TODO: fixme The above passed context gets cancelled for some reason. Investigate
+	req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, url, nil)
 	if err != nil {
 		return "", err
 	}
@@ -973,6 +947,20 @@ func (c *cluster) getList(ctx context.Context, url, resource string) ([]string, 
 		return nil, err
 	}
 
+	// In EE, for plugins the response is an array of string and not an object.
+	//sent to /list
+	if resource == "plugin" {
+		byt, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		var listResponse []string
+		err = json.Unmarshal(byt, &listResponse)
+		if err != nil {
+			return nil, err
+		}
+		return listResponse, nil
+	}
 	var listResponse map[string]interface{}
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&listResponse); err != nil {
@@ -1011,8 +999,6 @@ func (c *cluster) GetGlobalRule(ctx context.Context, baseUrl, id string) (*v1.Gl
 	if err != nil {
 		log.Errorw("failed to convert global_rule item",
 			zap.String("url", url),
-			zap.String("global_rule_key", resp.Key),
-			zap.String("global_rule_value", string(resp.Value)),
 			zap.Error(err),
 		)
 		return nil, err
@@ -1046,8 +1032,6 @@ func (c *cluster) GetConsumer(ctx context.Context, baseUrl, name string) (*v1.Co
 	if err != nil {
 		log.Errorw("failed to convert consumer item",
 			zap.String("url", url),
-			zap.String("consumer_key", resp.Key),
-			zap.String("consumer_value", string(resp.Value)),
 			zap.Error(err),
 		)
 		return nil, err
@@ -1080,8 +1064,6 @@ func (c *cluster) GetPluginConfig(ctx context.Context, baseUrl, id string) (*v1.
 	if err != nil {
 		log.Errorw("failed to convert pluginConfig item",
 			zap.String("url", url),
-			zap.String("pluginConfig_key", resp.Key),
-			zap.String("pluginConfig_value", string(resp.Value)),
 			zap.Error(err),
 		)
 		return nil, err
@@ -1114,8 +1096,6 @@ func (c *cluster) GetRoute(ctx context.Context, baseUrl, id string) (*v1.Route, 
 	if err != nil {
 		log.Errorw("failed to convert route item",
 			zap.String("url", url),
-			zap.String("route_key", resp.Key),
-			zap.String("route_value", string(resp.Value)),
 			zap.Error(err),
 		)
 		return nil, err
@@ -1148,8 +1128,6 @@ func (c *cluster) GetStreamRoute(ctx context.Context, baseUrl, id string) (*v1.S
 	if err != nil {
 		log.Errorw("failed to convert stream_route item",
 			zap.String("url", url),
-			zap.String("stream_route_key", resp.Key),
-			zap.String("stream_route_value", string(resp.Value)),
 			zap.Error(err),
 		)
 		return nil, err
@@ -1157,18 +1135,18 @@ func (c *cluster) GetStreamRoute(ctx context.Context, baseUrl, id string) (*v1.S
 	return streamRoute, nil
 }
 
-func (c *cluster) GetUpstream(ctx context.Context, baseUrl, id string) (*v1.Upstream, error) {
+func (c *cluster) GetService(ctx context.Context, baseUrl, id string) (*v1.Service, error) {
 	url := baseUrl + "/" + id
-	resp, err := c.getResource(ctx, url, "upstream")
+	resp, err := c.getResource(ctx, url, "service")
 	if err != nil {
 		if err == cache.ErrNotFound {
-			log.Debugw("upstream not found",
+			log.Debugw("service not found",
 				zap.String("id", id),
 				zap.String("url", url),
 				zap.String("cluster", c.name),
 			)
 		} else {
-			log.Errorw("failed to get upstream from APISIX",
+			log.Errorw("failed to get service from APISIX",
 				zap.String("id", id),
 				zap.String("url", url),
 				zap.String("cluster", c.name),
@@ -1178,16 +1156,15 @@ func (c *cluster) GetUpstream(ctx context.Context, baseUrl, id string) (*v1.Upst
 		return nil, err
 	}
 
-	ups, err := resp.upstream()
+	svc, err := resp.service()
 	if err != nil {
-		log.Errorw("failed to convert upstream item",
+		log.Errorw("failed to convert service item",
 			zap.String("url", url),
-			zap.String("ssl_key", resp.Key),
 			zap.Error(err),
 		)
 		return nil, err
 	}
-	return ups, nil
+	return svc, nil
 }
 
 func (c *cluster) GetSSL(ctx context.Context, baseUrl, id string) (*v1.Ssl, error) {
@@ -1214,7 +1191,6 @@ func (c *cluster) GetSSL(ctx context.Context, baseUrl, id string) (*v1.Ssl, erro
 	if err != nil {
 		log.Errorw("failed to convert ssl item",
 			zap.String("url", url),
-			zap.String("ssl_key", resp.Key),
 			zap.Error(err),
 		)
 		return nil, err

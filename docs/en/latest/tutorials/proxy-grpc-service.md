@@ -27,7 +27,7 @@ In this practice, we will introduce how to proxy the gRPC service.
 
 * Prepare an available Kubernetes cluster in your workstation, we recommend you to use [KIND](https://kind.sigs.k8s.io/docs/user/quick-start/) to create a local Kubernetes cluster.
 * Install [Apache APISIX](https://github.com/apache/apisix) in Kubernetes by [Helm Chart](https://github.com/apache/apisix-helm-chart).
-* Install [apisix-ingress-controller](https://github.com/apache/apisix-ingress-controller/blob/master/install.md).
+* Install [api7-ingress-controller](https://github.com/apache/api7-ingress-controller/blob/master/install.md).
 
 Please note that in this practice, all components will be installed in the `ingress-apisix` namespace. If your Kubernetes cluster does not have such namespace, please create it first.
 
@@ -48,7 +48,7 @@ helm install apisix apisix/apisix -n ingress-apisix \
   --set ingress-controller.config.apisix.adminAPIVersion=$ADMIN_API_VERSION
 ```
 
-Check that all related components have been installed successfully, including ETCD cluster / APISIX / apisix-ingress-controller.
+Check that all related components have been installed successfully, including ETCD cluster / APISIX / api7-ingress-controller.
 
 ```shell
 $ kubectl get pod -n ingress-apisix
@@ -57,7 +57,7 @@ apisix-569f94b7b6-qt5jj                     1/1     Running   0          101m
 apisix-etcd-0                               1/1     Running   0          101m
 apisix-etcd-1                               1/1     Running   0          101m
 apisix-etcd-2                               1/1     Running   0          101m
-apisix-ingress-controller-b5f5d49db-r9cxb   1/1     Running   0          101m
+api7-ingress-controller-b5f5d49db-r9cxb   1/1     Running   0          101m
 ```
 
 ## Prepare a gRPC service
@@ -168,7 +168,7 @@ apisix-admin                ClusterIP   10.96.49.113   <none>        9180/TCP   
 apisix-etcd                 ClusterIP   10.96.81.162   <none>        2379/TCP,2380/TCP            98m
 apisix-etcd-headless        ClusterIP   None           <none>        2379/TCP,2380/TCP            98m
 apisix-gateway              NodePort    10.96.74.145   <none>        80:32600/TCP,443:32103/TCP   98m
-apisix-ingress-controller   ClusterIP   10.96.78.108   <none>        80/TCP                       98m
+api7-ingress-controller   ClusterIP   10.96.78.108   <none>        80/TCP                       98m
 yages                       ClusterIP   10.96.37.236   <none>        9000/TCP                     94m
 ```
 

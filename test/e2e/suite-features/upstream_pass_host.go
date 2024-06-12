@@ -24,6 +24,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
+// PASSING
 var _ = ginkgo.Describe("suite-features: upstream pass host", func() {
 	suites := func(scaffoldFunc func() *scaffold.Scaffold) {
 		s := scaffoldFunc()
@@ -65,10 +66,10 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err, "create ApisixUpstream")
 			time.Sleep(2 * time.Second)
 
-			ups, err := s.ListApisixUpstreams()
+			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
-			assert.Equal(ginkgo.GinkgoT(), "node", ups[0].PassHost)
+			assert.Equal(ginkgo.GinkgoT(), "node", ups[0].Upstream.PassHost)
 		})
 
 		ginkgo.It("is set to rewrite with upstream host", func() {
@@ -91,11 +92,11 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err, "create ApisixUpstream")
 			time.Sleep(2 * time.Second)
 
-			ups, err := s.ListApisixUpstreams()
+			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
-			assert.Equal(ginkgo.GinkgoT(), "rewrite", ups[0].PassHost)
-			assert.Equal(ginkgo.GinkgoT(), "host", ups[0].UpstreamHost)
+			assert.Equal(ginkgo.GinkgoT(), "rewrite", ups[0].Upstream.PassHost)
+			assert.Equal(ginkgo.GinkgoT(), "host", ups[0].Upstream.UpstreamHost)
 		})
 
 		ginkgo.It("is set to node with upstream host", func() {
@@ -118,11 +119,11 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err, "create ApisixUpstream")
 			time.Sleep(2 * time.Second)
 
-			ups, err := s.ListApisixUpstreams()
+			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
-			assert.Equal(ginkgo.GinkgoT(), "node", ups[0].PassHost)
-			assert.Equal(ginkgo.GinkgoT(), "host", ups[0].UpstreamHost)
+			assert.Equal(ginkgo.GinkgoT(), "node", ups[0].Upstream.PassHost)
+			assert.Equal(ginkgo.GinkgoT(), "host", ups[0].Upstream.UpstreamHost)
 		})
 
 		ginkgo.It("is set to invalid value", func() {

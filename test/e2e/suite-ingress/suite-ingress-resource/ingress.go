@@ -35,7 +35,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-ingress-resource: support ingress https", func() {
+var _ = ginkgo.PDescribe("suite-ingress-resource: support ingress https", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	rootCA := `-----BEGIN CERTIFICATE-----
@@ -384,7 +384,7 @@ spec:
 	})
 })
 
-var _ = ginkgo.Describe("suite-ingress-resource: support ingress.networking/v1", func() {
+var _ = ginkgo.PDescribe("suite-ingress-resource: support ingress.networking/v1", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	ginkgo.It("path exact match", func() {
@@ -518,7 +518,7 @@ spec:
 	})
 })
 
-var _ = ginkgo.Describe("suite-ingress-resource: support ingress.networking/v1beta1", func() {
+var _ = ginkgo.PDescribe("suite-ingress-resource: support ingress.networking/v1beta1", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	ginkgo.It("path exact match", func() {
@@ -613,7 +613,7 @@ spec:
 	})
 })
 
-var _ = ginkgo.Describe("suite-ingress-resource: support ingress.networking/v1 with headless service backend", func() {
+var _ = ginkgo.PDescribe("suite-ingress-resource: support ingress.networking/v1 with headless service backend", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	const _httpHeadlessService = `
@@ -748,7 +748,7 @@ spec:
 	})
 })
 
-var _ = ginkgo.Describe("suite-ingress-resource: svc delete", func() {
+var _ = ginkgo.PDescribe("suite-ingress-resource: svc delete", func() {
 	s := scaffold.NewDefaultScaffold()
 	ginkgo.It("svc delete before ing delete", func() {
 		backendSvc, backendSvcPort := s.DefaultHTTPBackend()

@@ -22,8 +22,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sort"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -35,7 +33,7 @@ import (
 )
 
 type fakeAPISIXSSLSrv struct {
-	ssl map[string]json.RawMessage
+	ssl map[string]map[string]interface{}
 }
 
 func (srv *fakeAPISIXSSLSrv) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -47,32 +45,39 @@ func (srv *fakeAPISIXSSLSrv) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodGet {
-		resp := fakeListResp{
-			Count: strconv.Itoa(len(srv.ssl)),
-			Node: fakeNode{
-				Key: "/apisix/ssl",
-			},
+		//For individual resource, the getcreate response is sent
+		var key string
+		if strings.HasPrefix(r.URL.Path, "/apisix/admin/ssl/") && strings.TrimPrefix(r.URL.Path, "/apisix/admin/ssl/") != "" {
+			key = strings.TrimPrefix(r.URL.Path, "/apisix/admin/ssl/")
 		}
-		var keys []string
-		for key := range srv.ssl {
-			keys = append(keys, key)
+		if key != "" {
+			resp := fakeGetCreateResp{
+				fakeGetCreateItem{
+					Key:   key,
+					Value: srv.ssl[key],
+				},
+			}
+			resp.fakeGetCreateItem.Value = srv.ssl[key]
+			w.WriteHeader(http.StatusOK)
+			data, _ := json.Marshal(resp)
+			_, _ = w.Write(data)
+		} else {
+			resp := fakeListResp{}
+			resp.Total = fmt.Sprintf("%d", len(srv.ssl))
+			resp.List = make([]fakeListItem, 0, len(srv.ssl))
+			for _, v := range srv.ssl {
+				resp.List = append(resp.List, v)
+			}
+			data, _ := json.Marshal(resp)
+			_, _ = w.Write(data)
 		}
-		sort.Strings(keys)
-		for _, key := range keys {
-			resp.Node.Items = append(resp.Node.Items, fakeItem{
-				Key:   key,
-				Value: srv.ssl[key],
-			})
-		}
-		w.WriteHeader(http.StatusOK)
-		data, _ := json.Marshal(resp)
-		_, _ = w.Write(data)
+
 		return
 	}
 
 	if r.Method == http.MethodDelete {
 		id := strings.TrimPrefix(r.URL.Path, "/apisix/admin/ssl/")
-		id = "/apisix/ssl/" + id
+		id = "/apisix/admin/ssl/" + id
 		code := http.StatusNotFound
 		if _, ok := srv.ssl[id]; ok {
 			delete(srv.ssl, id)
@@ -80,18 +85,20 @@ func (srv *fakeAPISIXSSLSrv) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		w.WriteHeader(code)
 	}
-
 	if r.Method == http.MethodPut {
 		paths := strings.Split(r.URL.Path, "/")
-		key := fmt.Sprintf("/apisix/ssl/%s", paths[len(paths)-1])
+		key := fmt.Sprintf("/apisix/admin/ssl/%s", paths[len(paths)-1])
 		data, _ := io.ReadAll(r.Body)
-		srv.ssl[key] = data
 		w.WriteHeader(http.StatusCreated)
-		resp := fakeCreateResp{
-			Action: "create",
-			Node: fakeItem{
+		gr := make(map[string]interface{}, 0)
+		json.Unmarshal(data, &gr)
+		srv.ssl[key] = gr
+		var val Value
+		json.Unmarshal(data, &val)
+		resp := fakeGetCreateResp{
+			fakeGetCreateItem{
+				Value: val,
 				Key:   key,
-				Value: json.RawMessage(data),
 			},
 		}
 		data, _ = json.Marshal(resp)
@@ -101,25 +108,34 @@ func (srv *fakeAPISIXSSLSrv) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPatch {
 		id := strings.TrimPrefix(r.URL.Path, "/apisix/admin/ssl/")
-		id = "/apisix/ssl/" + id
+		id = "/apisix/admin/ssl/" + id
 		if _, ok := srv.ssl[id]; !ok {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
 		data, _ := io.ReadAll(r.Body)
-		srv.ssl[id] = data
-
+		var val Value
+		json.Unmarshal(data, &val)
+		gr := make(map[string]interface{}, 0)
+		json.Unmarshal(data, &gr)
+		srv.ssl[id] = gr
 		w.WriteHeader(http.StatusOK)
-		output := fmt.Sprintf(`{"action": "compareAndSwap", "node": {"key": "%s", "value": %s}}`, id, string(data))
-		_, _ = w.Write([]byte(output))
+		resp := fakeGetCreateResp{
+			fakeGetCreateItem{
+				Value: val,
+				Key:   id,
+			},
+		}
+		byt, _ := json.Marshal(resp)
+		_, _ = w.Write([]byte(byt))
 		return
 	}
 }
 
 func runFakeSSLSrv(t *testing.T) *http.Server {
 	srv := &fakeAPISIXSSLSrv{
-		ssl: make(map[string]json.RawMessage),
+		ssl: make(map[string]map[string]interface{}),
 	}
 
 	ln, _ := nettest.NewLocalListener("tcp")

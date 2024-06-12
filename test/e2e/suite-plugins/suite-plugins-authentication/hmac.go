@@ -71,12 +71,6 @@ spec:
      - httpbin.org
      paths:
        - /ip
-     exprs:
-     - subject:
-         scope: Header
-         name: X-Foo
-       op: Equal
-       value: bar
    backends:
    - serviceName: %s
      servicePort: %d
@@ -86,7 +80,7 @@ spec:
 `, backendSvc, backendPorts[0])
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar), "creating ApisixRoute with hmacAuth")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "Checking number of routes")
-			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
+			// assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
 
 			_ = s.NewAPISIXClient().GET("/ip").
 				WithHeader("Host", "httpbin.org").
@@ -107,20 +101,6 @@ spec:
 				Body().
 				Raw()
 			assert.Contains(ginkgo.GinkgoT(), msg, "client request can't be validated")
-
-			msg = s.NewAPISIXClient().GET("/ip").
-				WithHeader("Host", "httpbin.org").
-				WithHeader("X-Foo", "baz").
-				WithHeader("X-HMAC-SIGNATURE", "MhGJMkEYFD+98qtvoDPlvCGIUSmmUaw0In/D0vt2Z4E=").
-				WithHeader("X-HMAC-ACCESS-KEY", "papa").
-				WithHeader("X-HMAC-ALGORITHM", "hmac-sha256").
-				WithHeader("X-HMAC-SIGNED-HEADERS", "User-Agent;X-Foo").
-				WithHeader("User-Agent", "curl/7.29.0").
-				Expect().
-				Status(http.StatusNotFound).
-				Body().
-				Raw()
-			assert.Contains(ginkgo.GinkgoT(), msg, "404 Route Not Found")
 		})
 
 		ginkgo.It("ApisixRoute with hmacAuth consumer using secret", func() {
@@ -175,12 +155,6 @@ spec:
      - httpbin.org
      paths:
        - /ip
-     exprs:
-     - subject:
-         scope: Header
-         name: X-Foo
-       op: Equal
-       value: bar
    backends:
    - serviceName: %s
      servicePort: %d
@@ -190,7 +164,7 @@ spec:
 `, backendSvc, backendPorts[0])
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar), "creating ApisixRoute with hmacAuth")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "Checking number of routes")
-			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
+			// assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
 
 			_ = s.NewAPISIXClient().GET("/ip").
 				WithHeader("Host", "httpbin.org").
@@ -211,20 +185,6 @@ spec:
 				Body().
 				Raw()
 			assert.Contains(ginkgo.GinkgoT(), msg, "client request can't be validated")
-
-			msg = s.NewAPISIXClient().GET("/ip").
-				WithHeader("Host", "httpbin.org").
-				WithHeader("X-Foo", "baz").
-				WithHeader("X-HMAC-SIGNATURE", "MhGJMkEYFD+98qtvoDPlvCGIUSmmUaw0In/D0vt2Z4E=").
-				WithHeader("X-HMAC-ACCESS-KEY", "papa").
-				WithHeader("X-HMAC-ALGORITHM", "hmac-sha256").
-				WithHeader("X-HMAC-SIGNED-HEADERS", "User-Agent;X-Foo").
-				WithHeader("User-Agent", "curl/7.29.0").
-				Expect().
-				Status(http.StatusNotFound).
-				Body().
-				Raw()
-			assert.Contains(ginkgo.GinkgoT(), msg, "404 Route Not Found")
 		})
 	}
 

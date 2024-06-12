@@ -59,10 +59,10 @@ func TestTranslateUpstreamHealthCheckV2(t *testing.T) {
 		},
 	}
 
-	var ups apisixv1.Upstream
+	var ups apisixv1.Service
 	err := tr.translateUpstreamHealthCheckV2(hc, &ups)
 	assert.Nil(t, err, "translating upstream health check")
-	assert.Equal(t, ups.Checks.Active, &apisixv1.UpstreamActiveHealthCheck{
+	assert.Equal(t, ups.Upstream.Checks.Active, &apisixv1.UpstreamActiveHealthCheck{
 		Type:            apisixv1.HealthCheckHTTP,
 		Timeout:         5,
 		Concurrency:     2,
@@ -82,7 +82,7 @@ func TestTranslateUpstreamHealthCheckV2(t *testing.T) {
 			},
 		},
 	})
-	assert.Equal(t, ups.Checks.Passive, &apisixv1.UpstreamPassiveHealthCheck{
+	assert.Equal(t, ups.Upstream.Checks.Passive, &apisixv1.UpstreamPassiveHealthCheck{
 		Type: apisixv1.HealthCheckHTTP,
 		Healthy: apisixv1.UpstreamPassiveHealthCheckHealthy{
 			Successes:    2,
@@ -379,11 +379,11 @@ func TestUpstreamRetriesAndTimeoutV2(t *testing.T) {
 		Reason: "invalid value",
 	}, err)
 
-	var ups apisixv1.Upstream
+	var ups apisixv1.Service
 	retries = 3
 	err = tr.translateUpstreamRetriesAndTimeoutV2(&retries, nil, &ups)
 	assert.Nil(t, err)
-	assert.Equal(t, *ups.Retries, 3)
+	assert.Equal(t, *ups.Upstream.Retries, 3)
 
 	timeout := &configv2.UpstreamTimeout{
 		Connect: metav1.Duration{Duration: time.Second},
@@ -407,7 +407,7 @@ func TestUpstreamRetriesAndTimeoutV2(t *testing.T) {
 		Connect: 1,
 		Send:    60,
 		Read:    15,
-	}, ups.Timeout)
+	}, ups.Upstream.Timeout)
 }
 
 func TestUpstreamPassHost(t *testing.T) {
@@ -415,30 +415,30 @@ func TestUpstreamPassHost(t *testing.T) {
 	tests := []struct {
 		name     string
 		phc      *passHostConfig
-		wantFunc func(t *testing.T, err error, ups *apisixv1.Upstream, phc *passHostConfig)
+		wantFunc func(t *testing.T, err error, ups *apisixv1.Service, phc *passHostConfig)
 	}{
 		{
 			name: "should be empty when settings not set explicitly",
 			phc:  &passHostConfig{},
-			wantFunc: func(t *testing.T, err error, ups *apisixv1.Upstream, phc *passHostConfig) {
+			wantFunc: func(t *testing.T, err error, ups *apisixv1.Service, phc *passHostConfig) {
 				assert.Nil(t, err)
-				assert.Empty(t, ups.PassHost)
-				assert.Empty(t, ups.UpstreamHost)
+				assert.Empty(t, ups.Upstream.PassHost)
+				assert.Empty(t, ups.Upstream.UpstreamHost)
 			},
 		},
 		{
 			name: "should set passHost to pass",
 			phc:  &passHostConfig{passHost: apisixv1.PassHostPass},
-			wantFunc: func(t *testing.T, err error, ups *apisixv1.Upstream, phc *passHostConfig) {
+			wantFunc: func(t *testing.T, err error, ups *apisixv1.Service, phc *passHostConfig) {
 				assert.Nil(t, err)
-				assert.Equal(t, phc.passHost, ups.PassHost)
-				assert.Empty(t, ups.UpstreamHost)
+				assert.Equal(t, phc.passHost, ups.Upstream.PassHost)
+				assert.Empty(t, ups.Upstream.UpstreamHost)
 			},
 		},
 		{
 			name: "should fail when passHost set to invalid value",
 			phc:  &passHostConfig{passHost: "unknown"},
-			wantFunc: func(t *testing.T, err error, ups *apisixv1.Upstream, phc *passHostConfig) {
+			wantFunc: func(t *testing.T, err error, ups *apisixv1.Service, phc *passHostConfig) {
 				assert.Equal(t, &TranslateError{
 					Field:  "passHost",
 					Reason: "invalid value",
@@ -449,7 +449,7 @@ func TestUpstreamPassHost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ups := apisixv1.NewDefaultUpstream()
+			ups := apisixv1.NewDefaultService()
 			err := tr.translatePassHost(tt.phc, ups)
 
 			tt.wantFunc(t, err, ups, tt.phc)

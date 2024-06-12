@@ -30,7 +30,8 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-features: external service discovery", func() {
+// SKIP: Dashboard doesn't support type dns
+var _ = ginkgo.PDescribe("suite-features: external service discovery", func() {
 
 	PhaseCreateApisixRoute := func(s *scaffold.Scaffold, name, upstream string) {
 		ar := fmt.Sprintf(`
@@ -73,7 +74,7 @@ spec:
 	}
 
 	PhaseValidateNoUpstreams := func(s *scaffold.Scaffold) {
-		ups, err := s.ListApisixUpstreams()
+		ups, err := s.ListApisixServices()
 		assert.Nil(ginkgo.GinkgoT(), err)
 		assert.Len(ginkgo.GinkgoT(), ups, 0, "upstream count")
 	}
@@ -84,13 +85,13 @@ spec:
 		assert.Len(ginkgo.GinkgoT(), routes, 0, "route count")
 	}
 
-	PhaseValidateFirstUpstream := func(s *scaffold.Scaffold, length int, serviceName, discoveryType string) string {
-		ups, err := s.ListApisixUpstreams()
+	PhaseValidateFirstService := func(s *scaffold.Scaffold, length int, serviceName, discoveryType string) string {
+		svc, err := s.ListApisixServices()
 		assert.Nil(ginkgo.GinkgoT(), err)
-		assert.Len(ginkgo.GinkgoT(), ups, length, "upstream count")
-		upstream := ups[0]
-		assert.Equal(ginkgo.GinkgoT(), serviceName, upstream.ServiceName)
-		assert.Equal(ginkgo.GinkgoT(), discoveryType, upstream.DiscoveryType)
+		assert.Len(ginkgo.GinkgoT(), svc, length, "service count")
+		upstream := svc[0]
+		assert.Equal(ginkgo.GinkgoT(), serviceName, upstream.Upstream.ServiceName)
+		assert.Equal(ginkgo.GinkgoT(), discoveryType, upstream.Upstream.DiscoveryType)
 
 		return upstream.ID
 	}
@@ -99,7 +100,7 @@ spec:
 		routes, err := s.ListApisixRoutes()
 		assert.Nil(ginkgo.GinkgoT(), err)
 		assert.Len(ginkgo.GinkgoT(), routes, 1, "route count")
-		assert.Equal(ginkgo.GinkgoT(), upstreamId, routes[0].UpstreamId)
+		assert.Equal(ginkgo.GinkgoT(), upstreamId, routes[0].ServiceID)
 
 		_ = s.NewAPISIXClient().GET("/ip").
 			WithHeader("Host", "httpbin.org").
@@ -112,7 +113,7 @@ spec:
 	//routes, err := s.ListApisixRoutes()
 	//assert.Nil(ginkgo.GinkgoT(), err)
 	//assert.Len(ginkgo.GinkgoT(), routes, 1, "route count")
-	//assert.Equal(ginkgo.GinkgoT(), upstreamId, routes[0].UpstreamId)
+	//assert.Equal(ginkgo.GinkgoT(), upstreamId, routes[0].ServiceID)
 
 	//_ = s.NewAPISIXClient().GET("/ip").
 	//WithHeader("Host", "httpbin.org").
@@ -160,7 +161,7 @@ spec:
             tcpSocket:
               port: 80
             timeoutSeconds: 2
-          image: "localhost:5000/httpbin:dev"
+          image: "127.0.0.1:5000/httpbin:dev"
           imagePullPolicy: IfNotPresent
           name: httpbin
           ports:
@@ -224,10 +225,9 @@ spec:
 			// We use it for service discovery
 			PhaseCreateApisixUpstream(s, "httpbin-upstream", "dns", "httpbin-temp")
 			PhaseCreateApisixRoute(s, "httpbin-route", "httpbin-upstream")
-			time.Sleep(time.Second * 6)
-
+			time.Sleep(10 * time.Second)
 			// -- validation --
-			upstreamId := PhaseValidateFirstUpstream(s, 1, fqdn, "dns")
+			upstreamId := PhaseValidateFirstService(s, 1, fqdn, "dns")
 			PhaseValidateRouteAccess(s, upstreamId)
 		})
 	})
@@ -245,7 +245,7 @@ spec:
 			time.Sleep(time.Second * 6)
 
 			// -- validation --
-			upstreamId := PhaseValidateFirstUpstream(s, 1, fqdn, "dns")
+			upstreamId := PhaseValidateFirstService(s, 1, fqdn, "dns")
 			PhaseValidateRouteAccess(s, upstreamId)
 		})
 
@@ -261,7 +261,7 @@ spec:
 			time.Sleep(time.Second * 6)
 
 			// -- validation --
-			upstreamId := PhaseValidateFirstUpstream(s, 1, fqdn, "dns")
+			upstreamId := PhaseValidateFirstService(s, 1, fqdn, "dns")
 			PhaseValidateRouteAccess(s, upstreamId)
 		})
 	})
@@ -275,7 +275,7 @@ spec:
 			time.Sleep(time.Second * 6)
 
 			// -- validation --
-			upstreamId := PhaseValidateFirstUpstream(s, 1, fqdn, "dns")
+			upstreamId := PhaseValidateFirstService(s, 1, fqdn, "dns")
 			PhaseValidateRouteAccess(s, upstreamId)
 
 			// -- delete --

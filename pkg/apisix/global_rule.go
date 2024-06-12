@@ -84,27 +84,25 @@ func (r *globalRuleClient) List(ctx context.Context) ([]*v1.GlobalRule, error) {
 		zap.String("cluster", r.cluster.name),
 		zap.String("url", r.url),
 	)
-	globalRuleItems, err := r.cluster.listResource(ctx, r.url, "globalRule")
+	url := r.url
+	globalRuleItems, err := r.cluster.listResource(ctx, url, "globalRule")
 	if err != nil {
 		log.Errorf("failed to list global_rules: %s", err)
 		return nil, err
 	}
 
 	var items []*v1.GlobalRule
-	for i, item := range globalRuleItems {
+	for _, item := range globalRuleItems.List {
 		globalRule, err := item.globalRule()
 		if err != nil {
 			log.Errorw("failed to convert global_rule item",
 				zap.String("url", r.url),
-				zap.String("global_rule_key", item.Key),
-				zap.String("global_rule_value", string(item.Value)),
 				zap.Error(err),
 			)
 			return nil, err
 		}
 
 		items = append(items, globalRule)
-		log.Debugf("list global_rule #%d, body: %s", i, string(item.Value))
 	}
 
 	return items, nil

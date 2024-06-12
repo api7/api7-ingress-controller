@@ -78,14 +78,13 @@ func (t *translator) TranslateGatewayUDPRouteV1Alpha2(udpRoute *gatewayv1alpha2.
 			if err != nil {
 				return nil, errors.Wrap(err, fmt.Sprintf("failed to translate Rules[%v].BackendRefs[%v]", i, j))
 			}
-			ups.Scheme = apisixv1.SchemeUDP
+			ups.Upstream.Scheme = apisixv1.SchemeUDP
 			ups.Name = apisixv1.ComposeUpstreamName(ns, string(backend.Name), "", int32(*backend.Port), types.ResolveGranularity.Endpoint)
 			ups.ID = id.GenID(ups.Name)
 
-			sr.UpstreamId = ups.ID
-			ctx.AddStreamRoute(sr)
-			if !ctx.CheckUpstreamExist(ups.Name) {
-				ctx.AddUpstream(ups)
+			sr.ServiceID = ups.ID
+			if !ctx.CheckServiceExist(ups.Name) {
+				ctx.AddService(ups)
 			}
 
 			//if backend.Weight == nil {

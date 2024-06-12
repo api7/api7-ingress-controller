@@ -185,7 +185,7 @@ func (t *translator) translateIngressV1(ing *networkingv1.Ingress, skipVerify bo
 		}
 		for _, pathRule := range rule.HTTP.Paths {
 			var (
-				ups *apisixv1.Upstream
+				ups *apisixv1.Service
 				err error
 			)
 			if pathRule.Backend.Service != nil {
@@ -202,29 +202,29 @@ func (t *translator) translateIngressV1(ing *networkingv1.Ingress, skipVerify bo
 					}
 				}
 				if ingress.Upstream.Scheme != "" {
-					ups.Scheme = ingress.Upstream.Scheme
+					ups.Upstream.Scheme = ingress.Upstream.Scheme
 				}
 				if ingress.Upstream.Retry > 0 {
 					retry := ingress.Upstream.Retry
-					ups.Retries = &retry
+					ups.Upstream.Retries = &retry
 				}
-				if ups.Timeout == nil {
-					ups.Timeout = &apisixv1.UpstreamTimeout{
+				if ups.Upstream.Timeout == nil {
+					ups.Upstream.Timeout = &apisixv1.UpstreamTimeout{
 						Read:    60,
 						Send:    60,
 						Connect: 60,
 					}
 				}
 				if ingress.Upstream.TimeoutConnect > 0 {
-					ups.Timeout.Connect = ingress.Upstream.TimeoutConnect
+					ups.Upstream.Timeout.Connect = ingress.Upstream.TimeoutConnect
 				}
 				if ingress.Upstream.TimeoutRead > 0 {
-					ups.Timeout.Read = ingress.Upstream.TimeoutRead
+					ups.Upstream.Timeout.Read = ingress.Upstream.TimeoutRead
 				}
 				if ingress.Upstream.TimeoutSend > 0 {
-					ups.Timeout.Send = ingress.Upstream.TimeoutSend
+					ups.Upstream.Timeout.Send = ingress.Upstream.TimeoutSend
 				}
-				ctx.AddUpstream(ups)
+				ctx.AddService(ups)
 			}
 			uris := []string{pathRule.Path}
 			var nginxVars []kubev2.ApisixRouteHTTPMatchExpr
@@ -261,7 +261,7 @@ func (t *translator) translateIngressV1(ing *networkingv1.Ingress, skipVerify bo
 			route.Name = composeIngressRouteName(ing.Namespace, ing.Name, rule.Host, pathRule.Path)
 			route.ID = id.GenID(route.Name)
 			route.Host = rule.Host
-			route.Uris = uris
+			route.Paths = uris
 			route.EnableWebsocket = ingress.EnableWebSocket
 			if len(nginxVars) > 0 {
 				routeVars, err := t.ApisixTranslator.TranslateRouteMatchExprs(nginxVars)
@@ -279,7 +279,7 @@ func (t *translator) translateIngressV1(ing *networkingv1.Ingress, skipVerify bo
 				route.PluginConfigId = id.GenID(apisixv1.ComposePluginConfigName(ing.Namespace, ingress.PluginConfigName))
 			}
 			if ups != nil {
-				route.UpstreamId = ups.ID
+				route.ServiceID = ups.ID
 			}
 			ctx.AddRoute(route)
 		}
@@ -310,7 +310,7 @@ func (t *translator) translateIngressV1beta1(ing *networkingv1beta1.Ingress, ski
 	for _, rule := range ing.Spec.Rules {
 		for _, pathRule := range rule.HTTP.Paths {
 			var (
-				ups *apisixv1.Upstream
+				ups *apisixv1.Service
 				err error
 			)
 			if pathRule.Backend.ServiceName != "" {
@@ -327,9 +327,9 @@ func (t *translator) translateIngressV1beta1(ing *networkingv1beta1.Ingress, ski
 					}
 				}
 				if ingress.Upstream.Scheme != "" {
-					ups.Scheme = ingress.Upstream.Scheme
+					ups.Upstream.Scheme = ingress.Upstream.Scheme
 				}
-				ctx.AddUpstream(ups)
+				ctx.AddService(ups)
 			}
 			uris := []string{pathRule.Path}
 			var nginxVars []kubev2.ApisixRouteHTTPMatchExpr
@@ -366,7 +366,7 @@ func (t *translator) translateIngressV1beta1(ing *networkingv1beta1.Ingress, ski
 			route.Name = composeIngressRouteName(ing.Namespace, ing.Name, rule.Host, pathRule.Path)
 			route.ID = id.GenID(route.Name)
 			route.Host = rule.Host
-			route.Uris = uris
+			route.Paths = uris
 			route.EnableWebsocket = ingress.EnableWebSocket
 			if len(nginxVars) > 0 {
 				routeVars, err := t.ApisixTranslator.TranslateRouteMatchExprs(nginxVars)
@@ -381,29 +381,29 @@ func (t *translator) translateIngressV1beta1(ing *networkingv1beta1.Ingress, ski
 			}
 			if ingress.Upstream.Retry > 0 {
 				retry := ingress.Upstream.Retry
-				ups.Retries = &retry
+				ups.Upstream.Retries = &retry
 			}
-			if ups.Timeout == nil {
-				ups.Timeout = &apisixv1.UpstreamTimeout{
+			if ups.Upstream.Timeout == nil {
+				ups.Upstream.Timeout = &apisixv1.UpstreamTimeout{
 					Read:    60,
 					Send:    60,
 					Connect: 60,
 				}
 			}
 			if ingress.Upstream.TimeoutConnect > 0 {
-				ups.Timeout.Connect = ingress.Upstream.TimeoutConnect
+				ups.Upstream.Timeout.Connect = ingress.Upstream.TimeoutConnect
 			}
 			if ingress.Upstream.TimeoutRead > 0 {
-				ups.Timeout.Read = ingress.Upstream.TimeoutRead
+				ups.Upstream.Timeout.Read = ingress.Upstream.TimeoutRead
 			}
 			if ingress.Upstream.TimeoutSend > 0 {
-				ups.Timeout.Send = ingress.Upstream.TimeoutSend
+				ups.Upstream.Timeout.Send = ingress.Upstream.TimeoutSend
 			}
 			if ingress.PluginConfigName != "" {
 				route.PluginConfigId = id.GenID(apisixv1.ComposePluginConfigName(ing.Namespace, ingress.PluginConfigName))
 			}
 			if ups != nil {
-				route.UpstreamId = ups.ID
+				route.ServiceID = ups.ID
 			}
 			ctx.AddRoute(route)
 		}
@@ -411,7 +411,7 @@ func (t *translator) translateIngressV1beta1(ing *networkingv1beta1.Ingress, ski
 	return ctx, nil
 }
 
-func (t *translator) translateDefaultUpstreamFromIngressV1(namespace string, backend *networkingv1.IngressServiceBackend) *apisixv1.Upstream {
+func (t *translator) translateDefaultUpstreamFromIngressV1(namespace string, backend *networkingv1.IngressServiceBackend) *apisixv1.Service {
 	var portNumber int32
 	if backend.Port.Name != "" {
 		svc, err := t.ServiceLister.Services(namespace).Get(backend.Name)
@@ -429,12 +429,12 @@ func (t *translator) translateDefaultUpstreamFromIngressV1(namespace string, bac
 	} else {
 		portNumber = backend.Port.Number
 	}
-	ups := apisixv1.NewDefaultUpstream()
+	ups := apisixv1.NewDefaultService()
 	ups.Name = apisixv1.ComposeUpstreamName(namespace, backend.Name, "", portNumber, types.ResolveGranularity.Endpoint)
 	ups.ID = id.GenID(ups.Name)
 	return ups
 }
-func (t *translator) translateUpstreamFromIngressV1(namespace string, backend *networkingv1.IngressServiceBackend) (*apisixv1.Upstream, error) {
+func (t *translator) translateUpstreamFromIngressV1(namespace string, backend *networkingv1.IngressServiceBackend) (*apisixv1.Service, error) {
 	var svcPort int32
 	if backend.Port.Name != "" {
 		svc, err := t.ServiceLister.Services(namespace).Get(backend.Name)
@@ -465,7 +465,7 @@ func (t *translator) translateUpstreamFromIngressV1(namespace string, backend *n
 	return ups, nil
 }
 
-func (t *translator) translateDefaultUpstreamFromIngressV1beta1(namespace string, svcName string, svcPort intstr.IntOrString) *apisixv1.Upstream {
+func (t *translator) translateDefaultUpstreamFromIngressV1beta1(namespace string, svcName string, svcPort intstr.IntOrString) *apisixv1.Service {
 	var portNumber int32
 	if svcPort.Type == intstr.String {
 		svc, err := t.ServiceLister.Services(namespace).Get(svcName)
@@ -482,13 +482,13 @@ func (t *translator) translateDefaultUpstreamFromIngressV1beta1(namespace string
 	} else {
 		portNumber = svcPort.IntVal
 	}
-	ups := apisixv1.NewDefaultUpstream()
+	ups := apisixv1.NewDefaultService()
 	ups.Name = apisixv1.ComposeUpstreamName(namespace, svcName, "", portNumber, types.ResolveGranularity.Endpoint)
 	ups.ID = id.GenID(ups.Name)
 	return ups
 }
 
-func (t *translator) translateUpstreamFromIngressV1beta1(namespace string, svcName string, svcPort intstr.IntOrString) (*apisixv1.Upstream, error) {
+func (t *translator) translateUpstreamFromIngressV1beta1(namespace string, svcName string, svcPort intstr.IntOrString) (*apisixv1.Service, error) {
 	var portNumber int32
 	if svcPort.Type == intstr.String {
 		svc, err := t.ServiceLister.Services(namespace).Get(svcName)
@@ -565,10 +565,10 @@ func (t *translator) translateOldIngressV1(ing *networkingv1.Ingress) (*translat
 			if err != nil {
 				continue
 			}
-			if r.UpstreamId != "" {
-				ups := apisixv1.NewDefaultUpstream()
-				ups.ID = r.UpstreamId
-				oldCtx.AddUpstream(ups)
+			if r.ServiceID != "" {
+				ups := apisixv1.NewDefaultService()
+				ups.ID = r.ServiceID
+				oldCtx.AddService(ups)
 			}
 			if r.PluginConfigId != "" {
 				pc := apisixv1.NewDefaultPluginConfig()
@@ -602,10 +602,10 @@ func (t *translator) translateOldIngressV1beta1(ing *networkingv1beta1.Ingress) 
 			if err != nil {
 				continue
 			}
-			if r.UpstreamId != "" {
-				ups := apisixv1.NewDefaultUpstream()
-				ups.ID = r.UpstreamId
-				oldCtx.AddUpstream(ups)
+			if r.ServiceID != "" {
+				ups := apisixv1.NewDefaultService()
+				ups.ID = r.ServiceID
+				oldCtx.AddService(ups)
 			}
 			if r.PluginConfigId != "" {
 				pc := apisixv1.NewDefaultPluginConfig()
@@ -622,7 +622,7 @@ func (t *translator) translateOldIngressV1beta1(ing *networkingv1beta1.Ingress) 
 // but this method can cause problems in some scenarios.
 // For example, the generated name is too long.
 // The current APISIX limit its maximum length to 100.
-// ref: https://github.com/apache/apisix-ingress-controller/issues/781
+// ref: https://github.com/apache/api7-ingress-controller/issues/781
 // We will construct the following structure for easy reading and debugging.
 // ing_namespace_ingressName_id
 func composeIngressRouteName(namespace, name, host, path string) string {

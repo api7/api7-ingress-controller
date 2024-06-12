@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api7-ee-gateway-1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api7-ee-gateway-1
+  template:
+    metadata:
+      labels:
+        app: api7-ee-gateway-1
+    spec:
+      containers:
+        - name: api7-ee-gateway-1
+          image: 127.0.0.1:5000/hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev
+          ports:
+            - containerPort: 9080
+            - containerPort: 9443
+          env:
+            - name: API7_CONTROL_PLANE_ENDPOINTS
+              value: '["http://dp-manager:7900"]'
+            - name: API7_CONTROL_PLANE_TOKEN
+              value: yabaajtaxmvqo-I1ApbUazp0DEMTYLeBaI5fdeC6PzFABhDaP1ODHeZTphKqPvDp66d2cefa48ca4ed9be1888bf36f935be

@@ -17,6 +17,7 @@ package apisix
 
 import (
 	"context"
+	"strings"
 
 	"go.uber.org/zap"
 
@@ -62,8 +63,8 @@ func (sc schemaClient) getSchema(ctx context.Context, name string) (*v1.Schema, 
 			zap.Error(err),
 		)
 	}
-
-	url := sc.url + "/" + name
+	//Dashboard uses /apisix/admin/plugins/{plugin_name} instead of /apisix/admin/schema/{plugin_name} to get schema
+	url := strings.Replace(sc.url, "schema", name, 1)
 	content, err := sc.cluster.getSchema(ctx, url, "schema")
 	if err != nil {
 		log.Errorw("failed to get schema from APISIX",
@@ -74,7 +75,6 @@ func (sc schemaClient) getSchema(ctx context.Context, name string) (*v1.Schema, 
 		)
 		return nil, err
 	}
-
 	schema = &v1.Schema{
 		Name:    name,
 		Content: content,

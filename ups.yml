@@ -1,0 +1,7 @@
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: httpbin
+spec:
+  loadbalancer:
+    type: ewma

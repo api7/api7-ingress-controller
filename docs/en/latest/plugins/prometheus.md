@@ -40,19 +40,19 @@ spec:
 
 ## Configure Prometheus Server
 
-The Prometheus server address should be `127.0.0.1:9090` by default. You can set the target url for `apisix-ingress-controller` manually in `prometheus.yml`.
+The Prometheus server address should be `127.0.0.1:9090` by default. You can set the target url for `api7-ingress-controller` manually in `prometheus.yml`.
 For example:
 
 ```yaml
 ...
 scrape_configs:
-  - job_name: "apisix-ingress-controller"
+  - job_name: "api7-ingress-controller"
     static_configs:
     - targets: ["localhost:9092"]
 ```
 
 According to the above example, the metrics are exposed in `http://localhost:9092/metrics` now.  
-Visit `http://localhost:9090` in your browser, and select `apisix-ingress-controller` in `targets`
+Visit `http://localhost:9090` in your browser, and select `api7-ingress-controller` in `targets`
 or visit `http://localhost:9092/metrics` to see the data.
 ![metrics_data.png](../../../assets/images/metrics_data.png)
 
@@ -61,11 +61,11 @@ or visit `http://localhost:9092/metrics` to see the data.
 Grafana dashboard shows the metrics exposed in Prometheus graphically.  
 [Installing Grafana](https://grafana.com/docs/grafana/latest/#installing-grafana)  
 Visit `http://localhost:3000/` in your browser to access Grafana. The default username and password are `admin`.
-Then create a new dashboard for `apisix-ingress-controller`.  
+Then create a new dashboard for `api7-ingress-controller`.  
 ![grafana.png](../../../assets/images/grafana.png)  
-Follow the steps to apply the configuration of Grafana Dashboard for `apisix-ingress-controller`.
+Follow the steps to apply the configuration of Grafana Dashboard for `api7-ingress-controller`.
 
-- Add an empty panel, and import via panel json in `apisix-ingress-controller/docs/assets/other/json/apisix-ingress-controller-grafana.json`.
+- Add an empty panel, and import via panel json in `api7-ingress-controller/docs/assets/other/json/api7-ingress-controller-grafana.json`.
 ![img.png](../../../assets/images/img.png)
 ![import_via_panel_json.png](../../../assets/images/import_via_panel_json.png)
 - Select `Prometheus database` as the datasource. Set the URL according to your Prometheus server configuration.  

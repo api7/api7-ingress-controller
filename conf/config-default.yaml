@@ -55,7 +55,7 @@ apisix_resource_sync_interval: "1h" # Default interval for synchronizing Kuberne
 kubernetes:
   kubeconfig: ""                       # the Kubernetes configuration file path, default is
                                        # "", so the in-cluster configuration will be used.
-  resync_interval: "6h"                # how long should apisix-ingress-controller
+  resync_interval: "6h"                # how long should api7-ingress-controller
                                        # re-synchronizes with Kubernetes, default is 6h,
                                        # and the minimal resync interval is 30s.
   namespace_selector: [""]             # namespace_selector represent basis for selecting managed namespaces.
@@ -96,10 +96,10 @@ etcdserver:
   ssl_key_encrypt_salt: edd1c9f0985e76a2  # Need to be consistent with the apisix.ssl.key_encrypt_salt, ref https://github.com/apache/apisix/blob/release/3.2/conf/config-default.yaml#L115.
                                           # key_encrypt_salt is used to encrypt SSL keys.
 
-apisix:
+dashboard:
   admin_api_version: v3  # the APISIX admin API version. can be "v2" or "v3"
 
-  default_cluster_base_url: "http://127.0.0.1:9180/apisix/admin" # The base url of admin api / manager api
+  default_cluster_base_url: "http://dashboard:7080apisix/admin" # The base url of admin api / manager api
                                                                  # of the default APISIX cluster
 
   default_cluster_admin_key: "" # the admin key used for the authentication of admin api / manager api in the

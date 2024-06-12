@@ -154,7 +154,7 @@ func (t *translator) TranslateGatewayHTTPRouteV1beta1(httpRoute *gatewayv1beta1.
 			continue
 		}
 
-		var ruleUpstreams []*apisixv1.Upstream
+		var ruleUpstreams []*apisixv1.Service
 		var weightedUpstreams []apisixv1.TrafficSplitConfigRuleWeightedUpstream
 
 		for j, backend := range backends {
@@ -208,7 +208,7 @@ func (t *translator) TranslateGatewayHTTPRouteV1beta1(httpRoute *gatewayv1beta1.
 				zap.String("backendRefs_name", string(backend.Name)),
 				zap.String("name", ups.Name),
 			)
-			ctx.AddUpstream(ups)
+			ctx.AddService(ups)
 			ruleUpstreams = append(ruleUpstreams, ups)
 
 			if backend.Weight == nil {
@@ -258,7 +258,7 @@ func (t *translator) TranslateGatewayHTTPRouteV1beta1(httpRoute *gatewayv1beta1.
 
 			// Bind Upstream
 			if len(ruleUpstreams) == 1 {
-				route.UpstreamId = ruleUpstreams[0].ID
+				route.ServiceID = ruleUpstreams[0].ID
 			} else if len(ruleUpstreams) > 0 {
 				route.Plugins["traffic-split"] = &apisixv1.TrafficSplitConfig{
 					Rules: []apisixv1.TrafficSplitConfigRule{

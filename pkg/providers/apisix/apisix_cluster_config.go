@@ -138,9 +138,9 @@ func (c *apisixClusterConfigController) sync(ctx context.Context, ev *types.Even
 		acc := multiVersioned.V2()
 		// Currently we don't handle multiple cluster, so only process
 		// the default apisix cluster.
-		if acc.Name != c.Config.APISIX.DefaultClusterName {
+		if acc.Name != c.Config.Dashboard.DefaultClusterName {
 			log.Infow("ignore non-default apisix cluster config",
-				zap.String("default_cluster_name", c.Config.APISIX.DefaultClusterName),
+				zap.String("default_cluster_name", c.Config.Dashboard.DefaultClusterName),
 				zap.Any("ApisixClusterConfig", acc),
 			)
 			return nil

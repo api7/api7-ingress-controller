@@ -25,12 +25,12 @@ import v1 "github.com/api7/api7-ingress-controller/pkg/types/apisix/v1"
 type Cache interface {
 	// InsertRoute adds or updates route to cache.
 	InsertRoute(*v1.Route) error
+	// InsertStreamRoute adds or updates stream_route to cache.
+	InsertStreamRoute(*v1.StreamRoute) error
 	// InsertSSL adds or updates ssl to cache.
 	InsertSSL(*v1.Ssl) error
 	// InsertUpstream adds or updates upstream to cache.
-	InsertUpstream(*v1.Upstream) error
-	// InsertStreamRoute adds or updates stream_route to cache.
-	InsertStreamRoute(*v1.StreamRoute) error
+	InsertService(*v1.Service) error
 	// InsertGlobalRule adds or updates global_rule to cache.
 	InsertGlobalRule(*v1.GlobalRule) error
 	// InsertConsumer adds or updates consumer to cache.
@@ -44,12 +44,11 @@ type Cache interface {
 
 	// GetRoute finds the route from cache according to the primary index (id).
 	GetRoute(string) (*v1.Route, error)
+	GetStreamRoute(string) (*v1.StreamRoute, error)
 	// GetSSL finds the ssl from cache according to the primary index (id).
 	GetSSL(string) (*v1.Ssl, error)
 	// GetUpstream finds the upstream from cache according to the primary index (id).
-	GetUpstream(string) (*v1.Upstream, error)
-	// GetStreamRoute finds the stream_route from cache according to the primary index (id).
-	GetStreamRoute(string) (*v1.StreamRoute, error)
+	GetService(string) (*v1.Service, error)
 	// GetGlobalRule finds the global_rule from cache according to the primary index (id).
 	GetGlobalRule(string) (*v1.GlobalRule, error)
 	// GetConsumer finds the consumer from cache according to the primary index (username).
@@ -63,12 +62,12 @@ type Cache interface {
 
 	// ListRoutes lists all routes in cache.
 	ListRoutes() ([]*v1.Route, error)
+	// ListStreamRoutes lists all stream_route objects in cache.
+	ListStreamRoutes() ([]*v1.StreamRoute, error)
 	// ListSSL lists all ssl objects in cache.
 	ListSSL() ([]*v1.Ssl, error)
 	// ListUpstreams lists all upstreams in cache.
-	ListUpstreams() ([]*v1.Upstream, error)
-	// ListStreamRoutes lists all stream_route in cache.
-	ListStreamRoutes() ([]*v1.StreamRoute, error)
+	ListServices() ([]*v1.Service, error)
 	// ListGlobalRules lists all global_rule objects in cache.
 	ListGlobalRules() ([]*v1.GlobalRule, error)
 	// ListConsumers lists all consumer objects in cache.
@@ -82,12 +81,12 @@ type Cache interface {
 
 	// DeleteRoute deletes the specified route in cache.
 	DeleteRoute(*v1.Route) error
+	// DeleteStreamRoute deletes the specified stream_route in cache.
+	DeleteStreamRoute(*v1.StreamRoute) error
 	// DeleteSSL deletes the specified ssl in cache.
 	DeleteSSL(*v1.Ssl) error
 	// DeleteUpstream deletes the specified upstream in cache.
-	DeleteUpstream(*v1.Upstream) error
-	// DeleteStreamRoute deletes the specified stream_route in cache.
-	DeleteStreamRoute(*v1.StreamRoute) error
+	DeleteService(*v1.Service) error
 	// DeleteGlobalRule deletes the specified stream_route in cache.
 	DeleteGlobalRule(*v1.GlobalRule) error
 	// DeleteConsumer deletes the specified consumer in cache.
@@ -97,7 +96,7 @@ type Cache interface {
 	// DeletePluginConfig deletes the specified plugin_config in cache.
 	DeletePluginConfig(*v1.PluginConfig) error
 
-	CheckUpstreamReference(*v1.Upstream) error
+	CheckServiceReference(*v1.Service) error
 	CheckPluginConfigReference(*v1.PluginConfig) error
 	DeleteUpstreamServiceRelation(*v1.UpstreamServiceRelation) error
 }

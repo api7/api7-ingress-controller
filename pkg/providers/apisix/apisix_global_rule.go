@@ -169,7 +169,7 @@ func (c *apisixGlobalRuleController) sync(ctx context.Context, ev *types.Event) 
 			added, updated, deleted = m.Diff(om)
 		}
 	}
-	log.Debugw("sync ApisixGlobalRule to cluster",
+	log.Infow("sync ApisixGlobalRule to cluster",
 		zap.String("event_type", ev.Type.String()),
 		zap.Any("add", added),
 		zap.Any("update", updated),

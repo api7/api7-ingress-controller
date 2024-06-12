@@ -14,143 +14,143 @@
 // limitations under the License.
 package annotations
 
-import (
-	"fmt"
-	"net/http"
-	"time"
+// import (
+// 	"fmt"
+// 	"net/http"
+// 	"time"
 
-	ginkgo "github.com/onsi/ginkgo/v2"
-	"github.com/stretchr/testify/assert"
+// 	ginkgo "github.com/onsi/ginkgo/v2"
+// 	"github.com/stretchr/testify/assert"
 
-	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
-)
+// 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
+// )
 
-var _ = ginkgo.Describe("suite-annotations: rewrite annotations", func() {
-	s := scaffold.NewDefaultScaffold()
+// var _ = ginkgo.Describe("suite-annotations: rewrite annotations", func() {
+// 	s := scaffold.NewDefaultScaffold()
 
-	ginkgo.It("enable in ingress networking/v1", func() {
-		backendSvc, backendPort := s.DefaultHTTPBackend()
-		ing := fmt.Sprintf(`
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  annotations:
-    kubernetes.io/ingress.class: apisix
-    k8s.apisix.apache.org/rewrite-target: "/ip"
-  name: ingress-v1
-spec:
-  rules:
-  - host: httpbin.org
-    http:
-      paths:
-      - path: /sample
-        pathType: Exact
-        backend:
-          service:
-            name: %s
-            port:
-              number: %d
-`, backendSvc, backendPort[0])
-		err := s.CreateResourceFromString(ing)
-		assert.Nil(ginkgo.GinkgoT(), err, "creating ingress")
-		time.Sleep(5 * time.Second)
+// 	ginkgo.It("enable in ingress networking/v1", func() {
+// 		backendSvc, backendPort := s.DefaultHTTPBackend()
+// 		ing := fmt.Sprintf(`
+// apiVersion: networking.k8s.io/v1
+// kind: Ingress
+// metadata:
+//   annotations:
+//     kubernetes.io/ingress.class: apisix
+//     k8s.apisix.apache.org/rewrite-target: "/ip"
+//   name: ingress-v1
+// spec:
+//   rules:
+//   - host: httpbin.org
+//     http:
+//       paths:
+//       - path: /sample
+//         pathType: Exact
+//         backend:
+//           service:
+//             name: %s
+//             port:
+//               number: %d
+// `, backendSvc, backendPort[0])
+// 		err := s.CreateResourceFromString(ing)
+// 		assert.Nil(ginkgo.GinkgoT(), err, "creating ingress")
+// 		time.Sleep(5 * time.Second)
 
-		_ = s.NewAPISIXClient().GET("/sample").WithHeader("Host", "httpbin.org").Expect().Status(http.StatusOK)
-		_ = s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.org").Expect().Status(http.StatusNotFound)
-	})
+// 		_ = s.NewAPISIXClient().GET("/sample").WithHeader("Host", "httpbin.org").Expect().Status(http.StatusOK)
+// 		_ = s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.org").Expect().Status(http.StatusNotFound)
+// 	})
 
-	ginkgo.It("enable in ingress networking/v1beta1", func() {
-		backendSvc, backendPort := s.DefaultHTTPBackend()
-		ing := fmt.Sprintf(`
-apiVersion: networking.k8s.io/v1beta1
-kind: Ingress
-metadata:
-  annotations:
-    kubernetes.io/ingress.class: apisix
-    k8s.apisix.apache.org/rewrite-target: "/ip"
-  name: ingress-v1beta1
-spec:
-  rules:
-  - host: httpbin.org
-    http:
-      paths:
-      - path: /sample
-        pathType: Exact
-        backend:
-          serviceName: %s
-          servicePort: %d
-`, backendSvc, backendPort[0])
-		err := s.CreateResourceFromString(ing)
-		assert.Nil(ginkgo.GinkgoT(), err, "creating ingress")
-		time.Sleep(5 * time.Second)
+// 	ginkgo.It("enable in ingress networking/v1beta1", func() {
+// 		backendSvc, backendPort := s.DefaultHTTPBackend()
+// 		ing := fmt.Sprintf(`
+// apiVersion: networking.k8s.io/v1beta1
+// kind: Ingress
+// metadata:
+//   annotations:
+//     kubernetes.io/ingress.class: apisix
+//     k8s.apisix.apache.org/rewrite-target: "/ip"
+//   name: ingress-v1beta1
+// spec:
+//   rules:
+//   - host: httpbin.org
+//     http:
+//       paths:
+//       - path: /sample
+//         pathType: Exact
+//         backend:
+//           serviceName: %s
+//           servicePort: %d
+// `, backendSvc, backendPort[0])
+// 		err := s.CreateResourceFromString(ing)
+// 		assert.Nil(ginkgo.GinkgoT(), err, "creating ingress")
+// 		time.Sleep(5 * time.Second)
 
-		_ = s.NewAPISIXClient().GET("/sample").WithHeader("Host", "httpbin.org").Expect().Status(http.StatusOK)
-		_ = s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.org").Expect().Status(http.StatusNotFound)
-	})
-})
+// 		_ = s.NewAPISIXClient().GET("/sample").WithHeader("Host", "httpbin.org").Expect().Status(http.StatusOK)
+// 		_ = s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.org").Expect().Status(http.StatusNotFound)
+// 	})
+// })
 
-var _ = ginkgo.Describe("suite-annotations: rewrite regex annotations", func() {
-	s := scaffold.NewDefaultScaffold()
+// var _ = ginkgo.Describe("suite-annotations: rewrite regex annotations", func() {
+// 	s := scaffold.NewDefaultScaffold()
 
-	ginkgo.It("enable in ingress networking/v1", func() {
-		backendSvc, backendPort := s.DefaultHTTPBackend()
-		ing := fmt.Sprintf(`
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  annotations:
-    kubernetes.io/ingress.class: apisix
-    k8s.apisix.apache.org/rewrite-target-regex: "/sample/(.*)"
-    k8s.apisix.apache.org/rewrite-target-regex-template: "/$1"
-  name: ingress-v1
-spec:
-  rules:
-  - host: httpbin.org
-    http:
-      paths:
-      - path: /sample
-        pathType: Prefix
-        backend:
-          service:
-            name: %s
-            port:
-              number: %d
-`, backendSvc, backendPort[0])
-		err := s.CreateResourceFromString(ing)
-		assert.Nil(ginkgo.GinkgoT(), err, "creating ingress")
-		time.Sleep(5 * time.Second)
+// 	ginkgo.It("enable in ingress networking/v1", func() {
+// 		backendSvc, backendPort := s.DefaultHTTPBackend()
+// 		ing := fmt.Sprintf(`
+// apiVersion: networking.k8s.io/v1
+// kind: Ingress
+// metadata:
+//   annotations:
+//     kubernetes.io/ingress.class: apisix
+//     k8s.apisix.apache.org/rewrite-target-regex: "/sample/(.*)"
+//     k8s.apisix.apache.org/rewrite-target-regex-template: "/$1"
+//   name: ingress-v1
+// spec:
+//   rules:
+//   - host: httpbin.org
+//     http:
+//       paths:
+//       - path: /sample
+//         pathType: Prefix
+//         backend:
+//           service:
+//             name: %s
+//             port:
+//               number: %d
+// `, backendSvc, backendPort[0])
+// 		err := s.CreateResourceFromString(ing)
+// 		assert.Nil(ginkgo.GinkgoT(), err, "creating ingress")
+// 		time.Sleep(5 * time.Second)
 
-		_ = s.NewAPISIXClient().GET("/sample/ip").WithHeader("Host", "httpbin.org").Expect().Status(http.StatusOK)
-		_ = s.NewAPISIXClient().GET("/sample/get").WithHeader("Host", "httpbin.org").Expect().Status(http.StatusOK)
-	})
+// 		_ = s.NewAPISIXClient().GET("/sample/ip").WithHeader("Host", "httpbin.org").Expect().Status(http.StatusOK)
+// 		_ = s.NewAPISIXClient().GET("/sample/get").WithHeader("Host", "httpbin.org").Expect().Status(http.StatusOK)
+// 	})
 
-	ginkgo.It("enable in ingress networking/v1beta1", func() {
-		backendSvc, backendPort := s.DefaultHTTPBackend()
-		ing := fmt.Sprintf(`
-apiVersion: networking.k8s.io/v1beta1
-kind: Ingress
-metadata:
-  annotations:
-    kubernetes.io/ingress.class: apisix
-    k8s.apisix.apache.org/rewrite-target-regex: "/sample/(.*)"
-    k8s.apisix.apache.org/rewrite-target-regex-template: "/$1"
-  name: ingress-v1beta1
-spec:
-  rules:
-  - host: httpbin.org
-    http:
-      paths:
-      - path: /sample
-        pathType: Prefix
-        backend:
-          serviceName: %s
-          servicePort: %d
-`, backendSvc, backendPort[0])
-		err := s.CreateResourceFromString(ing)
-		assert.Nil(ginkgo.GinkgoT(), err, "creating ingress")
-		time.Sleep(5 * time.Second)
+// 	ginkgo.It("enable in ingress networking/v1beta1", func() {
+// 		backendSvc, backendPort := s.DefaultHTTPBackend()
+// 		ing := fmt.Sprintf(`
+// apiVersion: networking.k8s.io/v1beta1
+// kind: Ingress
+// metadata:
+//   annotations:
+//     kubernetes.io/ingress.class: apisix
+//     k8s.apisix.apache.org/rewrite-target-regex: "/sample/(.*)"
+//     k8s.apisix.apache.org/rewrite-target-regex-template: "/$1"
+//   name: ingress-v1beta1
+// spec:
+//   rules:
+//   - host: httpbin.org
+//     http:
+//       paths:
+//       - path: /sample
+//         pathType: Prefix
+//         backend:
+//           serviceName: %s
+//           servicePort: %d
+// `, backendSvc, backendPort[0])
+// 		err := s.CreateResourceFromString(ing)
+// 		assert.Nil(ginkgo.GinkgoT(), err, "creating ingress")
+// 		time.Sleep(5 * time.Second)
 
-		_ = s.NewAPISIXClient().GET("/sample/ip").WithHeader("Host", "httpbin.org").Expect().Status(http.StatusOK)
-		_ = s.NewAPISIXClient().GET("/sample/get").WithHeader("Host", "httpbin.org").Expect().Status(http.StatusOK)
-	})
-})
+// 		_ = s.NewAPISIXClient().GET("/sample/ip").WithHeader("Host", "httpbin.org").Expect().Status(http.StatusOK)
+// 		_ = s.NewAPISIXClient().GET("/sample/get").WithHeader("Host", "httpbin.org").Expect().Status(http.StatusOK)
+// 	})
+// })

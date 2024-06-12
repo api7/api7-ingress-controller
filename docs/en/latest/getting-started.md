@@ -133,10 +133,6 @@ To summarize, APISIX ingress controller has the following features:
 - Supports load balancing based on pods (Upstream nodes).
 - Rich [Plugins](https://apisix.apache.org/docs/apisix/next/plugins/batch-requests/) with [custom Plugin](https://apisix.apache.org/docs/apisix/next/plugin-develop/) support.
 
-## Get involved
-
-You can contribute to the development of APISIX ingress controller. See [Development guide](./contribute.md) for instructions on setting up the project locally.
-
 See the [Contribute to APISIX](https://apisix.apache.org/docs/general/contributor-guide/) section for details on the contributing flow.
 
 ## Compatibility with APISIX

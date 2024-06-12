@@ -126,41 +126,41 @@ func TestMemDBCacheUpstream(t *testing.T) {
 	c, err := NewMemDBCache()
 	assert.Nil(t, err, "NewMemDBCache")
 
-	u1 := &v1.Upstream{
+	u1 := &v1.Service{
 		Metadata: v1.Metadata{
 			ID:   "1",
 			Name: "abc",
 		},
 	}
-	err = c.InsertUpstream(u1)
+	err = c.InsertService(u1)
 	assert.Nil(t, err, "inserting upstream 1")
 
-	u, err := c.GetUpstream("1")
+	u, err := c.GetService("1")
 	assert.Nil(t, err)
 	assert.Equal(t, u1, u)
 
-	u2 := &v1.Upstream{
+	u2 := &v1.Service{
 		Metadata: v1.Metadata{
 			Name: "def",
 			ID:   "2",
 		},
 	}
-	u3 := &v1.Upstream{
+	u3 := &v1.Service{
 		Metadata: v1.Metadata{
 			Name: "ghi",
 			ID:   "3",
 		},
 	}
-	assert.Nil(t, c.InsertUpstream(u2), "inserting upstream 2")
-	assert.Nil(t, c.InsertUpstream(u3), "inserting upstream 3")
+	assert.Nil(t, c.InsertService(u2), "inserting upstream 2")
+	assert.Nil(t, c.InsertService(u3), "inserting upstream 3")
 
-	u, err = c.GetUpstream("3")
+	u, err = c.GetService("3")
 	assert.Nil(t, err)
 	assert.Equal(t, u3, u)
 
-	assert.Nil(t, c.DeleteUpstream(u3), "delete upstream 3")
+	assert.Nil(t, c.DeleteService(u3), "delete upstream 3")
 
-	upstreams, err := c.ListUpstreams()
+	upstreams, err := c.ListServices()
 	assert.Nil(t, err, "listing upstreams")
 
 	if upstreams[0].Name > upstreams[1].Name {
@@ -169,13 +169,13 @@ func TestMemDBCacheUpstream(t *testing.T) {
 	assert.Equal(t, u1, upstreams[0])
 	assert.Equal(t, u2, upstreams[1])
 
-	u4 := &v1.Upstream{
+	u4 := &v1.Service{
 		Metadata: v1.Metadata{
 			Name: "name4",
 			ID:   "4",
 		},
 	}
-	assert.Error(t, ErrNotFound, c.DeleteUpstream(u4))
+	assert.Error(t, ErrNotFound, c.DeleteService(u4))
 }
 
 func TestMemDBCacheReference(t *testing.T) {
@@ -184,24 +184,14 @@ func TestMemDBCacheReference(t *testing.T) {
 			Name: "route",
 			ID:   "1",
 		},
-		UpstreamId:     "1",
+		ServiceID:      "1",
 		PluginConfigId: "1",
 	}
-	u := &v1.Upstream{
+	u := &v1.Service{
 		Metadata: v1.Metadata{
 			ID:   "1",
 			Name: "upstream",
 		},
-	}
-	u2 := &v1.Upstream{
-		Metadata: v1.Metadata{
-			ID:   "2",
-			Name: "upstream",
-		},
-	}
-	sr := &v1.StreamRoute{
-		ID:         "1",
-		UpstreamId: "2",
 	}
 	pc := &v1.PluginConfig{
 		Metadata: v1.Metadata{
@@ -219,63 +209,15 @@ func TestMemDBCacheReference(t *testing.T) {
 	db, err := NewMemDBCache()
 	assert.Nil(t, err, "NewMemDBCache")
 	assert.Nil(t, db.InsertRoute(r))
-	assert.Nil(t, db.InsertUpstream(u))
-	assert.Nil(t, db.InsertStreamRoute(sr))
-	assert.Nil(t, db.InsertUpstream(u2))
+	assert.Nil(t, db.InsertService(u))
 	assert.Nil(t, db.InsertPluginConfig(pc))
 
-	assert.Error(t, ErrStillInUse, db.DeleteUpstream(u))
-	assert.Error(t, ErrStillInUse, db.DeleteUpstream(u2))
+	assert.Error(t, ErrStillInUse, db.DeleteService(u))
 	assert.Error(t, ErrStillInUse, db.DeletePluginConfig(pc))
 	assert.Equal(t, memdb.ErrNotFound, db.DeletePluginConfig(pc2))
 	assert.Nil(t, db.DeleteRoute(r))
-	assert.Nil(t, db.DeleteUpstream(u))
-	assert.Nil(t, db.DeleteStreamRoute(sr))
-	assert.Nil(t, db.DeleteUpstream(u2))
+	assert.Nil(t, db.DeleteService(u))
 	assert.Nil(t, db.DeletePluginConfig(pc))
-}
-
-func TestMemDBCacheStreamRoute(t *testing.T) {
-	c, err := NewMemDBCache()
-	assert.Nil(t, err, "NewMemDBCache")
-
-	r1 := &v1.StreamRoute{
-		ID: "1",
-	}
-	assert.Nil(t, c.InsertStreamRoute(r1), "inserting stream route 1")
-
-	r, err := c.GetStreamRoute("1")
-	assert.Nil(t, err)
-	assert.Equal(t, r1, r)
-
-	r2 := &v1.StreamRoute{
-		ID: "2",
-	}
-	r3 := &v1.StreamRoute{
-		ID: "3",
-	}
-	assert.Nil(t, c.InsertStreamRoute(r2), "inserting stream route r2")
-	assert.Nil(t, c.InsertStreamRoute(r3), "inserting stream route r3")
-
-	r, err = c.GetStreamRoute("3")
-	assert.Nil(t, err)
-	assert.Equal(t, r3, r)
-
-	assert.Nil(t, c.DeleteStreamRoute(r3), "delete stream route r3")
-
-	routes, err := c.ListStreamRoutes()
-	assert.Nil(t, err, "listing streams routes")
-
-	if routes[0].ID > routes[1].ID {
-		routes[0], routes[1] = routes[1], routes[0]
-	}
-	assert.Equal(t, r1, routes[0])
-	assert.Equal(t, r2, routes[1])
-
-	r4 := &v1.StreamRoute{
-		ID: "4",
-	}
-	assert.Error(t, ErrNotFound, c.DeleteStreamRoute(r4))
 }
 
 func TestMemDBCacheGlobalRule(t *testing.T) {

@@ -39,7 +39,7 @@ var (
 )
 
 type ResourceTypes interface {
-	*v1.Route | *v1.Ssl | *v1.Upstream | *v1.StreamRoute | *v1.GlobalRule | *v1.Consumer | *v1.PluginConfig
+	*v1.Route | *v1.Ssl | *v1.Service | *v1.StreamRoute | *v1.GlobalRule | *v1.Consumer | *v1.PluginConfig
 }
 
 func skipRequest[T ResourceTypes](cluster *cluster, shouldCompare bool, url, id string, obj T) (T, bool) {
@@ -96,12 +96,9 @@ func skipRequest[T ResourceTypes](cluster *cluster, shouldCompare bool, url, id 
 		case *v1.Ssl:
 			cachedGeneratedObj, err = cluster.generatedObjCache.GetSSL(id)
 			resourceType = "ssl"
-		case *v1.Upstream:
-			cachedGeneratedObj, err = cluster.generatedObjCache.GetUpstream(id)
+		case *v1.Service:
+			cachedGeneratedObj, err = cluster.generatedObjCache.GetService(id)
 			resourceType = "upstream"
-		case *v1.StreamRoute:
-			cachedGeneratedObj, err = cluster.generatedObjCache.GetStreamRoute(id)
-			resourceType = "stream_route"
 		case *v1.GlobalRule:
 			cachedGeneratedObj, err = cluster.generatedObjCache.GetGlobalRule(id)
 			resourceType = "global_rule"
@@ -134,10 +131,8 @@ func skipRequest[T ResourceTypes](cluster *cluster, shouldCompare bool, url, id 
 					if err == nil {
 						expectedServerObj.(*v1.Ssl).Key = ""
 					}
-				case *v1.Upstream:
-					expectedServerObj, err = cluster.cache.GetUpstream(id)
-				case *v1.StreamRoute:
-					expectedServerObj, err = cluster.cache.GetStreamRoute(id)
+				case *v1.Service:
+					expectedServerObj, err = cluster.cache.GetService(id)
 				case *v1.GlobalRule:
 					expectedServerObj, err = cluster.cache.GetGlobalRule(id)
 				case *v1.Consumer:
@@ -157,8 +152,8 @@ func skipRequest[T ResourceTypes](cluster *cluster, shouldCompare bool, url, id 
 						serverObj, err = cluster.GetRoute(context.Background(), url, id)
 					case *v1.Ssl:
 						serverObj, err = cluster.GetSSL(context.Background(), url, id)
-					case *v1.Upstream:
-						serverObj, err = cluster.GetUpstream(context.Background(), url, id)
+					case *v1.Service:
+						serverObj, err = cluster.GetService(context.Background(), url, id)
 					case *v1.StreamRoute:
 						serverObj, err = cluster.GetStreamRoute(context.Background(), url, id)
 					case *v1.GlobalRule:
@@ -253,10 +248,8 @@ func CompareResourceEqualFromCluster[T ResourceTypes](cluster *cluster, id strin
 		old, _ = cluster.cache.GetRoute(id)
 	case *v1.Ssl:
 		old, _ = cluster.cache.GetSSL(id)
-	case *v1.Upstream:
-		old, _ = cluster.cache.GetUpstream(id)
-	case *v1.StreamRoute:
-		old, _ = cluster.cache.GetStreamRoute(id)
+	case *v1.Service:
+		old, _ = cluster.cache.GetService(id)
 	case *v1.GlobalRule:
 		old, _ = cluster.cache.GetGlobalRule(id)
 	case *v1.Consumer:

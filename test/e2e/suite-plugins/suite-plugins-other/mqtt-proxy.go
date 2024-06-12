@@ -24,6 +24,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
+// TODO: Failing: Because issue with creating stream_routes
 var _ = ginkgo.PDescribe("suite-plugins-other: mqtt-proxy plugin", func() {
 	opts := &scaffold.Options{
 		Name:                  "mqtt-proxy",
@@ -106,7 +107,7 @@ spec:
 `
 
 		assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(apisixRoute))
-
+		time.Sleep(6 * time.Second)
 		err := s.EnsureNumApisixStreamRoutesCreated(1)
 		assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
 

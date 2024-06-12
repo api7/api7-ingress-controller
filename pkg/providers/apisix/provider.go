@@ -80,7 +80,7 @@ func NewProvider(common *providertypes.Common, namespaceProvider namespace.Watch
 
 	p.apisixTranslator = apisixtranslation.NewApisixTranslator(&apisixtranslation.TranslatorOptions{
 		Apisix:               common.APISIX,
-		ClusterName:          common.Config.APISIX.DefaultClusterName,
+		ClusterName:          common.Config.Dashboard.DefaultClusterName,
 		IngressClassName:     common.Config.Kubernetes.IngressClass,
 		ServiceLister:        common.SvcLister,
 		ApisixUpstreamLister: common.ApisixUpstreamLister,

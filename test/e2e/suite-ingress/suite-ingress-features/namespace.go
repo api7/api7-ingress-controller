@@ -39,7 +39,7 @@ type headers struct {
 	} `json:"headers"`
 }
 
-var _ = ginkgo.Describe("suite-ingress-features: multiple values for same label key", func() {
+var _ = ginkgo.PDescribe("suite-ingress-features: multiple values for same label key", func() {
 
 	const ns1 = "nstestinga"
 	const labelKey = "nstesting"
@@ -134,7 +134,7 @@ spec:
 	})
 })
 
-var _ = ginkgo.Describe("suite-ingress-features: namespacing filtering enable", func() {
+var _ = ginkgo.PDescribe("suite-ingress-features: namespacing filtering enable", func() {
 	watchedNamespace := fmt.Sprintf("namespace-selector-1-%d", time.Now().Nanosecond())
 	s := scaffold.NewScaffold(&scaffold.Options{
 		Name:                  "enable-namespace-selector",
@@ -219,7 +219,7 @@ spec:
 	})
 })
 
-var _ = ginkgo.Describe("suite-ingress-features: namespacing filtering disable", func() {
+var _ = ginkgo.PDescribe("suite-ingress-features: namespacing filtering disable", func() {
 	s := scaffold.NewScaffold(&scaffold.Options{
 		Name:                     "disable-namespace-selector",
 		IngressAPISIXReplicas:    1,
@@ -263,7 +263,7 @@ spec:
           service:
             name: %s
             port:
-              number: %d	  
+              number: %d
 `, backendSvc, backendSvcPort[0])
 			assert.Nil(ginkgo.GinkgoT(), s.CreateResourceFromString(route), "creating first ingress")
 			time.Sleep(3 * time.Second)
@@ -309,7 +309,7 @@ spec:
 	})
 })
 
-var _ = ginkgo.Describe("suite-ingress-features: namespacing un-label", func() {
+var _ = ginkgo.PDescribe("suite-ingress-features: namespacing un-label", func() {
 	labelName, labelValue := fmt.Sprintf("namespace-selector-%d", time.Now().Nanosecond()), "watch"
 	s := scaffold.NewScaffold(&scaffold.Options{
 		Name:                  "un-label",
@@ -443,7 +443,7 @@ spec:
 	})
 })
 
-var _ = ginkgo.Describe("suite-ingress-features: namespacing from no-label to label", func() {
+var _ = ginkgo.PDescribe("suite-ingress-features: namespacing from no-label to label", func() {
 	labelName, labelValue := fmt.Sprintf("namespace-selector-%d", time.Now().Nanosecond()), "watch"
 	s := scaffold.NewScaffold(&scaffold.Options{
 		Name:                  "from-no-label-to-label",

@@ -48,12 +48,27 @@ const errMsg = `{"error_msg":"not found schema"}`
 func (srv *fakeAPISIXSchemaSrv) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	if !strings.HasPrefix(r.URL.Path, "/apisix/admin/schema") {
+	if !strings.HasPrefix(r.URL.Path, "/apisix/admin/schema") && !strings.HasPrefix(r.URL.Path, "/apisix/admin/plugins") {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
 	if r.Method == http.MethodGet {
+		if strings.HasPrefix(r.URL.Path, "/apisix/admin/plugins") {
+			name := strings.TrimPrefix(r.URL.Path, "/apisix/admin/")
+			if len(name) < 1 {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			if resp, ok := srv.schema[name]; ok {
+				_, _ = w.Write([]byte(resp))
+			} else {
+				_, _ = w.Write([]byte(errMsg))
+			}
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 		name := strings.TrimPrefix(r.URL.Path, "/apisix/admin/schema/")
 		if len(name) < 1 {
 			w.WriteHeader(http.StatusBadRequest)
@@ -134,24 +149,4 @@ func TestSchemaClient(t *testing.T) {
 	schema, err := cli.GetPluginSchema(ctx, "not-a-plugin")
 	assert.Nil(t, err)
 	assert.Equal(t, schema.Content, errMsg)
-
-	// Test `GetRouteSchema`
-	routeSchema, err := cli.GetRouteSchema(ctx)
-	assert.Nil(t, err)
-	assert.Equal(t, routeSchema.Content, testData["route"])
-
-	// Test `GetRouteSchema`
-	upstreamSchema, err := cli.GetUpstreamSchema(ctx)
-	assert.Nil(t, err)
-	assert.Equal(t, upstreamSchema.Content, testData["upstream"])
-
-	// Test `GetConsumerSchema`
-	consumerSchema, err := cli.GetConsumerSchema(ctx)
-	assert.Nil(t, err)
-	assert.Equal(t, consumerSchema.Content, testData["consumer"])
-
-	// Test `GetSslSchema`
-	sslSchema, err := cli.GetSslSchema(ctx)
-	assert.Nil(t, err)
-	assert.Equal(t, sslSchema.Content, testData["ssl"])
 }

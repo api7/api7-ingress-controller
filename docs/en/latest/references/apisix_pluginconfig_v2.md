@@ -27,7 +27,7 @@ description: Reference for ApisixPluginConfig/v2 custom Kubernetes resource.
 
 ## Spec
 
-See the [definition](https://github.com/apache/apisix-ingress-controller/blob/master/samples/deploy/crd/v1/ApisixPluginConfig.yaml) on GitHub.
+See the [definition](https://github.com/apache/api7-ingress-controller/blob/master/samples/deploy/crd/v1/ApisixPluginConfig.yaml) on GitHub.
 
 | Field            | Type    | Description                                                                                                                                    |
 |------------------|---------|------------------------------------------------------------------------------------------------------------------------------------------------|

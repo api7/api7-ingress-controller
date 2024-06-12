@@ -90,26 +90,24 @@ func (s *sslClient) List(ctx context.Context) ([]*v1.Ssl, error) {
 		zap.String("url", s.url),
 		zap.String("cluster", s.cluster.name),
 	)
-
-	sslItems, err := s.cluster.listResource(ctx, s.url, "ssl")
+	url := s.url
+	sslItems, err := s.cluster.listResource(ctx, url, "ssl")
 	if err != nil {
 		log.Errorf("failed to list ssl: %s", err)
 		return nil, err
 	}
 
 	var items []*v1.Ssl
-	for i, item := range sslItems {
+	for _, item := range sslItems.List {
 		ssl, err := item.ssl()
 		if err != nil {
 			log.Errorw("failed to convert ssl item",
-				zap.String("url", s.url),
-				zap.String("ssl_key", item.Key),
+				zap.String("url", url),
 				zap.Error(err),
 			)
 			return nil, err
 		}
 		items = append(items, ssl)
-		log.Infof("list ssl #%d, body: %s", i, string(item.Value))
 	}
 
 	return items, nil

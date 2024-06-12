@@ -21,8 +21,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sort"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -34,7 +32,7 @@ import (
 )
 
 type fakeAPISIXPluginConfigSrv struct {
-	pluginConfig map[string]json.RawMessage
+	pluginConfig map[string]map[string]interface{}
 }
 
 func (srv *fakeAPISIXPluginConfigSrv) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -46,51 +44,62 @@ func (srv *fakeAPISIXPluginConfigSrv) ServeHTTP(w http.ResponseWriter, r *http.R
 	}
 
 	if r.Method == http.MethodGet {
-		resp := fakeListResp{
-			Count: strconv.Itoa(len(srv.pluginConfig)),
-			Node: fakeNode{
-				Key: "/apisix/plugin_configs",
-			},
+		//For individual resource, the getcreate response is sent
+		var key string
+		if strings.HasPrefix(r.URL.Path, "/apisix/admin/plugin_configs/") && strings.TrimPrefix(r.URL.Path, "/apisix/admin/plugin_configs/") != "" {
+			key = strings.TrimPrefix(r.URL.Path, "/apisix/admin/plugin_configs/")
 		}
-		var keys []string
-		for key := range srv.pluginConfig {
-			keys = append(keys, key)
+		if key != "" {
+			resp := fakeGetCreateResp{
+				fakeGetCreateItem{
+					Key:   key,
+					Value: srv.pluginConfig[key],
+				},
+			}
+			resp.fakeGetCreateItem.Value = srv.pluginConfig[key]
+			w.WriteHeader(http.StatusOK)
+			data, _ := json.Marshal(resp)
+			_, _ = w.Write(data)
+		} else {
+			resp := fakeListResp{}
+			resp.Total = fmt.Sprintf("%d", len(srv.pluginConfig))
+			resp.List = make([]fakeListItem, 0, len(srv.pluginConfig))
+			for _, v := range srv.pluginConfig {
+				resp.List = append(resp.List, v)
+			}
+			data, _ := json.Marshal(resp)
+			_, _ = w.Write(data)
 		}
-		sort.Strings(keys)
-		for _, key := range keys {
-			resp.Node.Items = append(resp.Node.Items, fakeItem{
-				Key:   key,
-				Value: srv.pluginConfig[key],
-			})
-		}
-		w.WriteHeader(http.StatusOK)
-		data, _ := json.Marshal(resp)
-		_, _ = w.Write(data)
+
 		return
 	}
 
 	if r.Method == http.MethodDelete {
 		id := strings.TrimPrefix(r.URL.Path, "/apisix/admin/plugin_configs/")
-		id = "/apisix/plugin_configs/" + id
+		id = "/apisix/admin/plugin_configs/" + id
 		code := http.StatusNotFound
 		if _, ok := srv.pluginConfig[id]; ok {
 			delete(srv.pluginConfig, id)
 			code = http.StatusOK
 		}
+
 		w.WriteHeader(code)
 	}
 
 	if r.Method == http.MethodPut {
 		paths := strings.Split(r.URL.Path, "/")
-		key := fmt.Sprintf("/apisix/plugin_configs/%s", paths[len(paths)-1])
+		key := fmt.Sprintf("/apisix/admin/plugin_configs/%s", paths[len(paths)-1])
 		data, _ := io.ReadAll(r.Body)
-		srv.pluginConfig[key] = data
 		w.WriteHeader(http.StatusCreated)
-		resp := fakeCreateResp{
-			Action: "create",
-			Node: fakeItem{
+		gr := make(map[string]interface{}, 0)
+		json.Unmarshal(data, &gr)
+		srv.pluginConfig[key] = gr
+		var val Value
+		json.Unmarshal(data, &val)
+		resp := fakeGetCreateResp{
+			fakeGetCreateItem{
+				Value: val,
 				Key:   key,
-				Value: json.RawMessage(data),
 			},
 		}
 		data, _ = json.Marshal(resp)
@@ -100,25 +109,34 @@ func (srv *fakeAPISIXPluginConfigSrv) ServeHTTP(w http.ResponseWriter, r *http.R
 
 	if r.Method == http.MethodPatch {
 		id := strings.TrimPrefix(r.URL.Path, "/apisix/admin/plugin_configs/")
-		id = "/apisix/plugin_configs/" + id
+		id = "/apisix/admin/plugin_configs/" + id
 		if _, ok := srv.pluginConfig[id]; !ok {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
 		data, _ := io.ReadAll(r.Body)
-		srv.pluginConfig[id] = data
-
+		var val Value
+		json.Unmarshal(data, &val)
+		gr := make(map[string]interface{}, 0)
+		json.Unmarshal(data, &gr)
+		srv.pluginConfig[id] = gr
 		w.WriteHeader(http.StatusOK)
-		output := fmt.Sprintf(`{"action": "compareAndSwap", "node": {"key": "%s", "value": %s}}`, id, string(data))
-		_, _ = w.Write([]byte(output))
+		resp := fakeGetCreateResp{
+			fakeGetCreateItem{
+				Value: val,
+				Key:   id,
+			},
+		}
+		byt, _ := json.Marshal(resp)
+		_, _ = w.Write([]byte(byt))
 		return
 	}
 }
 
 func runFakePluginConfigSrv(t *testing.T) *http.Server {
 	srv := &fakeAPISIXPluginConfigSrv{
-		pluginConfig: make(map[string]json.RawMessage),
+		pluginConfig: make(map[string]map[string]interface{}),
 	}
 
 	ln, _ := nettest.NewLocalListener("tcp")

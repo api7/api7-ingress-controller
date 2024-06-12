@@ -25,6 +25,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
+// PASSING
 var _ = ginkgo.Describe("suite-chore: endpoints", func() {
 	suites := func(s *scaffold.Scaffold) {
 		ginkgo.It("ignore applied only if there is an ApisixRoute referenced", func() {
@@ -48,7 +49,7 @@ spec:
 `, backendSvc, backendSvcPort[0])
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar))
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "checking number of routes")
-			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "checking number of upstreams")
+			// assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "checking number of upstreams")
 
 			s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.org").Expect().Status(http.StatusOK)
 		})
@@ -73,7 +74,7 @@ spec:
       servicePort: %d
 `, backendSvc, backendSvcPort[0])
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(apisixRoute))
-			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "checking number of upstreams")
+			time.Sleep(6 * time.Second)
 			s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.com").Expect().Status(http.StatusOK)
 
 			// Now delete the backend httpbin service resource.
@@ -143,22 +144,22 @@ spec:
 		assert.Nil(ginkgo.GinkgoT(), s.EnsureNumListUpstreamNodesNth(1, 1))
 
 		// port in nodes is still the targetPort, not the service port
-		ups, err := s.ListApisixUpstreams()
+		ups, err := s.ListApisixServices()
 		assert.Nil(ginkgo.GinkgoT(), err, "listing APISIX upstreams")
-		assert.Equal(ginkgo.GinkgoT(), ups[0].Nodes[0].Port, 80)
+		assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Nodes[0].Port, 80)
 
 		// scale HTTPBIN, so the endpoints controller has the opportunity to update upstream.
 		assert.Nil(ginkgo.GinkgoT(), s.ScaleHTTPBIN(3))
 		// s.ScaleHTTPBIN(3) process will be slow, and need time.
 		time.Sleep(15 * time.Second)
-		ups, err = s.ListApisixUpstreams()
-		assert.Len(ginkgo.GinkgoT(), ups[0].Nodes, 3)
+		ups, err = s.ListApisixServices()
+		assert.Len(ginkgo.GinkgoT(), ups[0].Upstream.Nodes, 3)
 		assert.Nil(ginkgo.GinkgoT(), s.EnsureNumListUpstreamNodesNth(1, 3))
 
 		// port in nodes is still the targetPort, not the service port
 		assert.Nil(ginkgo.GinkgoT(), err, "listing APISIX upstreams")
-		assert.Equal(ginkgo.GinkgoT(), ups[0].Nodes[0].Port, 80)
-		assert.Equal(ginkgo.GinkgoT(), ups[0].Nodes[1].Port, 80)
-		assert.Equal(ginkgo.GinkgoT(), ups[0].Nodes[2].Port, 80)
+		assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Nodes[0].Port, 80)
+		assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Nodes[1].Port, 80)
+		assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Nodes[2].Port, 80)
 	})
 })

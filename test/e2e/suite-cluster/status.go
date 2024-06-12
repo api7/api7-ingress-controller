@@ -15,8 +15,6 @@
 package cluster
 
 import (
-	"time"
-
 	"github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
 
@@ -29,8 +27,6 @@ var _ = ginkgo.Describe("suite-cluster: CRDs status subresource Testing", func()
 	ginkgo.It("check ApisixClusterConfig status is recorded", func() {
 		// create ApisixClusterConfig resource
 		assert.Nil(ginkgo.GinkgoT(), s.NewApisixClusterConfig("default", true, true), "create cluster config error")
-		time.Sleep(6 * time.Second)
-
 		// status should be recorded as successful
 		output, err := s.GetOutputFromString("acc", "default", "-o", "yaml")
 		assert.Nil(ginkgo.GinkgoT(), err, "Get output of ApisixClusterConfig resource")

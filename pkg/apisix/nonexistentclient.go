@@ -31,7 +31,7 @@ func newNonExistentCluster() *nonExistentCluster {
 		embedDummyResourceImplementer{
 			route:                   &dummyRoute{},
 			ssl:                     &dummySSL{},
-			upstream:                &dummyUpstream{},
+			service:                 &dummyService{},
 			streamRoute:             &dummyStreamRoute{},
 			globalRule:              &dummyGlobalRule{},
 			consumer:                &dummyConsumer{},
@@ -47,7 +47,7 @@ func newNonExistentCluster() *nonExistentCluster {
 type embedDummyResourceImplementer struct {
 	route                   Route
 	ssl                     SSL
-	upstream                Upstream
+	service                 Service
 	streamRoute             StreamRoute
 	globalRule              GlobalRule
 	consumer                Consumer
@@ -103,25 +103,25 @@ func (f *dummySSL) Update(_ context.Context, _ *v1.Ssl, shouldCompare bool) (*v1
 	return nil, ErrClusterNotExist
 }
 
-type dummyUpstream struct{}
+type dummyService struct{}
 
-func (f *dummyUpstream) Get(_ context.Context, _ string) (*v1.Upstream, error) {
+func (f *dummyService) Get(_ context.Context, _ string) (*v1.Service, error) {
 	return nil, ErrClusterNotExist
 }
 
-func (f *dummyUpstream) List(_ context.Context) ([]*v1.Upstream, error) {
+func (f *dummyService) List(_ context.Context) ([]*v1.Service, error) {
 	return nil, ErrClusterNotExist
 }
 
-func (f *dummyUpstream) Create(_ context.Context, _ *v1.Upstream, shouldCompare bool) (*v1.Upstream, error) {
+func (f *dummyService) Create(_ context.Context, _ *v1.Service, shouldCompare bool) (*v1.Service, error) {
 	return nil, ErrClusterNotExist
 }
 
-func (f *dummyUpstream) Delete(_ context.Context, _ *v1.Upstream) error {
+func (f *dummyService) Delete(_ context.Context, _ *v1.Service) error {
 	return ErrClusterNotExist
 }
 
-func (f *dummyUpstream) Update(_ context.Context, _ *v1.Upstream, shouldCompare bool) (*v1.Upstream, error) {
+func (f *dummyService) Update(_ context.Context, _ *v1.Service, shouldCompare bool) (*v1.Service, error) {
 	return nil, ErrClusterNotExist
 }
 
@@ -303,8 +303,8 @@ func (nc *nonExistentCluster) SSL() SSL {
 	return nc.ssl
 }
 
-func (nc *nonExistentCluster) Upstream() Upstream {
-	return nc.upstream
+func (nc *nonExistentCluster) Service() Service {
+	return nc.service
 }
 
 func (nc *nonExistentCluster) StreamRoute() StreamRoute {
@@ -360,7 +360,7 @@ var _ cache.Cache = &dummyCache{}
 
 func (c *dummyCache) InsertRoute(_ *v1.Route) error                                     { return nil }
 func (c *dummyCache) InsertSSL(_ *v1.Ssl) error                                         { return nil }
-func (c *dummyCache) InsertUpstream(_ *v1.Upstream) error                               { return nil }
+func (c *dummyCache) InsertService(_ *v1.Service) error                                 { return nil }
 func (c *dummyCache) InsertStreamRoute(_ *v1.StreamRoute) error                         { return nil }
 func (c *dummyCache) InsertGlobalRule(_ *v1.GlobalRule) error                           { return nil }
 func (c *dummyCache) InsertConsumer(_ *v1.Consumer) error                               { return nil }
@@ -369,7 +369,7 @@ func (c *dummyCache) InsertPluginConfig(_ *v1.PluginConfig) error               
 func (c *dummyCache) InsertUpstreamServiceRelation(_ *v1.UpstreamServiceRelation) error { return nil }
 func (c *dummyCache) GetRoute(_ string) (*v1.Route, error)                              { return nil, cache.ErrNotFound }
 func (c *dummyCache) GetSSL(_ string) (*v1.Ssl, error)                                  { return nil, cache.ErrNotFound }
-func (c *dummyCache) GetUpstream(_ string) (*v1.Upstream, error)                        { return nil, cache.ErrNotFound }
+func (c *dummyCache) GetService(_ string) (*v1.Service, error)                          { return nil, cache.ErrNotFound }
 func (c *dummyCache) GetStreamRoute(_ string) (*v1.StreamRoute, error)                  { return nil, cache.ErrNotFound }
 func (c *dummyCache) GetGlobalRule(_ string) (*v1.GlobalRule, error)                    { return nil, cache.ErrNotFound }
 func (c *dummyCache) GetConsumer(_ string) (*v1.Consumer, error)                        { return nil, cache.ErrNotFound }
@@ -382,7 +382,7 @@ func (c *dummyCache) GetUpstreamServiceRelation(_ string) (*v1.UpstreamServiceRe
 }
 func (c *dummyCache) ListRoutes() ([]*v1.Route, error)               { return nil, nil }
 func (c *dummyCache) ListSSL() ([]*v1.Ssl, error)                    { return nil, nil }
-func (c *dummyCache) ListUpstreams() ([]*v1.Upstream, error)         { return nil, nil }
+func (c *dummyCache) ListServices() ([]*v1.Service, error)           { return nil, nil }
 func (c *dummyCache) ListStreamRoutes() ([]*v1.StreamRoute, error)   { return nil, nil }
 func (c *dummyCache) ListGlobalRules() ([]*v1.GlobalRule, error)     { return nil, nil }
 func (c *dummyCache) ListConsumers() ([]*v1.Consumer, error)         { return nil, nil }
@@ -393,12 +393,12 @@ func (c *dummyCache) ListUpstreamServiceRelation() ([]*v1.UpstreamServiceRelatio
 }
 func (c *dummyCache) DeleteRoute(_ *v1.Route) error                                     { return nil }
 func (c *dummyCache) DeleteSSL(_ *v1.Ssl) error                                         { return nil }
-func (c *dummyCache) DeleteUpstream(_ *v1.Upstream) error                               { return nil }
+func (c *dummyCache) DeleteService(_ *v1.Service) error                                 { return nil }
 func (c *dummyCache) DeleteStreamRoute(_ *v1.StreamRoute) error                         { return nil }
 func (c *dummyCache) DeleteGlobalRule(_ *v1.GlobalRule) error                           { return nil }
 func (c *dummyCache) DeleteConsumer(_ *v1.Consumer) error                               { return nil }
 func (c *dummyCache) DeleteSchema(_ *v1.Schema) error                                   { return nil }
 func (c *dummyCache) DeletePluginConfig(_ *v1.PluginConfig) error                       { return nil }
 func (c *dummyCache) DeleteUpstreamServiceRelation(_ *v1.UpstreamServiceRelation) error { return nil }
-func (c *dummyCache) CheckUpstreamReference(_ *v1.Upstream) error                       { return nil }
+func (c *dummyCache) CheckServiceReference(_ *v1.Service) error                         { return nil }
 func (c *dummyCache) CheckPluginConfigReference(_ *v1.PluginConfig) error               { return nil }

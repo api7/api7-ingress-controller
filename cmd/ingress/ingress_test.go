@@ -148,8 +148,8 @@ func TestNewIngressCommandEffectiveLog(t *testing.T) {
 	assert.Equal(t, true, cfg.EnableProfiling)
 	assert.Equal(t, "/foo/bar/baz", cfg.Kubernetes.Kubeconfig)
 	assert.Equal(t, types.TimeDuration{Duration: 24 * time.Hour}, cfg.Kubernetes.ResyncInterval)
-	assert.Equal(t, "******", cfg.APISIX.DefaultClusterAdminKey)
-	assert.Equal(t, "http://apisixgw.default.cluster.local/apisix", cfg.APISIX.DefaultClusterBaseURL)
+	assert.Equal(t, "******", cfg.Dashboard.DefaultClusterAdminKey)
+	assert.Equal(t, "http://apisixgw.default.cluster.local/apisix", cfg.Dashboard.DefaultClusterBaseURL)
 }
 
 func parseLog(t *testing.T, r *bufio.Reader) *fields {

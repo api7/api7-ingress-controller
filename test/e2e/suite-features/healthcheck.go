@@ -24,6 +24,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
+// PASSING
 var _ = ginkgo.Describe("suite-features: health check", func() {
 	suites := func(scaffoldFunc func() *scaffold.Scaffold) {
 		s := scaffoldFunc()
@@ -72,13 +73,13 @@ spec:
 
 			time.Sleep(3 * time.Second)
 
-			ups, err := s.ListApisixUpstreams()
+			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err, nil, "listing upstreams")
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
-			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Active.Healthy.Interval, 1)
-			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Active.Healthy.HTTPStatuses, []int{200})
-			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Active.Unhealthy.Interval, 1)
-			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Active.Unhealthy.HTTPFailures, 2)
+			assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Checks.Active.Healthy.Interval, 1)
+			assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Checks.Active.Healthy.HTTPStatuses, []int{200})
+			assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Checks.Active.Unhealthy.Interval, 1)
+			assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Checks.Active.Unhealthy.HTTPFailures, 2)
 
 			// It's difficult to test healthchecker since we cannot let partial httpbin endpoints
 			// down, if all of them are down, apisix in turn uses all of them.
@@ -133,14 +134,14 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err)
 
 			time.Sleep(3 * time.Second)
-			ups, err := s.ListApisixUpstreams()
+			ups, err := s.ListApisixServices()
 			assert.Nil(ginkgo.GinkgoT(), err, nil, "listing upstreams")
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
-			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Active.Healthy.Interval, 1)
-			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Active.Healthy.HTTPStatuses, []int{200})
-			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Active.Unhealthy.Interval, 1)
-			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Passive.Healthy.HTTPStatuses, []int{200})
-			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Passive.Unhealthy.HTTPStatuses, []int{502})
+			assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Checks.Active.Healthy.Interval, 1)
+			assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Checks.Active.Healthy.HTTPStatuses, []int{200})
+			assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Checks.Active.Unhealthy.Interval, 1)
+			assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Checks.Passive.Healthy.HTTPStatuses, []int{200})
+			assert.Equal(ginkgo.GinkgoT(), ups[0].Upstream.Checks.Passive.Unhealthy.HTTPStatuses, []int{502})
 		})
 	}
 	ginkgo.Describe("suite-features: scaffold v2", func() {

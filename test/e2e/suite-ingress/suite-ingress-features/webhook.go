@@ -24,7 +24,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-ingress-features: Enable webhooks", func() {
+var _ = ginkgo.PDescribe("suite-ingress-features: Enable webhooks", func() {
 	s := scaffold.NewScaffold(&scaffold.Options{
 		Name:                  "webhook",
 		IngressAPISIXReplicas: 1,

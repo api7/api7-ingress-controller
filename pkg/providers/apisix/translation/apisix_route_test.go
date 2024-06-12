@@ -418,19 +418,19 @@ func TestGenerateApisixRouteV2DeleteMark(t *testing.T) {
 	fmt.Println(tx)
 	assert.NoError(t, err, "translateRoute not strictly should be no error")
 	assert.Equal(t, 2, len(tx.Routes), "There should be 2 routes")
-	assert.Equal(t, 2, len(tx.Upstreams), "There should be 2 upstreams")
+	assert.Equal(t, 2, len(tx.Services), "There should be 2 upstreams")
 	assert.Equal(t, "test_ar_rule1", tx.Routes[0].Name, "route1 name error")
 	assert.Equal(t, "test_ar_rule2", tx.Routes[1].Name, "route2 name error")
-	assert.Equal(t, "test_svc1_81", tx.Upstreams[0].Name, "upstream1 name error")
-	assert.Equal(t, "test_svc2_82", tx.Upstreams[1].Name, "upstream2 name error")
+	assert.Equal(t, "test_svc1_81", tx.Services[0].Name, "upstream1 name error")
+	assert.Equal(t, "test_svc2_82", tx.Services[1].Name, "upstream2 name error")
 
 	assert.Equal(t, id.GenID("test_ar_rule1"), tx.Routes[0].ID, "route1 id error")
 	assert.Equal(t, id.GenID("test_ar_rule2"), tx.Routes[1].ID, "route2 id error")
 	assert.Equal(t, id.GenID(apisixv1.ComposePluginConfigName(ar.Namespace, ar.Spec.HTTP[0].PluginConfigName)), tx.Routes[0].PluginConfigId, "route1 PluginConfigId error")
 	assert.Equal(t, "", tx.Routes[1].PluginConfigId, "route2 PluginConfigId error ")
 
-	assert.Equal(t, id.GenID("test_svc1_81"), tx.Upstreams[0].ID, "upstream1 id error")
-	assert.Equal(t, id.GenID("test_svc2_82"), tx.Upstreams[1].ID, "upstream2 id error")
+	assert.Equal(t, id.GenID("test_svc1_81"), tx.Services[0].ID, "upstream1 id error")
+	assert.Equal(t, id.GenID("test_svc2_82"), tx.Services[1].ID, "upstream2 id error")
 }
 
 func ptrOf[T interface{}](v T) *T {
@@ -637,9 +637,9 @@ func TestTranslateApisixRouteV2WithUpstream(t *testing.T) {
 		},
 	}, wups)
 
-	assert.Equal(t, 2, len(tctx.Upstreams))
-	var ups *apisixv1.Upstream
-	for _, u := range tctx.Upstreams {
+	assert.Equal(t, 2, len(tctx.Services))
+	var ups *apisixv1.Service
+	for _, u := range tctx.Services {
 		if u.ID == upsID {
 			ups = u
 			break
@@ -649,13 +649,14 @@ func TestTranslateApisixRouteV2WithUpstream(t *testing.T) {
 
 	// unset useless data
 	ups.Desc = ""
-	assert.Equal(t, &apisixv1.Upstream{
+
+	assert.Equal(t, apisixv1.Upstream{
 		Metadata: apisixv1.Metadata{
 			ID:   upsID,
 			Name: upsName,
 			Desc: "",
 			Labels: map[string]string{
-				"managed-by":  "apisix-ingress-controller",
+				"managed-by":  "api7-ingress-controller",
 				"meta_weight": "1",
 			},
 		},
@@ -674,7 +675,7 @@ func TestTranslateApisixRouteV2WithUpstream(t *testing.T) {
 		Retries: nil,
 		Timeout: nil,
 		TLS:     nil,
-	}, ups)
+	}, ups.Upstream)
 }
 
 func TestTranslateApisixRouteV2WithUpstreamNoBackendsAndPluginConfigName(t *testing.T) {

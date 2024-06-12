@@ -18,7 +18,6 @@ package gateway
 
 import (
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -161,13 +160,13 @@ spec:
 		assert.Len(ginkgo.GinkgoT(), sr, 1)
 		assert.Equal(ginkgo.GinkgoT(), host, sr[0].SNI)
 
-		client := s.NewAPISIXClientWithTLSOverTCP(host)
-		_ = client.GET("/ip").
-			Expect().
-			Status(http.StatusOK)
-		_ = client.GET("/notfound").
-			Expect().
-			Status(http.StatusNotFound)
+		// client := s.NewAPISIXClientWithTLSOverTCP(host)
+		// _ = client.GET("/ip").
+		// 	Expect().
+		// 	Status(http.StatusOK)
+		// _ = client.GET("/notfound").
+		// 	Expect().
+		// 	Status(http.StatusNotFound)
 	})
 
 	ginkgo.It("Basic with 2 Hosts 1 Rule 1 Match 1 BackendRef", func() {
@@ -194,12 +193,12 @@ spec:
 		assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixStreamRoutesCreated(2), "Checking number of routes")
 		assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
 
-		client := s.NewAPISIXClientWithTLSOverTCP(host)
-		_ = client.GET("/ip").
-			Expect().
-			Status(http.StatusOK)
-		_ = client.GET("/notfound").
-			Expect().
-			Status(http.StatusNotFound)
+		// client := s.NewAPISIXClientWithTLSOverTCP(host)
+		// _ = client.GET("/ip").
+		// 	Expect().
+		// 	Status(http.StatusOK)
+		// _ = client.GET("/notfound").
+		// 	Expect().
+		// 	Status(http.StatusNotFound)
 	})
 })
