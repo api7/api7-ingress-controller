@@ -18,7 +18,6 @@ import (
 	"time"
 
 	v1 "github.com/api7/api7-ingress-controller/pkg/types/apisix/v1"
-
 	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
 

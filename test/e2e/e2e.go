@@ -22,7 +22,6 @@ import (
 	_ "github.com/api7/api7-ingress-controller/test/e2e/suite-chore"
 	_ "github.com/api7/api7-ingress-controller/test/e2e/suite-cluster"
 	_ "github.com/api7/api7-ingress-controller/test/e2e/suite-features"
-
 	_ "github.com/api7/api7-ingress-controller/test/e2e/suite-plugins/suite-plugins-authentication"
 	_ "github.com/api7/api7-ingress-controller/test/e2e/suite-plugins/suite-plugins-general"
 	_ "github.com/api7/api7-ingress-controller/test/e2e/suite-plugins/suite-plugins-other"
