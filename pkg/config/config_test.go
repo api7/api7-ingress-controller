@@ -103,7 +103,7 @@ kubernetes:
   ingress_version: networking/v1
   api_version: apisix.apache.org/v2
   disable_status_updates: true
-apisix:
+dashboard:
   admin_api_version: v2
   default_cluster_base_url: http://127.0.0.1:8080/apisix
   default_cluster_admin_key: "123456"
@@ -199,7 +199,7 @@ func TestConfigWithEnvVar(t *testing.T) {
         "ingress_version": "networking/v1",
         "disable_status_updates": true
     },
-    "apisix": {
+    "dashboard": {
         "admin_api_version": "v2",
         "default_cluster_base_url": "{{.DEFAULT_CLUSTER_BASE_URL}}",
         "default_cluster_admin_key": "{{.DEFAULT_CLUSTER_ADMIN_KEY}}",
@@ -243,7 +243,7 @@ kubernetes:
   ingress_class: apisix
   ingress_version: networking/v1
   disable_status_updates: true
-apisix:
+dashboard:
   admin_api_version: v2
   default_cluster_base_url: {{.DEFAULT_CLUSTER_BASE_URL}}
   default_cluster_admin_key: "{{.DEFAULT_CLUSTER_ADMIN_KEY}}"
@@ -274,7 +274,7 @@ apisix:
 
 func TestConfigDefaultValue(t *testing.T) {
 	yamlData := `
-apisix:
+dashboard:
   default_cluster_base_url: http://127.0.0.1:8080/apisix
 `
 	tmpYAML, err := os.CreateTemp("/tmp", "config-*.yaml")
@@ -315,7 +315,7 @@ func TestConfigInvalidation(t *testing.T) {
 	yamlData = `
 kubernetes:
   resync_interval: 15s
-apisix:
+dashboard:
   default_cluster_base_url: http://127.0.0.1:1234/apisix
 `
 	tmpYAML, err = os.CreateTemp("/tmp", "config-*.yaml")

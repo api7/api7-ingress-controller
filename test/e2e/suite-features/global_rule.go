@@ -17,11 +17,10 @@ package features
 import (
 	"time"
 
-	ginkgo "github.com/onsi/ginkgo/v2"
-	"github.com/stretchr/testify/assert"
-
 	v1 "github.com/api7/api7-ingress-controller/pkg/types/apisix/v1"
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
+	ginkgo "github.com/onsi/ginkgo/v2"
+	"github.com/stretchr/testify/assert"
 )
 
 // PASSING

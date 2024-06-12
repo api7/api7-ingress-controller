@@ -65,7 +65,7 @@ From the version 1.0.0, APISIX-ingress-controller need to work with Apache APISI
 
 Currently, APISIX Ingress Controller automatically manipulates some APISIX resources, which is not very compatible with APISIX Dashboard. In addition, users should not modify resources labeled `managed-by: api7-ingress-controllers` via APISIX Dashboard.
 
-## Internal Architecture
+## Internal Architecture (Image below to be updated)
 
 <img src="./docs/assets/images/api7-ingress-controller-arch.png" alt="module" width="74.3%" height="55.9%" />
 
