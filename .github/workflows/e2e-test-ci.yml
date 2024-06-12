@@ -16,8 +16,7 @@ concurrency:
 jobs:
   changes:
     if: |
-      contains(github.event.pull_request.labels.*.name, 'ci-e2e-test') ||
-      ! github.event.pull_request.draft
+      contains(github.event.pull_request.labels.*.name, 'ci-e2e-test')
     runs-on: ubuntu-20.04
     outputs:
       docs: ${{ steps.filter.outputs.docs }}
