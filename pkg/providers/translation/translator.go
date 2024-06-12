@@ -40,6 +40,7 @@ func (te *TranslateError) Error() string {
 }
 
 type Translator interface {
+
 	// TranslateUpstreamConfigV2 translates ApisixUpstreamConfig (part of ApisixUpstream)
 	// to APISIX Upstream, it doesn't fill the the Upstream metadata and nodes.
 	TranslateUpstreamConfigV2(*configv2.ApisixUpstreamConfig) (*apisixv1.Upstream, error)

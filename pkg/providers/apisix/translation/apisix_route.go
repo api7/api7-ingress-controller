@@ -221,7 +221,7 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 				route.Plugins["traffic-split"] = plugin
 			}
 			if !ctx.CheckUpstreamExist(upstreamName) {
-				ups, err := t.translateService(ar.Namespace, backend.ServiceName, backend.Subset, svcClusterIP, svcPort)
+				ups, err := t.translateUpstream(ar.Namespace, backend.ServiceName, backend.Subset, svcClusterIP, svcPort)
 				if err != nil {
 					return err
 				}
@@ -560,7 +560,7 @@ func (t *translator) translateStreamRouteV2(ctx *translation.TranslateContext, a
 		sr.ID = id.GenID(name)
 		sr.ServerPort = part.Match.IngressPort
 		sr.SNI = part.Match.Host
-		ups, err := t.translateService(ar.Namespace, backend.ServiceName, backend.Subset, svcClusterIP, svcPort)
+		ups, err := t.translateUpstream(ar.Namespace, backend.ServiceName, backend.Subset, svcClusterIP, svcPort)
 		if err != nil {
 			return err
 		}
