@@ -140,6 +140,7 @@ type Service struct {
 	Metadata `json:",inline" yaml:",inline"`
 	Type     ServiceType `json:"type,omitempty" yaml:"type,omitempty"`
 	Upstream Upstream    `json:"upstream,omitempty" yaml:"upstream,omitempty"`
+	Hosts    []string    `json:"hosts,omitempty" yaml:"hosts,omitempty"`
 }
 
 // Route apisix route object

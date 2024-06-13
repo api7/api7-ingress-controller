@@ -221,11 +221,12 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 				route.Plugins["traffic-split"] = plugin
 			}
 			if !ctx.CheckServiceExist(upstreamName) {
-				ups, err := t.translateService(ar.Namespace, backend.ServiceName, backend.Subset, backend.ResolveGranularity, svcClusterIP, svcPort)
+				svc, err := t.translateService(ar.Namespace, backend.ServiceName, backend.Subset, backend.ResolveGranularity, svcClusterIP, svcPort)
 				if err != nil {
 					return err
 				}
-				ctx.AddService(ups)
+				svc.Hosts = part.Match.Hosts
+				ctx.AddService(svc)
 			}
 		}
 
@@ -330,6 +331,7 @@ func (t *translator) translateHTTPRouteV2(ctx *translation.TranslateContext, ar 
 		}
 
 		for _, svc := range svcs {
+			svc.Hosts = part.Match.Hosts
 			ctx.AddService(svc)
 		}
 	}
@@ -493,6 +495,7 @@ func (t *translator) generateHTTPRouteV2DeleteMark(ctx *translation.TranslateCon
 				if err != nil {
 					return err
 				}
+				ups.Hosts = part.Match.Hosts
 				ctx.AddService(ups)
 			}
 		}
@@ -504,6 +507,7 @@ func (t *translator) generateHTTPRouteV2DeleteMark(ctx *translation.TranslateCon
 					ups := &apisixv1.Service{}
 					ups.Name = upstreamName
 					ups.ID = id.GenID(ups.Name)
+					ups.Hosts = part.Match.Hosts
 					ctx.AddService(ups)
 				}
 			}
