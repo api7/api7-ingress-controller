@@ -521,6 +521,21 @@ spec:
 			upstreamId := PhaseValidateFirstUpstream(s, 1, "httpbin.org", 80, translation.DefaultWeight)
 			PhaseValidateRouteAccess(s, upstreamId)
 		})
+
+		ginkgo.It("deleting ApisixUpstream should not create default upstream resource if upstream resource not present", func() {
+			// -- Data preparation --
+			PhaseCreateApisixRoute(s, "httpbin-route", "httpbin-upstream")
+			time.Sleep(time.Second * 6)
+			// -- Data Update --
+			PhaseCreateApisixUpstream(s, "httpbin-upstream", v2.ExternalTypeDomain, "httpbin.org")
+			time.Sleep(time.Second * 6)
+			s.DeleteResource("ar", "httpbin-route")
+			time.Sleep(time.Second * 6)
+			s.DeleteResource("au", "httpbin-upstream")
+			time.Sleep(time.Second * 6)
+			// -- validation --
+			PhaseValidateNoUpstreams(s)
+		})
 		ginkgo.It("should be able to create the ExternalName service later", func() {
 			// -- Data preparation --
 			fqdn := PhaseCreateHttpbin(s, "httpbin-temp")

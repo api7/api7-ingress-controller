@@ -239,7 +239,12 @@ func (c *apisixUpstreamController) sync(ctx context.Context, ev *types.Event) er
 					goto updateStatus
 				}
 			} else {
-				newUps = c.GetDefaultApisixUpstream(au.Namespace, au.Name)
+				//If upstream resource is present already then set it back to default when ApisixUpstream is deleted
+				upsName := apisixv1.ComposeExternalUpstreamName(au.Namespace, au.Name)
+				_, err := c.APISIX.Cluster(c.Config.APISIX.DefaultClusterName).Upstream().Get(ctx, upsName)
+				if err != apisix.ErrNotFound {
+					newUps = c.GetDefaultApisixUpstream(au.Namespace, au.Name)
+				}
 			}
 
 			if len(au.Spec.ExternalNodes) != 0 {
