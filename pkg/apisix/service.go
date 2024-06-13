@@ -125,7 +125,7 @@ func (u *serviceClient) Create(ctx context.Context, obj *v1.Service, shouldCompa
 		return nil, err
 	}
 	url := u.url + "/" + obj.ID
-	log.Debugw("creating upstream", zap.ByteString("body", body), zap.String("url", url))
+	log.Infow("creating service", zap.ByteString("body", body), zap.String("url", url))
 	resp, err := u.cluster.createResource(ctx, url, "service", body)
 	if err != nil {
 		log.Errorf("failed to create upstream: %s", err)
