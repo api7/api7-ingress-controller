@@ -26,7 +26,7 @@ RUN if [ "$ENABLE_PROXY" = "true" ] ; then go env -w GOPROXY=https://goproxy.cn,
     && go mod download
 
 COPY . .
-RUN --mount=type=cache,target=/root/.cache/go-build make build
+RUN make build
 
 FROM gcr.io/distroless/static-debian12:${BASE_IMAGE_TAG}
 LABEL maintainer="gxthrj@163.com"
