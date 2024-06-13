@@ -102,6 +102,15 @@ spec:
 		assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar))
 	}
 
+	PhaseValidateDefaultUpstream := func(s *scaffold.Scaffold) {
+		ups, err := s.ListApisixUpstreams()
+		assert.Nil(ginkgo.GinkgoT(), err)
+		assert.Len(ginkgo.GinkgoT(), ups, 1, "upstream count")
+		upstream := ups[0]
+		assert.Equal(ginkgo.GinkgoT(), "roundrobin", upstream.Type)
+		assert.Equal(ginkgo.GinkgoT(), "http", upstream.Scheme)
+	}
+
 	PhaseCreateApisixUpstream := func(s *scaffold.Scaffold, name string, nodeType v2.ApisixUpstreamExternalType, nodeName string) {
 		au := fmt.Sprintf(`
 apiVersion: apisix.apache.org/v2
@@ -499,12 +508,11 @@ spec:
 		})
 	})
 	ginkgo.Describe("update function: ", func() {
-		ginkgo.It("should be able to create the ApisixUpstream later", func() {
+		ginkgo.It("Apisix Upstream should be created with the default value", func() {
 			// -- Data preparation --
 			PhaseCreateApisixRoute(s, "httpbin-route", "httpbin-upstream")
 			time.Sleep(time.Second * 6)
-			PhaseValidateNoUpstreams(s)
-
+			PhaseValidateDefaultUpstream(s)
 			// -- Data Update --
 			PhaseCreateApisixUpstream(s, "httpbin-upstream", v2.ExternalTypeDomain, "httpbin.org")
 			time.Sleep(time.Second * 6)
