@@ -262,7 +262,7 @@ spec:
 			// -- Data preparation --
 			PhaseCreateApisixRoute(s, "httpbin-route", "httpbin-upstream")
 			time.Sleep(time.Second * 6)
-			PhaseValidateNoUpstreams(s)
+			PhaseValidateDefaultUpstream(s)
 
 			PhaseCreateApisixUpstream(s, "httpbin-upstream", "dns", "httpbin-temp")
 			// -- Data Update --
