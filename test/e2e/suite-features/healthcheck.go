@@ -30,7 +30,6 @@ var _ = ginkgo.Describe("suite-features: health check", func() {
 		s := scaffoldFunc()
 		ginkgo.It("active check", func() {
 			backendSvc, backendPorts := s.DefaultHTTPBackend()
-
 			au := fmt.Sprintf(`
 apiVersion: apisix.apache.org/v2
 kind: ApisixUpstream

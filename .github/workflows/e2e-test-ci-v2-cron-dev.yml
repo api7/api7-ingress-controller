@@ -24,7 +24,6 @@ on:
       - cron: '0 0 * * *'
   push:
     branches:
-      - master
       - 1.8.0
 
 concurrency:
@@ -33,7 +32,7 @@ concurrency:
 
 jobs:
   changes:
-    if: ${{ (!github.event.pull_request.draft && github.event.schedule == '0 0 * * *') }}
+    if: ${{ (!github.event.pull_request.draft && github.event.schedule == '0 0 * * *') && contains(github.event.pull_request.labels.*.name, 'ci-e2e-test') }}
     runs-on: ubuntu-20.04
     outputs:
       docs: ${{ steps.filter.outputs.docs }}
@@ -82,12 +81,6 @@ jobs:
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          version: latest
 
       - name: Prepare Host
         run: |

@@ -28,6 +28,8 @@ on:
       - 1.8.0
 jobs:
   changes:
+    if: |
+      contains(github.event.pull_request.labels.*.name, 'ci-unit-test')
     runs-on: ubuntu-latest
     outputs:
       docs: ${{ steps.filter.outputs.docs }}

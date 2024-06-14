@@ -21,7 +21,7 @@ VERSION ?= 1.8.0
 
 TARGET_APISIX_VERSION ?= "3.4.1-centos"
 APISIX_ADMIN_API_VERSION ?= "v3"
-
+USE_BUILDKIT ?= 1
 ifeq ($(APISIX_ADMIN_API_VERSION),"v2")
     TARGET_APISIX_VERSION ?= "2.15.3-centos"
 endif
@@ -75,10 +75,11 @@ clean-image: ## Removes local image
 ### build-image:          Build api7-ingress-controller image
 .PHONY: build-image
 build-image:
-ifeq ($(E2E_SKIP_BUILD), 0)
-	DOCKER_BUILDKIT=1 docker build -t api7/api7-ingress-controller:$(IMAGE_TAG) --build-arg ENABLE_PROXY=$(ENABLE_PROXY) --build-arg BASE_IMAGE_TAG=$(BASE_IMAGE_TAG) .
+ifeq ($(E2E_SKIP_BUILD), 0) 
+	DOCKER_BUILDKIT=$(USE_BUILDKIT) docker build -t api7/api7-ingress-controller:$(IMAGE_TAG) --build-arg ENABLE_PROXY=$(ENABLE_PROXY) --build-arg BASE_IMAGE_TAG=$(BASE_IMAGE_TAG) .
 	docker tag api7/api7-ingress-controller:$(IMAGE_TAG) $(REGISTRY)/api7-ingress-controller:$(IMAGE_TAG)
 endif
+
 
 ### pack-image:   Build and push Ingress image used in e2e test suites to kind or custom registry.
 .PHONY: pack-image
