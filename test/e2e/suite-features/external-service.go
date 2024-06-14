@@ -102,6 +102,15 @@ spec:
 		assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar))
 	}
 
+	PhaseValidateDefaultUpstream := func(s *scaffold.Scaffold) {
+		ups, err := s.ListApisixUpstreams()
+		assert.Nil(ginkgo.GinkgoT(), err)
+		assert.Len(ginkgo.GinkgoT(), ups, 1, "upstream count")
+		upstream := ups[0]
+		assert.Equal(ginkgo.GinkgoT(), "roundrobin", upstream.Type)
+		assert.Equal(ginkgo.GinkgoT(), "http", upstream.Scheme)
+	}
+
 	PhaseCreateApisixUpstream := func(s *scaffold.Scaffold, name string, nodeType v2.ApisixUpstreamExternalType, nodeName string) {
 		au := fmt.Sprintf(`
 apiVersion: apisix.apache.org/v2
@@ -499,12 +508,11 @@ spec:
 		})
 	})
 	ginkgo.Describe("update function: ", func() {
-		ginkgo.It("should be able to create the ApisixUpstream later", func() {
+		ginkgo.It("Apisix Upstream should be created with the default value", func() {
 			// -- Data preparation --
 			PhaseCreateApisixRoute(s, "httpbin-route", "httpbin-upstream")
 			time.Sleep(time.Second * 6)
-			PhaseValidateNoUpstreams(s)
-
+			PhaseValidateDefaultUpstream(s)
 			// -- Data Update --
 			PhaseCreateApisixUpstream(s, "httpbin-upstream", v2.ExternalTypeDomain, "httpbin.org")
 			time.Sleep(time.Second * 6)
@@ -512,6 +520,21 @@ spec:
 			// -- validation --
 			upstreamId := PhaseValidateFirstUpstream(s, 1, "httpbin.org", 80, translation.DefaultWeight)
 			PhaseValidateRouteAccess(s, upstreamId)
+		})
+
+		ginkgo.It("deleting ApisixUpstream should not create default upstream resource if upstream resource not present", func() {
+			// -- Data preparation --
+			PhaseCreateApisixRoute(s, "httpbin-route", "httpbin-upstream")
+			time.Sleep(time.Second * 6)
+			// -- Data Update --
+			PhaseCreateApisixUpstream(s, "httpbin-upstream", v2.ExternalTypeDomain, "httpbin.org")
+			time.Sleep(time.Second * 6)
+			s.DeleteResource("ar", "httpbin-route")
+			time.Sleep(time.Second * 6)
+			s.DeleteResource("au", "httpbin-upstream")
+			time.Sleep(time.Second * 6)
+			// -- validation --
+			PhaseValidateNoUpstreams(s)
 		})
 		ginkgo.It("should be able to create the ExternalName service later", func() {
 			// -- Data preparation --

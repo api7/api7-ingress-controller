@@ -592,7 +592,6 @@ func NewDefaultGlobalRule() *GlobalRule {
 
 // ComposeUpstreamName uses namespace, name, subset (optional), port, resolveGranularity info to compose
 // the upstream name.
-// the resolveGranularity is not composited in the upstream name when it is endpoint.
 func ComposeUpstreamName(namespace, name, subset string, port int32) string {
 	pstr := strconv.Itoa(int(port))
 	// FIXME Use sync.Pool to reuse this buffer if the upstream

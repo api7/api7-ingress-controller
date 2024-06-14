@@ -34,6 +34,7 @@ import (
 
 	"github.com/apache/apisix-ingress-controller/pkg/apisix"
 	"github.com/apache/apisix-ingress-controller/pkg/config"
+	"github.com/apache/apisix-ingress-controller/pkg/id"
 	"github.com/apache/apisix-ingress-controller/pkg/kube"
 	configv2 "github.com/apache/apisix-ingress-controller/pkg/kube/apisix/apis/config/v2"
 	"github.com/apache/apisix-ingress-controller/pkg/log"
@@ -128,6 +129,38 @@ func (c *apisixUpstreamController) runSvcWorker(ctx context.Context) {
 	}
 }
 
+// USED By route controller to create default upstream
+func (c *apisixUpstreamController) setDefaultUpstreamForServiceSubset(ctx context.Context, namespace, svcName, subset, _ string, svcPort int32, shouldCompare bool) (*apisixv1.Upstream, error) {
+	ups, err := c.translator.TranslateService(namespace, svcName, subset, svcPort)
+	if err != nil {
+		return nil, err
+	}
+	ups.Name = apisixv1.ComposeUpstreamName(namespace, svcName, subset, svcPort)
+	ups.ID = id.GenID(ups.Name)
+
+	clusterName := c.Config.APISIX.DefaultClusterName
+	if _, err := c.APISIX.Cluster(clusterName).Upstream().Update(ctx, ups, shouldCompare); err != nil {
+		log.Errorw("failed to update upstream",
+			zap.Error(err),
+			zap.Any("upstream", ups),
+			zap.String("ApisixUpstream name", ups.Name),
+			zap.String("cluster", clusterName),
+		)
+		return nil, err
+	}
+	return ups, nil
+}
+func (c *apisixUpstreamController) GetDefaultApisixUpstream(namespace, upstream string) *apisixv1.Upstream {
+	return &apisixv1.Upstream{
+		Metadata: apisixv1.Metadata{
+			Name:   apisixv1.ComposeExternalUpstreamName(namespace, upstream),
+			ID:     id.GenID(apisixv1.ComposeExternalUpstreamName(namespace, upstream)),
+			Labels: make(map[string]string),
+		},
+		Nodes: []apisixv1.UpstreamNode{},
+	}
+}
+
 // sync Used to synchronize ApisixUpstream resources, because upstream alone exists in APISIX and will not be affected,
 // the synchronization logic only includes upstream's unique configuration management
 // So when ApisixUpstream was deleted, only the scheme / load balancer / healthcheck / retry / timeout
@@ -205,10 +238,17 @@ func (c *apisixUpstreamController) sync(ctx context.Context, ev *types.Event) er
 					errRecord = err
 					goto updateStatus
 				}
+			} else {
+				//If upstream resource is present already then set it back to default when ApisixUpstream is deleted
+				upsName := apisixv1.ComposeExternalUpstreamName(au.Namespace, au.Name)
+				_, err := c.APISIX.Cluster(c.Config.APISIX.DefaultClusterName).Upstream().Get(ctx, upsName)
+				if err != apisix.ErrNotFound {
+					newUps = c.GetDefaultApisixUpstream(au.Namespace, au.Name)
+				}
 			}
 
 			if len(au.Spec.ExternalNodes) != 0 {
-				errRecord = c.updateExternalNodes(ctx, au, nil, newUps, au.Namespace, au.Name, ev.Type.IsSyncEvent())
+				errRecord = c.updateExternalNodes(ctx, au, nil, newUps, au.Namespace, au.Name, ev.Type.IsSyncEvent(), true)
 				goto updateStatus
 			}
 
@@ -220,7 +260,7 @@ func (c *apisixUpstreamController) sync(ctx context.Context, ev *types.Event) er
 			}
 			// updateUpstream for real
 			upsName := apisixv1.ComposeExternalUpstreamName(au.Namespace, au.Name)
-			errRecord = c.updateUpstream(ctx, upsName, &au.Spec.ApisixUpstreamConfig, ev.Type.IsSyncEvent())
+			err := c.updateUpstream(ctx, upsName, &au.Spec.ApisixUpstreamConfig, ev.Type.IsSyncEvent())
 			if err == apisix.ErrNotFound {
 				errRecord = fmt.Errorf("%s", "upstream doesn't exist. It will be created after ApisixRoute is created referencing it.")
 			}
@@ -250,21 +290,29 @@ func (c *apisixUpstreamController) sync(ctx context.Context, ev *types.Event) er
 		for _, port := range svc.Spec.Ports {
 			for _, subset := range subsets {
 				var cfg configv2.ApisixUpstreamConfig
-				if ev.Type != types.EventDelete {
+				if ev.Type == types.EventDelete {
+					_, err := c.setDefaultUpstreamForServiceSubset(ctx, namespace, name, subset.Name, "", port.Port, ev.Type.IsSyncEvent())
+					if err != nil {
+						errRecord = err
+						goto updateStatus
+					}
+
+				} else {
 					var ok bool
 					cfg, ok = portLevelSettings[port.Port]
 					if !ok {
 						cfg = au.Spec.ApisixUpstreamConfig
 					}
-				}
-				err := c.updateUpstream(ctx, apisixv1.ComposeUpstreamName(namespace, name, subset.Name, port.Port), &cfg, ev.Type.IsSyncEvent())
-				if err != nil {
-					if err == apisix.ErrNotFound {
-						errRecord = fmt.Errorf("%s", "upstream doesn't exist. It will be created after ApisixRoute is created referencing it.")
-					} else {
-						errRecord = err
+					err := c.updateUpstream(ctx, apisixv1.ComposeUpstreamName(namespace, name, subset.Name, port.Port), &cfg, ev.Type.IsSyncEvent())
+					if err != nil {
+						if err == apisix.ErrNotFound {
+							errRecord = fmt.Errorf("%s", "upstream doesn't exist. It will be created after ApisixRoute is created referencing it.")
+						} else {
+							errRecord = err
+						}
+						goto updateStatus
 					}
-					goto updateStatus
+
 				}
 			}
 		}
@@ -328,7 +376,6 @@ func (c *apisixUpstreamController) updateStatus(obj kube.ApisixUpstream, statusE
 func (c *apisixUpstreamController) updateUpstream(ctx context.Context, upsName string, cfg *configv2.ApisixUpstreamConfig, shouldCompare bool) error {
 	// TODO: multi cluster
 	clusterName := c.Config.APISIX.DefaultClusterName
-
 	ups, err := c.APISIX.Cluster(clusterName).Upstream().Get(ctx, upsName)
 	if err != nil {
 		return apisix.ErrNotFound
@@ -350,7 +397,7 @@ func (c *apisixUpstreamController) updateUpstream(ctx context.Context, upsName s
 	newUps.Metadata = ups.Metadata
 	newUps.Nodes = ups.Nodes
 
-	log.Debugw("updating upstream since ApisixUpstream changed",
+	log.Infow("updating upstream since ApisixUpstream changed",
 		zap.Any("upstream", newUps),
 		zap.String("ApisixUpstream name", upsName),
 	)
@@ -366,10 +413,24 @@ func (c *apisixUpstreamController) updateUpstream(ctx context.Context, upsName s
 	return nil
 }
 
-func (c *apisixUpstreamController) updateExternalNodes(ctx context.Context, au *configv2.ApisixUpstream, old *configv2.ApisixUpstream, newUps *apisixv1.Upstream, ns, name string, shouldCompare bool) error {
+func (c *apisixUpstreamController) updateExternalNodes(ctx context.Context, au *configv2.ApisixUpstream, old *configv2.ApisixUpstream, newUps *apisixv1.Upstream, ns, name string, shouldCompare bool, overrideNewupstream bool) error {
 	clusterName := c.Config.APISIX.DefaultClusterName
 
 	// TODO: if old is not nil, diff the external nodes change first
+	if overrideNewupstream {
+		if _, err := c.APISIX.Cluster(clusterName).Upstream().Update(ctx, newUps, shouldCompare); err != nil {
+			log.Errorw("failed to update external nodes upstream",
+				zap.Error(err),
+				zap.Any("upstream", newUps),
+				zap.Any("ApisixUpstream", au),
+				zap.String("cluster", clusterName),
+			)
+			c.RecordEvent(au, corev1.EventTypeWarning, utils.ResourceSyncAborted, err)
+			c.recordStatus(au, utils.ResourceSyncAborted, err, metav1.ConditionFalse, au.GetGeneration())
+			return err
+		}
+		return nil
+	}
 
 	upsName := apisixv1.ComposeExternalUpstreamName(ns, name)
 	ups, err := c.APISIX.Cluster(clusterName).Upstream().Get(ctx, upsName)
@@ -799,7 +860,7 @@ func (c *apisixUpstreamController) handleSvcChange(ctx context.Context, key stri
 		if err != nil {
 			return err
 		}
-		err = c.updateExternalNodes(ctx, au.V2(), nil, nil, ns, name, true)
+		err = c.updateExternalNodes(ctx, au.V2(), nil, nil, ns, name, true, false)
 		if err != nil {
 			return err
 		}

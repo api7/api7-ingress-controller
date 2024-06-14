@@ -23,6 +23,7 @@ import (
 
 	"github.com/apache/apisix-ingress-controller/pkg/id"
 	v2 "github.com/apache/apisix-ingress-controller/pkg/kube/apisix/apis/config/v2"
+	"github.com/apache/apisix-ingress-controller/pkg/log"
 	"github.com/apache/apisix-ingress-controller/pkg/providers/translation"
 	"github.com/apache/apisix-ingress-controller/pkg/providers/utils"
 	apisixv1 "github.com/apache/apisix-ingress-controller/pkg/types/apisix/v1"
@@ -36,7 +37,8 @@ func (t *translator) generateUpstreamDeleteMark(namespace, svcName, subset strin
 	return ups, nil
 }
 
-func (t *translator) translateService(namespace, svcName, subset, _ string, svcPort int32) (*apisixv1.Upstream, error) {
+// USED By route controller to create default upstream
+func (t *translator) translateUpstream(namespace, svcName, subset, _ string, svcPort int32) (*apisixv1.Upstream, error) {
 	ups, err := t.TranslateService(namespace, svcName, subset, svcPort)
 	if err != nil {
 		return nil, err
@@ -110,13 +112,25 @@ func (t *translator) TranslateApisixUpstreamExternalNodes(au *v2.ApisixUpstream)
 	return nodes, nil
 }
 
+func (t *translator) GetDefaultApisixUpstream(namespace, upstream string) *apisixv1.Upstream {
+	return &apisixv1.Upstream{
+		Metadata: apisixv1.Metadata{
+			Name:   apisixv1.ComposeExternalUpstreamName(namespace, upstream),
+			ID:     id.GenID(apisixv1.ComposeExternalUpstreamName(namespace, upstream)),
+			Labels: make(map[string]string),
+		},
+		Nodes: []apisixv1.UpstreamNode{},
+	}
+}
+
 // TODO: Retry when ApisixUpstream/ExternalName service not found
 func (t *translator) translateExternalApisixUpstream(namespace, upstream string) (*apisixv1.Upstream, error) {
 	multiVersioned, err := t.ApisixUpstreamLister.V2(namespace, upstream)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
-			// TODO: Should retry
-			return nil, err
+			log.Warn(fmt.Sprintf("no ApisixUpstream resource found named %s. create one two apply configuration. currently creating upstream with 0 nodes.", upstream))
+			//No upstream found so the upstream will be created with 0 nodes
+			return t.GetDefaultApisixUpstream(namespace, upstream), nil
 		}
 		return nil, err
 	}
