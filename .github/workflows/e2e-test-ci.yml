@@ -25,8 +25,7 @@ on:
   pull_request:
     branches:
       - master
-      - 1.8.0
-      - release/1.8.2
+      - release/1.8
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
