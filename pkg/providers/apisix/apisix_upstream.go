@@ -244,11 +244,13 @@ func (c *apisixUpstreamController) sync(ctx context.Context, ev *types.Event) er
 				_, err := c.APISIX.Cluster(c.Config.APISIX.DefaultClusterName).Upstream().Get(ctx, upsName)
 				if err != apisix.ErrNotFound {
 					newUps = c.GetDefaultApisixUpstream(au.Namespace, au.Name)
+				} else {
+					goto updateStatus
 				}
 			}
 
 			if len(au.Spec.ExternalNodes) != 0 {
-				errRecord = c.updateExternalNodes(ctx, au, nil, newUps, au.Namespace, au.Name, ev.Type.IsSyncEvent(), true)
+				errRecord = c.updateExternalNodes(ctx, au, nil, newUps, au.Namespace, au.Name, ev.Type.IsSyncEvent(), ev.Type == types.EventDelete)
 				goto updateStatus
 			}
 
@@ -413,25 +415,10 @@ func (c *apisixUpstreamController) updateUpstream(ctx context.Context, upsName s
 	return nil
 }
 
-func (c *apisixUpstreamController) updateExternalNodes(ctx context.Context, au *configv2.ApisixUpstream, old *configv2.ApisixUpstream, newUps *apisixv1.Upstream, ns, name string, shouldCompare bool, overrideNewupstream bool) error {
+func (c *apisixUpstreamController) updateExternalNodes(ctx context.Context, au *configv2.ApisixUpstream, old *configv2.ApisixUpstream, newUps *apisixv1.Upstream, ns, name string, shouldCompare bool, isDelete bool) error {
 	clusterName := c.Config.APISIX.DefaultClusterName
 
 	// TODO: if old is not nil, diff the external nodes change first
-	if overrideNewupstream {
-		if _, err := c.APISIX.Cluster(clusterName).Upstream().Update(ctx, newUps, shouldCompare); err != nil {
-			log.Errorw("failed to update external nodes upstream",
-				zap.Error(err),
-				zap.Any("upstream", newUps),
-				zap.Any("ApisixUpstream", au),
-				zap.String("cluster", clusterName),
-			)
-			c.RecordEvent(au, corev1.EventTypeWarning, utils.ResourceSyncAborted, err)
-			c.recordStatus(au, utils.ResourceSyncAborted, err, metav1.ConditionFalse, au.GetGeneration())
-			return err
-		}
-		return nil
-	}
-
 	upsName := apisixv1.ComposeExternalUpstreamName(ns, name)
 	ups, err := c.APISIX.Cluster(clusterName).Upstream().Get(ctx, upsName)
 	if err != nil {
@@ -450,19 +437,20 @@ func (c *apisixUpstreamController) updateExternalNodes(ctx context.Context, au *
 		}
 		return err
 	} else if ups != nil {
-		nodes, err := c.translator.TranslateApisixUpstreamExternalNodes(au)
-		if err != nil {
-			log.Errorf("failed to translate upstream external nodes %s: %s", upsName, err)
-			c.RecordEvent(au, corev1.EventTypeWarning, utils.ResourceSyncAborted, err)
-			c.recordStatus(au, utils.ResourceSyncAborted, err, metav1.ConditionFalse, au.GetGeneration())
-			return err
-		}
 		if newUps != nil {
 			newUps.Metadata = ups.Metadata
 			ups = newUps
 		}
-
-		ups.Nodes = nodes
+		if !isDelete {
+			nodes, err := c.translator.TranslateApisixUpstreamExternalNodes(au)
+			if err != nil {
+				log.Errorf("failed to translate upstream external nodes %s: %s", upsName, err)
+				c.RecordEvent(au, corev1.EventTypeWarning, utils.ResourceSyncAborted, err)
+				c.recordStatus(au, utils.ResourceSyncAborted, err, metav1.ConditionFalse, au.GetGeneration())
+				return err
+			}
+			ups.Nodes = nodes
+		}
 		if _, err := c.APISIX.Cluster(clusterName).Upstream().Update(ctx, ups, shouldCompare); err != nil {
 			log.Errorw("failed to update external nodes upstream",
 				zap.Error(err),

@@ -794,7 +794,7 @@ func (c *apisixRouteController) onApisixUpstreamAdd(obj interface{}) {
 }
 
 func (c *apisixRouteController) onApisixUpstreamUpdate(oldObj, newObj interface{}) {
-	log.Debugw("ApisixUpstream add event arrived",
+	log.Debugw("ApisixUpstream update event arrived",
 		zap.Any("object", newObj),
 	)
 

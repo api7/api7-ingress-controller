@@ -128,7 +128,7 @@ func (t *translator) translateExternalApisixUpstream(namespace, upstream string)
 	multiVersioned, err := t.ApisixUpstreamLister.V2(namespace, upstream)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
-			log.Warn(fmt.Sprintf("no ApisixUpstream resource found named %s. create one two apply configuration. currently creating upstream with 0 nodes.", upstream))
+			log.Warn(fmt.Sprintf("no ApisixUpstream resource found named %s. create one too apply configuration. currently creating upstream with 0 nodes.", upstream))
 			//No upstream found so the upstream will be created with 0 nodes
 			return t.GetDefaultApisixUpstream(namespace, upstream), nil
 		}
