@@ -33,8 +33,7 @@ concurrency:
 
 jobs:
   changes:
-    if: |
-      contains(github.event.pull_request.labels.*.name, 'ci-e2e-test')
+    if: contains(github.event.pull_request.labels.*.name, 'ci-e2e-test')
     runs-on: buildjet-2vcpu-ubuntu-2204
     outputs:
       docs: ${{ steps.filter.outputs.docs }}
