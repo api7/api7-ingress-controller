@@ -194,12 +194,12 @@ func (p *Headers) DeepCopyInto(out *Headers) {
 	_ = json.Unmarshal(b, out)
 }
 
-func (p *Headers) DeepCopy() *Headers {
+func (p Headers) DeepCopy() Headers {
 	if p == nil {
 		return nil
 	}
-	out := new(Headers)
-	p.DeepCopyInto(out)
+	out := make(Headers)
+	p.DeepCopyInto(&out)
 	return out
 }
 
