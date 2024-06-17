@@ -91,6 +91,15 @@ spec:
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
 			assert.Equal(ginkgo.GinkgoT(), ups[0].Scheme, "grpc")
 
+			//Check the status of ApisixUpstream resource
+			upstreamStatus, err := s.GetApisixResourceStatus("grpc-server-service", "au")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upstreamStatus.Conditions[0].Message)
+
+			//Check the status of ApisixRoute resource
+			routeStatus, err := s.GetApisixResourceStatus("grpc-route", "ar")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
 			// TODO enable the following test cases once APISIX supports HTTP/2 in plain.
 			// ep, err := s.GetAPISIXEndpoint()
 			// assert.Nil(ginkgo.GinkgoT(), err)
@@ -163,6 +172,16 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
 			assert.Equal(ginkgo.GinkgoT(), ups[0].Scheme, "grpcs")
+
+			//Check the status of ApisixUpstream resource
+			upstreamStatus, err := s.GetApisixResourceStatus("test-backend-service-e2e-test", "au")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "upstream doesn't exist. It will be created after ApisixRoute is created referencing it.", upstreamStatus.Conditions[0].Message)
+
+			//Check the status of ApisixRoute resource
+			routeStatus, err := s.GetApisixResourceStatus("grpcs-route", "ar")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
 
 			ca, err := os.ReadFile("testbackend/tls/ca.pem")
 			assert.NoError(ginkgo.GinkgoT(), err, "read ca cert")

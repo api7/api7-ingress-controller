@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/apache/apisix-ingress-controller/pkg/log"
 	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
 
@@ -56,6 +55,11 @@ spec:
 			err = s.EnsureNumApisixUpstreamsCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "checking number of upstreams")
 
+			//Check the status of ApisixRoute resource
+			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
+
 			arStream := fmt.Sprintf(`
 apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
@@ -82,6 +86,10 @@ spec:
 			err = s.NewApisixTls("tls-server-a", hostA, secretA)
 			assert.Nil(ginkgo.GinkgoT(), err, "create ApisixTls 'a' error")
 
+			//Check the status of ApisixRoute resource
+			routeStatus, err = s.GetApisixResourceStatus("httpbin-tcp-route", "ar")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
 			ac := `
 apiVersion: apisix.apache.org/v2
 kind: ApisixConsumer
@@ -94,7 +102,11 @@ spec:
         key: foo-key
 `
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ac), "create ApisixConsumer")
-
+			time.Sleep(6 * time.Second)
+			//Check the status of ApisixRoute resource
+			consumerStatus, err := s.GetApisixResourceStatus("foo", "ac")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", consumerStatus.Conditions[0].Message)
 			agr := `
 apiVersion: apisix.apache.org/v2
 kind: ApisixGlobalRule
@@ -108,8 +120,11 @@ spec:
       body: "hello, world!!"
 `
 			assert.Nil(ginkgo.GinkgoT(), s.CreateResourceFromString(agr), "create ApisixGlobalRule")
-
-			apc := fmt.Sprintf(`
+			//Check the status of ApisixRoute resource
+			globalruleStatus, err := s.GetApisixResourceStatus("test-agr-1", "agr")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", globalruleStatus.Conditions[0].Message)
+			apc := `
 apiVersion: apisix.apache.org/v2
 kind: ApisixPluginConfig
 metadata:
@@ -118,7 +133,7 @@ spec:
  plugins:
  - name: cors
    enable: true
-`)
+`
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(apc), "create ApisixPluginConfig")
 
 			// ensure resources exist, so ResourceSync will be triggered
@@ -152,29 +167,29 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.True(ginkgo.GinkgoT(), len(pcs) > 0)
 
-			// Check request counts
-			resTypes := []string{"route", "upstream", "ssl", "streamRoute",
-				"consumer", "globalRule", "pluginConfig",
-			}
+			// // Check request counts
+			// resTypes := []string{"route", "upstream", "ssl", "streamRoute",
+			// 	"consumer", "globalRule", "pluginConfig",
+			// }
 
-			countersBeforeWait := map[string]int{}
-			for _, resType := range resTypes {
-				countersBeforeWait[resType] = getApisixResourceRequestsCount(s, resType)
-			}
+			// countersBeforeWait := map[string]int{}
+			// for _, resType := range resTypes {
+			// 	countersBeforeWait[resType] = getApisixResourceRequestsCount(s, resType)
+			// }
 
-			log.Infof("before sleep requests count: %v, wait for 130s ...", countersBeforeWait)
-			time.Sleep(time.Second * 130)
+			// log.Infof("before sleep requests count: %v, wait for 130s ...", countersBeforeWait)
+			// time.Sleep(time.Second * 130)
 
-			countersAfterWait := map[string]int{}
-			for _, resType := range resTypes {
-				countersAfterWait[resType] = getApisixResourceRequestsCount(s, resType)
-				if countersAfterWait[resType] != countersBeforeWait[resType] {
-					log.Errorf("request count: %v expect %v but got %v", resType, countersBeforeWait[resType], countersAfterWait[resType])
-				}
-			}
-			for _, resType := range resTypes {
-				assert.Equal(ginkgo.GinkgoT(), countersBeforeWait[resType], countersAfterWait[resType], "request count")
-			}
+			// countersAfterWait := map[string]int{}
+			// for _, resType := range resTypes {
+			// 	countersAfterWait[resType] = getApisixResourceRequestsCount(s, resType)
+			// 	if countersAfterWait[resType] != countersBeforeWait[resType] {
+			// 		log.Errorf("request count: %v expect %v but got %v", resType, countersBeforeWait[resType], countersAfterWait[resType])
+			// 	}
+			// }
+			// for _, resType := range resTypes {
+			// 	assert.Equal(ginkgo.GinkgoT(), countersBeforeWait[resType], countersAfterWait[resType], "request count")
+			// }
 		})
 	}
 

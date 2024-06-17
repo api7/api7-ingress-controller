@@ -67,6 +67,11 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
 			assert.Nil(ginkgo.GinkgoT(), ups[0].Retries)
+
+			//Check the status of ApisixRoute resource
+			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
 		})
 
 		ginkgo.It("is zero", func() {
@@ -92,6 +97,16 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
 			assert.Equal(ginkgo.GinkgoT(), *ups[0].Retries, 0)
+
+			//Check the status of ApisixUpstream resource
+			upstreamStatus, err := s.GetApisixResourceStatus(backendSvc, "au")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upstreamStatus.Conditions[0].Message)
+
+			//Check the status of ApisixRoute resource
+			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
 		})
 
 		ginkgo.It("is a positive number", func() {
@@ -117,6 +132,16 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
 			assert.Equal(ginkgo.GinkgoT(), *ups[0].Retries, 3)
+
+			//Check the status of ApisixUpstream resource
+			upstreamStatus, err := s.GetApisixResourceStatus(backendSvc, "au")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upstreamStatus.Conditions[0].Message)
+
+			//Check the status of ApisixRoute resource
+			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
 		})
 	}
 
@@ -172,6 +197,16 @@ spec:
 			assert.Equal(ginkgo.GinkgoT(), ups[0].Timeout.Connect, 60)
 			assert.Equal(ginkgo.GinkgoT(), ups[0].Timeout.Read, 10)
 			assert.Equal(ginkgo.GinkgoT(), ups[0].Timeout.Send, 10)
+
+			//Check the status of ApisixUpstream resource
+			upstreamStatus, err := s.GetApisixResourceStatus(backendSvc, "au")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upstreamStatus.Conditions[0].Message)
+
+			//Check the status of ApisixRoute resource
+			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
 		})
 	}
 

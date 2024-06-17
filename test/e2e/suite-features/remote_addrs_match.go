@@ -24,7 +24,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.FDescribe("suite-features: traffic split", func() {
+var _ = ginkgo.Describe("suite-features: traffic split", func() {
 	suites := func(scaffoldFunc func() *scaffold.Scaffold) {
 		s := scaffoldFunc()
 		ginkgo.It("sanity", func() {
