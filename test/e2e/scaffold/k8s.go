@@ -822,9 +822,9 @@ func (s *Scaffold) RunDigDNSClientFromK8s(args ...string) (string, error) {
 	return s.RunKubectlAndGetOutput(kubectlArgs...)
 }
 
-func (s *Scaffold) GetApisixUpstreamStatus(upstreamname string) (*v2.ApisixStatus, error) {
+func (s *Scaffold) GetApisixResourceStatus(resourceName string, resourceType string) (*v2.ApisixStatus, error) {
 	kubectlArgs := []string{
-		"get", "au", upstreamname, "-o", "json",
+		"get", resourceType, resourceName, "-o", "json",
 	}
 	output, err := s.RunKubectlAndGetOutput(kubectlArgs...)
 	if err != nil {
