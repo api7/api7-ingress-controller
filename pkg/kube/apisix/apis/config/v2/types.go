@@ -692,6 +692,14 @@ type Plugin struct {
 	ConfigSet ConfigSet `json:"config_set,omitempty" yaml:"config_set,omitempty"`
 }
 
+func (in *Plugin) DeepCopyInto(out *Plugin) {
+	*out = *in
+	out.Config = Config{}
+	out.ConfigSet = ConfigSet{}
+	in.Config.DeepCopyInto(&out.Config)
+	in.ConfigSet.DeepCopyInto(&out.ConfigSet)
+}
+
 type ConfigSet []interface{}
 
 func (p ConfigSet) DeepCopyInto(out *ConfigSet) {

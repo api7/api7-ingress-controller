@@ -123,6 +123,51 @@ type Route struct {
 	FilterFunc      string           `json:"filter_func,omitempty" yaml:"filter_func,omitempty"`
 }
 
+func (in *Route) DeepCopyInto(out *Route) {
+	*out = *in
+	out.Plugins = Plugins{}
+	in.Metadata.DeepCopyInto(&out.Metadata)
+	if in.Hosts != nil {
+		in, out := &in.Hosts, &out.Hosts
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.Timeout != nil {
+		in, out := &in.Timeout, &out.Timeout
+		*out = new(UpstreamTimeout)
+		**out = **in
+	}
+	if in.Vars != nil {
+		in, out := &in.Vars, &out.Vars
+		*out = make(Vars, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = make([]StringOrSlice, len(*in))
+				for i := range *in {
+					(*in)[i].DeepCopyInto(&(*out)[i])
+				}
+			}
+		}
+	}
+	if in.Uris != nil {
+		in, out := &in.Uris, &out.Uris
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.Methods != nil {
+		in, out := &in.Methods, &out.Methods
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.RemoteAddrs != nil {
+		in, out := &in.RemoteAddrs, &out.RemoteAddrs
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	in.Plugins.DeepCopyInto(&out.Plugins)
+}
+
 // Vars represents the route match expressions of APISIX.
 type Vars [][]StringOrSlice
 
@@ -487,11 +532,35 @@ type StreamRoute struct {
 	Plugins    Plugins           `json:"plugins,omitempty" yaml:"plugins,omitempty"`
 }
 
+func (in *StreamRoute) DeepCopyInto(out *StreamRoute) {
+	*out = *in
+	out.Plugins = Plugins{}
+	if in.Labels != nil {
+		in, out := &in.Labels, &out.Labels
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
+	if in.Upstream != nil {
+		in, out := &in.Upstream, &out.Upstream
+		*out = new(Upstream)
+		(*in).DeepCopyInto(*out)
+	}
+	in.Plugins.DeepCopyInto(&out.Plugins)
+}
+
 // GlobalRule represents the global_rule object in APISIX.
 // +k8s:deepcopy-gen=true
 type GlobalRule struct {
 	ID      string  `json:"id" yaml:"id"`
 	Plugins Plugins `json:"plugins" yaml:"plugins"`
+}
+
+func (in *GlobalRule) DeepCopyInto(out *GlobalRule) {
+	*out = *in
+	out.Plugins = Plugins{}
+	in.Plugins.DeepCopyInto(&out.Plugins)
 }
 
 // Consumer represents the consumer object in APISIX.
@@ -503,11 +572,31 @@ type Consumer struct {
 	Plugins  Plugins           `json:"plugins,omitempty" yaml:"plugins,omitempty"`
 }
 
+func (in *Consumer) DeepCopyInto(out *Consumer) {
+	*out = *in
+	out.Plugins = Plugins{}
+	if in.Labels != nil {
+		in, out := &in.Labels, &out.Labels
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
+	in.Plugins.DeepCopyInto(&out.Plugins)
+}
+
 // PluginConfig apisix plugin object
 // +k8s:deepcopy-gen=true
 type PluginConfig struct {
 	Metadata `json:",inline" yaml:",inline"`
 	Plugins  Plugins `json:"plugins" yaml:"plugins"`
+}
+
+func (in *PluginConfig) DeepCopyInto(out *PluginConfig) {
+	*out = *in
+	out.Plugins = Plugins{}
+	in.Metadata.DeepCopyInto(&out.Metadata)
+	in.Plugins.DeepCopyInto(&out.Plugins)
 }
 
 type PluginMetadata struct {
