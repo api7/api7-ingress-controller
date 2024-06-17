@@ -176,12 +176,6 @@ type ApisixRoutePlugin struct {
 	SecretRef string `json:"secretRef" yaml:"secretRef"`
 }
 
-func (in *ApisixRoutePlugin) DeepCopyInto(out *ApisixRoutePlugin) {
-	*out = *in
-	out.Config = ApisixRoutePluginConfig{}
-	in.Config.DeepCopyInto(&out.Config)
-}
-
 // ApisixRoutePluginConfig is the configuration for
 // any plugins.
 type ApisixRoutePluginConfig map[string]interface{}
@@ -690,14 +684,6 @@ type Plugin struct {
 	Enable    bool      `json:"enable,omitempty" yaml:"enable,omitempty"`
 	Config    Config    `json:"config,omitempty" yaml:"config,omitempty"`
 	ConfigSet ConfigSet `json:"config_set,omitempty" yaml:"config_set,omitempty"`
-}
-
-func (in *Plugin) DeepCopyInto(out *Plugin) {
-	*out = *in
-	out.Config = Config{}
-	out.ConfigSet = ConfigSet{}
-	in.Config.DeepCopyInto(&out.Config)
-	in.ConfigSet.DeepCopyInto(&out.ConfigSet)
 }
 
 type ConfigSet []interface{}

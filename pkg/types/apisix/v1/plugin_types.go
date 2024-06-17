@@ -142,17 +142,6 @@ type RewriteConfig struct {
 	Headers            Headers  `json:"headers,omitempty"`
 }
 
-func (in *RewriteConfig) DeepCopyInto(out *RewriteConfig) {
-	*out = *in
-	out.Headers = Headers{}
-	if in.RewriteTargetRegex != nil {
-		in, out := &in.RewriteTargetRegex, &out.RewriteTargetRegex
-		*out = make([]string, len(*in))
-		copy(*out, *in)
-	}
-	in.Headers.DeepCopyInto(&out.Headers)
-}
-
 // ResponseRewriteConfig is the rule config for response-rewrite plugin.
 // +k8s:deepcopy-gen=true
 type ResponseRewriteConfig struct {
@@ -162,32 +151,6 @@ type ResponseRewriteConfig struct {
 	Headers      Headers             `json:"headers,omitempty"`
 	LuaRestyExpr []expr.Expr         `json:"vars,omitempty"`
 	Filters      []map[string]string `json:"filters,omitempty"`
-}
-
-func (in *ResponseRewriteConfig) DeepCopyInto(out *ResponseRewriteConfig) {
-	*out = *in
-	out.Headers = Headers{}
-	in.Headers.DeepCopyInto(&out.Headers)
-	if in.LuaRestyExpr != nil {
-		in, out := &in.LuaRestyExpr, &out.LuaRestyExpr
-		*out = make([]expr.Expr, len(*in))
-		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
-		}
-	}
-	if in.Filters != nil {
-		in, out := &in.Filters, &out.Filters
-		*out = make([]map[string]string, len(*in))
-		for i := range *in {
-			if (*in)[i] != nil {
-				in, out := &(*in)[i], &(*out)[i]
-				*out = make(map[string]string, len(*in))
-				for key, val := range *in {
-					(*out)[key] = val
-				}
-			}
-		}
-	}
 }
 
 // RedirectConfig is the rule config for redirect plugin.
