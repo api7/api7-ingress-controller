@@ -66,6 +66,10 @@ spec:
 				time.Sleep(6 * time.Second)
 
 				grs, err := s.ListApisixConsumers()
+				//Check the status of ApisixConsumer resource
+				upsRoute, err := s.GetApisixResourceStatus("wolf-user", "ac")
+				assert.Nil(ginkgo.GinkgoT(), err)
+				assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upsRoute.Conditions[0].Message)
 				assert.Nil(ginkgo.GinkgoT(), err, "listing consumer")
 				assert.Len(ginkgo.GinkgoT(), grs, 1)
 				assert.Len(ginkgo.GinkgoT(), grs[0].Plugins, 1)

@@ -85,6 +85,10 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
 			err = s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
+			//Check the status of ApisixRoute resource
+			upsRoute, err := s.GetApisixResourceStatus("httpbin-route", "ar")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upsRoute.Conditions[0].Message)
 
 			dialer := websocket.Dialer{}
 			u := url.URL{

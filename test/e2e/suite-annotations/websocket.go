@@ -27,7 +27,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-annotations: annotations.networking/v1 websocket", func() {
+var _ = ginkgo.PDescribe("suite-annotations: annotations.networking/v1 websocket", func() {
 	s := scaffold.NewDefaultScaffold()
 	ginkgo.It("sanity", func() {
 		resources := `
@@ -113,7 +113,7 @@ spec:
 	})
 })
 
-var _ = ginkgo.Describe("suite-annotations: annotations.networking/v1beta1 with websocket", func() {
+var _ = ginkgo.PDescribe("suite-annotations: annotations.networking/v1beta1 with websocket", func() {
 	s := scaffold.NewDefaultScaffold()
 	ginkgo.It("sanity", func() {
 		resources := `

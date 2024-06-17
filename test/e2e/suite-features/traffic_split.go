@@ -61,6 +61,10 @@ spec:
 			err = s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
 
+			//Check the status of ApisixRoute resource
+			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
 			// Send requests to APISIX.
 			var (
 				num404 int

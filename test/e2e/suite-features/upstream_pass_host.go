@@ -69,6 +69,14 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
 			assert.Equal(ginkgo.GinkgoT(), "node", ups[0].PassHost)
+			//Check the status of ApisixRoute resource
+			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
+			//Check the status of ApisixUpstream resource
+			upsRoute, err := s.GetApisixResourceStatus(backendSvc, "au")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upsRoute.Conditions[0].Message)
 		})
 
 		ginkgo.It("is set to rewrite with upstream host", func() {
@@ -96,6 +104,10 @@ spec:
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
 			assert.Equal(ginkgo.GinkgoT(), "rewrite", ups[0].PassHost)
 			assert.Equal(ginkgo.GinkgoT(), "host", ups[0].UpstreamHost)
+			//Check the status of ApisixUpstream resource
+			upsRoute, err := s.GetApisixResourceStatus(backendSvc, "au")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upsRoute.Conditions[0].Message)
 		})
 
 		ginkgo.It("is set to node with upstream host", func() {
@@ -123,6 +135,10 @@ spec:
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
 			assert.Equal(ginkgo.GinkgoT(), "node", ups[0].PassHost)
 			assert.Equal(ginkgo.GinkgoT(), "host", ups[0].UpstreamHost)
+			//Check the status of ApisixUpstream resource
+			upsRoute, err := s.GetApisixResourceStatus(backendSvc, "au")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upsRoute.Conditions[0].Message)
 		})
 
 		ginkgo.It("is set to invalid value", func() {

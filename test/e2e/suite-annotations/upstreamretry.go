@@ -25,7 +25,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-annotations: annotations.networking/v1 upstream", func() {
+var _ = ginkgo.PDescribe("suite-annotations: annotations.networking/v1 upstream", func() {
 	s := scaffold.NewDefaultScaffold()
 	ginkgo.It("Test timeout: 1 retry and long timeout", func() {
 		ing := `

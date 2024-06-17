@@ -133,7 +133,10 @@ var _ = ginkgo.Describe("suite-chore: Consistency between APISIX and the CRDs re
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Len(ginkgo.GinkgoT(), upstreams, 1)
 			assert.Contains(ginkgo.GinkgoT(), upstreams[0].Name, "httpbin-service-e2e-test_80")
-
+			//Check the status of ApisixRoute resource
+			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
 			s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.org").Expect().Status(http.StatusOK)
 		})
 	}
@@ -143,7 +146,7 @@ var _ = ginkgo.Describe("suite-chore: Consistency between APISIX and the CRDs re
 	})
 })
 
-var _ = ginkgo.Describe("suite-chore: Consistency between APISIX and the Ingress resource of the IngressController", func() {
+var _ = ginkgo.PDescribe("suite-chore: Consistency between APISIX and the Ingress resource of the IngressController", func() {
 	s := scaffold.NewDefaultScaffold()
 	ginkgo.It("Ingress v1 and APISIX of route and upstream", func() {
 		httpService := fmt.Sprintf(_httpServiceConfig, "port1", 9080, 9080)

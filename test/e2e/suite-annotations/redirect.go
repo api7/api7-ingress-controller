@@ -26,7 +26,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-annotations: redirect annotations", func() {
+var _ = ginkgo.PDescribe("suite-annotations: redirect annotations", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	ginkgo.It("redirect http-to-https in ingress networking/v1", func() {

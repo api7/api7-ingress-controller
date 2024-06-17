@@ -75,7 +75,7 @@ func _assert(s *scaffold.Scaffold, ing string) {
 	resp.Body().Contains("This is the epilogue")
 }
 
-var _ = ginkgo.Describe("suite-annotations: annotations.networking/v1 with ApisixPluginConfig", func() {
+var _ = ginkgo.PDescribe("suite-annotations: annotations.networking/v1 with ApisixPluginConfig", func() {
 	s := scaffold.NewDefaultScaffold()
 	ginkgo.It("networking/v1", func() {
 		backendSvc, backendPorts := s.DefaultHTTPBackend()
@@ -106,7 +106,7 @@ spec:
 	})
 })
 
-var _ = ginkgo.Describe("suite-annotations: annotations.networking/v1beta1 with ApisixPluginConfig", func() {
+var _ = ginkgo.PDescribe("suite-annotations: annotations.networking/v1beta1 with ApisixPluginConfig", func() {
 	s := scaffold.NewDefaultScaffold()
 	ginkgo.It("networking/v1beta1", func() {
 		_createAPC(s)

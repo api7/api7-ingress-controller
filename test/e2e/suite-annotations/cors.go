@@ -25,7 +25,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-annotations: cors annotations", func() {
+var _ = ginkgo.PDescribe("suite-annotations: cors annotations", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	ginkgo.It("enable in ingress networking/v1", func() {

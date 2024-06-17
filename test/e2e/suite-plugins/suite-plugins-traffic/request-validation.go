@@ -73,6 +73,10 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
 			err = s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
+			//Check the status of ApisixRoute resource
+			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
 			// header schema check failure.
 			resp := s.NewAPISIXClient().POST("/post").WithHeader("Host", "httpbin.org").WithHeader("User-Agent", "bad-ua").Expect()
 			resp.Status(400)
@@ -154,6 +158,10 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
 			err = s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
+			//Check the status of ApisixRoute resource
+			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
 			resp := s.NewAPISIXClient().POST("/post").WithHeader("Host", "httpbin.org").WithHeader("User-Agent", "bad-ua").Expect()
 			resp.Status(200)
 
