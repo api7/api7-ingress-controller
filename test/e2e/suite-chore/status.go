@@ -5,9 +5,10 @@ import (
 	"time"
 
 	v2 "github.com/apache/apisix-ingress-controller/pkg/kube/apisix/apis/config/v2"
-	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
 var _ = ginkgo.Describe("suite-chore: apply Apisix Resources and check status", func() {
