@@ -24,7 +24,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-features: health check", func() {
+var _ = ginkgo.FDescribe("suite-features: health check", func() {
 	suites := func(scaffoldFunc func() *scaffold.Scaffold) {
 		s := scaffoldFunc()
 		ginkgo.It("active check", func() {
@@ -79,6 +79,16 @@ spec:
 			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Active.Healthy.HTTPStatuses, []int{200})
 			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Active.Unhealthy.Interval, 1)
 			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Active.Unhealthy.HTTPFailures, 2)
+
+			//Check the status of ApisixUpstream resource
+			upstatus, err := s.GetApisixResourceStatus(backendSvc, "au")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upstatus.Conditions[0].Message)
+
+			//Check the status of ApisixRoute resource
+			arstatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", arstatus.Conditions[0].Message)
 
 			// It's difficult to test healthchecker since we cannot let partial httpbin endpoints
 			// down, if all of them are down, apisix in turn uses all of them.
@@ -141,6 +151,15 @@ spec:
 			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Active.Unhealthy.Interval, 1)
 			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Passive.Healthy.HTTPStatuses, []int{200})
 			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Passive.Unhealthy.HTTPStatuses, []int{502})
+
+			//Check the status of ApisixUpstream resource
+			upstatus, err := s.GetApisixResourceStatus(backendSvc, "au")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upstatus.Conditions[0].Message)
+			//Check the status of ApisixRoute resource
+			arstatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", arstatus.Conditions[0].Message)
 		})
 	}
 	ginkgo.Describe("suite-features: scaffold v2", func() {

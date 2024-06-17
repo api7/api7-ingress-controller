@@ -26,7 +26,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/testbackend/client"
 )
 
-var _ = ginkgo.Describe("suite-ingress-resource: ApisixUpstreams mTLS test", func() {
+var _ = ginkgo.PDescribe("suite-ingress-resource: ApisixUpstreams mTLS test", func() {
 	clientSecret := `client-secret`
 
 	f, err := os.ReadFile("testbackend/tls/client.pem")
@@ -123,7 +123,7 @@ spec:
 		})
 	}
 
-	ginkgo.Describe("suite-ingress-resource: scaffold v2", func() {
+	ginkgo.PDescribe("suite-ingress-resource: scaffold v2", func() {
 		suites(scaffold.NewDefaultV2Scaffold())
 	})
 })

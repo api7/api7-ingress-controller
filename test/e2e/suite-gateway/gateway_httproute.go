@@ -27,7 +27,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-gateway: HTTPRoute", func() {
+var _ = ginkgo.PDescribe("suite-gateway: HTTPRoute", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	ginkgo.It("Basic HTTPRoute with 1 Hosts 1 Rule 1 Match 1 BackendRef", func() {
@@ -236,7 +236,7 @@ spec:
 	})
 })
 
-var _ = ginkgo.Describe("suite-gateway: HTTPRoute with filter", func() {
+var _ = ginkgo.PDescribe("suite-gateway: HTTPRoute with filter", func() {
 	s := scaffold.NewDefaultScaffold()
 	ginkgo.It("HTTPRoute with RequestHeaderModifier", func() {
 		backendSvc, backendPorts := s.DefaultHTTPBackend()

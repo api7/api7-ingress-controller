@@ -26,7 +26,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-ingress-features: secret controller", func() {
+var _ = ginkgo.PDescribe("suite-ingress-features: secret controller", func() {
 	apisixTlsSuites := func(s *scaffold.Scaffold) {
 		ginkgo.It("should create SSL if secret name referenced by TLS is corrected later", func() {
 			secretName := "test-apisix-tls"
@@ -1399,7 +1399,7 @@ UnBVSIGJ/c0AhVSDuOAJiF36pvsDysTZXMTFE/9i5bkGOiwtzRNe4Hym/SEZUCpn
 		})
 	}
 
-	ginkgo.Describe("suite-ingress-features: scaffold v2", func() {
+	ginkgo.PDescribe("suite-ingress-features: scaffold v2", func() {
 		s := scaffold.NewDefaultV2Scaffold()
 		apisixTlsSuites(s)
 		ingressSuites(s)

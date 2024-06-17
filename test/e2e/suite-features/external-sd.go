@@ -238,6 +238,16 @@ spec:
 			// -- validation --
 			upstreamId := PhaseValidateFirstUpstream(s, 1, fqdn, "dns")
 			PhaseValidateRouteAccess(s, upstreamId)
+
+			//Check the status of ApisixUpstream resource
+			upstreamStatus, err := s.GetApisixResourceStatus("httpbin-upstream", "au")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upstreamStatus.Conditions[0].Message)
+
+			//Check the status of ApisixRoute resource
+			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
 		})
 	})
 
@@ -256,6 +266,16 @@ spec:
 			// -- validation --
 			upstreamId := PhaseValidateFirstUpstream(s, 1, fqdn, "dns")
 			PhaseValidateRouteAccess(s, upstreamId)
+
+			//Check the status of ApisixUpstream resource
+			upstreamStatus, err := s.GetApisixResourceStatus("httpbin-upstream", "au")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upstreamStatus.Conditions[0].Message)
+
+			//Check the status of ApisixRoute resource
+			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
 		})
 
 		ginkgo.It("should be able to create the target service later", func() {
@@ -272,6 +292,16 @@ spec:
 			// -- validation --
 			upstreamId := PhaseValidateFirstUpstream(s, 1, fqdn, "dns")
 			PhaseValidateRouteAccess(s, upstreamId)
+
+			//Check the status of ApisixUpstream resource
+			upstreamStatus, err := s.GetApisixResourceStatus("httpbin-upstream", "au")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upstreamStatus.Conditions[0].Message)
+
+			//Check the status of ApisixRoute resource
+			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
 		})
 	})
 
@@ -286,6 +316,16 @@ spec:
 			// -- validation --
 			upstreamId := PhaseValidateFirstUpstream(s, 1, fqdn, "dns")
 			PhaseValidateRouteAccess(s, upstreamId)
+
+			//Check the status of ApisixUpstream resource
+			upstreamStatus, err := s.GetApisixResourceStatus("httpbin-upstream", "au")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upstreamStatus.Conditions[0].Message)
+
+			//Check the status of ApisixRoute resource
+			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
 
 			// -- delete --
 			assert.Nil(ginkgo.GinkgoT(), s.DeleteResource("ar", "httpbin-route"), "delete route")

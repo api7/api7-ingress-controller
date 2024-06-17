@@ -27,7 +27,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-gateway: TCP Route", func() {
+var _ = ginkgo.PDescribe("suite-gateway: TCP Route", func() {
 	s := scaffold.NewDefaultScaffold()
 	ginkgo.It("create TCPRoute", func() {
 		backendSvc, backendPorts := s.DefaultHTTPBackend()

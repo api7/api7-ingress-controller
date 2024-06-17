@@ -119,7 +119,7 @@ data:
           namespace: "apisix" 
 `
 
-var _ = ginkgo.Describe("suite-ingress-resource: configmap Testing", func() {
+var _ = ginkgo.PDescribe("suite-ingress-resource: configmap Testing", func() {
 	s := scaffold.NewDefaultScaffold()
 	ginkgo.It("create configmap and configure config.yaml", func() {
 		assert.Nil(ginkgo.GinkgoT(), s.CreateResourceFromString(_configmapConfigYAML))

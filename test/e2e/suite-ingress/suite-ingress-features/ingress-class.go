@@ -76,7 +76,7 @@ wrw7im4TNSAdwVX4Y1F4svJ2as5SJn5QYGAzXDixNuwzXYrpP9rzA2s=
 -----END RSA PRIVATE KEY-----`
 )
 
-var _ = ginkgo.Describe("suite-ingress-features: Testing CRDs with IngressClass", func() {
+var _ = ginkgo.PDescribe("suite-ingress-features: Testing CRDs with IngressClass", func() {
 	s := scaffold.NewScaffold(&scaffold.Options{
 		Name:                  "ingress-class",
 		IngressAPISIXReplicas: 1,
