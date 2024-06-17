@@ -33,7 +33,9 @@ concurrency:
 
 jobs:
   changes:
-    runs-on: ubuntu-20.04
+    if: |
+      contains(github.event.pull_request.labels.*.name, 'ci-e2e-test')
+    runs-on: buildjet-2vcpu-ubuntu-2204
     outputs:
       docs: ${{ steps.filter.outputs.docs }}
       go: ${{ steps.filter.outputs.go }}
@@ -82,11 +84,7 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          version: latest
+
 
       - name: Prepare Host
         run: |
@@ -103,6 +101,7 @@ jobs:
           REGISTRY: 127.0.0.1:5000
           ENABLE_PROXY: "false"
           BASE_IMAGE_TAG: "debug"
+          USE_BUILDKIT: 0
         run: |
           echo "building images..."
           make clean-image build-images
@@ -128,7 +127,7 @@ jobs:
   prepare:
     needs: changes
     if: needs.changes.outputs.go == 'true'
-    runs-on: ubuntu-20.04
+    runs-on: buildjet-2vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v4
         with:
@@ -151,7 +150,7 @@ jobs:
       - changes
       - prepare
       - build
-    runs-on: ubuntu-20.04
+    runs-on: buildjet-2vcpu-ubuntu-2204
     strategy:
       fail-fast: false # If false, GitHub will not cancels all in-progress jobs in the matrix if any matrix job fails.
       matrix:
