@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/apache/apisix-ingress-controller/pkg/apisix"
+	v2 "github.com/apache/apisix-ingress-controller/pkg/kube/apisix/apis/config/v2"
 	"github.com/apache/apisix-ingress-controller/pkg/log"
 	"github.com/apache/apisix-ingress-controller/pkg/metrics"
 	v1 "github.com/apache/apisix-ingress-controller/pkg/types/apisix/v1"
@@ -819,4 +820,20 @@ func (s *Scaffold) RunDigDNSClientFromK8s(args ...string) (string, error) {
 	}
 	kubectlArgs = append(kubectlArgs, args...)
 	return s.RunKubectlAndGetOutput(kubectlArgs...)
+}
+
+func (s *Scaffold) GetApisixUpstreamStatus(upstreamname string) (*v2.ApisixStatus, error) {
+	kubectlArgs := []string{
+		"get", "au", upstreamname, "-o", "json",
+	}
+	output, err := s.RunKubectlAndGetOutput(kubectlArgs...)
+	if err != nil {
+		return nil, err
+	}
+	var upstream v2.ApisixUpstream
+	err = json.Unmarshal([]byte(output), &upstream)
+	if err != nil {
+		return nil, err
+	}
+	return &upstream.Status, nil
 }

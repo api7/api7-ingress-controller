@@ -1,0 +1,81 @@
+package chore
+
+import (
+	"fmt"
+
+	v2 "github.com/apache/apisix-ingress-controller/pkg/kube/apisix/apis/config/v2"
+	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/stretchr/testify/assert"
+)
+
+var _ = ginkgo.Describe("suite-chore: apply CRD and check status", func() {
+	PhaseCreateExternalService := func(s *scaffold.Scaffold, name, externalName string) {
+		extService := fmt.Sprintf(`
+apiVersion: v1
+kind: Service
+metadata:
+  name: %s
+spec:
+  type: ExternalName
+  externalName: %s
+`, name, externalName)
+		assert.Nil(ginkgo.GinkgoT(), s.CreateResourceFromString(extService))
+	}
+	PhaseCreateApisixRoute := func(s *scaffold.Scaffold, name, upstream string) {
+		ar := fmt.Sprintf(`
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: %s
+spec:
+  http:
+  - name: rule1
+    match:
+      hosts:
+      - httpbin.org
+      paths:
+        - /*
+      exprs:
+      - subject:
+          scope: Header
+          name: X-Foo
+        op: Equal
+        value: bar
+    upstreams:
+    - name: %s
+`, name, upstream)
+		assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar))
+	}
+	PhaseCreateApisixUpstream := func(s *scaffold.Scaffold, name string, nodeType v2.ApisixUpstreamExternalType, nodeName string) {
+		au := fmt.Sprintf(`
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: %s
+spec:
+  externalNodes:
+  - type: %s
+    name: %s
+`, name, nodeType, nodeName)
+		assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(au))
+	}
+
+	s := scaffold.NewDefaultV2Scaffold()
+	ginkgo.Describe("Apply ApisixRoute, then ApisixUpstream and Service", func() {
+		ginkgo.It("should check the status of ApisixRoute", func() {
+			PhaseCreateExternalService(s, "httpbin", "httpbin.org")
+			PhaseCreateApisixUpstream(s, "httpbin", v2.ExternalTypeService, "httpbin")
+			PhaseCreateApisixRoute(s, "httpbin-route", "httpbin")
+			err := s.EnsureNumApisixRoutesCreated(1)
+			assert.Nil(ginkgo.GinkgoT(), err, "checking number of routes")
+			err = s.EnsureNumApisixUpstreamsCreated(1)
+			assert.Nil(ginkgo.GinkgoT(), err, "checking number of upstreams")
+
+			//Check the status of ApisixUpstream resource
+			upstreamStatus, err := s.GetApisixUpstreamStatus("httpbin")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upstreamStatus.Conditions[0].Message)
+		})
+	})
+})
