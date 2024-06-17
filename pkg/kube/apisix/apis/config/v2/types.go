@@ -180,7 +180,6 @@ func (in *ApisixRoutePlugin) DeepCopyInto(out *ApisixRoutePlugin) {
 	*out = *in
 	out.Config = ApisixRoutePluginConfig{}
 	in.Config.DeepCopyInto(&out.Config)
-	return
 }
 
 // ApisixRoutePluginConfig is the configuration for
