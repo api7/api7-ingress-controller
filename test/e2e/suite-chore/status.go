@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var _ = ginkgo.Describe("suite-chore: apply Apisi Resources and check status", func() {
+var _ = ginkgo.Describe("suite-chore: apply Apisix Resources and check status", func() {
 	PhaseCreateExternalService := func(s *scaffold.Scaffold, name, externalName string) {
 		extService := fmt.Sprintf(`
 apiVersion: v1
@@ -64,7 +64,7 @@ spec:
 
 	s := scaffold.NewDefaultV2Scaffold()
 	ginkgo.Describe("Apply ApisixRoute, then ApisixUpstream and Service", func() {
-		ginkgo.It("should check the status of ApisixRoute", func() {
+		ginkgo.It("should check the status of ApisixRoute and ApisixUpstream with external service", func() {
 			PhaseCreateExternalService(s, "httpbin", "httpbin.org")
 			PhaseCreateApisixUpstream(s, "httpbin", v2.ExternalTypeService, "httpbin")
 			PhaseCreateApisixRoute(s, "httpbin-route", "httpbin")
@@ -77,6 +77,11 @@ spec:
 			upstreamStatus, err := s.GetApisixResourceStatus("httpbin", "au")
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upstreamStatus.Conditions[0].Message)
+
+			//Check the status of ApisixRoute resource
+			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
 		})
 	})
 
@@ -102,4 +107,27 @@ spec:
 			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", agrStatus.Conditions[0].Message)
 		})
 	})
+
+	ginkgo.Describe("Apply ApisixConsumer and check status", func() {
+		ginkgo.It("should check the status of ApisixConsumer", func() {
+			ac := `
+apiVersion: apisix.apache.org/v2
+kind: ApisixConsumer
+metadata:
+  name: foo
+spec:
+  authParameter:
+    jwtAuth:
+      value:
+        key: foo-key
+`
+			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ac), "create ApisixConsumer")
+			time.Sleep(6 * time.Second)
+			//Check the status of ApisixConsumer resource
+			acStatus, err := s.GetApisixResourceStatus("foo", "ac")
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", acStatus.Conditions[0].Message)
+		})
+	})
+
 })
