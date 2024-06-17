@@ -22,6 +22,7 @@ VERSION ?= 1.8.6
 TARGET_APISIX_VERSION ?= "3.4.1-centos"
 APISIX_ADMIN_API_VERSION ?= "v3"
 
+USE_BUILDKIT ?= 1
 ifeq ($(APISIX_ADMIN_API_VERSION),"v2")
     TARGET_APISIX_VERSION ?= "2.15.3-centos"
 endif
@@ -76,7 +77,7 @@ clean-image: ## Removes local image
 .PHONY: build-image
 build-image:
 ifeq ($(E2E_SKIP_BUILD), 0)
-	DOCKER_BUILDKIT=1 docker build -t apache/apisix-ingress-controller:$(IMAGE_TAG) --build-arg ENABLE_PROXY=$(ENABLE_PROXY) --build-arg BASE_IMAGE_TAG=$(BASE_IMAGE_TAG) .
+	DOCKER_BUILDKIT=$(USE_BUILDKIT) docker build -t apache/apisix-ingress-controller:$(IMAGE_TAG) --build-arg ENABLE_PROXY=$(ENABLE_PROXY) --build-arg BASE_IMAGE_TAG=$(BASE_IMAGE_TAG) .
 	docker tag apache/apisix-ingress-controller:$(IMAGE_TAG) $(REGISTRY)/apisix-ingress-controller:$(IMAGE_TAG)
 endif
 
