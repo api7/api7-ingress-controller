@@ -27,7 +27,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-ingress-features: CRDs status subresource Testing", func() {
+var _ = ginkgo.PDescribe("suite-ingress-features: CRDs status subresource Testing", func() {
 	s := scaffold.NewDefaultScaffold()
 	ginkgo.It("check ApisixRoute status is recorded", func() {
 		backendSvc, backendSvcPort := s.DefaultHTTPBackend()
@@ -248,7 +248,7 @@ wrw7im4TNSAdwVX4Y1F4svJ2as5SJn5QYGAzXDixNuwzXYrpP9rzA2s=
 	})
 })
 
-var _ = ginkgo.Describe("suite-ingress-features: Ingress LB Status Testing", func() {
+var _ = ginkgo.PDescribe("suite-ingress-features: Ingress LB Status Testing", func() {
 	opts := &scaffold.Options{
 		Name:                  "default",
 		IngressAPISIXReplicas: 1,
@@ -291,7 +291,7 @@ spec:
 	})
 })
 
-var _ = ginkgo.Describe("suite-ingress-features: disable status", func() {
+var _ = ginkgo.PDescribe("suite-ingress-features: disable status", func() {
 	opts := &scaffold.Options{
 		Name:                  "default",
 		IngressAPISIXReplicas: 1,

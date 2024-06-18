@@ -61,6 +61,8 @@ spec:
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
 			assert.Len(ginkgo.GinkgoT(), ups[0].Nodes, 0, "upstreams nodes not expect")
 
+			//Check the status of ApisixRoute resource
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 			s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.com").Expect().Status(http.StatusServiceUnavailable).Body().Raw()
 		})
 
@@ -109,6 +111,12 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err, "listing upstreams")
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
 			assert.Len(ginkgo.GinkgoT(), ups[0].Nodes, 0, "upstreams nodes not expect")
+
+			//Check the status of ApisixUpstream resource
+			s.AssertCRSync(backendSvc, "au", "upstream doesn't exist. It will be created after ApisixRoute is created referencing it.")
+
+			//Check the status of ApisixRoute resource
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 
 			s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.com").Expect().Status(http.StatusServiceUnavailable).Body().Raw()
 		})
@@ -161,6 +169,12 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err, "listing upstreams")
 			assert.Len(ginkgo.GinkgoT(), ups, 1)
 			assert.Len(ginkgo.GinkgoT(), ups[0].Nodes, 2, "upstreams nodes not expect")
+
+			//Check the status of ApisixUpstream resource
+			s.AssertCRSync(backendSvc, "au", "upstream doesn't exist. It will be created after ApisixRoute is created referencing it.")
+
+			//Check the status of ApisixRoute resource
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 
 			s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.com").Expect().Status(http.StatusOK).Body().Raw()
 		})

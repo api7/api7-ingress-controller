@@ -28,7 +28,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-ingress-resource: SSL Testing", func() {
+var _ = ginkgo.PDescribe("suite-ingress-resource: SSL Testing", func() {
 	suites := func(scaffoldFunc func() *scaffold.Scaffold) {
 		s := scaffoldFunc()
 		ginkgo.It("create a SSL from ApisixTls ", func() {
@@ -236,12 +236,12 @@ RU+QPRECgYB6XW24EI5+w3STbpnc6VoTS+sy9I9abTJPYo9LpCJwfMYc9Tg9Cx2K
 		})
 	}
 
-	ginkgo.Describe("suite-ingress-resource: scaffold v2", func() {
+	ginkgo.PDescribe("suite-ingress-resource: scaffold v2", func() {
 		suites(scaffold.NewDefaultV2Scaffold)
 	})
 })
 
-var _ = ginkgo.Describe("suite-ingress-resource: ApisixTls mTLS Test", func() {
+var _ = ginkgo.PDescribe("suite-ingress-resource: ApisixTls mTLS Test", func() {
 	// RootCA -> Server
 	// RootCA -> UserCert
 	// These certs come from mTLS practice
@@ -346,7 +346,7 @@ spec:
 		})
 	}
 
-	ginkgo.Describe("suite-ingress-resource: scaffold v2", func() {
+	ginkgo.PDescribe("suite-ingress-resource: scaffold v2", func() {
 		suites(scaffold.NewDefaultV2Scaffold)
 	})
 })

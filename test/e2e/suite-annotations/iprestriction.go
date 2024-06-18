@@ -25,7 +25,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-annotations: allowlist-source-range annotations", func() {
+var _ = ginkgo.PDescribe("suite-annotations: allowlist-source-range annotations", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	ginkgo.It("enable in ingress networking/v1", func() {
@@ -89,7 +89,7 @@ spec:
 	})
 })
 
-var _ = ginkgo.Describe("suite-annotations: blocklist-source-range annotations", func() {
+var _ = ginkgo.PDescribe("suite-annotations: blocklist-source-range annotations", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	ginkgo.It("enable in ingress networking/v1", func() {

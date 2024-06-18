@@ -58,7 +58,8 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
 			err = s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
-
+			//Check the status of ApisixRoute resource
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 			resp := s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.org").Expect()
 			resp.Status(200)
 			resp.Header("X-Request-Id").NotEmpty()
@@ -96,7 +97,8 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
 			err = s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
-
+			//Check the status of ApisixRoute resource
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 			resp := s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.org").Expect()
 			resp.Status(200)
 			resp.Header("X-Request-Id").Empty()
@@ -133,7 +135,8 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of upstreams")
 			err = s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
-
+			//Check the status of ApisixRoute resource
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 			resp := s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.org").Expect()
 			resp.Status(200)
 			resp.Header("X-Request-Id").NotEmpty()
@@ -162,7 +165,8 @@ spec:
 
 			// EnsureNumApisixRoutesCreated cannot be used to ensure update Correctness.
 			time.Sleep(6 * time.Second)
-
+			//Check the status of ApisixRoute resource
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 			resp = s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.org").Expect()
 			resp.Status(200)
 			resp.Header("X-Request-Id").Empty()

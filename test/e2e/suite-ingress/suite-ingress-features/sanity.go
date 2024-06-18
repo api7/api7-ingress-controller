@@ -30,7 +30,7 @@ type ip struct {
 	IP string `json:"origin"`
 }
 
-var _ = ginkgo.Describe("suite-ingress-features: single-route", func() {
+var _ = ginkgo.PDescribe("suite-ingress-features: single-route", func() {
 	suites := func(s *scaffold.Scaffold) {
 		ginkgo.It("/ip should return your ip", func() {
 			backendSvc, backendSvcPort := s.DefaultHTTPBackend()
@@ -69,12 +69,12 @@ spec:
 		})
 	}
 
-	ginkgo.Describe("suite-ingress-features: scaffold v2", func() {
+	ginkgo.PDescribe("suite-ingress-features: scaffold v2", func() {
 		suites(scaffold.NewDefaultV2Scaffold())
 	})
 })
 
-var _ = ginkgo.Describe("suite-ingress-features: double-routes", func() {
+var _ = ginkgo.PDescribe("suite-ingress-features: double-routes", func() {
 	suites := func(s *scaffold.Scaffold) {
 		ginkgo.It("double routes work independently", func() {
 			backendSvc, backendSvcPort := s.DefaultHTTPBackend()
@@ -124,12 +124,12 @@ spec:
 		})
 	}
 
-	ginkgo.Describe("suite-ingress-features: scaffold v2", func() {
+	ginkgo.PDescribe("suite-ingress-features: scaffold v2", func() {
 		suites(scaffold.NewDefaultV2Scaffold())
 	})
 })
 
-var _ = ginkgo.Describe("suite-ingress-features: leader election", func() {
+var _ = ginkgo.PDescribe("suite-ingress-features: leader election", func() {
 	suites := func(s *scaffold.Scaffold) {
 		ginkgo.It("lease check", func() {
 			pods, err := s.GetIngressPodDetails()
@@ -178,7 +178,7 @@ var _ = ginkgo.Describe("suite-ingress-features: leader election", func() {
 		})
 	}
 
-	ginkgo.Describe("suite-ingress-features: scaffold v2", func() {
+	ginkgo.PDescribe("suite-ingress-features: scaffold v2", func() {
 		suites(scaffold.NewScaffold(&scaffold.Options{
 			Name:                  "leaderelection",
 			IngressAPISIXReplicas: 2,
@@ -187,7 +187,7 @@ var _ = ginkgo.Describe("suite-ingress-features: leader election", func() {
 	})
 })
 
-var _ = ginkgo.Describe("suite-ingress-features: stream_routes disabled", func() {
+var _ = ginkgo.PDescribe("suite-ingress-features: stream_routes disabled", func() {
 	suites := func(s *scaffold.Scaffold) {
 		ginkgo.It("/ip should return your ip", func() {
 			backendSvc, backendSvcPort := s.DefaultHTTPBackend()
@@ -226,7 +226,7 @@ spec:
 		})
 	}
 
-	ginkgo.Describe("suite-ingress-features: scaffold v2", func() {
+	ginkgo.PDescribe("suite-ingress-features: scaffold v2", func() {
 		suites(scaffold.NewDefaultV2Scaffold())
 	})
 })

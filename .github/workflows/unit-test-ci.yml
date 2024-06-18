@@ -28,8 +28,7 @@ on:
       - release/1.8
 jobs:
   changes:
-    if: |
-      contains(github.event.pull_request.labels.*.name, 'ci-unit-test')
+    if: contains(github.event.pull_request.labels.*.name, 'ci-unit-test')
     runs-on: ubuntu-latest
     outputs:
       docs: ${{ steps.filter.outputs.docs }}

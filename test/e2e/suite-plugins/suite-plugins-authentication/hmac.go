@@ -51,6 +51,8 @@ spec:
 			grs, err := s.ListApisixConsumers()
 			assert.Nil(ginkgo.GinkgoT(), err, "listing consumer")
 			assert.Len(ginkgo.GinkgoT(), grs, 1)
+			//Check the status of ApisixConsumer resource
+			s.AssertCRSync("hmacvalue", "ac", "Sync Successfully")
 			assert.Len(ginkgo.GinkgoT(), grs[0].Plugins, 1)
 			hmacAuth, _ := grs[0].Plugins["hmac-auth"].(map[string]interface{})
 			assert.Equal(ginkgo.GinkgoT(), "papa", hmacAuth["access_key"])
@@ -87,6 +89,7 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar), "creating ApisixRoute with hmacAuth")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "Checking number of routes")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 
 			_ = s.NewAPISIXClient().GET("/ip").
 				WithHeader("Host", "httpbin.org").

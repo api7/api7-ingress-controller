@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/api7/api7-ingress-controller/pkg/apisix"
+	v2 "github.com/api7/api7-ingress-controller/pkg/kube/apisix/apis/config/v2"
 	"github.com/api7/api7-ingress-controller/pkg/log"
 	"github.com/api7/api7-ingress-controller/pkg/metrics"
 	v1 "github.com/api7/api7-ingress-controller/pkg/types/apisix/v1"
@@ -819,4 +820,26 @@ func (s *Scaffold) RunDigDNSClientFromK8s(args ...string) (string, error) {
 	}
 	kubectlArgs = append(kubectlArgs, args...)
 	return s.RunKubectlAndGetOutput(kubectlArgs...)
+}
+
+func (s *Scaffold) GetApisixResourceStatus(resourceName string, resourceType string) (*v2.ApisixStatus, error) {
+	kubectlArgs := []string{
+		"get", resourceType, resourceName, "-o", "json",
+	}
+	output, err := s.RunKubectlAndGetOutput(kubectlArgs...)
+	if err != nil {
+		return nil, err
+	}
+	var upstream v2.ApisixUpstream
+	err = json.Unmarshal([]byte(output), &upstream)
+	if err != nil {
+		return nil, err
+	}
+	return &upstream.Status, nil
+}
+
+func (s *Scaffold) AssertCRSync(resourceName, resourceType, message string) {
+	routeStatus, err := s.GetApisixResourceStatus(resourceName, resourceType)
+	assert.Nil(ginkgo.GinkgoT(), err)
+	assert.Equal(ginkgo.GinkgoT(), message, routeStatus.Conditions[0].Message)
 }

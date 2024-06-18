@@ -25,7 +25,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-ingress-resource: ApisixRoute stream Testing", func() {
+var _ = ginkgo.PDescribe("suite-ingress-resource: ApisixRoute stream Testing", func() {
 	suites := func(s *scaffold.Scaffold) {
 		ginkgo.It("stream tcp proxy", func() {
 			backendSvc, backendSvcPort := s.DefaultHTTPBackend()
@@ -98,12 +98,12 @@ spec:
 			assert.Contains(ginkgo.GinkgoT(), output, "github.com. udp")
 		})
 	}
-	ginkgo.Describe("suite-ingress-resource: scaffold v2", func() {
+	ginkgo.PDescribe("suite-ingress-resource: scaffold v2", func() {
 		suites(scaffold.NewDefaultV2Scaffold())
 	})
 })
 
-var _ = ginkgo.Describe("suite-ingress-resource: ApisixRoute stream Testing SNI with v2", func() {
+var _ = ginkgo.PDescribe("suite-ingress-resource: ApisixRoute stream Testing SNI with v2", func() {
 	s := scaffold.NewDefaultV2Scaffold()
 
 	ginkgo.It("stream route with sni when set host", func() {

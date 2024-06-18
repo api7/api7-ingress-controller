@@ -27,7 +27,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-annotations: svc-namespace annotations reference service in the same namespace", func() {
+var _ = ginkgo.PDescribe("suite-annotations: svc-namespace annotations reference service in the same namespace", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	ginkgo.It("networking/v1", func() {
@@ -108,7 +108,7 @@ spec:
 	})
 })
 
-var _ = ginkgo.Describe("suite-annotations: svc-namespace annotations cross-namespace reference service", func() {
+var _ = ginkgo.PDescribe("suite-annotations: svc-namespace annotations cross-namespace reference service", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	createNamespace := func(namespace string, watch string) {

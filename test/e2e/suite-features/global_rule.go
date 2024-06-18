@@ -49,6 +49,9 @@ spec:
 		_, ok := grs[0].Plugins["echo"]
 		assert.Equal(ginkgo.GinkgoT(), ok, true)
 
+		//Check the status of ApisixUpstream resource
+		s.AssertCRSync("test-agr-1", "agr", "Sync Successfully")
+
 		s.NewAPISIXClient().GET("/anything").Expect().Body().Contains("hello, world!!")
 
 		s.NewAPISIXClient().GET("/hello").Expect().Body().Contains("hello, world!!")
@@ -77,6 +80,9 @@ spec:
 		_, ok := grs[0].Plugins["echo"]
 		assert.Equal(ginkgo.GinkgoT(), ok, true)
 
+		//Check the status of ApisixUpstream resource
+		s.AssertCRSync("test-agr-1", "agr", "Sync Successfully")
+
 		s.NewAPISIXClient().GET("/anything").Expect().Body().Contains("hello, world!!")
 		s.NewAPISIXClient().GET("/hello").Expect().Body().Contains("hello, world!!")
 
@@ -100,7 +106,6 @@ spec:
 		assert.Len(ginkgo.GinkgoT(), grs, 1)
 		_, ok = grs[0].Plugins["echo"]
 		assert.Equal(ginkgo.GinkgoT(), ok, false)
-
 		s.NewAPISIXClient().GET("/anything").Expect().Body().NotContains("hello, world!!")
 	})
 
@@ -126,6 +131,9 @@ spec:
 		assert.Len(ginkgo.GinkgoT(), grs[0].Plugins, 1)
 		_, ok := grs[0].Plugins["echo"]
 		assert.Equal(ginkgo.GinkgoT(), ok, true)
+
+		//Check the status of ApisixUpstream resource
+		s.AssertCRSync("test-agr-1", "agr", "Sync Successfully")
 
 		assert.Nil(ginkgo.GinkgoT(), s.DeleteResourceFromString(agr), "deleteing ApisixGlobalRule")
 		time.Sleep(6 * time.Second)

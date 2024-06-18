@@ -50,6 +50,8 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "checking number of routes")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "checking number of upstreams")
 
+			//Check the status of ApisixRoute resource
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 			s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.org").Expect().Status(http.StatusOK)
 		})
 

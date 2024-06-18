@@ -48,6 +48,8 @@ spec:
 
 			grs, err := s.ListApisixConsumers()
 			assert.Nil(ginkgo.GinkgoT(), err, "listing consumer")
+			//Check the status of ApisixConsumer resource
+			s.AssertCRSync("foo", "ac", "Sync Successfully")
 			assert.Len(ginkgo.GinkgoT(), grs, 1)
 			assert.Len(ginkgo.GinkgoT(), grs[0].Plugins, 1)
 			jwtAuth, _ := grs[0].Plugins["jwt-auth"].(map[string]interface{})

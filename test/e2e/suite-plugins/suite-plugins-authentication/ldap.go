@@ -60,6 +60,8 @@ spec:
 
 			grs, err := s.ListApisixConsumers()
 			assert.Nil(ginkgo.GinkgoT(), err, "listing consumer")
+			//Check the status of ApisixConsumer resource
+			s.AssertCRSync("jack", "ac", "Sync Successfully")
 			assert.Len(ginkgo.GinkgoT(), grs, 1)
 			assert.Len(ginkgo.GinkgoT(), grs[0].Plugins, 1)
 			ldapAuth, _ := grs[0].Plugins["ldap-auth"].(map[string]interface{})
@@ -96,7 +98,8 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), s.CreateResourceFromString(ar), "Creating ApisixRoute with ldapAuth")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "Checking number of routes")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
-
+			//Check the status of ApisixConsumer resource
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 			msg401CourseMissing := s.NewAPISIXClient().GET("/ip").
 				WithHeader("Host", "httpbin.org").
 				Expect().
@@ -150,6 +153,8 @@ spec:
 
 			grs, err := s.ListApisixConsumers()
 			assert.Nil(ginkgo.GinkgoT(), err, "listing consumer")
+			//Check the status of ApisixConsumer resource
+			s.AssertCRSync("jack", "ac", "Sync Successfully")
 			assert.Len(ginkgo.GinkgoT(), grs, 1)
 			assert.Len(ginkgo.GinkgoT(), grs[0].Plugins, 1)
 			ldapAuth, _ := grs[0].Plugins["ldap-auth"].(map[string]interface{})
@@ -186,7 +191,8 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar), "Creating ApisixRoute with ldapAuth")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "Checking number of routes")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
-
+			//Check the status of ApisixConsumer resource
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 			msg401CouseMissing := s.NewAPISIXClient().GET("/ip").
 				WithHeader("Host", "httpbin.org").
 				Expect().

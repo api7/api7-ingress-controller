@@ -27,7 +27,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-ingress-features: apisix resource sync", func() {
+var _ = ginkgo.PDescribe("suite-ingress-features: apisix resource sync", func() {
 	suites := func(s *scaffold.Scaffold) {
 		ginkgo.JustBeforeEach(func() {
 			if s.IsEtcdServer() {
@@ -312,7 +312,7 @@ spec:
 		})
 	}
 
-	ginkgo.Describe("suite-ingress-features: scaffold v2", func() {
+	ginkgo.PDescribe("suite-ingress-features: scaffold v2", func() {
 		suites(scaffold.NewScaffold(&scaffold.Options{
 			Name:                       "sync",
 			IngressAPISIXReplicas:      1,

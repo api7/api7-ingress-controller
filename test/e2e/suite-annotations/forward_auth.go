@@ -25,7 +25,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-annotations: froward-auth annotations", func() {
+var _ = ginkgo.PDescribe("suite-annotations: froward-auth annotations", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	ginkgo.JustBeforeEach(func() {

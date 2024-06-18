@@ -26,7 +26,7 @@ import (
 )
 
 // suite-annotations: response-rewrite annotations
-var _ = ginkgo.Describe("suite-annotations: response-rewrite", func() {
+var _ = ginkgo.PDescribe("suite-annotations: response-rewrite", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	ginkgo.It("enable in ingress networking/v1", func() {

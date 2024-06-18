@@ -14,106 +14,117 @@
 // limitations under the License.
 package chore
 
-// var _ = ginkgo.Describe("suite-chore: ApisixRoute resolvegranularity Testing", func() {
-// 	s := scaffold.NewDefaultScaffold()
-// 	ginkgo.It("service and upstream [1:m]", func() {
-// 		if s.IsEtcdServer() {
-// 			ginkgo.Skip("Does not support etcdserver mode, etcdserver does not support full synchronization")
-// 		}
-// 		assert.Nil(ginkgo.GinkgoT(), s.ScaleHTTPBIN(2))
-// 		time.Sleep(5 * time.Second)
+import (
+	"fmt"
+	"net/http"
+	"time"
 
-// 		backendSvc, backendSvcPort := s.DefaultHTTPBackend()
-// 		route1 := fmt.Sprintf(`
-// apiVersion: apisix.apache.org/v2
-// kind: ApisixRoute
-// metadata:
-//   name: httpbin-route1
-// spec:
-//   http:
-//   - name: route1
-//     match:
-//       hosts:
-//       - httpbin.org
-//       paths:
-//       - /ip
-//     backends:
-//     - serviceName: %s
-//       servicePort: %d
-//       resolveGranularity: service
-// `, backendSvc, backendSvcPort[0])
-// 		assert.Nil(ginkgo.GinkgoT(), s.CreateResourceFromString(route1))
-// 		assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "checking number of routes")
-// 		ups, err := s.ListApisixUpstreams()
-// 		assert.Nil(ginkgo.GinkgoT(), err)
-// 		assert.Len(ginkgo.GinkgoT(), ups, 1)
-// 		assert.Len(ginkgo.GinkgoT(), ups[0].Nodes, 1)
-// 		_ = s.NewAPISIXClient().GET("/ip").
-// 			WithHeader("Host", "httpbin.org").
-// 			Expect().
-// 			Status(http.StatusOK)
+	"github.com/onsi/ginkgo/v2"
+	"github.com/stretchr/testify/assert"
 
-// 		route2 := fmt.Sprintf(`
-// apiVersion: apisix.apache.org/v2
-// kind: ApisixRoute
-// metadata:
-//   name: httpbin-route2
-// spec:
-//   http:
-//   - name: route2
-//     match:
-//       hosts:
-//       - httpbin.com
-//       paths:
-//       - /get
-//     backends:
-//     - serviceName: %s
-//       servicePort: %d
-//       resolveGranularity: endpoint
-// `, backendSvc, backendSvcPort[0])
-// 		assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(route2))
-// 		assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(2), "checking number of routes")
-// 		ups, err = s.ListApisixUpstreams()
-// 		assert.Nil(ginkgo.GinkgoT(), err)
-// 		assert.Len(ginkgo.GinkgoT(), ups, 2)
-// 		if len(ups[0].Nodes) == 1 {
-// 			assert.Len(ginkgo.GinkgoT(), ups[1].Nodes, 2)
-// 		} else {
-// 			assert.Len(ginkgo.GinkgoT(), ups[0].Nodes, 2)
-// 			assert.Len(ginkgo.GinkgoT(), ups[1].Nodes, 1)
-// 		}
-// 		_ = s.NewAPISIXClient().GET("/get").
-// 			WithHeader("Host", "httpbin.com").
-// 			Expect().
-// 			Status(http.StatusOK)
-// 		// Verify consistency after apisix-ingress-controller restart
-// 		verify := func() {
-// 			s.RestartIngressControllerDeploy()
-// 			time.Sleep(15 * time.Second)
+	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
+)
 
-// 			ups, err = s.ListApisixUpstreams()
-// 			assert.Nil(ginkgo.GinkgoT(), err)
-// 			assert.Len(ginkgo.GinkgoT(), ups, 2)
-// 			if len(ups[0].Nodes) == 1 {
-// 				assert.Len(ginkgo.GinkgoT(), ups[1].Nodes, 2)
-// 			} else {
-// 				assert.Len(ginkgo.GinkgoT(), ups[0].Nodes, 2)
-// 				assert.Len(ginkgo.GinkgoT(), ups[1].Nodes, 1)
-// 			}
+var _ = ginkgo.PDescribe("suite-chore: ApisixRoute resolvegranularity Testing", func() {
+	s := scaffold.NewDefaultScaffold()
+	ginkgo.It("service and upstream [1:m]", func() {
+		if s.IsEtcdServer() {
+			ginkgo.Skip("Does not support etcdserver mode, etcdserver does not support full synchronization")
+		}
+		assert.Nil(ginkgo.GinkgoT(), s.ScaleHTTPBIN(2))
+		time.Sleep(5 * time.Second)
 
-// 			_ = s.NewAPISIXClient().GET("/ip").
-// 				WithHeader("Host", "httpbin.org").
-// 				Expect().
-// 				Status(http.StatusOK)
+		backendSvc, backendSvcPort := s.DefaultHTTPBackend()
+		route1 := fmt.Sprintf(`
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: httpbin-route1
+spec:
+  http:
+  - name: route1
+    match:
+      hosts:
+      - httpbin.org
+      paths:
+      - /ip
+    backends:
+    - serviceName: %s
+      servicePort: %d
+      resolveGranularity: service
+`, backendSvc, backendSvcPort[0])
+		assert.Nil(ginkgo.GinkgoT(), s.CreateResourceFromString(route1))
+		assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "checking number of routes")
+		ups, err := s.ListApisixUpstreams()
+		assert.Nil(ginkgo.GinkgoT(), err)
+		assert.Len(ginkgo.GinkgoT(), ups, 1)
+		assert.Len(ginkgo.GinkgoT(), ups[0].Nodes, 1)
+		_ = s.NewAPISIXClient().GET("/ip").
+			WithHeader("Host", "httpbin.org").
+			Expect().
+			Status(http.StatusOK)
 
-// 			_ = s.NewAPISIXClient().GET("/get").
-// 				WithHeader("Host", "httpbin.com").
-// 				Expect().
-// 				Status(http.StatusOK)
-// 		}
+		route2 := fmt.Sprintf(`
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: httpbin-route2
+spec:
+  http:
+  - name: route2
+    match:
+      hosts:
+      - httpbin.com
+      paths:
+      - /get
+    backends:
+    - serviceName: %s
+      servicePort: %d
+      resolveGranularity: endpoint
+`, backendSvc, backendSvcPort[0])
+		assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(route2))
+		assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(2), "checking number of routes")
+		ups, err = s.ListApisixUpstreams()
+		assert.Nil(ginkgo.GinkgoT(), err)
+		assert.Len(ginkgo.GinkgoT(), ups, 2)
+		if len(ups[0].Nodes) == 1 {
+			assert.Len(ginkgo.GinkgoT(), ups[1].Nodes, 2)
+		} else {
+			assert.Len(ginkgo.GinkgoT(), ups[0].Nodes, 2)
+			assert.Len(ginkgo.GinkgoT(), ups[1].Nodes, 1)
+		}
+		_ = s.NewAPISIXClient().GET("/get").
+			WithHeader("Host", "httpbin.com").
+			Expect().
+			Status(http.StatusOK)
+		// Verify consistency after apisix-ingress-controller restart
+		verify := func() {
+			s.RestartIngressControllerDeploy()
+			time.Sleep(15 * time.Second)
 
-// 		for i := 0; i < 5; i++ {
-// 			verify()
-// 		}
-// 	})
-// })
+			ups, err = s.ListApisixUpstreams()
+			assert.Nil(ginkgo.GinkgoT(), err)
+			assert.Len(ginkgo.GinkgoT(), ups, 2)
+			if len(ups[0].Nodes) == 1 {
+				assert.Len(ginkgo.GinkgoT(), ups[1].Nodes, 2)
+			} else {
+				assert.Len(ginkgo.GinkgoT(), ups[0].Nodes, 2)
+				assert.Len(ginkgo.GinkgoT(), ups[1].Nodes, 1)
+			}
+
+			_ = s.NewAPISIXClient().GET("/ip").
+				WithHeader("Host", "httpbin.org").
+				Expect().
+				Status(http.StatusOK)
+
+			_ = s.NewAPISIXClient().GET("/get").
+				WithHeader("Host", "httpbin.com").
+				Expect().
+				Status(http.StatusOK)
+		}
+
+		for i := 0; i < 5; i++ {
+			verify()
+		}
+	})
+})

@@ -80,6 +80,13 @@ spec:
 			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Active.Unhealthy.Interval, 1)
 			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Active.Unhealthy.HTTPFailures, 2)
 
+			//Check the status of ApisixUpstream resource
+			//Check the status of ApisixUpstream resource
+			s.AssertCRSync(backendSvc, "au", "Sync Successfully")
+
+			//Check the status of ApisixRoute resource
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
+
 			// It's difficult to test healthchecker since we cannot let partial httpbin endpoints
 			// down, if all of them are down, apisix in turn uses all of them.
 		})
@@ -141,6 +148,12 @@ spec:
 			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Active.Unhealthy.Interval, 1)
 			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Passive.Healthy.HTTPStatuses, []int{200})
 			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Passive.Unhealthy.HTTPStatuses, []int{502})
+
+			//Check the status of ApisixUpstream resource
+			s.AssertCRSync(backendSvc, "au", "Sync Successfully")
+
+			//Check the status of ApisixRoute resource
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 		})
 	}
 	ginkgo.Describe("suite-features: scaffold v2", func() {

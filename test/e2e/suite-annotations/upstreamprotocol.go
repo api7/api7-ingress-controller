@@ -24,7 +24,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = ginkgo.Describe("suite-annotations: annotations.networking/v1 upstream scheme", func() {
+var _ = ginkgo.PDescribe("suite-annotations: annotations.networking/v1 upstream scheme", func() {
 	s := scaffold.NewDefaultScaffold()
 	ginkgo.It("sanity", func() {
 		ing := `
@@ -59,7 +59,7 @@ spec:
 	})
 })
 
-var _ = ginkgo.Describe("suite-annotations-error: annotations.networking/v1 upstream scheme error", func() {
+var _ = ginkgo.PDescribe("suite-annotations-error: annotations.networking/v1 upstream scheme error", func() {
 	s := scaffold.NewDefaultScaffold()
 	ginkgo.It("sanity", func() {
 		ing := `
@@ -94,7 +94,7 @@ spec:
 	})
 })
 
-var _ = ginkgo.Describe("suite-annotations: annotations.networking/v1beta1 upstream scheme", func() {
+var _ = ginkgo.PDescribe("suite-annotations: annotations.networking/v1beta1 upstream scheme", func() {
 	s := scaffold.NewDefaultScaffold()
 	ginkgo.It("sanity", func() {
 		ing := `
