@@ -837,3 +837,9 @@ func (s *Scaffold) GetApisixResourceStatus(resourceName string, resourceType str
 	}
 	return &upstream.Status, nil
 }
+
+func (s *Scaffold) AssertCRSync(resourceName, resourceType, message string) {
+	routeStatus, err := s.GetApisixResourceStatus(resourceName, resourceType)
+	assert.Nil(ginkgo.GinkgoT(), err)
+	assert.Equal(ginkgo.GinkgoT(), message, routeStatus.Conditions[0].Message)
+}

@@ -56,9 +56,7 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err, "checking number of upstreams")
 
 			//Check the status of ApisixRoute resource
-			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 
 			arStream := fmt.Sprintf(`
 apiVersion: apisix.apache.org/v2
@@ -87,9 +85,7 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err, "create ApisixTls 'a' error")
 
 			//Check the status of ApisixRoute resource
-			routeStatus, err = s.GetApisixResourceStatus("httpbin-tcp-route", "ar")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
+			s.AssertCRSync("httpbin-tcp-route", "ar", "Sync Successfully")
 			ac := `
 apiVersion: apisix.apache.org/v2
 kind: ApisixConsumer
@@ -104,9 +100,7 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ac), "create ApisixConsumer")
 			time.Sleep(6 * time.Second)
 			//Check the status of ApisixRoute resource
-			consumerStatus, err := s.GetApisixResourceStatus("foo", "ac")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", consumerStatus.Conditions[0].Message)
+			s.AssertCRSync("foo", "ac", "Sync Successfully")
 			agr := `
 apiVersion: apisix.apache.org/v2
 kind: ApisixGlobalRule
@@ -121,9 +115,7 @@ spec:
 `
 			assert.Nil(ginkgo.GinkgoT(), s.CreateResourceFromString(agr), "create ApisixGlobalRule")
 			//Check the status of ApisixRoute resource
-			globalruleStatus, err := s.GetApisixResourceStatus("test-agr-1", "agr")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", globalruleStatus.Conditions[0].Message)
+			s.AssertCRSync("test-agr-1", "agr", "Sync Successfully")
 			apc := `
 apiVersion: apisix.apache.org/v2
 kind: ApisixPluginConfig

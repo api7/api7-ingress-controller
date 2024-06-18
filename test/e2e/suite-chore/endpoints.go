@@ -51,9 +51,7 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "checking number of upstreams")
 
 			//Check the status of ApisixRoute resource
-			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 			s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.org").Expect().Status(http.StatusOK)
 		})
 

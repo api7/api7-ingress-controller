@@ -240,14 +240,9 @@ spec:
 			PhaseValidateRouteAccess(s, upstreamId)
 
 			//Check the status of ApisixUpstream resource
-			upstreamStatus, err := s.GetApisixResourceStatus("httpbin-upstream", "au")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upstreamStatus.Conditions[0].Message)
-
+			s.AssertCRSync("httpbin-upstream", "au", "Sync Successfully")
 			//Check the status of ApisixRoute resource
-			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 		})
 	})
 
@@ -268,14 +263,10 @@ spec:
 			PhaseValidateRouteAccess(s, upstreamId)
 
 			//Check the status of ApisixUpstream resource
-			upstreamStatus, err := s.GetApisixResourceStatus("httpbin-upstream", "au")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upstreamStatus.Conditions[0].Message)
+			s.AssertCRSync("httpbin-upstream", "au", "Sync Successfully")
 
 			//Check the status of ApisixRoute resource
-			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 		})
 
 		ginkgo.It("should be able to create the target service later", func() {
@@ -294,14 +285,10 @@ spec:
 			PhaseValidateRouteAccess(s, upstreamId)
 
 			//Check the status of ApisixUpstream resource
-			upstreamStatus, err := s.GetApisixResourceStatus("httpbin-upstream", "au")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upstreamStatus.Conditions[0].Message)
+			s.AssertCRSync("httpbin-upstream", "au", "Sync Successfully")
 
 			//Check the status of ApisixRoute resource
-			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 		})
 	})
 
@@ -318,14 +305,10 @@ spec:
 			PhaseValidateRouteAccess(s, upstreamId)
 
 			//Check the status of ApisixUpstream resource
-			upstreamStatus, err := s.GetApisixResourceStatus("httpbin-upstream", "au")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upstreamStatus.Conditions[0].Message)
+			s.AssertCRSync("httpbin-upstream", "au", "Sync Successfully")
 
 			//Check the status of ApisixRoute resource
-			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 
 			// -- delete --
 			assert.Nil(ginkgo.GinkgoT(), s.DeleteResource("ar", "httpbin-route"), "delete route")

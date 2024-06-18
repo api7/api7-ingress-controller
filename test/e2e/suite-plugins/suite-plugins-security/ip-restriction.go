@@ -61,9 +61,7 @@ spec:
 			err = s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
 			//Check the status of ApisixRoute resource
-			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 			// As we use port forwarding so the ip address is 127.0.0.1
 			s.NewAPISIXClient().GET("/hello").WithHeader("Host", "httpbin.org").
 				Expect().
@@ -103,9 +101,7 @@ spec:
 			err = s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
 			//Check the status of ApisixRoute resource
-			routeStatus, err = s.GetApisixResourceStatus("httpbin-route", "ar")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 			// As we use port forwarding so the ip address is 127.0.0.1
 			s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.org").
 				Expect().
@@ -147,9 +143,7 @@ spec:
 			err = s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
 			//Check the status of ApisixRoute resource
-			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 			// As we use port forwarding so the ip address is 127.0.0.1
 			s.NewAPISIXClient().GET("/hello").WithHeader("Host", "httpbin.org").
 				Expect().
@@ -187,9 +181,7 @@ spec:
 			// EnsureNumApisixRoutesCreated cannot be used to ensure update Correctness.
 			time.Sleep(6 * time.Second)
 			//Check the status of ApisixRoute resource
-			routeStatus, err = s.GetApisixResourceStatus("httpbin-route", "ar")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 			// As we use port forwarding so the ip address is 127.0.0.1
 			s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.org").
 				Expect().
@@ -232,9 +224,7 @@ spec:
 			err = s.EnsureNumApisixRoutesCreated(1)
 			assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
 			//Check the status of ApisixRoute resource
-			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 			// As we use port forwarding so the ip address is 127.0.0.1
 			s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.org").
 				Expect().

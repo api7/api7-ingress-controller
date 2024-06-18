@@ -81,14 +81,11 @@ spec:
 			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Active.Unhealthy.HTTPFailures, 2)
 
 			//Check the status of ApisixUpstream resource
-			upstatus, err := s.GetApisixResourceStatus(backendSvc, "au")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upstatus.Conditions[0].Message)
+			//Check the status of ApisixUpstream resource
+			s.AssertCRSync(backendSvc, "au", "Sync Successfully")
 
 			//Check the status of ApisixRoute resource
-			arstatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", arstatus.Conditions[0].Message)
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 
 			// It's difficult to test healthchecker since we cannot let partial httpbin endpoints
 			// down, if all of them are down, apisix in turn uses all of them.
@@ -153,13 +150,10 @@ spec:
 			assert.Equal(ginkgo.GinkgoT(), ups[0].Checks.Passive.Unhealthy.HTTPStatuses, []int{502})
 
 			//Check the status of ApisixUpstream resource
-			upstatus, err := s.GetApisixResourceStatus(backendSvc, "au")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upstatus.Conditions[0].Message)
+			s.AssertCRSync(backendSvc, "au", "Sync Successfully")
+
 			//Check the status of ApisixRoute resource
-			arstatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", arstatus.Conditions[0].Message)
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 		})
 	}
 	ginkgo.Describe("suite-features: scaffold v2", func() {

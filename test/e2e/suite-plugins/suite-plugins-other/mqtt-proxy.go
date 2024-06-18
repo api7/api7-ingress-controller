@@ -110,9 +110,7 @@ spec:
 		err := s.EnsureNumApisixStreamRoutesCreated(1)
 		assert.Nil(ginkgo.GinkgoT(), err, "Checking number of routes")
 		//Check the status of ApisixRoute resource
-		routeStatus, err := s.GetApisixResourceStatus("mqtt-route", "ar")
-		assert.Nil(ginkgo.GinkgoT(), err)
-		assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
+		s.AssertCRSync("mqtt-route", "ar", "Sync Successfully")
 		sr, err := s.ListApisixStreamRoutes()
 		assert.Nil(ginkgo.GinkgoT(), err)
 		assert.Len(ginkgo.GinkgoT(), sr, 1)

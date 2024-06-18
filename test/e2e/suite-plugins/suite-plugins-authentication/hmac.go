@@ -52,10 +52,7 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err, "listing consumer")
 			assert.Len(ginkgo.GinkgoT(), grs, 1)
 			//Check the status of ApisixConsumer resource
-			upsRoute, err := s.GetApisixResourceStatus("hmacvalue", "ac")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upsRoute.Conditions[0].Message)
-
+			s.AssertCRSync("hmacvalue", "ac", "Sync Successfully")
 			assert.Len(ginkgo.GinkgoT(), grs[0].Plugins, 1)
 			hmacAuth, _ := grs[0].Plugins["hmac-auth"].(map[string]interface{})
 			assert.Equal(ginkgo.GinkgoT(), "papa", hmacAuth["access_key"])
@@ -92,10 +89,7 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), s.CreateVersionedApisixResource(ar), "creating ApisixRoute with hmacAuth")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixRoutesCreated(1), "Checking number of routes")
 			assert.Nil(ginkgo.GinkgoT(), s.EnsureNumApisixUpstreamsCreated(1), "Checking number of upstreams")
-			//Check the status of ApisixConsumer resource
-			upsRoute, err = s.GetApisixResourceStatus("httpbin-route", "ar")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", upsRoute.Conditions[0].Message)
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 
 			_ = s.NewAPISIXClient().GET("/ip").
 				WithHeader("Host", "httpbin.org").

@@ -62,9 +62,7 @@ spec:
 			assert.Len(ginkgo.GinkgoT(), ups[0].Nodes, 0, "upstreams nodes not expect")
 
 			//Check the status of ApisixRoute resource
-			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 			s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.com").Expect().Status(http.StatusServiceUnavailable).Body().Raw()
 		})
 
@@ -115,14 +113,10 @@ spec:
 			assert.Len(ginkgo.GinkgoT(), ups[0].Nodes, 0, "upstreams nodes not expect")
 
 			//Check the status of ApisixUpstream resource
-			upstreamStatus, err := s.GetApisixResourceStatus(backendSvc, "au")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "upstream doesn't exist. It will be created after ApisixRoute is created referencing it.", upstreamStatus.Conditions[0].Message)
+			s.AssertCRSync(backendSvc, "au", "upstream doesn't exist. It will be created after ApisixRoute is created referencing it.")
 
 			//Check the status of ApisixRoute resource
-			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 
 			s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.com").Expect().Status(http.StatusServiceUnavailable).Body().Raw()
 		})
@@ -177,14 +171,10 @@ spec:
 			assert.Len(ginkgo.GinkgoT(), ups[0].Nodes, 2, "upstreams nodes not expect")
 
 			//Check the status of ApisixUpstream resource
-			upstreamStatus, err := s.GetApisixResourceStatus(backendSvc, "au")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "upstream doesn't exist. It will be created after ApisixRoute is created referencing it.", upstreamStatus.Conditions[0].Message)
+			s.AssertCRSync(backendSvc, "au", "upstream doesn't exist. It will be created after ApisixRoute is created referencing it.")
 
 			//Check the status of ApisixRoute resource
-			routeStatus, err := s.GetApisixResourceStatus("httpbin-route", "ar")
-			assert.Nil(ginkgo.GinkgoT(), err)
-			assert.Equal(ginkgo.GinkgoT(), "Sync Successfully", routeStatus.Conditions[0].Message)
+			s.AssertCRSync("httpbin-route", "ar", "Sync Successfully")
 
 			s.NewAPISIXClient().GET("/ip").WithHeader("Host", "httpbin.com").Expect().Status(http.StatusOK).Body().Raw()
 		})
