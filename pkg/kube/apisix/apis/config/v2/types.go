@@ -176,12 +176,6 @@ type ApisixRoutePlugin struct {
 	SecretRef string `json:"secretRef" yaml:"secretRef"`
 }
 
-func (in *ApisixRoutePlugin) DeepCopyInto(out *ApisixRoutePlugin) {
-	*out = *in
-	out.Config = ApisixRoutePluginConfig{}
-	in.Config.DeepCopyInto(&out.Config)
-}
-
 // ApisixRoutePluginConfig is the configuration for
 // any plugins.
 type ApisixRoutePluginConfig map[string]interface{}
@@ -191,12 +185,12 @@ func (p ApisixRoutePluginConfig) DeepCopyInto(out *ApisixRoutePluginConfig) {
 	_ = json.Unmarshal(b, out)
 }
 
-func (p *ApisixRoutePluginConfig) DeepCopy() *ApisixRoutePluginConfig {
+func (p ApisixRoutePluginConfig) DeepCopy() ApisixRoutePluginConfig {
 	if p == nil {
 		return nil
 	}
-	out := new(ApisixRoutePluginConfig)
-	p.DeepCopyInto(out)
+	out := make(ApisixRoutePluginConfig)
+	p.DeepCopyInto(&out)
 	return out
 }
 
@@ -692,14 +686,6 @@ type Plugin struct {
 	ConfigSet ConfigSet `json:"config_set,omitempty" yaml:"config_set,omitempty"`
 }
 
-func (in *Plugin) DeepCopyInto(out *Plugin) {
-	*out = *in
-	out.Config = Config{}
-	out.ConfigSet = ConfigSet{}
-	in.Config.DeepCopyInto(&out.Config)
-	in.ConfigSet.DeepCopyInto(&out.ConfigSet)
-}
-
 type ConfigSet []interface{}
 
 func (p ConfigSet) DeepCopyInto(out *ConfigSet) {
@@ -723,12 +709,12 @@ func (p Config) DeepCopyInto(out *Config) {
 	_ = json.Unmarshal(b, out)
 }
 
-func (p *Config) DeepCopy() *Config {
+func (p Config) DeepCopy() Config {
 	if p == nil {
 		return nil
 	}
-	out := new(Config)
-	p.DeepCopyInto(out)
+	out := make(Config)
+	p.DeepCopyInto(&out)
 	return out
 }
 

@@ -271,7 +271,7 @@ func (t *translator) translateIngressV1(ing *networkingv1.Ingress, skipVerify bo
 				route.Priority = _regexPriority
 			}
 			if len(ingress.Plugins) > 0 {
-				route.Plugins = *(ingress.Plugins.DeepCopy())
+				route.Plugins = ingress.Plugins.DeepCopy()
 			}
 
 			if ingress.PluginConfigName != "" {
@@ -376,7 +376,7 @@ func (t *translator) translateIngressV1beta1(ing *networkingv1beta1.Ingress, ski
 				route.Priority = _regexPriority
 			}
 			if len(ingress.Plugins) > 0 {
-				route.Plugins = *(ingress.Plugins.DeepCopy())
+				route.Plugins = ingress.Plugins.DeepCopy()
 			}
 			if ingress.Upstream.Retry > 0 {
 				retry := ingress.Upstream.Retry
