@@ -21,10 +21,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/api7/api7-ingress-controller/pkg/log"
 	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/api7/api7-ingress-controller/pkg/log"
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
