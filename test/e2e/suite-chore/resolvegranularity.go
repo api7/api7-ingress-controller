@@ -19,7 +19,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
+	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
 )
