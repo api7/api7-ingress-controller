@@ -24,7 +24,7 @@ linters-settings:
     disable:
     - unsafeptr
   goimports:
-    local-prefixes: github.com/apache/apisix-ingress-controller
+    local-prefixes: github.com/api7/api7-ingress-controller
 
 linters:
   disable:

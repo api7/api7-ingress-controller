@@ -21,8 +21,8 @@ import (
 	"context"
 	"time"
 
-	v2 "github.com/apache/apisix-ingress-controller/pkg/kube/apisix/apis/config/v2"
-	scheme "github.com/apache/apisix-ingress-controller/pkg/kube/apisix/client/clientset/versioned/scheme"
+	v2 "github.com/api7/api7-ingress-controller/pkg/kube/apisix/apis/config/v2"
+	scheme "github.com/api7/api7-ingress-controller/pkg/kube/apisix/client/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
