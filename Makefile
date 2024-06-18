@@ -16,7 +16,7 @@
 #
 default: help
 
-VERSION ?= 1.8.6
+VERSION ?= 1.8.8
 
 
 TARGET_APISIX_VERSION ?= "3.4.1-centos"
@@ -47,9 +47,9 @@ ifeq ($(OSARCH), x86_64)
 	OSARCH = amd64
 endif
 
-VERSYM="github.com/apache/apisix-ingress-controller/pkg/version._buildVersion"
-GITSHASYM="github.com/apache/apisix-ingress-controller/pkg/version._buildGitRevision"
-BUILDOSSYM="github.com/apache/apisix-ingress-controller/pkg/version._buildOS"
+VERSYM="github.com/api7/api7-ingress-controller/pkg/version._buildVersion"
+GITSHASYM="github.com/api7/api7-ingress-controller/pkg/version._buildGitRevision"
+BUILDOSSYM="github.com/api7/api7-ingress-controller/pkg/version._buildOS"
 GO_LDFLAGS ?= "-X=$(VERSYM)=$(VERSION) -X=$(GITSHASYM)=$(GITSHA) -X=$(BUILDOSSYM)=$(OSNAME)/$(OSARCH)"
 E2E_NODES ?= 4
 E2E_FLAKE_ATTEMPTS ?= 0

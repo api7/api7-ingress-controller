@@ -14,7 +14,7 @@
 // limitations under the License.
 package utils
 
-import "github.com/apache/apisix-ingress-controller/pkg/config"
+import "github.com/api7/api7-ingress-controller/pkg/config"
 
 func MatchCRDsIngressClass(resourceIngressClassName string, configIngressClass string) bool {
 	if configIngressClass == config.IngressClassApisixAndAll {

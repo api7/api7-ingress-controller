@@ -18,7 +18,7 @@
 package utils
 
 import (
-	apisixv1 "github.com/apache/apisix-ingress-controller/pkg/types/apisix/v1"
+	apisixv1 "github.com/api7/api7-ingress-controller/pkg/types/apisix/v1"
 )
 
 var schemeToPortMaps = map[string]int{

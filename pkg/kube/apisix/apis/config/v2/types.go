@@ -22,7 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	"github.com/apache/apisix-ingress-controller/pkg/types"
+	"github.com/api7/api7-ingress-controller/pkg/types"
 )
 
 // +genclient
@@ -185,12 +185,12 @@ func (p ApisixRoutePluginConfig) DeepCopyInto(out *ApisixRoutePluginConfig) {
 	_ = json.Unmarshal(b, out)
 }
 
-func (p *ApisixRoutePluginConfig) DeepCopy() *ApisixRoutePluginConfig {
+func (p ApisixRoutePluginConfig) DeepCopy() ApisixRoutePluginConfig {
 	if p == nil {
 		return nil
 	}
-	out := new(ApisixRoutePluginConfig)
-	p.DeepCopyInto(out)
+	out := make(ApisixRoutePluginConfig)
+	p.DeepCopyInto(&out)
 	return out
 }
 
@@ -709,12 +709,12 @@ func (p Config) DeepCopyInto(out *Config) {
 	_ = json.Unmarshal(b, out)
 }
 
-func (p *Config) DeepCopy() *Config {
+func (p Config) DeepCopy() Config {
 	if p == nil {
 		return nil
 	}
-	out := new(Config)
-	p.DeepCopyInto(out)
+	out := make(Config)
+	p.DeepCopyInto(&out)
 	return out
 }
 

@@ -187,12 +187,12 @@ func (p *Plugins) DeepCopyInto(out *Plugins) {
 	_ = json.Unmarshal(b, out)
 }
 
-func (p *Plugins) DeepCopy() *Plugins {
+func (p Plugins) DeepCopy() Plugins {
 	if p == nil {
 		return nil
 	}
-	out := new(Plugins)
-	p.DeepCopyInto(out)
+	out := make(Plugins)
+	p.DeepCopyInto(&out)
 	return out
 }
 

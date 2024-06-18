@@ -33,15 +33,15 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
 
-	"github.com/apache/apisix-ingress-controller/pkg/apisix"
-	"github.com/apache/apisix-ingress-controller/pkg/id"
-	"github.com/apache/apisix-ingress-controller/pkg/kube"
-	kubev2 "github.com/apache/apisix-ingress-controller/pkg/kube/apisix/apis/config/v2"
-	apisixconst "github.com/apache/apisix-ingress-controller/pkg/kube/apisix/const"
-	"github.com/apache/apisix-ingress-controller/pkg/log"
-	apisixtranslation "github.com/apache/apisix-ingress-controller/pkg/providers/apisix/translation"
-	"github.com/apache/apisix-ingress-controller/pkg/providers/translation"
-	apisixv1 "github.com/apache/apisix-ingress-controller/pkg/types/apisix/v1"
+	"github.com/api7/api7-ingress-controller/pkg/apisix"
+	"github.com/api7/api7-ingress-controller/pkg/id"
+	"github.com/api7/api7-ingress-controller/pkg/kube"
+	kubev2 "github.com/api7/api7-ingress-controller/pkg/kube/apisix/apis/config/v2"
+	apisixconst "github.com/api7/api7-ingress-controller/pkg/kube/apisix/const"
+	"github.com/api7/api7-ingress-controller/pkg/log"
+	apisixtranslation "github.com/api7/api7-ingress-controller/pkg/providers/apisix/translation"
+	"github.com/api7/api7-ingress-controller/pkg/providers/translation"
+	apisixv1 "github.com/api7/api7-ingress-controller/pkg/types/apisix/v1"
 )
 
 const (
@@ -271,7 +271,7 @@ func (t *translator) translateIngressV1(ing *networkingv1.Ingress, skipVerify bo
 				route.Priority = _regexPriority
 			}
 			if len(ingress.Plugins) > 0 {
-				route.Plugins = *(ingress.Plugins.DeepCopy())
+				route.Plugins = ingress.Plugins.DeepCopy()
 			}
 
 			if ingress.PluginConfigName != "" {
@@ -376,7 +376,7 @@ func (t *translator) translateIngressV1beta1(ing *networkingv1beta1.Ingress, ski
 				route.Priority = _regexPriority
 			}
 			if len(ingress.Plugins) > 0 {
-				route.Plugins = *(ingress.Plugins.DeepCopy())
+				route.Plugins = ingress.Plugins.DeepCopy()
 			}
 			if ingress.Upstream.Retry > 0 {
 				retry := ingress.Upstream.Retry
@@ -621,7 +621,7 @@ func (t *translator) translateOldIngressV1beta1(ing *networkingv1beta1.Ingress) 
 // but this method can cause problems in some scenarios.
 // For example, the generated name is too long.
 // The current APISIX limit its maximum length to 100.
-// ref: https://github.com/apache/apisix-ingress-controller/issues/781
+// ref: https://github.com/api7/api7-ingress-controller/issues/781
 // We will construct the following structure for easy reading and debugging.
 // ing_namespace_ingressName_id
 func composeIngressRouteName(namespace, name, host, path string) string {
