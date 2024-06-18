@@ -24,6 +24,7 @@ import (
 	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/api7/api7-ingress-controller/pkg/log"
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
@@ -159,29 +160,29 @@ spec:
 			assert.Nil(ginkgo.GinkgoT(), err)
 			assert.True(ginkgo.GinkgoT(), len(pcs) > 0)
 
-			// // Check request counts
-			// resTypes := []string{"route", "upstream", "ssl", "streamRoute",
-			// 	"consumer", "globalRule", "pluginConfig",
-			// }
+			// Check request counts
+			resTypes := []string{"route", "upstream", "ssl", "streamRoute",
+				"consumer", "globalRule", "pluginConfig",
+			}
 
-			// countersBeforeWait := map[string]int{}
-			// for _, resType := range resTypes {
-			// 	countersBeforeWait[resType] = getApisixResourceRequestsCount(s, resType)
-			// }
+			countersBeforeWait := map[string]int{}
+			for _, resType := range resTypes {
+				countersBeforeWait[resType] = getApisixResourceRequestsCount(s, resType)
+			}
 
-			// log.Infof("before sleep requests count: %v, wait for 130s ...", countersBeforeWait)
-			// time.Sleep(time.Second * 130)
+			log.Infof("before sleep requests count: %v, wait for 130s ...", countersBeforeWait)
+			time.Sleep(time.Second * 130)
 
-			// countersAfterWait := map[string]int{}
-			// for _, resType := range resTypes {
-			// 	countersAfterWait[resType] = getApisixResourceRequestsCount(s, resType)
-			// 	if countersAfterWait[resType] != countersBeforeWait[resType] {
-			// 		log.Errorf("request count: %v expect %v but got %v", resType, countersBeforeWait[resType], countersAfterWait[resType])
-			// 	}
-			// }
-			// for _, resType := range resTypes {
-			// 	assert.Equal(ginkgo.GinkgoT(), countersBeforeWait[resType], countersAfterWait[resType], "request count")
-			// }
+			countersAfterWait := map[string]int{}
+			for _, resType := range resTypes {
+				countersAfterWait[resType] = getApisixResourceRequestsCount(s, resType)
+				if countersAfterWait[resType] != countersBeforeWait[resType] {
+					log.Errorf("request count: %v expect %v but got %v", resType, countersBeforeWait[resType], countersAfterWait[resType])
+				}
+			}
+			for _, resType := range resTypes {
+				assert.Equal(ginkgo.GinkgoT(), countersBeforeWait[resType], countersAfterWait[resType], "request count")
+			}
 		})
 	}
 
