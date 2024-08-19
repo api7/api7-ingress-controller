@@ -1,0 +1,147 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api7ee3-openldap
+data:
+  tree.ldif: |
+    # Root creation
+    dn: dc=example,dc=org
+    objectClass: dcObject
+    objectClass: organization
+    dc: example
+    o: example
+
+    dn: ou=users,dc=example,dc=org
+    objectClass: organizationalUnit
+    ou: users
+
+    # User user1 creation
+    dn: cn=user1,ou=users,dc=example,dc=org
+    cn: User1
+    sn: Bar1
+    mail: user1@example.com
+    objectClass: inetOrgPerson
+    objectClass: posixAccount
+    objectClass: shadowAccount
+    userPassword: password1
+    uid: user1
+    uidNumber: 1000
+    gidNumber: 1000
+    homeDirectory: /home/user1
+    employeeType: apiProvider
+    title: manager
+    title: developer
+    description: management=service0
+    description: management=service1
+
+    # User user2 creation
+    dn: cn=user2,ou=users,dc=example,dc=org
+    cn: User2
+    sn: Bar2
+    mail: user2@example.com
+    objectClass: inetOrgPerson
+    objectClass: posixAccount
+    objectClass: shadowAccount
+    userPassword: password2
+    uid: user2
+    uidNumber: 1001
+    gidNumber: 1001
+    homeDirectory: /home/user2
+    
+    # User user3 creation
+    dn: cn=user3,ou=users,dc=example,dc=org
+    cn: User3
+    sn: Bar3
+    mail: panda@api7.ai
+    objectClass: inetOrgPerson
+    objectClass: posixAccount
+    objectClass: shadowAccount
+    userPassword: password3
+    uid: user3
+    uidNumber: 1002
+    gidNumber: 1002
+    homeDirectory: /home/user3
+
+    # Group creation
+    dn: cn=readers,ou=users,dc=example,dc=org
+    cn: readers
+    objectClass: groupOfNames
+    # User group membership
+    member: cn=user1,ou=users,dc=example,dc=org
+    member: cn=user2,ou=users,dc=example,dc=org
+    member: cn=user3,ou=users,dc=example,dc=org
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openldap{{- if .MTLSEnabled }}-mtls{{- end }}
+  labels:
+    app.kubernetes.io/name: openldap{{- if .MTLSEnabled }}-mtls{{- end }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: openldap{{- if .MTLSEnabled }}-mtls{{- end }}
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: openldap{{- if .MTLSEnabled }}-mtls{{- end }}
+    spec:
+      containers:
+        - name: openldap
+          image: docker.io/bitnami/openldap:2.6.4
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: ldif-config
+              mountPath: /bitnami/openldap/ldif/custom
+            - name: openldap-certs-volume
+              mountPath: "/opt/bitnami/openldap/certs"
+              readOnly: true
+          env:
+            - name: LDAP_ADMIN_USERNAME
+              value: "admin"
+            - name: LDAP_ADMIN_PASSWORD
+              value: "admin"
+            - name: LDAP_CUSTOM_LDIF_DIR
+              value: /bitnami/openldap/ldif/custom
+            - name: LDAP_ENABLE_TLS
+              value: "yes"
+            - name: LDAP_TLS_CERT_FILE
+              value: "/opt/bitnami/openldap/certs/openldap.crt"
+            - name: LDAP_TLS_KEY_FILE
+              value: "/opt/bitnami/openldap/certs/openldap.key"
+            - name: LDAP_TLS_CA_FILE
+              value: "/opt/bitnami/openldap/certs/openldapCA.crt"
+            - name: LDAP_TLS_VERIFY_CLIENTS
+              value: "{{ .LDAP_TLS_VERIFY_CLIENTS }}"
+          ports:
+            - name: tcp-ldap
+              containerPort: 1389
+            - name: ldaps
+              containerPort: 1636
+      volumes:
+        - name: ldif-config
+          configMap:
+            name: api7ee3-openldap
+        - name: openldap-certs-volume
+          secret:
+            secretName: openldap-certs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openldap{{- if .MTLSEnabled }}-mtls{{- end }}
+  labels:
+    app.kubernetes.io/name: openldap{{- if .MTLSEnabled }}-mtls{{- end }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: tcp-ldap
+      port: 1389
+      targetPort: tcp-ldap
+    - name: ldaps
+      port: 1636
+      targetPort: 1636
+  selector:
+    app.kubernetes.io/name: openldap{{- if .MTLSEnabled }}-mtls{{- end }}
+

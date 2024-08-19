@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vault
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vault
+  template:
+    metadata:
+      labels:
+        app: vault
+    spec:
+      containers:
+        - name: vault
+          image: vault:1.13.3
+          securityContext:
+            capabilities:
+              add: [ "IPC_LOCK" ]
+          env:
+            - name: VAULT_DEV_ROOT_TOKEN_ID
+              value: "root"
+            - name: VAULT_ADDR
+              value: "http://0.0.0.0:8200"
+          args:
+            - "server"
+            - "-dev"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api7ee3-vault
+spec:
+  selector:
+    app: vault
+  ports:
+    - protocol: TCP
+      port: 8200
+      targetPort: 8200

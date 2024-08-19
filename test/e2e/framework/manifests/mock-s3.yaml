@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mock-s3
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mock-s3
+  template:
+    metadata:
+      labels:
+        app: mock-s3
+    spec:
+      containers:
+        - image: "adobe/s3mock:3.8.0"
+          imagePullPolicy: IfNotPresent
+          name: mock-s3
+          env:
+            - name: initialBuckets
+              # TODO: ref from values.yaml
+              value: "to-push-resource-data,to-push-config-data"
+          ports:
+            - containerPort: 9090
+              name: "http"
+              protocol: "TCP"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mock-s3
+spec:
+  selector:
+    app: mock-s3
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 9090
+  type: ClusterIP

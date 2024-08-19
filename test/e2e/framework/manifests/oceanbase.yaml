@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oceanbase
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oceanbase
+  template:
+    metadata:
+      labels:
+        app: oceanbase
+    spec:
+      containers:
+        - readinessProbe:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - obclient -uroot -h127.0.0.1 -P2881 -Bse 'select 1'
+            failureThreshold: 30
+            initialDelaySeconds: 30
+            periodSeconds: 6
+            successThreshold: 1
+            timeoutSeconds: 3
+          image: "oceanbase/oceanbase-ce:4.2.2"
+          imagePullPolicy: IfNotPresent
+          name: oceanbase
+          env:
+            - name: MODE
+              value: "mini"
+            - name: FASTBOOT
+              value: "true"
+            - name: OB_DATAFILE_SIZE
+              value: "1G"
+            - name: OB_LOG_DISK_SIZE
+              value: "1G"
+          ports:
+            - containerPort: 2881
+              name: "tcp"
+              protocol: "TCP"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oceanbase
+spec:
+  selector:
+    app: oceanbase
+  ports:
+    - name: tcp
+      port: 2881
+      protocol: TCP
+      targetPort: 2881
+  type: ClusterIP

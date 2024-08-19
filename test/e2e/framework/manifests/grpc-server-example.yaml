@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grpc-server-example
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grpc-server-example
+  template:
+    metadata:
+      labels:
+        app: grpc-server-example
+    spec:
+      containers:
+        - livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            tcpSocket:
+              port: 50051
+            timeoutSeconds: 2
+          image: "api7/grpc-server-example:1.0.2"
+          imagePullPolicy: IfNotPresent
+          name: grpc-server-example
+          ports:
+            - containerPort: 50051
+              name: "grpc"
+              protocol: "TCP"
+            - containerPort: 50052
+              name: "grpcs"
+              protocol: "TCP"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grpc-server-example
+spec:
+  selector:
+    app: grpc-server-example
+  ports:
+    - name: grpc
+      port: 50051
+      protocol: TCP
+      targetPort: 50051
+    - name: grpcs
+      port: 50052
+      protocol: TCP
+      targetPort: 50052
+  type: ClusterIP

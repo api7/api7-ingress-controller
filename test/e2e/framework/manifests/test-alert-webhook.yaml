@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "test-alert-webhook"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: "test-alert-webhook"
+  template:
+    metadata:
+      labels:
+        app: "test-alert-webhook"
+    spec:
+      containers:
+        - livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            tcpSocket:
+              port: 8899
+            timeoutSeconds: 2
+          image: api7/alertwebhook:dev
+          imagePullPolicy: IfNotPresent
+          name: "test-alert-webhook"
+          ports:
+            - containerPort: 8899
+              name: "http"
+              protocol: "TCP"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: "test-alert-webhook"
+spec:
+  selector:
+    app: "test-alert-webhook"
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 8899
+  type: ClusterIP

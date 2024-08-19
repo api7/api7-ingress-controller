@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-websocket
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-websocket
+  template:
+    metadata:
+      labels:
+        app: test-websocket
+      annotations:
+        kubectl.kubernetes.io/default-container: debugger
+    spec:
+      containers:
+        - livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            tcpSocket:
+              port: 8010
+            timeoutSeconds: 2
+          image: "ksdn117/web-socket-test:latest"
+          imagePullPolicy: IfNotPresent
+          name: test-websocket
+          ports:
+            - containerPort: 8010
+              name: "websocket"
+              protocol: "TCP"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-websocket
+spec:
+  selector:
+    app: test-websocket
+  ports:
+    - name: websocket
+      port: 80
+      protocol: TCP
+      targetPort: 8010
+  type: ClusterIP

@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - readinessProbe:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e 'select 1'
+            failureThreshold: 30
+            initialDelaySeconds: 6
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 3
+          image: "mysql:5.7"
+          imagePullPolicy: IfNotPresent
+          name: mysql
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: "changeme"
+          ports:
+            - containerPort: 3306
+              name: "tcp"
+              protocol: "TCP"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+spec:
+  selector:
+    app: mysql
+  ports:
+    - name: tcp
+      port: 3306
+      protocol: TCP
+      targetPort: 3306
+  type: ClusterIP
