@@ -22,9 +22,11 @@ on:
   push:
     branches:
       - master
+      - release-v2-dev
   pull_request:
     branches:
       - master
+      - release-v2-dev
       - 1.8.0
 jobs:
   changes:

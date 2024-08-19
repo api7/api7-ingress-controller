@@ -22,6 +22,7 @@ on:
   push:
     branches:
       - master
+      - release-v2-dev
     paths-ignore:
       - '.github/**'
 jobs:
