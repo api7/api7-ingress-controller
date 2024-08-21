@@ -1,0 +1,121 @@
+package dashboard
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+
+	"github.com/hashicorp/go-multierror"
+	"github.com/xeipuuv/gojsonschema"
+
+	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
+)
+
+type APISIXSchema struct {
+	Plugins       map[string]SchemaPlugin `json:"plugins"`
+	StreamPlugins map[string]SchemaPlugin `json:"stream_plugins"`
+}
+
+type SchemaPlugin struct {
+	SchemaContent any `json:"schema"`
+}
+
+type PluginSchemaDef map[string]gojsonschema.JSONLoader
+
+type apisixSchemaReferenceValidator struct {
+	StreamPlugins PluginSchemaDef
+	HTTPPlugins   PluginSchemaDef
+}
+
+func NewReferenceFile(source string) (APISIXSchemaValidator, error) {
+	data, err := os.ReadFile(source)
+	if err != nil {
+		return nil, fmt.Errorf("error reading file: %w", err)
+	}
+
+	var schemadef APISIXSchema
+	err = json.Unmarshal(data, &schemadef)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing JSON: %w", err)
+	}
+
+	validator := &apisixSchemaReferenceValidator{
+		HTTPPlugins:   make(PluginSchemaDef),
+		StreamPlugins: make(PluginSchemaDef),
+	}
+
+	for _, plugin := range []struct {
+		name   string
+		schema map[string]SchemaPlugin
+	}{
+		{name: "HTTPPlugins", schema: schemadef.Plugins},
+		{name: "StreamPlugins", schema: schemadef.StreamPlugins},
+	} {
+		for k, v := range plugin.schema {
+			switch plugin.name {
+			case "HTTPPlugins":
+				validator.HTTPPlugins[k] = gojsonschema.NewGoLoader(v.SchemaContent)
+			case "StreamPlugins":
+				validator.StreamPlugins[k] = gojsonschema.NewGoLoader(v.SchemaContent)
+			}
+		}
+	}
+
+	return validator, nil
+}
+
+func (asv *apisixSchemaReferenceValidator) ValidateHTTPPluginSchema(plugins v1.Plugins) (bool, error) {
+	var resultErrs error
+
+	for pluginName, pluginConfig := range plugins {
+		schema, ok := asv.HTTPPlugins[pluginName]
+		if !ok {
+			return false, fmt.Errorf("unknown plugin [%s]", pluginName)
+		}
+		result, err := gojsonschema.Validate(schema, gojsonschema.NewGoLoader(pluginConfig))
+		if err != nil {
+			return false, err
+		}
+
+		if result.Valid() {
+			continue
+		}
+
+		fmt.Println("failed")
+
+		resultErrs = multierror.Append(resultErrs, fmt.Errorf("plugin [%s] config is invalid", pluginName))
+		for _, desc := range result.Errors() {
+			resultErrs = multierror.Append(resultErrs, fmt.Errorf("- %s", desc))
+		}
+		return false, resultErrs
+	}
+
+	return true, nil
+}
+
+func (asv *apisixSchemaReferenceValidator) ValidateStreamPluginSchema(plugins v1.Plugins) (bool, error) {
+	var resultErrs error
+
+	for pluginName, pluginConfig := range plugins {
+		schema, ok := asv.StreamPlugins[pluginName]
+		if !ok {
+			return false, fmt.Errorf("unknown stream plugin [%s]", pluginName)
+		}
+		result, err := gojsonschema.Validate(schema, gojsonschema.NewGoLoader(pluginConfig))
+		if err != nil {
+			return false, err
+		}
+
+		if result.Valid() {
+			continue
+		}
+
+		resultErrs = multierror.Append(resultErrs, fmt.Errorf("stream plugin [%s] config is invalid", pluginName))
+		for _, desc := range result.Errors() {
+			resultErrs = multierror.Append(resultErrs, fmt.Errorf("- %s", desc))
+		}
+		return false, resultErrs
+	}
+
+	return true, nil
+}
