@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	DashboardEndpoint           = "http://api7ee3-dashboard:7080"
+	DashboardEndpoint           = "http://api7ee3-dashboard.api7-ee-e2e:7080"
 	DashboardTLSEndpoint        = "https://api7ee3-dashboard:7443"
 	DataPlaneEndpoint           = "http://api7ee3-apisix-gateway:80"         // has two instances
 	DataPlaneForIngressEndpoint = "http://api7ee3-apisix-gateway-ingress:80" // only one instances

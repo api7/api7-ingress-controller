@@ -1,0 +1,43 @@
+package config
+
+const (
+	// IngressAPISIXLeader is the default election id for the controller
+	// leader election.
+	DefaultLeaderElectionID = "api7-ingress-gateway-leader"
+
+	// IngressClass is the default ingress class name, used for Ingress
+	// object's IngressClassName field in Kubernetes clusters version v1.18.0
+	// or higher, or the annotation "kubernetes.io/ingress.class" (deprecated).
+	DefaultControllerName = "gateway.api7.io/api7-ingress-controller"
+
+	// DefaultLogLevel is the default log level for apisix-ingress-controller.
+	DefaultLogLevel = "info"
+
+	DefaultMetricsAddr = ":8080"
+	DefaultProbeAddr   = ":8081"
+)
+
+// Config contains all config items which are necessary for
+// apisix-ingress-controller's running.
+type Config struct {
+	CertFilePath     string                `json:"cert_file" yaml:"cert_file"`
+	KeyFilePath      string                `json:"key_file" yaml:"key_file"`
+	LogLevel         string                `json:"log_level" yaml:"log_level"`
+	ControllerName   string                `json:"controller_name" yaml:"controller_name"`
+	LeaderElectionID string                `json:"leader_election_id" yaml:"leader_election_id"`
+	ControlPlanes    []*ControlPlaneConfig `json:"control_planes" yaml:"control_planes"`
+	MetricsAddr      string                `json:"metrics_addr" yaml:"metrics_addr"`
+	EnableHTTP2      bool                  `json:"enable_http2" yaml:"enable_http2"`
+	ProbeAddr        string                `json:"probe_addr" yaml:"probe_addr"`
+	SecureMetrics    bool                  `json:"secure_metrics" yaml:"secure_metrics"`
+}
+
+type ControlPlaneConfig struct {
+	GatewayName string   `json:"gateway_name" yaml:"gateway_name"`
+	AdminAPI    AdminAPI `json:"admin_api" yaml:"admin_api"`
+}
+
+type AdminAPI struct {
+	Endpoints []string `json:"endpoints" yaml:"endpoints"`
+	AdminKey  string   `json:"admin_key" yaml:"admin_key"`
+}

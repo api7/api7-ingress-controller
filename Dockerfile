@@ -1,33 +1,22 @@
-# Build the manager binary
+ARG ENABLE_PROXY=false
+ARG BASE_IMAGE_TAG=nonroot
+
 FROM golang:1.22 AS builder
-ARG TARGETOS
-ARG TARGETARCH
-
 WORKDIR /workspace
-# Copy the Go Modules manifests
-COPY go.mod go.mod
-COPY go.sum go.sum
-# cache deps before building and copying source so that we don't need to re-download as much
-# and so that source changes don't invalidate our downloaded layer
-RUN go mod download
+COPY go.* ./
 
-# Copy the go source
-COPY cmd/main.go cmd/main.go
-COPY api/ api/
-COPY internal/controller/ internal/controller/
+RUN if [ "$ENABLE_PROXY" = "true" ] ; then go env -w GOPROXY=https://goproxy.cn,direct ; fi \
+    && go mod download
 
-# Build
-# the GOARCH has not a default value to allow the binary be built according to the host where the command
-# was called. For example, if we call make docker-build in a local env which has the Apple Silicon M1 SO
-# the docker BUILDPLATFORM arg will be linux/arm64 when for Apple x86 it will be linux/amd64. Therefore,
-# by leaving it empty we can ensure that the container and binary shipped on it will have the same platform.
-RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o manager cmd/main.go
+COPY . .
 
-# Use distroless as minimal base image to package the manager binary
-# Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM gcr.io/distroless/static:nonroot
-WORKDIR /
-COPY --from=builder /workspace/manager .
-USER 65532:65532
+RUN --mount=type=cache,target=/root/.cache/go-build make build && mv bin/api7-ingress-controller /bin && rm -rf /workspace
 
-ENTRYPOINT ["/manager"]
+FROM gcr.io/distroless/static-debian12:${BASE_IMAGE_TAG}
+WORKDIR /app
+
+COPY --from=builder /bin/api7-ingress-controller .
+COPY conf/config.yaml ./conf/config.yaml
+
+ENTRYPOINT ["/app/api7-ingress-controller"]
+CMD ["-c", "/app/conf/config.yaml"]

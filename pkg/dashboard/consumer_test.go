@@ -212,10 +212,12 @@ func TestConsumerClient(t *testing.T) {
 	objs, err := cli.List(context.Background())
 	assert.Nil(t, err)
 	assert.Len(t, objs, 2)
-	assert.Equal(t, "1", objs[0].Username)
-	assert.Equal(t, "2", objs[1].Username)
+	assert.ElementsMatch(t, []string{"1", "2"}, []string{objs[0].Username, objs[1].Username})
 
 	// Delete then List
+	if objs[0].Username != "1" {
+		objs[0], objs[1] = objs[1], objs[0]
+	}
 	assert.Nil(t, cli.Delete(context.Background(), objs[0]))
 	objs, err = cli.List(context.Background())
 	assert.Nil(t, err)

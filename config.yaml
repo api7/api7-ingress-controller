@@ -1,0 +1,13 @@
+log_level: "debug"
+
+control_planes:
+  - gateway_name: "api7ee"
+    admin_api:
+      endpoints:
+        - "http://control-plane-1:8080"
+      admin_key: "admin-key"
+  - gateway_name: "api7ee2"
+    admin_api:
+      endpoints:
+        - "http://control-plane-2:8080"
+      admin_key: "admin-key"
