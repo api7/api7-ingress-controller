@@ -26,5 +26,6 @@ go.work
 *.swo
 *~
 
+dist
 .tmp
 api7-ingress-controller
