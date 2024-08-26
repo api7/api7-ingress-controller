@@ -1,11 +1,17 @@
 package controller
 
 import (
+	"fmt"
+
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayapi "sigs.k8s.io/gateway-api/apis/v1"
 )
+
+func acceptedMessage(kind string) string {
+	return fmt.Sprintf("the %s has been accepted by the api7-ingress-controller", kind)
+}
 
 func setGatewayCondition(gw *gatewayapi.Gateway, newCondition meta.Condition) {
 	newConditions := []meta.Condition{}

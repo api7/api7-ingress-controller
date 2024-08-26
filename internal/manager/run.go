@@ -26,7 +26,6 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	// utilruntime.Must(gatewayapisixiov1alpha1.AddToScheme(scheme))
 	if err := gatewayapi.Install(scheme); err != nil {
 		panic(err)
 	}
@@ -34,7 +33,6 @@ func init() {
 }
 
 func Run(ctx context.Context, logger logr.Logger) error {
-
 	cfg := config.ControllerConfig
 
 	setupLog := ctrl.LoggerFrom(ctx).WithName("setup")

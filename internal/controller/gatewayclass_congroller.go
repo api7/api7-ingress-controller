@@ -14,9 +14,8 @@ import (
 	gatewayapi "sigs.k8s.io/gateway-api/apis/v1"
 )
 
-// -----------------------------------------------------------------------------
-// GatewayClass Controller - GatewayClassReconciler
-// -----------------------------------------------------------------------------
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses/status,verbs=get;update
 
 // GatewayClassReconciler reconciles a GatewayClass object.
 type GatewayClassReconciler struct { //nolint:revive
@@ -35,15 +34,6 @@ func (r *GatewayClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// -----------------------------------------------------------------------------
-// GatewayClass Controller - Reconciliation
-// -----------------------------------------------------------------------------
-
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses,verbs=get;list;watch;update
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses/status,verbs=get;update
-
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
 func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var gc gatewayapi.GatewayClass
 	if err := r.Get(ctx, req.NamespacedName, &gc); err != nil {

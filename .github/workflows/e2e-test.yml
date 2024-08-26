@@ -28,17 +28,6 @@ jobs:
         with:
           go-version: "1.22"
 
-      - name: Build images
-        env:
-          TAG: dev
-          ARCH: amd64
-          ENABLE_PROXY: "false"
-          BASE_IMAGE_TAG: "debug"
-          USE_BUILDKIT: 0
-        run: |
-          echo "building images..."
-          make build-image
-
       - name: Install kind
         run: |
           go install sigs.k8s.io/kind@v0.23.0
@@ -64,6 +53,16 @@ jobs:
           registry: hkccr.ccs.tencentyun.com
           username: ${{ secrets.PRIVATE_DOCKER_USERNAME }}
           password: ${{ secrets.PRIVATE_DOCKER_PASSWORD }}
+
+      - name: Build images
+        env:
+          TAG: dev
+          ARCH: amd64
+          ENABLE_PROXY: "false"
+          BASE_IMAGE_TAG: "debug"
+        run: |
+          echo "building images..."
+          make build-image
 
       - name: Launch Kind Cluster
         run: |
