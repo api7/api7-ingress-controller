@@ -225,33 +225,3 @@ func (s *Scaffold) deployDataplane() {
 
 	k8s.KubectlApplyFromString(s.t, s.kubectlOptions, buf.String())
 }
-
-func (s *Scaffold) waitPodsAvailable(opts metav1.ListOptions) error {
-	condFunc := func() (bool, error) {
-		items, err := k8s.ListPodsE(s.t, s.kubectlOptions, opts)
-		if err != nil {
-			return false, err
-		}
-		if len(items) == 0 {
-			ginkgo.GinkgoT().Log("no apisix pods created")
-			return false, nil
-		}
-		for _, item := range items {
-			foundPodReady := false
-			for _, cond := range item.Status.Conditions {
-				if cond.Type != corev1.PodReady {
-					continue
-				}
-				foundPodReady = true
-				if cond.Status != "True" {
-					return false, nil
-				}
-			}
-			if !foundPodReady {
-				return false, nil
-			}
-		}
-		return true, nil
-	}
-	return waitExponentialBackoff(condFunc)
-}

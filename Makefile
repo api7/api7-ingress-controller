@@ -81,7 +81,11 @@ test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
 
 .PHONY: kind-e2e-test
+<<<<<<< HEAD
 kind-e2e-test: kind-up build-docker kind-load-images e2e-test
+=======
+kind-e2e-test: kind-up kind-load-images e2e-test
+>>>>>>> release-v2-dev
 
 # Utilize Kind or modify the e2e tests to load the image locally, enabling compatibility with other vendors.
 .PHONY: e2e-test
