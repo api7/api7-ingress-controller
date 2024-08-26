@@ -10,4 +10,5 @@ control_planes:
       endpoints:
         - "http://control-plane-1:8080"
       admin_key: "admin-key"
+      tls_verify: true
 

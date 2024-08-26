@@ -40,4 +40,5 @@ type ControlPlaneConfig struct {
 type AdminAPI struct {
 	Endpoints []string `json:"endpoints" yaml:"endpoints"`
 	AdminKey  string   `json:"admin_key" yaml:"admin_key"`
+	TLSVerify *bool    `json:"tls_verify" yaml:"tls_verify"`
 }

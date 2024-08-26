@@ -400,10 +400,23 @@ func (s *Scaffold) initDataPlaneClient() {
 		AdminKey: s.AdminKey(),
 	})
 	Expect(err).NotTo(HaveOccurred(), "adding cluster")
+
+	httpsURL := fmt.Sprintf("https://%s/apisix/admin", s.GetDashboardEndpointHTTPS())
+	err = s.apisixCli.AddCluster(context.Background(), &apisix.ClusterOptions{
+		Name:          "default-https",
+		BaseURL:       httpsURL,
+		AdminKey:      s.AdminKey(),
+		SkipTLSVerify: true,
+	})
+	Expect(err).NotTo(HaveOccurred(), "adding cluster")
 }
 
 func (s *Scaffold) DefaultDataplaneResource() apisix.Cluster {
 	return s.apisixCli.Cluster("default")
+}
+
+func (s *Scaffold) DefaultDataplaneResourceHTTPS() apisix.Cluster {
+	return s.apisixCli.Cluster("default-https")
 }
 
 func (s *Scaffold) DataPlaneClient() dashboard.Dashboard {

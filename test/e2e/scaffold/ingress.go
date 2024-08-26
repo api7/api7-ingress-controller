@@ -13,10 +13,11 @@ func (s *Scaffold) deployIngress() {
 	buf := bytes.NewBuffer(nil)
 
 	err := framework.IngressSpecTpl.Execute(buf, map[string]any{
-		"Namespace":           s.namespace,
-		"AdminKey":            s.AdminKey(),
-		"ControlPlaneEnpoint": framework.DashboardEndpoint,
-		"ControllerName":      "gateway.api7.io/api7-ingress-controller",
+		"Namespace":      s.namespace,
+		"AdminKey":       s.AdminKey(),
+		"AdminEnpoint":   framework.DashboardTLSEndpoint,
+		"AdminTLSVerify": false,
+		"ControllerName": "gateway.api7.io/api7-ingress-controller",
 	})
 	Expect(err).ToNot(HaveOccurred(), "rendering ingress spec")
 

@@ -274,8 +274,9 @@ data:
       - gateway_name: "api7ee"
         admin_api:
           endpoints:
-            - "http://{{ .ControlPlaneEnpoint }}"
+            - "http://{{ .AdminEnpoint }}"
           admin_key: "{{ .AdminKey }}"
+          tls_verify: {{ .AdminTLSVerify }}
 ---
 apiVersion: v1
 kind: Service
