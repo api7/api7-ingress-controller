@@ -37,7 +37,7 @@ jobs:
           USE_BUILDKIT: 0
         run: |
           echo "building images..."
-          make docker-build
+          make build-image
 
       - name: Install kind
         run: |
@@ -65,9 +65,21 @@ jobs:
           username: ${{ secrets.PRIVATE_DOCKER_USERNAME }}
           password: ${{ secrets.PRIVATE_DOCKER_PASSWORD }}
 
+      - name: Launch Kind Cluster
+        run: |
+          make kind-up
+
+      - name: Install Gateway API
+        run: |
+          make install-gateway-api
+
+      - name: Loading Docker Image to Kind Cluster
+        run: |
+          make kind-load-images
+
       - name: Run E2E test suite
         shell: bash
         env:
           API7_EE_LICENSE: ${{ secrets.API7_EE_LICENSE }}
         run: |
-          make kind-e2e-test
+          make e2e-test
