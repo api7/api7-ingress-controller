@@ -1,0 +1,270 @@
+apiVersion: v1
+data:
+  config.yaml: |-
+    api7ee:
+      healthcheck_report_interval: 1
+    apisix:
+      node_listen:
+        - 9080
+        - enable_http2: true
+          port: 9081
+      enable_admin: true
+      ssl:
+        enabled: true
+      {{- if .TLSEnabled }}
+        ssl_trusted_certificate: /opts/etcd/ca.crt
+      {{- end }}
+      stream_proxy:
+        tcp:
+          - 9100
+    nginx_config:
+      worker_processes: 2
+      error_log_level: debug
+    deployment:
+      role: traditional
+      role_traditional:
+        config_provider: etcd
+      etcd:
+        host:
+          - "{{ .DPManagerEndpoint }}"
+        timeout: 30
+        resync_delay: 0
+      {{- if .TLSEnabled }}
+        tls:
+          verify: true
+          cert: /opts/etcd/tls.crt
+          key: /opts/etcd/tls.key
+     {{- end }}
+      admin:
+        allow_admin:
+          - all
+    plugins:
+      - real-ip
+      - ai
+      - client-control
+      - proxy-buffering
+      - proxy-control
+      - request-id
+      - zipkin
+      - skywalking
+      - opentelemetry
+      - ext-plugin-pre-req
+      - fault-injection
+      - mocking
+      - serverless-pre-function
+      - cors
+      - ip-restriction
+      - ua-restriction
+      - referer-restriction
+      - csrf
+      - uri-blocker
+      - request-validation
+      - openid-connect
+      - saml-auth
+      - cas-auth
+      - authz-casbin
+      - authz-casdoor
+      - wolf-rbac
+      - ldap-auth
+      - hmac-auth
+      - basic-auth
+      - jwt-auth
+      - key-auth
+      - multi-auth
+      - acl
+      - consumer-restriction
+      - forward-auth
+      - opa
+      - authz-keycloak
+      - data-mask
+      - proxy-cache
+      - graphql-proxy-cache
+      - body-transformer
+      - proxy-mirror
+      - proxy-rewrite
+      - workflow
+      - api-breaker
+      - graphql-limit-count
+      - limit-conn
+      - limit-count
+      - limit-req
+      - traffic-label
+      - gzip
+      - server-info
+      - api7-traffic-split
+      - traffic-split
+      - redirect
+      - response-rewrite
+      - oas-validator
+      - degraphql
+      - kafka-proxy
+      - grpc-transcode
+      - grpc-web
+      - public-api
+      - prometheus
+      - datadog
+      - elasticsearch-logger
+      - echo
+      - loggly
+      - http-logger
+      - splunk-hec-logging
+      - skywalking-logger
+      - google-cloud-logging
+      - sls-logger
+      - tcp-logger
+      - kafka-logger
+      - rocketmq-logger
+      - syslog
+      - udp-logger
+      - file-logger
+      - clickhouse-logger
+      - tencent-cloud-cls
+      - example-plugin
+      - aws-lambda
+      - azure-functions
+      - openwhisk
+      - openfunction
+      - serverless-post-function
+      - ext-plugin-post-req
+      - ext-plugin-post-resp
+
+kind: ConfigMap
+metadata:
+  name: api7ee3-apisix{{- if .TLSEnabled }}-mtls{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/instance: api7ee3
+    app.kubernetes.io/name: apisix
+  name: api7ee3-apisix{{- if .TLSEnabled }}-mtls{{- end }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: api7ee3
+      app.kubernetes.io/name: apisix
+      {{- if .TLSEnabled }}
+      cp-connection: mtls
+      {{- end }}
+      {{- if .API7GatewayLabels }}
+      {{- range $key, $value := .API7GatewayLabels }}
+      {{ $key }}: {{ $value }}
+      {{- end }}
+      {{- end }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: api7ee3
+        app.kubernetes.io/name: apisix
+        {{- if .TLSEnabled }}
+        cp-connection: mtls
+        {{- end }}
+    spec:
+      #serviceAccountName: ginkgo
+      containers:
+      - image: hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev
+        imagePullPolicy: IfNotPresent
+        env:
+    {{- if not .TLSEnabled }}
+        - name: API7_CONTROL_PLANE_TOKEN
+          value: "{{ .ControlPlaneToken }}"
+    {{else}}
+        - name: API7_CONTROL_PLANE_TOKEN
+          value: "a7ee-placeholder"
+    {{- end }}
+    {{- if .SetEnv }}
+        - name: JACK_AUTH_KEY
+          value: auth-one
+        - name: SSL_CERT
+          value: |
+            {{- .SSLCert | nindent 12 }}
+        - name: SSL_KEY
+          value: |
+            {{- .SSLKey | nindent 12 }}
+    {{- end }}
+        name: apisix
+        ports:
+        - containerPort: 9080
+          name: http
+          protocol: TCP
+        - containerPort: 9081
+          name: http2
+          protocol: TCP
+        - containerPort: 9180
+          name: admin
+          protocol: TCP
+        - containerPort: 9443
+          name: tls
+          protocol: TCP
+        - containerPort: 9090
+          name: control-api
+          protocol: TCP
+        - containerPort: 9100
+          name: stream-route
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 10
+          initialDelaySeconds: 3
+          periodSeconds: 3
+          successThreshold: 1
+          tcpSocket:
+            port: 9080
+          timeoutSeconds: 1
+        volumeMounts:
+        - mountPath: /usr/local/apisix/conf/config.yaml
+          name: apisix-config
+          subPath: config.yaml
+    {{- if .TLSEnabled }}
+        - mountPath: /opts/etcd
+          name: dp-ssl
+    {{- end }}
+        securityContext:
+          runAsNonRoot: false
+          runAsUser: 0
+      dnsPolicy: ClusterFirst
+      volumes:
+      - configMap:
+          defaultMode: 420
+          name: api7ee3-apisix{{- if .TLSEnabled }}-mtls{{- end }}
+        name: apisix-config
+    {{- if .TLSEnabled }}
+      - secret:
+          secretName: dp-ssl
+        name: dp-ssl
+    {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/instance: api7ee3
+    app.kubernetes.io/name: apisix
+    app.kubernetes.io/service: apisix-gateway
+  name: api7ee3-apisix-gateway-mtls
+spec:
+  ports:
+  - name: http
+    port: 9080
+    protocol: TCP
+    targetPort: 9080
+  - name: http2
+    port: 9081
+    protocol: TCP
+    targetPort: 9081
+  - name: https
+    port: 9443
+    protocol: TCP
+    targetPort: 9443
+  - name: control-api
+    port: 9090
+    protocol: TCP
+    targetPort: 9090
+  - name: tcp
+    port: 9100
+    protocol: TCP
+  selector:
+    app.kubernetes.io/instance: api7ee3
+    app.kubernetes.io/name: apisix
+    cp-connection: mtls

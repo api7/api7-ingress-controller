@@ -1,0 +1,23 @@
+# permissions for end users to view guestbooks.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: api7-ingress
+    app.kubernetes.io/managed-by: kustomize
+  name: guestbook-viewer-role
+rules:
+- apiGroups:
+  - gateway.apisix.io.github.com
+  resources:
+  - guestbooks
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gateway.apisix.io.github.com
+  resources:
+  - guestbooks/status
+  verbs:
+  - get
