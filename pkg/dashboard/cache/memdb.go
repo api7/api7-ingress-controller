@@ -167,8 +167,8 @@ func (c *dbCache) get(table, id string) (interface{}, error) {
 	return obj, nil
 }
 
-func (c *dbCache) ListRoutes() ([]*v1.Route, error) {
-	raws, err := c.list("route")
+func (c *dbCache) ListRoutes(args ...interface{}) ([]*v1.Route, error) {
+	raws, err := c.list("route", args...)
 	if err != nil {
 		return nil, err
 	}
@@ -191,8 +191,8 @@ func (c *dbCache) ListSSL() ([]*v1.Ssl, error) {
 	return ssl, nil
 }
 
-func (c *dbCache) ListServices() ([]*v1.Service, error) {
-	raws, err := c.list("service")
+func (c *dbCache) ListServices(args ...interface{}) ([]*v1.Service, error) {
+	raws, err := c.list("service", args...)
 	if err != nil {
 		return nil, err
 	}
@@ -263,10 +263,19 @@ func (c *dbCache) ListPluginConfigs() ([]*v1.PluginConfig, error) {
 	return pluginConfigs, nil
 }
 
-func (c *dbCache) list(table string) ([]interface{}, error) {
+func (c *dbCache) list(table string, args ...interface{}) ([]interface{}, error) {
 	txn := c.db.Txn(false)
 	defer txn.Abort()
-	iter, err := txn.Get(table, "id")
+	index := "id"
+	if len(args) > 0 {
+		idx, ok := args[0].(string)
+		if !ok {
+			return nil, errors.New("unexpected index type")
+		}
+		index = idx
+		args = args[1:]
+	}
+	iter, err := txn.Get(table, index, args...)
 	if err != nil {
 		return nil, err
 	}

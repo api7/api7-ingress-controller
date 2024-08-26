@@ -108,6 +108,18 @@ type Metadata struct {
 	Labels map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
 }
 
+func (m *Metadata) GetID() string {
+	return m.ID
+}
+
+func (m *Metadata) GetName() string {
+	return m.Name
+}
+
+func (m *Metadata) GetLabels() map[string]string {
+	return m.Labels
+}
+
 // Upstream is the apisix upstream definition.
 // +k8s:deepcopy-gen=true
 type Upstream struct {
@@ -615,15 +627,12 @@ func NewDefaultGlobalRule() *GlobalRule {
 // ComposeUpstreamName uses namespace, name, subset (optional), port, resolveGranularity info to compose
 // the upstream name.
 // the resolveGranularity is not composited in the upstream name when it is endpoint.
-func ComposeUpstreamName(namespace, name, subset string, port int32, resolveGranularity string) string {
+func ComposeUpstreamName(namespace, name string, port int32) string {
 	pstr := strconv.Itoa(int(port))
 	// FIXME Use sync.Pool to reuse this buffer if the upstream
 	// name composing code path is hot.
 	var p []byte
 	plen := len(namespace) + len(name) + len(pstr) + 2
-	if subset != "" {
-		plen = plen + len(subset) + 1
-	}
 
 	p = make([]byte, 0, plen)
 	buf := bytes.NewBuffer(p)
@@ -631,11 +640,24 @@ func ComposeUpstreamName(namespace, name, subset string, port int32, resolveGran
 	buf.WriteByte('_')
 	buf.WriteString(name)
 	buf.WriteByte('_')
-	if subset != "" {
-		buf.WriteString(subset)
-		buf.WriteByte('_')
-	}
 	buf.WriteString(pstr)
+
+	return buf.String()
+}
+
+func ComposeServiceNameWithRule(namespace, name string, rule string) string {
+	// FIXME Use sync.Pool to reuse this buffer if the upstream
+	// name composing code path is hot.
+	var p []byte
+	plen := len(namespace) + len(name) + 2
+
+	p = make([]byte, 0, plen)
+	buf := bytes.NewBuffer(p)
+	buf.WriteString(namespace)
+	buf.WriteByte('_')
+	buf.WriteString(name)
+	buf.WriteByte('_')
+	buf.WriteString(rule)
 
 	return buf.String()
 }

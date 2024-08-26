@@ -538,20 +538,9 @@ func (c *cluster) listResource(ctx context.Context, url, resource string) (listR
 		err = multierr.Append(err, fmt.Errorf("error message: %s", body))
 		return listResponse{}, err
 	}
-	if c.adminVersion == "v3" {
-		var list listResponse
-		byt, _ := io.ReadAll(resp.Body)
-		err := json.Unmarshal(byt, &list)
-		if err != nil {
-			return listResponse{}, err
-		}
-		return list, nil
-	}
 	var list listResponse
-
 	byt, _ := io.ReadAll(resp.Body)
-	err = json.Unmarshal(byt, &list)
-	if err != nil {
+	if err := json.Unmarshal(byt, &list); err != nil {
 		return listResponse{}, err
 	}
 	return list, nil

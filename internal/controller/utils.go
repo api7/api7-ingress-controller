@@ -3,28 +3,32 @@ package controller
 import (
 	"fmt"
 
-	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	gatewayapi "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 func acceptedMessage(kind string) string {
 	return fmt.Sprintf("the %s has been accepted by the api7-ingress-controller", kind)
 }
 
-func setGatewayCondition(gw *gatewayapi.Gateway, newCondition meta.Condition) {
-	newConditions := []meta.Condition{}
-	for _, condition := range gw.Status.Conditions {
+func mergeCondition(conditions []metav1.Condition, newCondition metav1.Condition) []metav1.Condition {
+	newConditions := []metav1.Condition{}
+	for _, condition := range conditions {
 		if condition.Type != newCondition.Type {
 			newConditions = append(newConditions, condition)
 		}
 	}
 	newConditions = append(newConditions, newCondition)
-	gw.Status.Conditions = newConditions
+	return newConditions
 }
 
-func reconcileGatewaysMatchGatewayClass(gatewayClass client.Object, gateways []gatewayapi.Gateway) (recs []reconcile.Request) {
+func setGatewayCondition(gw *gatewayv1.Gateway, newCondition metav1.Condition) {
+	gw.Status.Conditions = mergeCondition(gw.Status.Conditions, newCondition)
+}
+
+func reconcileGatewaysMatchGatewayClass(gatewayClass client.Object, gateways []gatewayv1.Gateway) (recs []reconcile.Request) {
 	for _, gateway := range gateways {
 		if string(gateway.Spec.GatewayClassName) == gatewayClass.GetName() {
 			recs = append(recs, reconcile.Request{
@@ -38,7 +42,7 @@ func reconcileGatewaysMatchGatewayClass(gatewayClass client.Object, gateways []g
 	return
 }
 
-func IsConditionPresentAndEqual(conditions []meta.Condition, condition meta.Condition) bool {
+func IsConditionPresentAndEqual(conditions []metav1.Condition, condition metav1.Condition) bool {
 	for _, cond := range conditions {
 		if cond.Type == condition.Type &&
 			cond.Reason == condition.Reason &&
@@ -48,4 +52,54 @@ func IsConditionPresentAndEqual(conditions []meta.Condition, condition meta.Cond
 		}
 	}
 	return false
+}
+
+func SetRouteConditionAccepted(hr *gatewayv1.HTTPRoute, gatewayIdx int, status bool, message string) {
+	conditionStatus := metav1.ConditionTrue
+	if !status {
+		conditionStatus = metav1.ConditionFalse
+	}
+
+	condition := metav1.Condition{
+		Type:               string(gatewayv1.RouteConditionAccepted),
+		Status:             conditionStatus,
+		Reason:             string(gatewayv1.RouteReasonAccepted),
+		ObservedGeneration: hr.GetGeneration(),
+		Message:            message,
+		LastTransitionTime: metav1.Now(),
+	}
+
+	if !IsConditionPresentAndEqual(hr.Status.Parents[gatewayIdx].Conditions, condition) {
+		hr.Status.Parents[gatewayIdx].Conditions = mergeCondition(hr.Status.Parents[0].Conditions, condition)
+	}
+}
+
+func SetRouteConditionResolvedRefs(hr *gatewayv1.HTTPRoute, gatewayIdx int, status bool, message string) {
+	conditionStatus := metav1.ConditionTrue
+	if !status {
+		conditionStatus = metav1.ConditionFalse
+	}
+
+	condition := metav1.Condition{
+		Type:               string(gatewayv1.RouteConditionResolvedRefs),
+		Status:             conditionStatus,
+		Reason:             string(gatewayv1.RouteReasonResolvedRefs),
+		ObservedGeneration: hr.GetGeneration(),
+		Message:            message,
+		LastTransitionTime: metav1.Now(),
+	}
+
+	if !IsConditionPresentAndEqual(hr.Status.Parents[gatewayIdx].Conditions, condition) {
+		hr.Status.Parents[gatewayIdx].Conditions = mergeCondition(hr.Status.Parents[0].Conditions, condition)
+	}
+}
+
+func SetRouteStatusParentRef(hr *gatewayv1.HTTPRoute, gatewayIdx int, GatewayName string) {
+	kind := gatewayv1.Kind("Gateway")
+	group := gatewayv1.Group("gateway.networking.k8s.io")
+	hr.Status.Parents[gatewayIdx].ParentRef = gatewayv1.ParentReference{
+		Kind:  &kind,
+		Group: &group,
+		Name:  gatewayv1.ObjectName(GatewayName),
+	}
 }

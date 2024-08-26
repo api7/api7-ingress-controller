@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	gatewayapi "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;update
@@ -31,7 +31,7 @@ type GatewayReconciler struct { //nolint:revive
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gatewayapi.Gateway{},
+		For(&gatewayv1.Gateway{},
 			builder.WithPredicates(
 				predicate.And(
 					predicate.NewPredicateFuncs(r.matchesGatewayForControlPlaneConfig),
@@ -40,7 +40,7 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			),
 		).
 		Watches(
-			&gatewayapi.GatewayClass{},
+			&gatewayv1.GatewayClass{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewayForGatewayClass),
 			builder.WithPredicates(predicate.NewPredicateFuncs(r.matchesGatewayClass)),
 		).
@@ -50,23 +50,23 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var gateway gatewayapi.Gateway
-	if err := r.Get(ctx, req.NamespacedName, &gateway); err != nil {
+	gateway := new(gatewayv1.Gateway)
+	if err := r.Get(ctx, req.NamespacedName, gateway); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	condition := meta.Condition{
-		Type:               string(gatewayapi.GatewayConditionAccepted),
+		Type:               string(gatewayv1.GatewayConditionAccepted),
 		Status:             meta.ConditionTrue,
-		Reason:             string(gatewayapi.GatewayReasonAccepted),
+		Reason:             string(gatewayv1.GatewayReasonAccepted),
 		ObservedGeneration: gateway.Generation,
 		Message:            acceptedMessage("gateway"),
 		LastTransitionTime: meta.Now(),
 	}
 	if !IsConditionPresentAndEqual(gateway.Status.Conditions, condition) {
 		r.Log.Info("gateway has been accepted", "gateway", gateway.Name)
-		setGatewayCondition(&gateway, condition)
-		if err := r.Status().Update(ctx, &gateway); err != nil {
+		setGatewayCondition(gateway, condition)
+		if err := r.Status().Update(ctx, gateway); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
@@ -74,7 +74,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 }
 
 func (r *GatewayReconciler) matchesGatewayClass(obj client.Object) bool {
-	gateway, ok := obj.(*gatewayapi.GatewayClass)
+	gateway, ok := obj.(*gatewayv1.GatewayClass)
 	if !ok {
 		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to Gateway")
 		return false
@@ -83,7 +83,7 @@ func (r *GatewayReconciler) matchesGatewayClass(obj client.Object) bool {
 }
 
 func (r *GatewayReconciler) matchesGatewayForControlPlaneConfig(obj client.Object) bool {
-	gateway, ok := obj.(*gatewayapi.Gateway)
+	gateway, ok := obj.(*gatewayv1.Gateway)
 	if !ok {
 		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to Gateway")
 		return false
@@ -97,7 +97,7 @@ func (r *GatewayReconciler) matchesGatewayForControlPlaneConfig(obj client.Objec
 }
 
 func (r *GatewayReconciler) listGatewayForGatewayClass(ctx context.Context, gatewayClass client.Object) []reconcile.Request {
-	gatewayList := &gatewayapi.GatewayList{}
+	gatewayList := &gatewayv1.GatewayList{}
 	if err := r.List(context.Background(), gatewayList); err != nil {
 		r.Log.Error(err, "failed to list gateways for gateway class",
 			"gatewayclass", gatewayClass.GetName(),
@@ -105,7 +105,7 @@ func (r *GatewayReconciler) listGatewayForGatewayClass(ctx context.Context, gate
 		return nil
 	}
 
-	gateways := []gatewayapi.Gateway{}
+	gateways := []gatewayv1.Gateway{}
 	for _, gateway := range gatewayList.Items {
 		if cp := config.GetControlPlaneConfigByGatewatName(gateway.GetName()); cp != nil {
 			gateways = append(gateways, gateway)
@@ -115,13 +115,13 @@ func (r *GatewayReconciler) listGatewayForGatewayClass(ctx context.Context, gate
 }
 
 func (r *GatewayReconciler) checkGatewayClass(obj client.Object) bool {
-	gateway, ok := obj.(*gatewayapi.Gateway)
+	gateway, ok := obj.(*gatewayv1.Gateway)
 	if !ok {
 		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to Gateway")
 		return false
 	}
 
-	gatewayClass := &gatewayapi.GatewayClass{}
+	gatewayClass := &gatewayv1.GatewayClass{}
 	if err := r.Client.Get(context.Background(), client.ObjectKey{Name: string(gateway.Spec.GatewayClassName)}, gatewayClass); err != nil {
 		r.Log.Error(err, "failed to get gateway class", "gatewayclass", gateway.Spec.GatewayClassName)
 		return false

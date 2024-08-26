@@ -18,6 +18,7 @@ package root
 
 import (
 	"fmt"
+	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -26,16 +27,17 @@ import (
 	"gopkg.in/yaml.v2"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
+	"github.com/go-logr/zapr"
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	// +kubebuilder:scaffold:imports
 
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/api7/api7-ingress-controller/internal/manager"
 	"github.com/api7/api7-ingress-controller/internal/version"
+	"github.com/api7/gopkg/pkg/log"
 )
 
 type ControlPlanesFlag struct {
@@ -115,13 +117,27 @@ func newAPI7IngressController() *cobra.Command {
 				return err
 			}
 
-			logger := zap.New(zap.UseFlagOptions(&zap.Options{
-				Development: true,
-				Level:       logLevel,
-			}))
+			// dashboard sdk log
+			l, err := log.NewLogger(
+				log.WithOutputFile("stderr"),
+				log.WithLogLevel(cfg.LogLevel),
+				log.WithSkipFrames(3),
+			)
+			if err != nil {
+				return err
+			}
+			log.DefaultLogger = l
+
+			// controllers log
+			core := zapcore.NewCore(
+				zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig()),
+				zapcore.AddSync(zapcore.Lock(os.Stderr)),
+				logLevel,
+			)
+			logger := zapr.NewLogger(zap.New(core, zap.AddCaller()))
 
 			logger.Info("controller start configuration", "config", cfg)
-			ctrl.SetLogger(logger)
+			ctrl.SetLogger(logger.WithName("controller-runtime"))
 
 			ctx := ctrl.LoggerInto(cmd.Context(), logger)
 			return manager.Run(ctx, logger)

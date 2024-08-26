@@ -49,9 +49,34 @@ func (u *serviceClient) Get(ctx context.Context, name string) (*v1.Service, erro
 	)
 }
 
+type ListFrom string
+
+var (
+	ListFromCache  ListFrom = "cache"
+	ListFromRemote ListFrom = "remote"
+)
+
+type ListOptions struct {
+	From ListFrom
+	Args []interface{}
+}
+
 // List is only used in cache warming up. So here just pass through
 // to APISIX.
-func (u *serviceClient) List(ctx context.Context) ([]*v1.Service, error) {
+func (u *serviceClient) List(ctx context.Context, listOptions ...interface{}) ([]*v1.Service, error) {
+	var options ListOptions
+	if len(listOptions) > 0 {
+		options = listOptions[0].(ListOptions)
+	}
+
+	if options.From == ListFromCache {
+		log.Debugw("try to list services in cache",
+			zap.String("cluster", u.cluster.name),
+			zap.String("url", u.url),
+		)
+		return u.cluster.cache.ListServices()
+	}
+
 	log.Debugw("try to list upstreams in APISIX",
 		zap.String("url", u.url),
 		zap.String("cluster", u.cluster.name),
