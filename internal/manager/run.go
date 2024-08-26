@@ -27,7 +27,9 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	// utilruntime.Must(gatewayapisixiov1alpha1.AddToScheme(scheme))
-	gatewayapi.Install(scheme)
+	if err := gatewayapi.Install(scheme); err != nil {
+		panic(err)
+	}
 	// +kubebuilder:scaffold:scheme
 }
 

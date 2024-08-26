@@ -128,8 +128,7 @@ func newAPI7IngressController() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(
-		&configPath,
+	cmd.Flags().StringVarP(&configPath,
 		"config-path",
 		"c",
 		"",
@@ -140,7 +139,11 @@ func newAPI7IngressController() *cobra.Command {
 	cmd.Flags().StringVar(&cfg.ProbeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	cmd.Flags().Var(&controlPlanesFlag, "control-planes", "Control planes configuration in YAML format")
 	cmd.Flags().StringVar(&cfg.LogLevel, "log-level", config.DefaultLogLevel, "The log level for api7-ingress-controller")
-	cmd.Flags().StringVar(&cfg.ControllerName, "controller-name", config.DefaultControllerName, "The name of the controller")
+	cmd.Flags().StringVar(&cfg.ControllerName,
+		"controller-name",
+		config.DefaultControllerName,
+		"The name of the controller",
+	)
 
 	return cmd
 }
