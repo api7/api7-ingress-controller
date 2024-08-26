@@ -23,8 +23,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	_ "github.com/api7/api7-ingress-controller/test/e2e/admin_api"
+	_ "github.com/api7/api7-ingress-controller/test/e2e/adminapi"
 	"github.com/api7/api7-ingress-controller/test/e2e/framework"
+	_ "github.com/api7/api7-ingress-controller/test/e2e/gatewayapi"
 )
 
 // Run e2e tests using the Ginkgo runner.

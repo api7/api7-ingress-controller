@@ -84,6 +84,10 @@ func (s *Scaffold) GetOutputFromString(shell ...string) (string, error) {
 	return output, err
 }
 
+func (s *Scaffold) GetResourceYaml(resourceType, resourceName string) (string, error) {
+	return s.GetOutputFromString(resourceType, resourceName, "-o", "yaml")
+}
+
 // RemoveResourceByString remove resource from a loaded yaml string.
 func (s *Scaffold) RemoveResourceByString(yaml string) error {
 	err := k8s.KubectlDeleteFromStringE(s.t, s.kubectlOptions, yaml)

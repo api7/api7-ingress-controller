@@ -1,0 +1,10 @@
+# This patch adds the args to allow exposing the metrics endpoint using HTTPS
+- op: replace
+  path: /spec/template/spec/containers/0/args
+  value:
+    - |
+      --control-planes=[{"gateway_name": "gateway1", "admin_api": {"endpoints": ["http://localhost:8001"], "admin_key": "key1"}}]
+
+- op: replace
+  path: /spec/template/spec/containers/0/command
+  value: ["/app/api7-ingress-controller"]

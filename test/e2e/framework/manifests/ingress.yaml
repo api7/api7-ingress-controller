@@ -1,247 +1,358 @@
+
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: api7-ingress
+  name: api7-ingress-controller-manager
+  namespace: {{ .Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: api7-ingress
+  name: api7-ingress-leader-election-role
+  namespace: {{ .Namespace }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: { { .ClusterRoleName } }
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: api7-ingress
+  name: api7-ingress-guestbook-editor-role
 rules:
-  - apiGroups:
-      - ""
-    resources:
-      - events
-    verbs:
-      - "*"
-  - apiGroups:
-      - ""
-    resources:
-      - configmaps
-      - endpoints
-      - persistentvolumeclaims
-      - pods
-      - replicationcontrollers
-      - replicationcontrollers/scale
-      - serviceaccounts
-      - services
-      - secrets
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - ""
-    resources:
-      - bindings
-      - limitranges
-      - namespaces/status
-      - pods/log
-      - pods/status
-      - replicationcontrollers/status
-      - resourcequotas
-      - resourcequotas/status
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - ""
-    resources:
-      - namespaces
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - apps
-    resources:
-      - controllerrevisions
-      - daemonsets
-      - deployments
-      - deployments/scale
-      - replicasets
-      - replicasets/scale
-      - statefulsets
-      - statefulsets/scale
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - autoscaling
-    resources:
-      - horizontalpodautoscalers
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - batch
-    resources:
-      - cronjobs
-      - jobs
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - extensions
-    resources:
-      - daemonsets
-      - deployments
-      - deployments/scale
-      - ingresses
-      - networkpolicies
-      - replicasets
-      - replicasets/scale
-      - replicationcontrollers/scale
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - policy
-    resources:
-      - poddisruptionbudgets
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - networking.k8s.io
-    resources:
-      - ingresses
-      - ingresses/status
-      - networkpolicies
-    verbs:
-      - "*"
-  - apiGroups:
-      - metrics.k8s.io
-    resources:
-      - pods
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - coordination.k8s.io
-    resources:
-      - leases
-    verbs:
-      - "*"
-  - apiGroups:
-      - discovery.k8s.io
-    resources:
-      - endpointslices
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - gateway.networking.k8s.io
-    resources:
-      - httproutes
-      - tlsroutes
-      - tcproutes
-      - gateways
-      - gatewayclasses
-      - udproutes
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - gateway.networking.k8s.io
-    resources:
-      - gateways/status
-      - gatewayclasses/status
-    verbs:
-      - get
-      - update
-      - list
-
+- apiGroups:
+  - gateway.apisix.io.github.com
+  resources:
+  - guestbooks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.apisix.io.github.com
+  resources:
+  - guestbooks/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: api7-ingress
+  name: api7-ingress-guestbook-viewer-role
+rules:
+- apiGroups:
+  - gateway.apisix.io.github.com
+  resources:
+  - guestbooks
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gateway.apisix.io.github.com
+  resources:
+  - guestbooks/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: api7-ingress-manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.apisix.io.github.com
+  resources:
+  - guestbooks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.apisix.io.github.com
+  resources:
+  - guestbooks/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - gateway.apisix.io.github.com
+  resources:
+  - guestbooks/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses/status
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gateways
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gateways/status
+  verbs:
+  - get
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: api7-ingress-metrics-auth-role
+rules:
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: api7-ingress-metrics-reader
+rules:
+- nonResourceURLs:
+  - /metrics
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: api7-ingress
+  name: api7-ingress-leader-election-rolebinding
+  namespace: {{ .Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: api7-ingress-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: api7-ingress-controller-manager
+  namespace: {{ .Namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: { { .ClusterRoleBindingName } }
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: api7-ingress
+  name: api7-ingress-manager-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: { { .ClusterRoleName } }
+  name: api7-ingress-manager-role
 subjects:
-  - kind: ServiceAccount
-    name: ingress-apisix-e2e-test-service-account
-    namespace: { { .Namespace } }
+- kind: ServiceAccount
+  name: api7-ingress-controller-manager
+  namespace: {{ .Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: api7-ingress-metrics-auth-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: api7-ingress-metrics-auth-role
+subjects:
+- kind: ServiceAccount
+  name: api7-ingress-controller-manager
+  namespace: {{ .Namespace }}
+---
 
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ingress-config
+data:
+  config.yaml: |
+    log_level: "info"
+
+    controller_name: {{ .ControllerName }}
+
+    leader_election_id: "api7-ingress-controller-leader"
+
+    control_planes:
+      - gateway_name: "api7ee"
+        admin_api:
+          endpoints:
+            - "http://{{ .AdminEnpoint }}"
+          admin_key: "{{ .AdminKey }}"
+          tls_verify: {{ .AdminTLSVerify }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: api7-ingress
+    control-plane: controller-manager
+  name: api7-ingress-controller-manager-metrics-service
+  namespace: {{ .Namespace }}
+spec:
+  ports:
+  - name: https
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    control-plane: controller-manager
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ingress-apisix-controller-deployment-e2e-test
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: api7-ingress
+    control-plane: controller-manager
+  name: api7-ingress-controller-manager
+  namespace: {{ .Namespace }}
 spec:
-  replicas: { { .Replicas } }
+  replicas: 1
   selector:
     matchLabels:
-      app: ingress-apisix-controller-deployment-e2e-test
-  strategy:
-    rollingUpdate:
-      maxSurge: 50%%
-      maxUnavailable: 1
-    type: RollingUpdate
+      control-plane: controller-manager
   template:
     metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
       labels:
-        app: ingress-apisix-controller-deployment-e2e-test
+        control-plane: controller-manager
     spec:
-      terminationGracePeriodSeconds: 0
-      initContainers:
-        - name: wait-dashboard-admin
-          image: busybox:dev
-          imagePullPolicy: IfNotPresent
-          command:
-            [
-              "sh",
-              "-c",
-              "until nc -z dashboard 7080 ; do echo waiting for apisix-admin; sleep 2; done;",
-            ]
       containers:
-        - livenessProbe:
-            failureThreshold: 3
-            initialDelaySeconds: 7
-            periodSeconds: 2
-            successThreshold: 1
-            tcpSocket:
-              port: 8080
-            timeoutSeconds: 2
-          readinessProbe:
-            failureThreshold: 3
-            initialDelaySeconds: 5
-            periodSeconds: 2
-            successThreshold: 1
-            tcpSocket:
-              port: 8080
-            timeoutSeconds: 2
-          env:
-            - name: POD_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-          image: { { .Image } }
-          imagePullPolicy: IfNotPresent
-          name: ingress-apisix-controller-deployment-e2e-test
-          ports:
-            - containerPort: 8080
-              name: "http"
-              protocol: "TCP"
-            - containerPort: 8443
-              name: "https"
-              protocol: "TCP"
-            - containerPort: 2379
-              name: "etcd-server"
-              protocol: "TCP"
-          command:
-            - /ingress-apisix/api7-ingress-controller
-            - ingress
-            - --log-level
-            - debug
+      - image: api7/api7-ingress-controller:dev
+        volumeMounts:
+        - name: ingress-config
+          mountPath: /app/conf/config.yaml
+          subPath: config.yaml
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: manager
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: ingress-config
+        configMap:
+          name: ingress-config
+      securityContext:
+        runAsNonRoot: true
+      serviceAccountName: api7-ingress-controller-manager
+      terminationGracePeriodSeconds: 10

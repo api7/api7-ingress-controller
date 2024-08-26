@@ -28,17 +28,6 @@ jobs:
         with:
           go-version: "1.22"
 
-      - name: Build images
-        env:
-          TAG: dev
-          ARCH: amd64
-          ENABLE_PROXY: "false"
-          BASE_IMAGE_TAG: "debug"
-          USE_BUILDKIT: 0
-        run: |
-          echo "building images..."
-          make docker-build
-
       - name: Install kind
         run: |
           go install sigs.k8s.io/kind@v0.23.0
@@ -65,9 +54,31 @@ jobs:
           username: ${{ secrets.PRIVATE_DOCKER_USERNAME }}
           password: ${{ secrets.PRIVATE_DOCKER_PASSWORD }}
 
+      - name: Build images
+        env:
+          TAG: dev
+          ARCH: amd64
+          ENABLE_PROXY: "false"
+          BASE_IMAGE_TAG: "debug"
+        run: |
+          echo "building images..."
+          make build-image
+
+      - name: Launch Kind Cluster
+        run: |
+          make kind-up
+
+      - name: Install Gateway API
+        run: |
+          make install-gateway-api
+
+      - name: Loading Docker Image to Kind Cluster
+        run: |
+          make kind-load-images
+
       - name: Run E2E test suite
         shell: bash
         env:
           API7_EE_LICENSE: ${{ secrets.API7_EE_LICENSE }}
         run: |
-          make kind-e2e-test
+          make e2e-test

@@ -1,6 +1,11 @@
 # Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+
 VERSION ?= 2.0.0
+
+
+IMAGE_TAG ?= dev
+
+IMG ?= api7/api7-ingress-controller:$(IMAGE_TAG)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.30.0
 
@@ -8,6 +13,12 @@ KIND_NAME ?= api7-ingress-cluster
 GATEAY_API_VERSION ?= v1.1.0
 
 DASHBOARD_VERSION ?= v3.2.14.2
+
+# go 
+VERSYM="github.com/api7/api7-ingress-controller/internal/version._buildVersion"
+GITSHASYM="github.com/api7/api7-ingress-controller/internal/version._buildGitRevision"
+BUILDOSSYM="github.com/api7/api7-ingress-controller/internal/version._buildOS"
+GO_LDFLAGS ?= "-X=$(VERSYM)=$(VERSION) -X=$(GITSHASYM)=$(GITSHA) -X=$(BUILDOSSYM)=$(OSNAME)/$(OSARCH)"
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -70,7 +81,7 @@ test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
 
 .PHONY: kind-e2e-test
-kind-e2e-test: kind-up kind-load-images e2e-test
+kind-e2e-test: kind-up build-image kind-load-images e2e-test
 
 # Utilize Kind or modify the e2e tests to load the image locally, enabling compatibility with other vendors.
 .PHONY: e2e-test
@@ -104,7 +115,9 @@ kind-load-images: pull-infra-images
 	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION)  --name $(KIND_NAME) 
 	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)  --name $(KIND_NAME) 
 	@kind load docker-image kennethreitz/httpbin:latest --name $(KIND_NAME) 
+	@kind load docker-image $(IMG) --name $(KIND_NAME)
 
+.PHONY: pull-infra-images
 pull-infra-images:
 	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev
 	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION) 
@@ -115,7 +128,11 @@ pull-infra-images:
 
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.
-	go build -o bin/manager cmd/main.go
+	CGO_ENABLED=0 go build -o bin/api7-ingress-controller -ldflags $(GO_LDFLAGS) cmd/main.go
+
+
+.PHONY: build-image
+build-image: docker-build
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.

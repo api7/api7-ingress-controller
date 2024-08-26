@@ -64,20 +64,6 @@ var (
 	ErrNotFound = cache.ErrNotFound
 
 	_errReadOnClosedResBody = errors.New("http: read on closed response body")
-
-	// Default shared transport for apisix client
-	_defaultTransport = &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		Dial: (&net.Dialer{
-			Timeout: 3 * time.Second,
-		}).Dial,
-		DialContext: (&net.Dialer{
-			Timeout: 3 * time.Second,
-		}).DialContext,
-		ResponseHeaderTimeout: 30 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
-	}
 )
 
 // ClusterOptions contains parameters to customize APISIX client.
@@ -95,6 +81,7 @@ type ClusterOptions struct {
 	SchemaSynced      bool
 	CacheSynced       bool
 	SSLKeyEncryptSalt string
+	SkipTLSVerify     bool
 }
 
 type cluster struct {
@@ -155,8 +142,19 @@ func newCluster(ctx context.Context, o *ClusterOptions) (Cluster, error) {
 		adminKey:     o.AdminKey,
 		prefix:       o.Prefix,
 		cli: &http.Client{
-			Timeout:   o.Timeout,
-			Transport: _defaultTransport,
+			Timeout: o.Timeout,
+			Transport: &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				Dial: (&net.Dialer{
+					Timeout: 3 * time.Second,
+				}).Dial,
+				DialContext: (&net.Dialer{
+					Timeout: 3 * time.Second,
+				}).DialContext,
+				ResponseHeaderTimeout: 30 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+				TLSClientConfig:       &tls.Config{InsecureSkipVerify: o.SkipTLSVerify},
+			},
 		},
 		cacheState:        _cacheSyncing, // default state
 		cacheSynced:       make(chan struct{}),

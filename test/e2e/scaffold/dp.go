@@ -154,33 +154,7 @@ func (s *Scaffold) waitAllAPISIXPodsAvailable() error {
 	opts := metav1.ListOptions{
 		LabelSelector: "app.kubernetes.io/name=apisix",
 	}
-	condFunc := func() (bool, error) {
-		items, err := k8s.ListPodsE(s.t, s.kubectlOptions, opts)
-		if err != nil {
-			return false, err
-		}
-		if len(items) == 0 {
-			ginkgo.GinkgoT().Log("no apisix pods created")
-			return false, nil
-		}
-		for _, item := range items {
-			foundPodReady := false
-			for _, cond := range item.Status.Conditions {
-				if cond.Type != corev1.PodReady {
-					continue
-				}
-				foundPodReady = true
-				if cond.Status != "True" {
-					return false, nil
-				}
-			}
-			if !foundPodReady {
-				return false, nil
-			}
-		}
-		return true, nil
-	}
-	return waitExponentialBackoff(condFunc)
+	return s.waitPodsAvailable(opts)
 }
 
 func (s *Scaffold) GetDataplaneCertificates() *v1.DataplaneCertificate {
