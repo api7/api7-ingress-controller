@@ -94,6 +94,10 @@ func (c *Config) validateControlPlanes(cpc []*ControlPlaneConfig) error {
 		if len(cp.AdminAPI.Endpoints) == 0 {
 			return fmt.Errorf("control_planes[].admin_api.endpoints is required")
 		}
+		if cp.AdminAPI.TLSVerify == nil {
+			cp.AdminAPI.TLSVerify = new(bool)
+			*cp.AdminAPI.TLSVerify = true
+		}
 	}
 	return nil
 }

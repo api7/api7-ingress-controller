@@ -44,7 +44,7 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.HTTPRoute{}).
-		Watches(&corev1.Endpoints{},
+		Watches(&discoveryv1.EndpointSlice{},
 			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesByServiceBef),
 		).
 		Complete(r)
@@ -58,12 +58,15 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			hr.Namespace = req.Namespace
 			hr.Name = req.Name
 
-			r.ControlPalneClient.Delete(ctx, hr)
+			if err := r.ControlPalneClient.Delete(ctx, hr); err != nil {
+				r.Log.Error(err, "failed to delete httproute", "httproute", hr)
+				return ctrl.Result{}, err
+			}
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
 	}
-	var gateways []*gatewayv1.Gateway
+	gateways := make([]*gatewayv1.Gateway, 0)
 	for _, gatewayRef := range hr.Spec.ParentRefs {
 		namespace := hr.GetNamespace()
 		if gatewayRef.Namespace != nil {
@@ -150,12 +153,20 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return ctrl.Result{}, nil
 }
 
-func (r *HTTPRouteReconciler) listHTTPRoutesByServiceBef(ctx context.Context, service client.Object) []reconcile.Request {
+func (r *HTTPRouteReconciler) listHTTPRoutesByServiceBef(ctx context.Context, obj client.Object) []reconcile.Request {
+	endpointSlice, ok := obj.(*discoveryv1.EndpointSlice)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to EndpointSlice")
+		return nil
+	}
+	namespace := endpointSlice.GetNamespace()
+	serviceName := endpointSlice.Labels[discoveryv1.LabelServiceName]
+
 	hrList := &gatewayv1.HTTPRouteList{}
 	if err := r.List(ctx, hrList, client.MatchingFields{
-		indexer.ServiceIndexRef: indexer.GenIndexKey(service.GetNamespace(), service.GetName()),
+		indexer.ServiceIndexRef: indexer.GenIndexKey(namespace, serviceName),
 	}); err != nil {
-		r.Log.Error(err, "failed to list httproutes by service", "service", service.GetName())
+		r.Log.Error(err, "failed to list httproutes by service", "service", serviceName)
 		return nil
 	}
 	requests := make([]reconcile.Request, 0, len(hrList.Items))
@@ -227,8 +238,9 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *translator.Trans
 }
 
 func (t *HTTPRouteReconciler) processHTTPRoute(tctx *translator.TranslateContext, httpRoute *gatewayv1.HTTPRoute) error {
-	for i, rule := range httpRoute.Spec.Rules {
-		for j, backend := range rule.BackendRefs {
+	var terror error
+	for _, rule := range httpRoute.Spec.Rules {
+		for _, backend := range rule.BackendRefs {
 			var kind string
 			if backend.Kind == nil {
 				kind = "service"
@@ -236,10 +248,7 @@ func (t *HTTPRouteReconciler) processHTTPRoute(tctx *translator.TranslateContext
 				kind = strings.ToLower(string(*backend.Kind))
 			}
 			if kind != "service" {
-				t.Log.Info("ignore non-service kind at Rules[%v].BackendRefs[%v]", i, j,
-					"kind", kind,
-					"warning", "unsupported kind",
-				)
+				terror = fmt.Errorf("kind %s is not supported", kind)
 				continue
 			}
 
@@ -261,5 +270,5 @@ func (t *HTTPRouteReconciler) processHTTPRoute(tctx *translator.TranslateContext
 		}
 	}
 
-	return nil
+	return terror
 }

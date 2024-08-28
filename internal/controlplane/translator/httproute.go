@@ -14,7 +14,7 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/id"
 )
 
-func (t *Translator) translateEndpointSlice(tctx *TranslateContext, endpointSlices []discoveryv1.EndpointSlice, weight int) v1.UpstreamNodes {
+func (t *Translator) translateEndpointSlice(endpointSlices []discoveryv1.EndpointSlice, weight int) v1.UpstreamNodes {
 	var nodes v1.UpstreamNodes
 	if len(endpointSlices) == 0 {
 		return nodes
@@ -48,14 +48,14 @@ func (t *Translator) translateBackendRef(tctx *TranslateContext, ref gatewayv1.B
 	if ref.Weight != nil {
 		weight = int(*ref.Weight)
 	}
-	upstream.Nodes = t.translateEndpointSlice(tctx, endpointSlices, weight)
+	upstream.Nodes = t.translateEndpointSlice(endpointSlices, weight)
 	return &upstream
 }
 
 func (t *Translator) TranslateGatewayHTTPRoute(tctx *TranslateContext, httpRoute *gatewayv1.HTTPRoute) (*TranslateResult, error) {
 	result := &TranslateResult{}
 
-	var hosts []string
+	hosts := make([]string, 0, len(httpRoute.Spec.Hostnames))
 	for _, hostname := range httpRoute.Spec.Hostnames {
 		hosts = append(hosts, string(hostname))
 	}
@@ -86,6 +86,7 @@ func (t *Translator) TranslateGatewayHTTPRoute(tctx *TranslateContext, httpRoute
 		service.Name = v1.ComposeServiceNameWithRule(httpRoute.Namespace, httpRoute.Name, fmt.Sprintf("%d", i))
 		service.ID = id.GenID(service.Name)
 		service.Labels = label.GenLabel(httpRoute)
+		service.Hosts = hosts
 		result.Services = append(result.Services, &service)
 
 		matches := rule.Matches
@@ -102,7 +103,6 @@ func (t *Translator) TranslateGatewayHTTPRoute(tctx *TranslateContext, httpRoute
 			}
 		}
 
-		// TODO: One rule corresponds to one route, not multiple
 		for j, match := range matches {
 			route, err := t.translateGatewayHTTPRouteMatch(&match)
 			if err != nil {
@@ -113,7 +113,6 @@ func (t *Translator) TranslateGatewayHTTPRoute(tctx *TranslateContext, httpRoute
 			route.Name = name
 			route.ID = id.GenID(name)
 			route.Labels = label.GenLabel(httpRoute)
-			route.Hosts = hosts
 			route.ServiceID = service.ID
 			result.Routes = append(result.Routes, route)
 		}
@@ -122,6 +121,7 @@ func (t *Translator) TranslateGatewayHTTPRoute(tctx *TranslateContext, httpRoute
 	return result, nil
 }
 
+// NOTE: Dashboard not support Vars, matches only support Path, not support Headers, QueryParams
 func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMatch) (*v1.Route, error) {
 	route := v1.NewDefaultRoute()
 

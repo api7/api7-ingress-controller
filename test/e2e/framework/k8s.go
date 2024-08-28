@@ -225,6 +225,14 @@ func (f *Framework) shutdownDashboardTunnel() {
 	}
 }
 
+func (f *Framework) GetDashboardEndpoint() string {
+	return f.dashboardHTTPTunnel.Endpoint()
+}
+
+func (f *Framework) GetDashboardEndpointHTTPS() string {
+	return f.dashboardHTTPSTunnel.Endpoint()
+}
+
 func (f *Framework) DashboardHTTPClient() *httpexpect.Expect {
 	u := url.URL{
 		Scheme: "http",
@@ -244,14 +252,10 @@ func (f *Framework) DashboardHTTPClient() *httpexpect.Expect {
 	})
 }
 
-func (f *Framework) GetDashboardEndpoint() string {
-	return f.dashboardHTTPTunnel.Endpoint()
-}
-
 func (f *Framework) DashboardHTTPSClient() *httpexpect.Expect {
 	u := url.URL{
 		Scheme: "https",
-		Host:   f.dashboardHTTPSTunnel.Endpoint(),
+		Host:   f.GetDashboardEndpointHTTPS(),
 	}
 	return httpexpect.WithConfig(httpexpect.Config{
 		BaseURL: u.String(),

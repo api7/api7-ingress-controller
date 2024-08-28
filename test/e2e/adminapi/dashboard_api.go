@@ -169,6 +169,26 @@ var _ = Describe("Test Dashboard admin-api sdk", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(services).To(BeEmpty())
 		})
+
+		It("Test apply config with https", func() {
+			By("create service and route")
+			_, err := s.DefaultDataplaneResourceHTTPS().Service().Create(context.Background(), serviceDefault)
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = s.DefaultDataplaneResourceHTTPS().Route().Create(context.Background(), routeDefault)
+			Expect(err).ToNot(HaveOccurred())
+
+			// TODO: use control-api to check the service and route
+			time.Sleep(6 * time.Second)
+
+			s.NewAPISIXClient().
+				GET("/headers").
+				WithHeader("Test-Header", "t1").
+				Expect().
+				Status(200).
+				Body().
+				Contains("Test-Header")
+		})
 	})
 
 	Context("Test Plugin metadata", func() {

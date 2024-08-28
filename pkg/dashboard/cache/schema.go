@@ -213,7 +213,7 @@ func (emi *LabelIndexer) FromArgs(args ...interface{}) ([]byte, error) {
 		return nil, fmt.Errorf("expected %d arguments, got %d", len(emi.LabelKeys), len(args))
 	}
 
-	var labelValues []string
+	labelValues := make([]string, 0, len(args))
 	for _, arg := range args {
 		value, ok := arg.(string)
 		if !ok {

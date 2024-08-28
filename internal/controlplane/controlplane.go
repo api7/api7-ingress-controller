@@ -28,11 +28,14 @@ func NewDashboard() (Controlplane, error) {
 	}
 
 	for _, cp := range config.ControllerConfig.ControlPlanes {
-		control.AddCluster(context.TODO(), &dashboard.ClusterOptions{
-			Name:     cp.GatewayName,
-			BaseURL:  cp.AdminAPI.Endpoints[0],
-			AdminKey: cp.AdminAPI.AdminKey,
-		})
+		if err := control.AddCluster(context.TODO(), &dashboard.ClusterOptions{
+			Name:          cp.GatewayName,
+			BaseURL:       cp.AdminAPI.Endpoints[0],
+			AdminKey:      cp.AdminAPI.AdminKey,
+			SkipTLSVerify: !*cp.AdminAPI.TLSVerify,
+		}); err != nil {
+			return nil, err
+		}
 	}
 
 	return &dashboardClient{
@@ -44,13 +47,14 @@ func NewDashboard() (Controlplane, error) {
 func (d *dashboardClient) Update(ctx context.Context, tctx *translator.TranslateContext, obj client.Object) error {
 	var result *translator.TranslateResult
 	var err error
-	switch obj.(type) {
+	switch obj := obj.(type) {
 	case *gatewayv1.HTTPRoute:
-		result, err = d.translator.TranslateGatewayHTTPRoute(tctx, obj.(*gatewayv1.HTTPRoute).DeepCopy())
+		result, err = d.translator.TranslateGatewayHTTPRoute(tctx, obj.DeepCopy())
 	}
 	if err != nil {
 		return err
 	}
+	// TODO: support diff resources
 	for _, gateway := range tctx.Gateways {
 		name := gateway.Name
 		for _, service := range result.Services {

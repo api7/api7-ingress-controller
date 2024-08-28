@@ -113,6 +113,14 @@ rules:
   - create
   - patch
 - apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - coordination.k8s.io
   resources:
   - leases
@@ -123,6 +131,14 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
   - watch
 - apiGroups:
   - gateway.apisix.io.github.com
@@ -179,6 +195,21 @@ rules:
   - gateway.networking.k8s.io
   resources:
   - gateways/status
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - httproutes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - httproutes/status
   verbs:
   - get
   - update
@@ -274,8 +305,9 @@ data:
       - gateway_name: "api7ee"
         admin_api:
           endpoints:
-            - "http://{{ .ControlPlaneEnpoint }}"
+            - "{{ .AdminEnpoint }}"
           admin_key: "{{ .AdminKey }}"
+          tls_verify: {{ .AdminTLSVerify }}
 ---
 apiVersion: v1
 kind: Service
