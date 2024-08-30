@@ -1,6 +1,8 @@
 package gatewayapi
 
 import (
+	"fmt"
+	"net/http"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -16,9 +18,9 @@ var _ = Describe("Test HTTPRoute", func() {
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
-  name: api7
+  name: %s
 spec:
-  controllerName: "gateway.api7.io/api7-ingress-controller"
+  controllerName: %s
 `
 
 	var defautlGateway = `
@@ -27,26 +29,46 @@ kind: Gateway
 metadata:
   name: api7ee
 spec:
-  gatewayClassName: api7
+  gatewayClassName: %s
   listeners:
     - name: http1
       protocol: HTTP
       port: 80
 `
+
+	var ResourceApplied = func(resourType, resourceName, resourceRaw string, observedGeneration int) {
+		Expect(s.CreateResourceFromString(resourceRaw)).
+			NotTo(HaveOccurred(), fmt.Sprintf("creating %s", resourType))
+
+		Eventually(func() string {
+			hryaml, err := s.GetResourceYaml(resourType, resourceName)
+			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("getting %s yaml", resourType))
+			return hryaml
+		}, "8s", "2s").
+			Should(
+				SatisfyAll(
+					ContainSubstring(`status: "True"`),
+					ContainSubstring(fmt.Sprintf("observedGeneration: %d", observedGeneration)),
+				),
+				fmt.Sprintf("checking %s condition status", resourType),
+			)
+		time.Sleep(1 * time.Second)
+	}
 	var beforeEach = func() {
 		By("create GatewayClass")
-		err := s.CreateResourceFromStringWithNamespace(defautlGatewayClass, "")
+		gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
+		err := s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defautlGatewayClass, gatewayClassName, s.GetControllerName()), "")
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 		time.Sleep(5 * time.Second)
 
 		By("check GatewayClass condition")
-		gcyaml, err := s.GetResourceYaml("GatewayClass", "api7")
+		gcyaml, err := s.GetResourceYaml("GatewayClass", gatewayClassName)
 		Expect(err).NotTo(HaveOccurred(), "getting GatewayClass yaml")
 		Expect(gcyaml).To(ContainSubstring(`status: "True"`), "checking GatewayClass condition status")
 		Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"), "checking GatewayClass condition message")
 
 		By("create Gateway")
-		err = s.CreateResourceFromString(defautlGateway)
+		err = s.CreateResourceFromString(fmt.Sprintf(defautlGateway, gatewayClassName))
 		Expect(err).NotTo(HaveOccurred(), "creating Gateway")
 		time.Sleep(5 * time.Second)
 
@@ -83,14 +105,7 @@ spec:
 
 		It("Create/Updtea/Delete HTTPRoute", func() {
 			By("create HTTPRoute")
-			err := s.CreateResourceFromString(exactRouteByGet)
-			Expect(err).NotTo(HaveOccurred(), "creating HTTPRoute")
-			time.Sleep(5 * time.Second)
-
-			By("check HTTPRoute condition")
-			hryaml, err := s.GetResourceYaml("HTTPRoute", "httpbin")
-			Expect(err).NotTo(HaveOccurred(), "getting HTTPRoute yaml")
-			Expect(hryaml).To(ContainSubstring(`status: "True"`), "checking HTTPRoute condition status")
+			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 1)
 
 			By("access daataplane to check the HTTPRoute")
 			s.NewAPISIXClient().
@@ -105,7 +120,7 @@ spec:
 				Status(200)
 
 			By("delete HTTPRoute")
-			err = s.DeleteResourceFromString(exactRouteByGet)
+			err := s.DeleteResourceFromString(exactRouteByGet)
 			Expect(err).NotTo(HaveOccurred(), "deleting HTTPRoute")
 			time.Sleep(5 * time.Second)
 
@@ -185,14 +200,7 @@ spec:
 
 		It("HTTPRoute Exact Match", func() {
 			By("create HTTPRoute")
-			err := s.CreateResourceFromString(exactRouteByGet)
-			Expect(err).NotTo(HaveOccurred(), "creating HTTPRoute")
-			time.Sleep(5 * time.Second)
-
-			By("check HTTPRoute condition")
-			hryaml, err := s.GetResourceYaml("HTTPRoute", "httpbin")
-			Expect(err).NotTo(HaveOccurred(), "getting HTTPRoute yaml")
-			Expect(hryaml).To(ContainSubstring(`status: "True"`), "checking HTTPRoute condition status")
+			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 1)
 
 			By("access daataplane to check the HTTPRoute")
 			s.NewAPISIXClient().
@@ -210,14 +218,7 @@ spec:
 
 		It("HTTPRoute Prefix Match", func() {
 			By("create HTTPRoute")
-			err := s.CreateResourceFromString(prefixRouteByStatus)
-			Expect(err).NotTo(HaveOccurred(), "creating HTTPRoute")
-			time.Sleep(5 * time.Second)
-
-			By("check HTTPRoute condition")
-			hryaml, err := s.GetResourceYaml("HTTPRoute", "httpbin")
-			Expect(err).NotTo(HaveOccurred(), "getting HTTPRoute yaml")
-			Expect(hryaml).To(ContainSubstring(`status: "True"`), "checking HTTPRoute condition status")
+			ResourceApplied("HTTPRoute", "httpbin", prefixRouteByStatus, 1)
 
 			By("access daataplane to check the HTTPRoute")
 			s.NewAPISIXClient().
@@ -235,14 +236,7 @@ spec:
 
 		It("HTTPRoute Method Match", func() {
 			By("create HTTPRoute")
-			err := s.CreateResourceFromString(methodRouteGETAndDELETEByAnything)
-			Expect(err).NotTo(HaveOccurred(), "creating HTTPRoute")
-			time.Sleep(5 * time.Second)
-
-			By("check HTTPRoute condition")
-			hryaml, err := s.GetResourceYaml("HTTPRoute", "httpbin")
-			Expect(err).NotTo(HaveOccurred(), "getting HTTPRoute yaml")
-			Expect(hryaml).To(ContainSubstring(`status: "True"`), "checking HTTPRoute condition status")
+			ResourceApplied("HTTPRoute", "httpbin", methodRouteGETAndDELETEByAnything, 1)
 
 			By("access daataplane to check the HTTPRoute")
 			s.NewAPISIXClient().
@@ -265,20 +259,259 @@ spec:
 		})
 	})
 
-	/*
+	Context("HTTPRoute Filters", func() {
+		var reqHeaderModifyByHeaders = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin.example
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /headers
+    filters:
+    - type: RequestHeaderModifier
+      requestHeaderModifier:
+        add:
+        - name: X-Req-Add
+          value: "add"
+        set:
+        - name: X-Req-Set
+          value: "set"
+        remove:
+        - X-Req-Removed
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
 
+		var respHeaderModifyByHeaders = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin.example
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /headers
+    filters:
+    - type: ResponseHeaderModifier
+      responseHeaderModifier:
+        add:
+        - name: X-Resp-Add
+          value: "add"
+        set:
+        - name: X-Resp-Set
+          value: "set"
+        remove:
+        - Server
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
 
-		Context("HTTPRoute Filter", func() {
+		var httpsRedirectByHeaders = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin.example
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /headers
+    filters:
+    - type: RequestRedirect
+      requestRedirect:
+        scheme: https
+        port: 9443
+`
+
+		var hostnameRedirectByHeaders = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin.example
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /headers
+    filters:
+    - type: RequestRedirect
+      requestRedirect:
+        hostname: httpbin.org
+        statusCode: 301
+`
+
+		BeforeEach(beforeEach)
+
+		It("HTTPRoute RequestHeaderModifier", func() {
+			By("create HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", reqHeaderModifyByHeaders, 1)
+
+			By("access daataplane to check the HTTPRoute")
+			respExp := s.NewAPISIXClient().
+				GET("/headers").
+				WithHost("httpbin.example").
+				WithHeader("X-Req-Add", "test").
+				WithHeader("X-Req-Removed", "test").
+				WithHeader("X-Req-Set", "test").
+				Expect()
+
+			respExp.Status(200)
+			respExp.Body().
+				Contains(`"X-Req-Add": "test,add"`).
+				Contains(`"X-Req-Set": "set"`).
+				NotContains(`"X-Req-Removed": "remove"`)
+
 		})
 
+		It("HTTPRoute ResponseHeaderModifier", func() {
+			By("create HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", respHeaderModifyByHeaders, 1)
+
+			By("access daataplane to check the HTTPRoute")
+			respExp := s.NewAPISIXClient().
+				GET("/headers").
+				WithHost("httpbin.example").
+				Expect()
+
+			respExp.Status(200)
+			respExp.Header("X-Resp-Add").IsEqual("add")
+			respExp.Header("X-Resp-Set").IsEqual("set")
+			respExp.Header("Server").IsEmpty()
+			respExp.Body().
+				NotContains(`"X-Resp-Add": "add"`).
+				NotContains(`"X-Resp-Set": "set"`).
+				NotContains(`"Server"`)
+		})
+
+		It("HTTPRoute RequestRedirect", func() {
+			By("create HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", httpsRedirectByHeaders, 1)
+
+			s.NewAPISIXClient().GET("/headers").
+				WithHeader("Host", "httpbin.example").
+				Expect().
+				Status(http.StatusFound).
+				Header("Location").IsEqual("https://httpbin.example:9443/headers")
+
+			By("update HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", hostnameRedirectByHeaders, 2)
+
+			s.NewAPISIXClient().GET("/headers").
+				WithHeader("Host", "httpbin.example").
+				Expect().
+				Status(http.StatusMovedPermanently).
+				Header("Location").IsEqual("http://httpbin.org/headers")
+		})
+
+		It("HTTPRoute RequestMirror", func() {
+			echoRoute := `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo
+spec:
+  selector:
+    matchLabels:
+      app: echo
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: echo
+    spec:
+      containers:
+      - name: echo
+        image: jmalloc/echo-server:latest
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo-service
+spec:
+  selector:
+    app: echo
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin.example
+  rules:
+  - matches:
+    - path:
+        type: Exact
+        value: /headers
+    filters:
+    - type: RequestMirror
+      requestMirror:
+        backendRef:
+          name: echo-service
+          port: 80
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
+			time.Sleep(time.Second * 6)
+
+			ResourceApplied("HTTPRoute", "httpbin", echoRoute, 1)
+
+			_ = s.NewAPISIXClient().GET("/headers").
+				WithHeader("Host", "httpbin.example").
+				Expect().
+				Status(http.StatusOK)
+
+			echoLogs := s.GetDeploymentLogs("echo")
+			Expect(echoLogs).To(ContainSubstring("GET /headers"))
+		})
+	})
+	/*
 		Context("HTTPRoute Status Updated", func() {
 		})
 
 		Context("HTTPRoute ParentRefs With Multiple Gateway", func() {
 		})
 
-		Context("HTTPRoute BackendRefs Discovery", func() {
+		Context("HTTPRoute Canary", func() {
 		})
 
+		Context("HTTPRoute BackendRefs Discovery", func() {
+		})
 	*/
 })

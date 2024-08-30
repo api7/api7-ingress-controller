@@ -155,7 +155,7 @@ const (
 type Service struct {
 	Metadata `json:",inline" yaml:",inline"`
 	Type     ServiceType `json:"type,omitempty" yaml:"type,omitempty"`
-	Upstream Upstream    `json:"upstream,omitempty" yaml:"upstream,omitempty"`
+	Upstream *Upstream   `json:"upstream,omitempty" yaml:"upstream,omitempty"`
 	Hosts    []string    `json:"hosts,omitempty" yaml:"hosts,omitempty"`
 	Plugins  Plugins     `json:"plugins,omitempty" yaml:"plugins,omitempty"`
 }
@@ -557,18 +557,6 @@ func NewDefaultService() *Service {
 				"managed-by": "api7-ingress-controller",
 			},
 		},
-		Upstream: Upstream{
-			Type:   LbRoundRobin,
-			Key:    "",
-			Nodes:  make(UpstreamNodes, 0),
-			Scheme: SchemeHTTP,
-			Metadata: Metadata{
-				Desc: "Created by api7-ingress-controller, DO NOT modify it manually",
-				Labels: map[string]string{
-					"managed-by": "api7-ingress-controller",
-				},
-			},
-		},
 	}
 }
 
@@ -579,6 +567,21 @@ func NewDefaultRoute() *Route {
 			Desc: "Created by api7-ingress-controller, DO NOT modify it manually",
 			Labels: map[string]string{
 				"managed-by": "api7-ingress-controller",
+			},
+		},
+	}
+}
+
+func NewDefaultUpstream() *Upstream {
+	return &Upstream{
+		Type:   LbRoundRobin,
+		Key:    "",
+		Nodes:  make(UpstreamNodes, 0),
+		Scheme: SchemeHTTP,
+		Metadata: Metadata{
+			Desc: "Created by apisix-ingress-controller, DO NOT modify it manually",
+			Labels: map[string]string{
+				"managed-by": "apisix-ingress-controller",
 			},
 		},
 	}

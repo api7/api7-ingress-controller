@@ -17,7 +17,7 @@ func (s *Scaffold) deployIngress() {
 		"AdminKey":       s.AdminKey(),
 		"AdminEnpoint":   framework.DashboardTLSEndpoint + "/apisix/admin",
 		"AdminTLSVerify": false,
-		"ControllerName": "gateway.api7.io/api7-ingress-controller",
+		"ControllerName": s.opts.ControllerName,
 	})
 	Expect(err).ToNot(HaveOccurred(), "rendering ingress spec")
 
