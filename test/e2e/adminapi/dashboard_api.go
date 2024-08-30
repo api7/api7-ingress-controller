@@ -36,7 +36,7 @@ var _ = Describe("Test Dashboard admin-api sdk", func() {
 					ID:   "test-httpbin-id",
 					Name: "test-httpbin",
 				},
-				Upstream: v1.Upstream{
+				Upstream: &v1.Upstream{
 					Type: "roundrobin",
 					Nodes: []v1.UpstreamNode{
 						{

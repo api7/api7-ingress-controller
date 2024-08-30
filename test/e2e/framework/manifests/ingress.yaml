@@ -295,7 +295,7 @@ metadata:
   name: ingress-config
 data:
   config.yaml: |
-    log_level: "info"
+    log_level: "debug"
 
     controller_name: {{ .ControllerName }}
 
