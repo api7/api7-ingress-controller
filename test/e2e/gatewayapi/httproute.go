@@ -488,9 +488,9 @@ spec:
     - name: httpbin-service-e2e-test
       port: 80
 `
-			time.Sleep(time.Second * 6)
-
 			ResourceApplied("HTTPRoute", "httpbin", echoRoute, 1)
+
+			time.Sleep(time.Second * 6)
 
 			_ = s.NewAPISIXClient().GET("/headers").
 				WithHeader("Host", "httpbin.example").
