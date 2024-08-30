@@ -1,0 +1,110 @@
+package controlplane
+
+import (
+	"context"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
+	"github.com/api7/api7-ingress-controller/internal/controller/config"
+	"github.com/api7/api7-ingress-controller/internal/controlplane/translator"
+	"github.com/api7/api7-ingress-controller/pkg/dashboard"
+)
+
+type Controlplane interface {
+	Update(context.Context, *translator.TranslateContext, client.Object) error
+	Delete(context.Context, client.Object) error
+}
+
+type dashboardClient struct {
+	translator *translator.Translator
+	c          dashboard.Dashboard
+}
+
+func NewDashboard() (Controlplane, error) {
+	control, err := dashboard.NewClient()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, cp := range config.ControllerConfig.ControlPlanes {
+		if err := control.AddCluster(context.TODO(), &dashboard.ClusterOptions{
+			Name:          cp.GatewayName,
+			BaseURL:       cp.AdminAPI.Endpoints[0],
+			AdminKey:      cp.AdminAPI.AdminKey,
+			SkipTLSVerify: !*cp.AdminAPI.TLSVerify,
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	return &dashboardClient{
+		translator: &translator.Translator{},
+		c:          control,
+	}, nil
+}
+
+func (d *dashboardClient) Update(ctx context.Context, tctx *translator.TranslateContext, obj client.Object) error {
+	var result *translator.TranslateResult
+	var err error
+	switch obj := obj.(type) {
+	case *gatewayv1.HTTPRoute:
+		result, err = d.translator.TranslateGatewayHTTPRoute(tctx, obj.DeepCopy())
+	}
+	if err != nil {
+		return err
+	}
+	// TODO: support diff resources
+	for _, gateway := range tctx.Gateways {
+		name := gateway.Name
+		for _, service := range result.Services {
+			if _, err := d.c.Cluster(name).Service().Update(ctx, service); err != nil {
+				return err
+			}
+		}
+		for _, route := range result.Routes {
+			if _, err := d.c.Cluster(name).Route().Update(ctx, route); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (d *dashboardClient) Delete(ctx context.Context, obj client.Object) error {
+	clusters := d.c.ListClusters()
+	for _, cluster := range clusters {
+		routes, _ := cluster.Route().List(ctx, dashboard.ListOptions{
+			From: dashboard.ListFromCache,
+			Args: []interface{}{
+				"label",
+				obj.GetObjectKind().GroupVersionKind().Kind,
+				obj.GetNamespace(),
+				obj.GetName(),
+			},
+		})
+
+		for _, route := range routes {
+			if err := cluster.Route().Delete(ctx, route); err != nil {
+				return err
+			}
+		}
+
+		services, _ := cluster.Service().List(ctx, dashboard.ListOptions{
+			From: dashboard.ListFromCache,
+			Args: []interface{}{
+				"label",
+				obj.GetObjectKind().GroupVersionKind().Kind,
+				obj.GetNamespace(),
+				obj.GetName(),
+			},
+		})
+
+		for _, service := range services {
+			if err := cluster.Service().Delete(ctx, service); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}

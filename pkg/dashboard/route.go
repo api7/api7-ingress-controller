@@ -55,7 +55,7 @@ func (r *routeClient) Get(ctx context.Context, name string) (*v1.Route, error) {
 
 // List is only used in cache warming up. So here just pass through
 // to APISIX.
-func (r *routeClient) List(ctx context.Context) ([]*v1.Route, error) {
+func (r *routeClient) List(ctx context.Context, args ...interface{}) ([]*v1.Route, error) {
 	log.Debugw("try to list routes in APISIX",
 		zap.String("cluster", r.cluster.name),
 		zap.String("url", r.url),
@@ -101,7 +101,6 @@ func (r *routeClient) Create(ctx context.Context, obj *v1.Route) (*v1.Route, err
 	}
 
 	url := r.url + "/" + obj.ID
-	log.Debugw("creating route", zap.ByteString("body", data), zap.String("url", url))
 	resp, err := r.cluster.createResource(ctx, url, "route", data)
 	if err != nil {
 		log.Errorf("failed to create route: %s", err)

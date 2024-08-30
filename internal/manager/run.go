@@ -14,9 +14,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
-	gatewayapi "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
+	"github.com/api7/api7-ingress-controller/internal/controlplane"
 )
 
 var (
@@ -26,7 +27,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	if err := gatewayapi.Install(scheme); err != nil {
+	if err := gatewayv1.Install(scheme); err != nil {
 		panic(err)
 	}
 	// +kubebuilder:scaffold:scheme
@@ -109,11 +110,17 @@ func Run(ctx context.Context, logger logr.Logger) error {
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
-		os.Exit(1)
+		return err
+	}
+
+	cpClient, err := controlplane.NewDashboard()
+	if err != nil {
+		setupLog.Error(err, "unable to create controlplane client")
+		return err
 	}
 
 	setupLog.Info("setting up controllers")
-	controllers := setupControllers(ctx, mgr)
+	controllers := setupControllers(ctx, mgr, cpClient)
 	for _, c := range controllers {
 		if err := c.SetupWithManager(mgr); err != nil {
 			return err

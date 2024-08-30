@@ -15,7 +15,7 @@ func (s *Scaffold) deployIngress() {
 	err := framework.IngressSpecTpl.Execute(buf, map[string]any{
 		"Namespace":      s.namespace,
 		"AdminKey":       s.AdminKey(),
-		"AdminEnpoint":   framework.DashboardTLSEndpoint,
+		"AdminEnpoint":   framework.DashboardTLSEndpoint + "/apisix/admin",
 		"AdminTLSVerify": false,
 		"ControllerName": "gateway.api7.io/api7-ingress-controller",
 	})

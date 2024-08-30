@@ -16,6 +16,10 @@
 package cache
 
 import (
+	"fmt"
+	"strings"
+
+	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
 	"github.com/hashicorp/go-memdb"
 )
 
@@ -48,6 +52,21 @@ var (
 						Indexer:      &memdb.StringFieldIndex{Field: "PluginConfigId"},
 						AllowMissing: true,
 					},
+					"label": {
+						Name:         "label",
+						Unique:       false,
+						AllowMissing: true,
+						Indexer: &LabelIndexer{
+							LabelKeys: []string{"kind", "namespace", "name"},
+							GetLabels: func(obj interface{}) map[string]string {
+								service, ok := obj.(*v1.Route)
+								if !ok {
+									return nil
+								}
+								return service.Labels
+							},
+						},
+					},
 				},
 			},
 			"service": {
@@ -63,6 +82,21 @@ var (
 						Unique:       true,
 						Indexer:      &memdb.StringFieldIndex{Field: "Name"},
 						AllowMissing: true,
+					},
+					"label": {
+						Name:         "label",
+						Unique:       false,
+						AllowMissing: true,
+						Indexer: &LabelIndexer{
+							LabelKeys: []string{"kind", "namespace", "name"},
+							GetLabels: func(obj interface{}) map[string]string {
+								service, ok := obj.(*v1.Service)
+								if !ok {
+									return nil
+								}
+								return service.Labels
+							},
+						},
 					},
 				},
 			},
@@ -151,3 +185,42 @@ var (
 		},
 	}
 )
+
+// LabelIndexer is a custom indexer for exact match indexing
+type LabelIndexer struct {
+	LabelKeys []string
+	GetLabels func(interface{}) map[string]string
+}
+
+func (emi *LabelIndexer) FromObject(obj interface{}) (bool, []byte, error) {
+	labels := emi.GetLabels(obj)
+	var labelValues []string
+	for _, key := range emi.LabelKeys {
+		if value, exists := labels[key]; exists {
+			labelValues = append(labelValues, value)
+		}
+	}
+
+	if len(labelValues) == 0 {
+		return false, nil, nil
+	}
+
+	return true, []byte(strings.Join(labelValues, "/")), nil
+}
+
+func (emi *LabelIndexer) FromArgs(args ...interface{}) ([]byte, error) {
+	if len(args) != len(emi.LabelKeys) {
+		return nil, fmt.Errorf("expected %d arguments, got %d", len(emi.LabelKeys), len(args))
+	}
+
+	labelValues := make([]string, 0, len(args))
+	for _, arg := range args {
+		value, ok := arg.(string)
+		if !ok {
+			return nil, fmt.Errorf("argument is not a string")
+		}
+		labelValues = append(labelValues, value)
+	}
+
+	return []byte(strings.Join(labelValues, "/")), nil
+}
