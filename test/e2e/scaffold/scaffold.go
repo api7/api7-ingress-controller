@@ -29,9 +29,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/api7/api7-ingress-controller/pkg/dashboard"
-	apisix "github.com/api7/api7-ingress-controller/pkg/dashboard"
-	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 	"github.com/gavv/httpexpect/v2"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/testing"
@@ -41,11 +38,17 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	"github.com/api7/api7-ingress-controller/pkg/dashboard"
+	"github.com/api7/api7-ingress-controller/pkg/utils"
+	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 )
 
 const (
 	DashboardHost = "localhost"
 	DashboardPort = 7080
+
+	DefaultControllerName = "gateway.api7.io/api7-ingress-controller"
 )
 
 type Options struct {
@@ -64,6 +67,7 @@ type Options struct {
 	DisableStatus                bool
 	IngressClass                 string
 	EnableEtcdServer             bool
+	ControllerName               string
 
 	NamespaceSelectorLabel   map[string][]string
 	DisableNamespaceSelector bool
@@ -348,6 +352,9 @@ func (s *Scaffold) beforeEach() {
 		ConfigPath: s.opts.Kubeconfig,
 		Namespace:  s.namespace,
 	}
+	if s.opts.ControllerName == "" {
+		s.opts.ControllerName = fmt.Sprintf("%s/%d", DefaultControllerName, time.Now().Nanosecond())
+	}
 	s.finalizers = nil
 	if s.label == nil {
 		s.label = make(map[string]string)
@@ -379,22 +386,28 @@ func (s *Scaffold) beforeEach() {
 
 	s.Logf("apisix admin api key: %s", s.opts.APISIXAdminAPIKey)
 
-	s.DeployDataplane()
-	s.DeployTestService()
-	s.initDataPlaneClient()
-	s.deployIngress()
+	e := utils.ParallelExecutor{}
+
+	e.Add(func() {
+		s.DeployDataplane()
+		s.initDataPlaneClient()
+	})
+	e.Add(s.DeployTestService)
+	e.Add(s.deployIngress)
+
+	e.Wait()
 }
 
 func (s *Scaffold) initDataPlaneClient() {
 	var err error
-	s.apisixCli, err = apisix.NewClient()
+	s.apisixCli, err = dashboard.NewClient()
 	Expect(err).NotTo(HaveOccurred(), "creating apisix client")
 
 	url := fmt.Sprintf("http://%s/apisix/admin", s.GetDashboardEndpoint())
 
 	s.Logf("apisix admin: %s", url)
 
-	err = s.apisixCli.AddCluster(context.Background(), &apisix.ClusterOptions{
+	err = s.apisixCli.AddCluster(context.Background(), &dashboard.ClusterOptions{
 		Name:     "default",
 		BaseURL:  url,
 		AdminKey: s.AdminKey(),
@@ -402,7 +415,7 @@ func (s *Scaffold) initDataPlaneClient() {
 	Expect(err).NotTo(HaveOccurred(), "adding cluster")
 
 	httpsURL := fmt.Sprintf("https://%s/apisix/admin", s.GetDashboardEndpointHTTPS())
-	err = s.apisixCli.AddCluster(context.Background(), &apisix.ClusterOptions{
+	err = s.apisixCli.AddCluster(context.Background(), &dashboard.ClusterOptions{
 		Name:          "default-https",
 		BaseURL:       httpsURL,
 		AdminKey:      s.AdminKey(),
@@ -411,11 +424,11 @@ func (s *Scaffold) initDataPlaneClient() {
 	Expect(err).NotTo(HaveOccurred(), "adding cluster")
 }
 
-func (s *Scaffold) DefaultDataplaneResource() apisix.Cluster {
+func (s *Scaffold) DefaultDataplaneResource() dashboard.Cluster {
 	return s.apisixCli.Cluster("default")
 }
 
-func (s *Scaffold) DefaultDataplaneResourceHTTPS() apisix.Cluster {
+func (s *Scaffold) DefaultDataplaneResourceHTTPS() dashboard.Cluster {
 	return s.apisixCli.Cluster("default-https")
 }
 
@@ -436,14 +449,16 @@ func (s *Scaffold) afterEach() {
 	defer GinkgoRecover()
 
 	if CurrentSpecReport().Failed() {
-		_, _ = fmt.Fprintln(GinkgoWriter, "Dumping namespace contents")
-		output, _ := k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "get", "deploy,sts,svc,pods")
-		if output != "" {
-			_, _ = fmt.Fprintln(GinkgoWriter, output)
-		}
-		output, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "describe", "pods")
-		if output != "" {
-			_, _ = fmt.Fprintln(GinkgoWriter, output)
+		if os.Getenv("TSET_ENV") == "CI" {
+			_, _ = fmt.Fprintln(GinkgoWriter, "Dumping namespace contents")
+			output, _ := k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "get", "deploy,sts,svc,pods")
+			if output != "" {
+				_, _ = fmt.Fprintln(GinkgoWriter, output)
+			}
+			output, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "describe", "pods")
+			if output != "" {
+				_, _ = fmt.Fprintln(GinkgoWriter, output)
+			}
 		}
 	}
 	// if the test case is successful, just delete namespace
@@ -585,4 +600,8 @@ func (s *Scaffold) waitPodsAvailable(opts metav1.ListOptions) error {
 		return true, nil
 	}
 	return waitExponentialBackoff(condFunc)
+}
+
+func (s *Scaffold) GetControllerName() string {
+	return s.opts.ControllerName
 }

@@ -15,11 +15,14 @@
 package v1
 
 import (
-	"encoding/json"
-	"fmt"
-	"strings"
-
 	"github.com/incubator4/go-resty-expr/expr"
+)
+
+const (
+	PluginProxyRewrite    string = "proxy-rewrite"
+	PluginRedirect        string = "redirect"
+	PluginResponseRewrite string = "response-rewrite"
+	PluginProxyMirror     string = "proxy-mirror"
 )
 
 // TrafficSplitConfig is the config of traffic-split plugin.
@@ -148,7 +151,7 @@ type ResponseRewriteConfig struct {
 	StatusCode   int                 `json:"status_code,omitempty"`
 	Body         string              `json:"body,omitempty"`
 	BodyBase64   bool                `json:"body_base64,omitempty"`
-	Headers      Headers             `json:"headers,omitempty"`
+	Headers      ResponseHeaders     `json:"headers,omitempty"`
 	LuaRestyExpr []expr.Expr         `json:"vars,omitempty"`
 	Filters      []map[string]string `json:"filters,omitempty"`
 }
@@ -187,96 +190,16 @@ type RequestMirror struct {
 	Host string `json:"host"`
 }
 
-type Headers map[string]any
-
-func (p *Headers) DeepCopyInto(out *Headers) {
-	b, _ := json.Marshal(&p)
-	_ = json.Unmarshal(b, out)
+// +k8s:deepcopy-gen=true
+type Headers struct {
+	Set    map[string]string `json:"set" yaml:"set"`
+	Add    map[string]string `json:"add" yaml:"add"`
+	Remove []string          `json:"remove" yaml:"remove"`
 }
 
-func (p Headers) DeepCopy() Headers {
-	if p == nil {
-		return nil
-	}
-	out := make(Headers)
-	p.DeepCopyInto(&out)
-	return out
-}
-
-func (p *Headers) Add(headersToAdd []string) {
-	if p == nil {
-		return
-	}
-	if headersToAdd != nil {
-		addedHeader := make([]string, 0)
-		for _, h := range headersToAdd {
-			kv := strings.Split(h, ":")
-			if len(kv) < 2 {
-				continue
-			}
-			addedHeader = append(addedHeader, fmt.Sprintf("%s:%s", kv[0], kv[1]))
-		}
-		(*p)["add"] = addedHeader
-	}
-}
-
-func (p *Headers) GetAddedHeaders() []string {
-	if p == nil || (*p)["add"] == nil {
-		return nil
-	}
-	addedheaders, ok := (*p)["add"].([]string)
-	if ok {
-		return addedheaders
-	}
-	return nil
-}
-
-func (p *Headers) Set(headersToSet []string) {
-	if p == nil {
-		return
-	}
-	if headersToSet != nil {
-		setHeaders := make(map[string]string, 0)
-		for _, h := range headersToSet {
-			kv := strings.Split(h, ":")
-			if len(kv) < 2 {
-				continue
-			}
-			setHeaders[kv[0]] = kv[1]
-		}
-		(*p)["set"] = setHeaders
-	}
-}
-
-func (p *Headers) GetSetHeaders() map[string]string {
-	if p == nil || (*p)["set"] == nil {
-		return nil
-	}
-	addedheaders, ok := (*p)["set"].(map[string]string)
-	if ok {
-		return addedheaders
-	}
-	return nil
-}
-
-func (p *Headers) Remove(headersToRemove []string) {
-	if p == nil {
-		return
-	}
-	if headersToRemove != nil {
-		removeHeaders := make([]string, 0)
-		removeHeaders = append(removeHeaders, headersToRemove...)
-		(*p)["remove"] = removeHeaders
-	}
-}
-
-func (p *Headers) GetRemovedHeaders() []string {
-	if p == nil || (*p)["remove"] == nil {
-		return nil
-	}
-	removedHeaders, ok := (*p)["remove"].([]string)
-	if ok {
-		return removedHeaders
-	}
-	return nil
+// +k8s:deepcopy-gen=true
+type ResponseHeaders struct {
+	Set    map[string]string `json:"set" yaml:"set"`
+	Add    []string          `json:"add" yaml:"add"`
+	Remove []string          `json:"remove" yaml:"remove"`
 }

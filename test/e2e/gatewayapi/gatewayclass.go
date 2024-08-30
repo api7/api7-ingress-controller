@@ -10,7 +10,9 @@ import (
 )
 
 var _ = Describe("Test GatewayClass", func() {
-	s := scaffold.NewDefaultScaffold()
+	s := scaffold.NewScaffold(&scaffold.Options{
+		ControllerName: "gateway.api7.io/api7-ingress-controller",
+	})
 
 	Context("Create GatewayClass", func() {
 		var defautlGatewayClass = `

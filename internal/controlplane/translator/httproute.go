@@ -14,6 +14,150 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/id"
 )
 
+const (
+	RequestMirror = "proxy-mirror"
+)
+
+func (t *Translator) generatePluginsFromHTTPRouteFilters(namespace string, filters []gatewayv1.HTTPRouteFilter) v1.Plugins {
+	plugins := v1.Plugins{}
+	for _, filter := range filters {
+		switch filter.Type {
+		case gatewayv1.HTTPRouteFilterRequestHeaderModifier:
+			t.fillPluginFromHTTPRequestHeaderFilter(plugins, filter.RequestHeaderModifier)
+		case gatewayv1.HTTPRouteFilterRequestRedirect:
+			t.fillPluginFromHTTPRequestRedirectFilter(plugins, filter.RequestRedirect)
+		case gatewayv1.HTTPRouteFilterRequestMirror:
+			t.fillPluginFromHTTPRequestMirrorFilter(namespace, plugins, filter.RequestMirror)
+		case gatewayv1.HTTPRouteFilterURLRewrite:
+			// TODO: Supported, to be implemented
+		case gatewayv1.HTTPRouteFilterResponseHeaderModifier:
+			t.fillPluginFromHTTPResponseHeaderFilter(plugins, filter.ResponseHeaderModifier)
+		}
+	}
+	return plugins
+}
+
+func (t *Translator) fillPluginFromHTTPRequestHeaderFilter(plugins v1.Plugins, reqHeaderModifier *gatewayv1.HTTPHeaderFilter) {
+	pluginName := v1.PluginProxyRewrite
+	obj := plugins[pluginName]
+	var plugin *v1.RewriteConfig
+	if obj == nil {
+		plugin = &v1.RewriteConfig{
+			Headers: v1.Headers{
+				Add:    make(map[string]string, len(reqHeaderModifier.Add)),
+				Set:    make(map[string]string, len(reqHeaderModifier.Set)),
+				Remove: make([]string, 0, len(reqHeaderModifier.Remove)),
+			},
+		}
+		plugins[pluginName] = plugin
+	} else {
+		plugin = obj.(*v1.RewriteConfig)
+	}
+	for _, header := range reqHeaderModifier.Add {
+		val := plugin.Headers.Add[string(header.Name)]
+		if val != "" {
+			val += ", " + header.Value
+		} else {
+			val = header.Value
+		}
+		plugin.Headers.Add[string(header.Name)] = val
+	}
+	for _, header := range reqHeaderModifier.Set {
+		plugin.Headers.Set[string(header.Name)] = header.Value
+	}
+	plugin.Headers.Remove = append(plugin.Headers.Remove, reqHeaderModifier.Remove...)
+}
+
+func (t *Translator) fillPluginFromHTTPResponseHeaderFilter(plugins v1.Plugins, respHeaderModifier *gatewayv1.HTTPHeaderFilter) {
+	pluginName := v1.PluginResponseRewrite
+	obj := plugins[pluginName]
+	var plugin *v1.ResponseRewriteConfig
+	if obj == nil {
+		plugin = &v1.ResponseRewriteConfig{
+			Headers: v1.ResponseHeaders{
+				Add:    make([]string, 0, len(respHeaderModifier.Add)),
+				Set:    make(map[string]string, len(respHeaderModifier.Set)),
+				Remove: make([]string, 0, len(respHeaderModifier.Remove)),
+			},
+		}
+		plugins[pluginName] = plugin
+	} else {
+		plugin = obj.(*v1.ResponseRewriteConfig)
+	}
+	for _, header := range respHeaderModifier.Add {
+		plugin.Headers.Add = append(plugin.Headers.Add, fmt.Sprintf("%s: %s", header.Name, header.Value))
+	}
+	for _, header := range respHeaderModifier.Set {
+		plugin.Headers.Set[string(header.Name)] = header.Value
+	}
+	plugin.Headers.Remove = append(plugin.Headers.Remove, respHeaderModifier.Remove...)
+}
+
+func (t *Translator) fillPluginFromHTTPRequestMirrorFilter(namespace string, plugins v1.Plugins, reqMirror *gatewayv1.HTTPRequestMirrorFilter) {
+	pluginName := v1.PluginProxyMirror
+	obj := plugins[pluginName]
+
+	var plugin *v1.RequestMirror
+	if obj == nil {
+		plugin = &v1.RequestMirror{}
+		plugins[pluginName] = plugin
+	} else {
+		plugin = obj.(*v1.RequestMirror)
+	}
+
+	var (
+		port int    = 80
+		ns   string = namespace
+	)
+	if reqMirror.BackendRef.Port != nil {
+		port = int(*reqMirror.BackendRef.Port)
+	}
+	if reqMirror.BackendRef.Namespace != nil {
+		ns = string(*reqMirror.BackendRef.Namespace)
+	}
+
+	host := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", reqMirror.BackendRef.Name, ns, port)
+
+	plugin.Host = host
+}
+
+func (t *Translator) fillPluginFromHTTPRequestRedirectFilter(plugins v1.Plugins, reqRedirect *gatewayv1.HTTPRequestRedirectFilter) {
+	pluginName := v1.PluginRedirect
+	obj := plugins[pluginName]
+
+	var plugin *v1.RedirectConfig
+	if obj == nil {
+		plugin = &v1.RedirectConfig{}
+		plugins[pluginName] = plugin
+	} else {
+		plugin = obj.(*v1.RedirectConfig)
+	}
+	var uri string
+
+	code := 302
+	if reqRedirect.StatusCode != nil {
+		code = *reqRedirect.StatusCode
+	}
+
+	hostname := "$host"
+	if reqRedirect.Hostname != nil {
+		hostname = string(*reqRedirect.Hostname)
+	}
+
+	scheme := "$scheme"
+	if reqRedirect.Scheme != nil {
+		scheme = *reqRedirect.Scheme
+	}
+
+	if reqRedirect.Port != nil {
+		uri = fmt.Sprintf("%s://%s:%d$request_uri", scheme, hostname, int(*reqRedirect.Port))
+	} else {
+		uri = fmt.Sprintf("%s://%s$request_uri", scheme, hostname)
+	}
+	plugin.RetCode = code
+	plugin.URI = uri
+}
+
 func (t *Translator) translateEndpointSlice(endpointSlices []discoveryv1.EndpointSlice, weight int) v1.UpstreamNodes {
 	var nodes v1.UpstreamNodes
 	if len(endpointSlices) == 0 {
@@ -38,7 +182,7 @@ func (t *Translator) translateEndpointSlice(endpointSlices []discoveryv1.Endpoin
 }
 
 func (t *Translator) translateBackendRef(tctx *TranslateContext, ref gatewayv1.BackendRef) *v1.Upstream {
-	var upstream v1.Upstream
+	upstream := v1.NewDefaultUpstream()
 	endpointSlices := tctx.EndpointSlices[types.NamespacedName{
 		Namespace: string(*ref.Namespace),
 		Name:      string(ref.Name),
@@ -49,7 +193,7 @@ func (t *Translator) translateBackendRef(tctx *TranslateContext, ref gatewayv1.B
 		weight = int(*ref.Weight)
 	}
 	upstream.Nodes = t.translateEndpointSlice(endpointSlices, weight)
-	return &upstream
+	return upstream
 }
 
 func (t *Translator) TranslateGatewayHTTPRoute(tctx *TranslateContext, httpRoute *gatewayv1.HTTPRoute) (*TranslateResult, error) {
@@ -63,31 +207,39 @@ func (t *Translator) TranslateGatewayHTTPRoute(tctx *TranslateContext, httpRoute
 	rules := httpRoute.Spec.Rules
 
 	for i, rule := range rules {
-		backends := rule.BackendRefs
-		if len(backends) == 0 {
-			continue
-		}
-
 		upstreams := []*v1.Upstream{}
-		for _, backend := range backends {
+		for _, backend := range rule.BackendRefs {
 			if backend.Namespace == nil {
 				namespace := gatewayv1.Namespace(httpRoute.Namespace)
 				backend.Namespace = &namespace
 			}
 			upstream := t.translateBackendRef(tctx, backend.BackendRef)
+			upstream.Labels["name"] = string(backend.BackendRef.Name)
+			upstream.Labels["namespace"] = string(*backend.BackendRef.Namespace)
 			upstreams = append(upstreams, upstream)
 		}
 
-		var service v1.Service
+		service := v1.NewDefaultService()
 		if len(upstreams) > 0 {
-			service.Upstream = *upstreams[0]
+			service.Upstream = upstreams[0]
 			// TODO: support multiple upstreams
+		} else if len(upstreams) == 0 {
+			service.Upstream = v1.NewDefaultUpstream()
+			service.Upstream.Nodes = v1.UpstreamNodes{
+				{
+					Host:   "0.0.0.0",
+					Port:   80,
+					Weight: 100,
+				},
+			}
 		}
 		service.Name = v1.ComposeServiceNameWithRule(httpRoute.Namespace, httpRoute.Name, fmt.Sprintf("%d", i))
 		service.ID = id.GenID(service.Name)
 		service.Labels = label.GenLabel(httpRoute)
 		service.Hosts = hosts
-		result.Services = append(result.Services, &service)
+		service.Plugins = t.generatePluginsFromHTTPRouteFilters(httpRoute.GetNamespace(), rule.Filters)
+
+		result.Services = append(result.Services, service)
 
 		matches := rule.Matches
 		if len(matches) == 0 {
