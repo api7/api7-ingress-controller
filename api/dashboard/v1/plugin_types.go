@@ -41,8 +41,9 @@ type TrafficSplitConfigRule struct {
 // the traffic split plugin rule.
 // +k8s:deepcopy-gen=true
 type TrafficSplitConfigRuleWeightedUpstream struct {
-	UpstreamID string `json:"upstream_id,omitempty"`
-	Weight     int    `json:"weight"`
+	UpstreamID string    `json:"upstream_id,omitempty"`
+	Upstream   *Upstream `json:"upstream,omitempty"`
+	Weight     int       `json:"weight"`
 }
 
 // IPRestrictConfig is the rule config for ip-restriction plugin.

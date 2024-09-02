@@ -97,6 +97,7 @@ type Scaffold struct {
 	apisixTLSOverTCPTunnel *k8s.Tunnel
 	apisixUDPTunnel        *k8s.Tunnel
 	// apisixControlTunnel    *k8s.Tunnel
+
 }
 
 func (s *Scaffold) AdminKey() string {
@@ -395,7 +396,6 @@ func (s *Scaffold) beforeEach() {
 		s.initDataPlaneClient()
 	})
 	e.Add(s.DeployTestService)
-
 	e.Wait()
 }
 

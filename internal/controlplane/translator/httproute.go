@@ -18,8 +18,7 @@ const (
 	RequestMirror = "proxy-mirror"
 )
 
-func (t *Translator) generatePluginsFromHTTPRouteFilters(namespace string, filters []gatewayv1.HTTPRouteFilter) v1.Plugins {
-	plugins := v1.Plugins{}
+func (t *Translator) fillPluginsFromHTTPRouteFilters(plugins v1.Plugins, namespace string, filters []gatewayv1.HTTPRouteFilter) {
 	for _, filter := range filters {
 		switch filter.Type {
 		case gatewayv1.HTTPRouteFilterRequestHeaderModifier:
@@ -34,7 +33,6 @@ func (t *Translator) generatePluginsFromHTTPRouteFilters(namespace string, filte
 			t.fillPluginFromHTTPResponseHeaderFilter(plugins, filter.ResponseHeaderModifier)
 		}
 	}
-	return plugins
 }
 
 func (t *Translator) fillPluginFromHTTPRequestHeaderFilter(plugins v1.Plugins, reqHeaderModifier *gatewayv1.HTTPHeaderFilter) {
@@ -158,7 +156,7 @@ func (t *Translator) fillPluginFromHTTPRequestRedirectFilter(plugins v1.Plugins,
 	plugin.URI = uri
 }
 
-func (t *Translator) translateEndpointSlice(endpointSlices []discoveryv1.EndpointSlice, weight int) v1.UpstreamNodes {
+func (t *Translator) translateEndpointSlice(endpointSlices []discoveryv1.EndpointSlice) v1.UpstreamNodes {
 	var nodes v1.UpstreamNodes
 	if len(endpointSlices) == 0 {
 		return nodes
@@ -170,7 +168,7 @@ func (t *Translator) translateEndpointSlice(endpointSlices []discoveryv1.Endpoin
 					node := v1.UpstreamNode{
 						Host:   addr,
 						Port:   int(*port.Port),
-						Weight: weight,
+						Weight: 1,
 					}
 					nodes = append(nodes, node)
 				}
@@ -188,11 +186,7 @@ func (t *Translator) translateBackendRef(tctx *TranslateContext, ref gatewayv1.B
 		Name:      string(ref.Name),
 	}]
 
-	weight := 100
-	if ref.Weight != nil {
-		weight = int(*ref.Weight)
-	}
-	upstream.Nodes = t.translateEndpointSlice(endpointSlices, weight)
+	upstream.Nodes = t.translateEndpointSlice(endpointSlices)
 	return upstream
 }
 
@@ -207,6 +201,8 @@ func (t *Translator) TranslateGatewayHTTPRoute(tctx *TranslateContext, httpRoute
 	rules := httpRoute.Spec.Rules
 
 	for i, rule := range rules {
+
+		var weightedUpstreams []v1.TrafficSplitConfigRuleWeightedUpstream
 		upstreams := []*v1.Upstream{}
 		for _, backend := range rule.BackendRefs {
 			if backend.Namespace == nil {
@@ -226,27 +222,47 @@ func (t *Translator) TranslateGatewayHTTPRoute(tctx *TranslateContext, httpRoute
 					},
 				}
 			}
+
+			weight := 100
+			if backend.Weight != nil {
+				weight = int(*backend.Weight)
+			}
+			weightedUpstreams = append(weightedUpstreams, v1.TrafficSplitConfigRuleWeightedUpstream{
+				Upstream: upstream,
+				Weight:   weight,
+			})
 		}
 
-		service := v1.NewDefaultService()
-		if len(upstreams) > 0 {
-			service.Upstream = upstreams[0]
-			// TODO: support multiple upstreams
-		} else if len(upstreams) == 0 {
-			service.Upstream = v1.NewDefaultUpstream()
-			service.Upstream.Nodes = v1.UpstreamNodes{
+		if len(upstreams) == 0 {
+			upstream := v1.NewDefaultUpstream()
+			upstream.Nodes = v1.UpstreamNodes{
 				{
 					Host:   "0.0.0.0",
 					Port:   80,
 					Weight: 100,
 				},
 			}
+			upstreams = append(upstreams, upstream)
 		}
+
+		service := v1.NewDefaultService()
+		service.Upstream = upstreams[0]
+		if len(weightedUpstreams) > 1 {
+			weightedUpstreams[0].Upstream = nil
+			service.Plugins["traffic-split"] = &v1.TrafficSplitConfig{
+				Rules: []v1.TrafficSplitConfigRule{
+					{
+						WeightedUpstreams: weightedUpstreams,
+					},
+				},
+			}
+		}
+
 		service.Name = v1.ComposeServiceNameWithRule(httpRoute.Namespace, httpRoute.Name, fmt.Sprintf("%d", i))
 		service.ID = id.GenID(service.Name)
 		service.Labels = label.GenLabel(httpRoute)
 		service.Hosts = hosts
-		service.Plugins = t.generatePluginsFromHTTPRouteFilters(httpRoute.GetNamespace(), rule.Filters)
+		t.fillPluginsFromHTTPRouteFilters(service.Plugins, httpRoute.GetNamespace(), rule.Filters)
 
 		result.Services = append(result.Services, service)
 
