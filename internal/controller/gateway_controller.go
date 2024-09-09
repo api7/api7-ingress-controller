@@ -41,6 +41,7 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&gatewayv1.HTTPRoute{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewaysForHTTPRoute),
 		).
+		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Complete(r)
 }
 

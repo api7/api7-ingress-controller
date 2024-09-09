@@ -78,7 +78,7 @@ vet: ## Run go vet against code.
 
 .PHONY: test
 test: manifests generate fmt vet envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e | grep -v /conformance) -coverprofile cover.out
 
 .PHONY: kind-e2e-test
 kind-e2e-test: kind-up build-image kind-load-images e2e-test
@@ -90,7 +90,7 @@ e2e-test:
 
 .PHONY: conformance-test
 conformance-test:
-	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test ./test/conformance/ -v -ginkgo.v
+	DASHBOARD_VERSION=v3.2.14.2 go test -v ./test/conformance -tags=conformance --gateway-class=api7
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter
