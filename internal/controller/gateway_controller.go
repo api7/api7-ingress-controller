@@ -102,19 +102,21 @@ func (r *GatewayReconciler) matchesGatewayClass(obj client.Object) bool {
 	return matchesController(string(gateway.Spec.ControllerName))
 }
 
-func (r *GatewayReconciler) matchesGatewayForControlPlaneConfig(obj client.Object) bool {
-	gateway, ok := obj.(*gatewayv1.Gateway)
-	if !ok {
-		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to Gateway")
-		return false
+/*
+	func (r *GatewayReconciler) matchesGatewayForControlPlaneConfig(obj client.Object) bool {
+		gateway, ok := obj.(*gatewayv1.Gateway)
+		if !ok {
+			r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to Gateway")
+			return false
+		}
+		cfg := config.GetControlPlaneConfigByGatewatName(gateway.GetName())
+		ok = true
+		if cfg == nil {
+			ok = false
+		}
+		return ok
 	}
-	cfg := config.GetControlPlaneConfigByGatewatName(gateway.GetName())
-	ok = true
-	if cfg == nil {
-		ok = false
-	}
-	return ok
-}
+*/
 
 func (r *GatewayReconciler) listGatewayForGatewayClass(ctx context.Context, gatewayClass client.Object) []reconcile.Request {
 	gatewayList := &gatewayv1.GatewayList{}

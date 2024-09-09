@@ -33,7 +33,6 @@ import (
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/testing"
 	. "github.com/onsi/ginkgo/v2"
-	ginkgo "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -571,36 +570,6 @@ func (s *Scaffold) labelSelector(label string) metav1.ListOptions {
 	return metav1.ListOptions{
 		LabelSelector: label,
 	}
-}
-
-func (s *Scaffold) waitPodsAvailable(t testing.TestingT, kubeOps *k8s.KubectlOptions, opts metav1.ListOptions) error {
-	condFunc := func() (bool, error) {
-		items, err := k8s.ListPodsE(s.t, s.kubectlOptions, opts)
-		if err != nil {
-			return false, err
-		}
-		if len(items) == 0 {
-			ginkgo.GinkgoT().Log("no apisix pods created")
-			return false, nil
-		}
-		for _, item := range items {
-			foundPodReady := false
-			for _, cond := range item.Status.Conditions {
-				if cond.Type != corev1.PodReady {
-					continue
-				}
-				foundPodReady = true
-				if cond.Status != "True" {
-					return false, nil
-				}
-			}
-			if !foundPodReady {
-				return false, nil
-			}
-		}
-		return true, nil
-	}
-	return waitExponentialBackoff(condFunc)
 }
 
 func (s *Scaffold) GetControllerName() string {

@@ -455,7 +455,12 @@ func (f *Framework) DeployGateway(opts DataPlaneDeployOptions) *corev1.Service {
 
 	dpCert := f.GetDataplaneCertificates(opts.GatewayGroupID)
 
-	f.applySSLSecret(opts.Namespace, "dp-ssl", []byte(dpCert.Certificate), []byte(dpCert.PrivateKey), []byte(dpCert.CACertificate))
+	f.applySSLSecret(opts.Namespace,
+		"dp-ssl",
+		[]byte(dpCert.Certificate),
+		[]byte(dpCert.PrivateKey),
+		[]byte(dpCert.CACertificate),
+	)
 
 	buf := bytes.NewBuffer(nil)
 

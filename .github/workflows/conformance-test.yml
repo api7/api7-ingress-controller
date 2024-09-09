@@ -77,7 +77,11 @@ jobs:
         run: |
           make install-gateway-api
 
-      - name: Run E2E test suite
+      - name: Loading Docker Image to Kind Cluster
+        run: |
+          make kind-load-images
+
+      - name: Run Conformance Test
         shell: bash
         env:
           API7_EE_LICENSE: ${{ secrets.API7_EE_LICENSE }}
@@ -87,5 +91,5 @@ jobs:
       - name: Upload Gateway API Conformance Report
         uses: actions/upload-artifact@v2
         with:
-          name: api7-ingress-controller.yaml
+          name: api7-ingress-controller-conformance-report.yaml
           path: api7-ingress-controller.yaml

@@ -313,10 +313,6 @@ func checkRouteAcceptedByListener(
 	return true, gatewayv1.RouteReasonAccepted, nil
 }
 
-func routeMatchesGatewayListener(route client.Object, listener gatewayv1.Listener) bool {
-	return true
-}
-
 func routeHostnamesIntersectsWithListenerHostname(route client.Object, listener gatewayv1.Listener) bool {
 	switch r := route.(type) {
 	case *gatewayv1.HTTPRoute:
