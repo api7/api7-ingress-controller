@@ -23,6 +23,7 @@ import (
 
 func (s *Scaffold) deployDataplane() {
 	svc := s.DeployGateway(framework.DataPlaneDeployOptions{
+		GatewayGroupID:         s.gatewaygroupid,
 		Namespace:              s.namespace,
 		Name:                   "api7ee3-apisix-gateway-mtls",
 		DPManagerEndpoint:      framework.DPManagerTLSEndpoint,
@@ -31,6 +32,8 @@ func (s *Scaffold) deployDataplane() {
 		SSLCert:                framework.TestCert,
 		TLSEnabled:             true,
 		ForIngressGatewayGroup: true,
+		ServiceHTTPPort:        9080,
+		ServiceHTTPSPort:       9443,
 	})
 
 	s.dataplaneService = svc

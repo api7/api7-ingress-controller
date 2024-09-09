@@ -41,7 +41,6 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&gatewayv1.HTTPRoute{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewaysForHTTPRoute),
 		).
-		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Complete(r)
 }
 
@@ -63,6 +62,9 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	if len(gateway.Status.Addresses) != len(cfg.Addresses) {
 		for _, addr := range cfg.Addresses {
+			if addr == "" {
+				continue
+			}
 			addrs = append(addrs,
 				gatewayv1.GatewayStatusAddress{
 					Value: addr,
@@ -141,7 +143,7 @@ func (r *GatewayReconciler) listGatewayForGatewayClass(ctx context.Context, gate
 func (r *GatewayReconciler) checkGatewayClass(gateway *gatewayv1.Gateway) bool {
 	gatewayClass := &gatewayv1.GatewayClass{}
 	if err := r.Client.Get(context.Background(), client.ObjectKey{Name: string(gateway.Spec.GatewayClassName)}, gatewayClass); err != nil {
-		r.Log.Error(err, "failed to get gateway class", "gatewayclass", gateway.Spec.GatewayClassName)
+		r.Log.Error(err, "failed to get gateway class", "gateway", gateway.GetName(), "gatewayclass", gateway.Spec.GatewayClassName)
 		return false
 	}
 
@@ -179,7 +181,5 @@ func (r *GatewayReconciler) listGatewaysForHTTPRoute(_ context.Context, obj clie
 			},
 		})
 	}
-
-	fmt.Println("recs:", recs)
 	return recs
 }

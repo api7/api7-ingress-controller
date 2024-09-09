@@ -11,5 +11,6 @@ func (s *Scaffold) deployIngress() {
 		AdminTLSVerify: false,
 		Namespace:      s.namespace,
 		AdminEnpoint:   framework.DashboardTLSEndpoint + "/apisix/admin",
+		StatusAddress:  s.gatewayAddress,
 	})
 }

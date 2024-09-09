@@ -90,7 +90,7 @@ e2e-test:
 
 .PHONY: conformance-test
 conformance-test:
-	DASHBOARD_VERSION=v3.2.14.2 go test -v ./test/conformance -tags=conformance --gateway-class=api7
+	DASHBOARD_VERSION=v3.2.14.2 go test -v ./test/conformance -tags=conformance
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter

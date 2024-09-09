@@ -3,7 +3,6 @@ package framework
 import (
 	"bytes"
 	_ "embed"
-	"fmt"
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
@@ -39,7 +38,6 @@ func (f *Framework) DeployIngress(opts IngressDeployOpts) {
 	buf := bytes.NewBuffer(nil)
 
 	err := IngressSpecTpl.Execute(buf, opts)
-	fmt.Println(err)
 	f.GomegaT.Expect(err).ToNot(HaveOccurred(), "rendering ingress spec")
 
 	kubectlOpts := k8s.NewKubectlOptions("", "", opts.Namespace)

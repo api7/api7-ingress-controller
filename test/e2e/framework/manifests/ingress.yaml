@@ -313,7 +313,7 @@ data:
   config.yaml: |
     log_level: "debug"
 
-    controller_name: {{ .ControllerName }}
+    controller_name: {{ .ControllerName | default "gateway.api7.io/api7-ingress-controller" }}
 
     leader_election_id: "api7-ingress-controller-leader"
     

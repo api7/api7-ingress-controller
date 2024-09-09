@@ -83,6 +83,7 @@ type Scaffold struct {
 	nodes            []corev1.Node
 	dataplaneService *corev1.Service
 	httpbinService   *corev1.Service
+	gatewayAddress   string
 
 	finalizers []func()
 	label      map[string]string
@@ -390,10 +391,10 @@ func (s *Scaffold) beforeEach() {
 
 	e.Add(func() {
 		s.deployDataplane()
+		s.deployIngress()
 		s.initDataPlaneClient()
 	})
 	e.Add(s.DeployTestService)
-	e.Add(s.deployIngress)
 
 	e.Wait()
 }
@@ -447,6 +448,7 @@ func (s *Scaffold) DeployTestService() {
 func (s *Scaffold) afterEach() {
 	defer GinkgoRecover()
 	s.DeleteGatewayGroup(s.gatewaygroupid)
+	s.shutdownApisixTunnel()
 
 	if CurrentSpecReport().Failed() {
 		if os.Getenv("TSET_ENV") == "CI" {

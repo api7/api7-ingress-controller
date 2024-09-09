@@ -71,7 +71,7 @@ jobs:
       - name: Install And Run Cloud Provider KIND
         run: |
           go install sigs.k8s.io/cloud-provider-kind@latest
-          sudo nohup cloud-provider-kind > /tmp/kind-loadbalancer.log 2>&1 &
+          nohup cloud-provider-kind > /tmp/kind-loadbalancer.log 2>&1 &
   
       - name: Install Gateway API
         run: |
@@ -92,4 +92,4 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: api7-ingress-controller-conformance-report.yaml
-          path: api7-ingress-controller.yaml
+          path: api7-ingress-controller-conformance-report.yaml

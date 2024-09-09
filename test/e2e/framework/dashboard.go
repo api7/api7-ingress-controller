@@ -12,7 +12,6 @@ import (
 	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/google/uuid"
-	"github.com/gruntwork-io/terratest/modules/k8s"
 	. "github.com/onsi/gomega"
 	"golang.org/x/net/html"
 	"helm.sh/helm/v3/pkg/action"
@@ -20,8 +19,6 @@ import (
 
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/kube"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
@@ -427,58 +424,4 @@ func (f *Framework) CreateNewGatewayGroupWithIngressE() (string, error) {
 		return "", fmt.Errorf("error creating gateway group: %s", response.ErrorMsg)
 	}
 	return response.Value.ID, nil
-}
-
-type DataPlaneDeployOptions struct {
-	Namespace string
-	Name      string
-
-	GatewayGroupID         string
-	TLSEnabled             bool
-	SSLKey                 string
-	SSLCert                string
-	DPManagerEndpoint      string
-	SetEnv                 bool
-	ForIngressGatewayGroup bool
-
-	ServiceName string
-	ServiceType string
-}
-
-func (f *Framework) DeployGateway(opts DataPlaneDeployOptions) *corev1.Service {
-	if opts.ServiceType == "" {
-		opts.ServiceType = "ClusterIP"
-	}
-	if opts.ServiceName == "" {
-		opts.ServiceName = "api7ee3-apisix-gateway-mtls"
-	}
-
-	dpCert := f.GetDataplaneCertificates(opts.GatewayGroupID)
-
-	f.applySSLSecret(opts.Namespace,
-		"dp-ssl",
-		[]byte(dpCert.Certificate),
-		[]byte(dpCert.PrivateKey),
-		[]byte(dpCert.CACertificate),
-	)
-
-	buf := bytes.NewBuffer(nil)
-
-	_ = DPSpecTpl.Execute(buf, opts)
-
-	kubectlOpts := k8s.NewKubectlOptions("", "", opts.Namespace)
-
-	fmt.Println(buf.String())
-
-	k8s.KubectlApplyFromString(f.GinkgoT, kubectlOpts, buf.String())
-
-	err := WaitPodsAvailable(f.GinkgoT, kubectlOpts, metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/name=apisix",
-	})
-	Expect(err).ToNot(HaveOccurred(), "waiting for gateway pod ready")
-
-	svc, err := k8s.GetServiceE(f.GinkgoT, kubectlOpts, opts.ServiceName)
-	Expect(err).ToNot(HaveOccurred(), "getting service")
-
-	return svc
 }

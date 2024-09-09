@@ -502,8 +502,6 @@ func getAttachedRoutesForListener(ctx context.Context, mgrc client.Client, gatew
 			continue
 		}
 
-		fmt.Println("route: ", route)
-
 		for _, parentRef := range route.Spec.ParentRefs {
 			ok, _, err := checkRouteAcceptedByListener(
 				ctx,
@@ -536,8 +534,6 @@ func getListenerStatus(
 		if err != nil {
 			return nil, err
 		}
-
-		fmt.Println("attachedRoutes: ", attachedRoutes)
 
 		var (
 			reasonResolvedRef = string(gatewayv1.ListenerReasonResolvedRefs)

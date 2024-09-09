@@ -299,7 +299,6 @@ func (f *Framework) applySSLSecret(namespace, name string, cert, pkey, caCert []
 	_, err = cli.CoreV1().Secrets(namespace).Apply(context.TODO(), &secret, metav1.ApplyOptions{
 		FieldManager: "e2e",
 	})
-	fmt.Println(err)
 	Expect(err).ToNot(HaveOccurred(), "apply secret")
 }
 

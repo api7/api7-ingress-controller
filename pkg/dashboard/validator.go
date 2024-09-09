@@ -81,8 +81,6 @@ func (asv *apisixSchemaReferenceValidator) ValidateHTTPPluginSchema(plugins v1.P
 			continue
 		}
 
-		fmt.Println("failed")
-
 		resultErrs = multierror.Append(resultErrs, fmt.Errorf("plugin [%s] config is invalid", pluginName))
 		for _, desc := range result.Errors() {
 			resultErrs = multierror.Append(resultErrs, fmt.Errorf("- %s", desc))

@@ -66,6 +66,7 @@ func TestGatewayAPIConformance(t *testing.T) {
 	opts := conformance.DefaultOptions(t)
 	opts.Debug = true
 	opts.CleanupBaseResources = true
+	opts.GatewayClassName = gatewayClassName
 	opts.SupportedFeatures = sets.New(gatewaySupportedFeatures...)
 	opts.SkipTests = skippedTestsForTraditionalRoutes
 	opts.Implementation = conformancev1.Implementation{
@@ -86,7 +87,7 @@ func TestGatewayAPIConformance(t *testing.T) {
 		t.Fatalf("failed to run the gateway conformance test suite: %v", err)
 	}
 
-	const reportFileName = "api7-ingress-controller.yaml"
+	const reportFileName = "api7-ingress-controller-conformance-report.yaml"
 	report, err := cSuite.Report()
 	if err != nil {
 		t.Fatalf("failed to get the gateway conformance test report: %v", err)

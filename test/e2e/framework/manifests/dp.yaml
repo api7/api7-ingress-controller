@@ -241,7 +241,7 @@ metadata:
 spec:
   ports:
   - name: http
-    port: 80
+    port: {{ .ServiceHTTPPort }}
     protocol: TCP
     targetPort: 9080
   - name: http2
@@ -249,7 +249,7 @@ spec:
     protocol: TCP
     targetPort: 9081
   - name: https
-    port: 443
+    port: {{ .ServiceHTTPSPort }}
     protocol: TCP
     targetPort: 9443
   - name: control-api
@@ -263,4 +263,4 @@ spec:
     app.kubernetes.io/instance: api7ee3
     app.kubernetes.io/name: apisix
     cp-connection: mtls
-  type: {{ .ServiceType }}
+  type: {{ .ServiceType | default "NodePort" }}
