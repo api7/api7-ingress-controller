@@ -1,0 +1,101 @@
+//go:build conformance
+// +build conformance
+
+package conformance
+
+import (
+	"flag"
+	"os"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"sigs.k8s.io/gateway-api/conformance"
+	conformancev1 "sigs.k8s.io/gateway-api/conformance/apis/v1"
+	"sigs.k8s.io/gateway-api/conformance/tests"
+	"sigs.k8s.io/gateway-api/conformance/utils/suite"
+	"sigs.k8s.io/gateway-api/pkg/features"
+	"sigs.k8s.io/yaml"
+)
+
+var skippedTestsForTraditionalRoutes = []string{
+	// TODO: Support ReferenceGrant resource
+	tests.HTTPRouteInvalidReferenceGrant.ShortName,
+	tests.HTTPRoutePartiallyInvalidViaInvalidReferenceGrant.ShortName,
+	tests.HTTPRouteReferenceGrant.ShortName,
+	tests.GatewayInvalidTLSConfiguration.ShortName,
+	tests.GatewaySecretMissingReferenceGrant.ShortName,
+	/*
+		tests.GatewayInvalidTLSConfiguration.ShortName,
+		tests.GatewayModifyListeners.ShortName,
+		tests.GatewayWithAttachedRoutes.ShortName,
+	*/
+	tests.HTTPRouteHTTPSListener.ShortName,
+	tests.HTTPRouteHeaderMatching.ShortName,
+	tests.HTTPRouteMatching.ShortName,
+	tests.HTTPRouteExactPathMatching.ShortName,
+	tests.HTTPRouteInvalidBackendRefUnknownKind.ShortName,
+	tests.HTTPRouteInvalidNonExistentBackendRef.ShortName,
+	tests.HTTPRouteInvalidCrossNamespaceParentRef.ShortName,
+	tests.HTTPRouteInvalidParentRefNotMatchingSectionName.ShortName,
+	tests.HTTPRouteRequestHeaderModifier.ShortName,
+	tests.HTTPRouteWeight.ShortName,
+	tests.HTTPRouteHostnameIntersection.ShortName,
+	tests.HTTPRouteListenerHostnameMatching.ShortName,
+	tests.HTTPRouteMatchingAcrossRoutes.ShortName,
+	tests.GatewaySecretReferenceGrantSpecific.ShortName,
+	tests.GatewaySecretInvalidReferenceGrant.ShortName,
+	tests.GatewaySecretReferenceGrantAllInNamespace.ShortName,
+	tests.HTTPRouteInvalidCrossNamespaceBackendRef.ShortName,
+	tests.HTTPRouteInvalidReferenceGrant.ShortName,
+}
+
+var gatewaySupportedFeatures = []features.SupportedFeature{
+	features.SupportGateway,
+	features.SupportHTTPRoute,
+	// features.SupportHTTPRouteMethodMatching,
+	// features.SupportHTTPRouteResponseHeaderModification,
+	// features.SupportHTTPRouteRequestMirror,
+	// features.SupportHTTPRouteBackendRequestHeaderModification,
+	// features.SupportHTTPRouteHostRewrite,
+}
+
+func TestGatewayAPIConformance(t *testing.T) {
+	flag.Parse()
+
+	opts := conformance.DefaultOptions(t)
+	opts.Debug = true
+	opts.CleanupBaseResources = true
+	opts.SupportedFeatures = sets.New(gatewaySupportedFeatures...)
+	opts.SkipTests = skippedTestsForTraditionalRoutes
+	opts.Implementation = conformancev1.Implementation{
+		Organization: "API7",
+		Project:      "api7-ingress-controller",
+		URL:          "https://github.com/api7/api7-ingress-controller.git",
+		Version:      "v2.0.0",
+	}
+	opts.ConformanceProfiles = sets.New(suite.GatewayHTTPConformanceProfileName)
+
+	cSuite, err := suite.NewConformanceTestSuite(opts)
+	require.NoError(t, err)
+
+	t.Log("starting the gateway conformance test suite")
+	cSuite.Setup(t, tests.ConformanceTests)
+
+	if err := cSuite.Run(t, tests.ConformanceTests); err != nil {
+		t.Fatalf("failed to run the gateway conformance test suite: %v", err)
+	}
+
+	const reportFileName = "api7-ingress-controller.yaml"
+	report, err := cSuite.Report()
+	if err != nil {
+		t.Fatalf("failed to get the gateway conformance test report: %v", err)
+	}
+
+	rawReport, err := yaml.Marshal(report)
+	if err != nil {
+		t.Fatalf("failed to marshal the gateway conformance test report: %v", err)
+	}
+	// Save report in root of the repository, file name is in .gitignore.
+	require.NoError(t, os.WriteFile("../../"+reportFileName, rawReport, 0o600))
+}

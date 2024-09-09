@@ -217,6 +217,15 @@ func (t *Translator) TranslateGatewayHTTPRoute(tctx *TranslateContext, httpRoute
 			upstream.Labels["name"] = string(backend.BackendRef.Name)
 			upstream.Labels["namespace"] = string(*backend.BackendRef.Namespace)
 			upstreams = append(upstreams, upstream)
+			if len(upstream.Nodes) == 0 {
+				upstream.Nodes = v1.UpstreamNodes{
+					{
+						Host:   "0.0.0.0",
+						Port:   80,
+						Weight: 100,
+					},
+				}
+			}
 		}
 
 		service := v1.NewDefaultService()

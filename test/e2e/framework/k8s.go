@@ -10,7 +10,7 @@ import (
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/gavv/httpexpect"
 	"github.com/gruntwork-io/terratest/modules/k8s"
-	. "github.com/onsi/ginkgo/v2"
+	"github.com/gruntwork-io/terratest/modules/testing"
 	. "github.com/onsi/gomega"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
@@ -18,6 +18,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	applycorev1 "k8s.io/client-go/applyconfigurations/core/v1"
+	applymetav1 "k8s.io/client-go/applyconfigurations/meta/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/utils/ptr"
@@ -247,7 +249,7 @@ func (f *Framework) DashboardHTTPClient() *httpexpect.Expect {
 			},
 		},
 		Reporter: httpexpect.NewAssertReporter(
-			httpexpect.NewAssertReporter(GinkgoT()),
+			httpexpect.NewAssertReporter(f.GinkgoT),
 		),
 	})
 }
@@ -266,7 +268,75 @@ func (f *Framework) DashboardHTTPSClient() *httpexpect.Expect {
 			},
 		},
 		Reporter: httpexpect.NewAssertReporter(
-			httpexpect.NewAssertReporter(GinkgoT()),
+			httpexpect.NewAssertReporter(f.GinkgoT),
 		),
 	})
+}
+
+func (f *Framework) applySSLSecret(namespace, name string, cert, pkey, caCert []byte) {
+	kind := "Secret"
+	apiVersion := "v1"
+	secretType := corev1.SecretTypeTLS
+	secret := applycorev1.SecretApplyConfiguration{
+		TypeMetaApplyConfiguration: applymetav1.TypeMetaApplyConfiguration{
+			Kind:       &kind,
+			APIVersion: &apiVersion,
+		},
+		ObjectMetaApplyConfiguration: &applymetav1.ObjectMetaApplyConfiguration{
+			Name: &name,
+		},
+		Data: map[string][]byte{
+			"tls.crt": cert,
+			"tls.key": pkey,
+			"ca.crt":  caCert,
+		},
+		Type: &secretType,
+	}
+
+	cli, err := k8s.GetKubernetesClientE(f.GinkgoT)
+	Expect(err).ToNot(HaveOccurred())
+
+	_, err = cli.CoreV1().Secrets(namespace).Apply(context.TODO(), &secret, metav1.ApplyOptions{
+		FieldManager: "e2e",
+	})
+	fmt.Println(err)
+	Expect(err).ToNot(HaveOccurred(), "apply secret")
+}
+
+func WaitPodsAvailable(t testing.TestingT, kubeOps *k8s.KubectlOptions, opts metav1.ListOptions) error {
+	condFunc := func() (bool, error) {
+		items, err := k8s.ListPodsE(t, kubeOps, opts)
+		if err != nil {
+			return false, err
+		}
+		if len(items) == 0 {
+			return false, nil
+		}
+		for _, item := range items {
+			foundPodReady := false
+			for _, cond := range item.Status.Conditions {
+				if cond.Type != corev1.PodReady {
+					continue
+				}
+				foundPodReady = true
+				if cond.Status != "True" {
+					return false, nil
+				}
+			}
+			if !foundPodReady {
+				return false, nil
+			}
+		}
+		return true, nil
+	}
+	return waitExponentialBackoff(condFunc)
+}
+
+func waitExponentialBackoff(condFunc func() (bool, error)) error {
+	backoff := wait.Backoff{
+		Duration: 500 * time.Millisecond,
+		Factor:   2,
+		Steps:    8,
+	}
+	return wait.ExponentialBackoff(backoff, condFunc)
 }

@@ -1,0 +1,194 @@
+apiVersion: v1
+items:
+- apiVersion: gateway.networking.k8s.io/v1
+  kind: HTTPRoute
+  metadata:
+    creationTimestamp: "2024-09-08T19:41:07Z"
+    generation: 1
+    name: http-route-1
+    namespace: gateway-conformance-infra
+    resourceVersion: "326628"
+    uid: 72519bef-cc95-46ee-bebb-92c72a7a0e78
+  spec:
+    parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: gateway-with-one-attached-route
+      namespace: gateway-conformance-infra
+    rules:
+    - backendRefs:
+      - group: ""
+        kind: Service
+        name: infra-backend-v1
+        port: 8080
+        weight: 1
+      matches:
+      - path:
+          type: PathPrefix
+          value: /
+  status:
+    parents:
+    - conditions:
+      - lastTransitionTime: "2024-09-08T19:41:08Z"
+        message: ""
+        observedGeneration: 1
+        reason: Accepted
+        status: "True"
+        type: Accepted
+      - lastTransitionTime: "2024-09-08T19:41:08Z"
+        message: backendRefs are resolved
+        observedGeneration: 1
+        reason: ResolvedRefs
+        status: "True"
+        type: ResolvedRefs
+      controllerName: gateway.api7.io/api7-ingress-controller
+      parentRef:
+        group: gateway.networking.k8s.io
+        kind: Gateway
+        name: gateway-with-one-attached-route
+        namespace: gateway-conformance-infra
+- apiVersion: gateway.networking.k8s.io/v1
+  kind: HTTPRoute
+  metadata:
+    creationTimestamp: "2024-09-08T19:41:08Z"
+    generation: 1
+    name: http-route-2
+    namespace: gateway-conformance-infra
+    resourceVersion: "326629"
+    uid: 3d7011df-8908-4209-9721-31d6e3648051
+  spec:
+    parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: gateway-with-two-attached-routes
+      namespace: gateway-conformance-infra
+    rules:
+    - backendRefs:
+      - group: ""
+        kind: Service
+        name: infra-backend-v1
+        port: 8080
+        weight: 1
+      matches:
+      - path:
+          type: PathPrefix
+          value: /
+  status:
+    parents:
+    - conditions:
+      - lastTransitionTime: "2024-09-08T19:41:08Z"
+        message: ""
+        observedGeneration: 1
+        reason: Accepted
+        status: "True"
+        type: Accepted
+      - lastTransitionTime: "2024-09-08T19:41:08Z"
+        message: backendRefs are resolved
+        observedGeneration: 1
+        reason: ResolvedRefs
+        status: "True"
+        type: ResolvedRefs
+      controllerName: gateway.api7.io/api7-ingress-controller
+      parentRef:
+        group: gateway.networking.k8s.io
+        kind: Gateway
+        name: gateway-with-two-attached-routes
+        namespace: gateway-conformance-infra
+- apiVersion: gateway.networking.k8s.io/v1
+  kind: HTTPRoute
+  metadata:
+    creationTimestamp: "2024-09-08T19:41:08Z"
+    generation: 1
+    name: http-route-3
+    namespace: gateway-conformance-infra
+    resourceVersion: "326630"
+    uid: abb79334-a7a3-4f26-b74e-b5f9b7fe470f
+  spec:
+    parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: gateway-with-two-attached-routes
+      namespace: gateway-conformance-infra
+    rules:
+    - backendRefs:
+      - group: ""
+        kind: Service
+        name: infra-backend-v1
+        port: 8080
+        weight: 1
+      matches:
+      - path:
+          type: PathPrefix
+          value: /
+  status:
+    parents:
+    - conditions:
+      - lastTransitionTime: "2024-09-08T19:41:08Z"
+        message: ""
+        observedGeneration: 1
+        reason: Accepted
+        status: "True"
+        type: Accepted
+      - lastTransitionTime: "2024-09-08T19:41:08Z"
+        message: backendRefs are resolved
+        observedGeneration: 1
+        reason: ResolvedRefs
+        status: "True"
+        type: ResolvedRefs
+      controllerName: gateway.api7.io/api7-ingress-controller
+      parentRef:
+        group: gateway.networking.k8s.io
+        kind: Gateway
+        name: gateway-with-two-attached-routes
+        namespace: gateway-conformance-infra
+- apiVersion: gateway.networking.k8s.io/v1
+  kind: HTTPRoute
+  metadata:
+    creationTimestamp: "2024-09-08T19:41:08Z"
+    generation: 1
+    name: http-route-4
+    namespace: gateway-conformance-infra
+    resourceVersion: "326631"
+    uid: bea5ac11-c78f-440d-b035-8c0b1b564afc
+  spec:
+    parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: unresolved-gateway-with-one-attached-unresolved-route
+      namespace: gateway-conformance-infra
+      sectionName: tls
+    rules:
+    - backendRefs:
+      - group: ""
+        kind: Service
+        name: does-not-exist
+        port: 8080
+        weight: 1
+      matches:
+      - path:
+          type: PathPrefix
+          value: /
+  status:
+    parents:
+    - conditions:
+      - lastTransitionTime: "2024-09-08T19:41:08Z"
+        message: ""
+        observedGeneration: 1
+        reason: Accepted
+        status: "True"
+        type: Accepted
+      - lastTransitionTime: "2024-09-08T19:41:08Z"
+        message: Service "does-not-exist" not found
+        observedGeneration: 1
+        reason: ResolvedRefs
+        status: "False"
+        type: ResolvedRefs
+      controllerName: gateway.api7.io/api7-ingress-controller
+      parentRef:
+        group: gateway.networking.k8s.io
+        kind: Gateway
+        name: unresolved-gateway-with-one-attached-unresolved-route
+        namespace: gateway-conformance-infra
+kind: List
+metadata:
+  resourceVersion: ""

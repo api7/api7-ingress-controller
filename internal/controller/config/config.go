@@ -71,8 +71,14 @@ func NewConfigFromFile(filename string) (*Config, error) {
 }
 
 func (c *Config) Validate() error {
-	if err := c.validateControlPlanes(c.ControlPlanes); err != nil {
-		return fmt.Errorf("failed to validate control_planes: %w", err)
+
+	if len(c.GatewayConfigs) == 0 {
+		return fmt.Errorf("gateway_configs config is required")
+	}
+	for _, gc := range c.GatewayConfigs {
+		if err := c.validateGatewayConfig(gc); err != nil {
+			return fmt.Errorf("failed to validate control_planes: %w", err)
+		}
 	}
 	if c.ControllerName == "" {
 		return fmt.Errorf("controller_name is required")
@@ -80,50 +86,77 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-func (c *Config) validateControlPlanes(cpc []*ControlPlaneConfig) error {
-	if len(cpc) == 0 {
-		return fmt.Errorf("control_planes config is required")
+func (c *Config) validateGatewayConfig(gc *GatewayConfig) error {
+
+	if gc.Name == "" {
+		return fmt.Errorf("control_planesp[].gateway_name is required")
 	}
-	for _, cp := range cpc {
-		if cp.GatewayName == "" {
-			return fmt.Errorf("control_planesp[].gateway_name is required")
+	if gc.ControlPlane.AdminKey == "" {
+		return fmt.Errorf("control_planes[].admin_api.admin_key is required")
+	}
+	if len(gc.ControlPlane.Endpoints) == 0 {
+		return fmt.Errorf("control_planes[].admin_api.endpoints is required")
+	}
+	if gc.ControlPlane.TLSVerify == nil {
+		gc.ControlPlane.TLSVerify = new(bool)
+		*gc.ControlPlane.TLSVerify = true
+	}
+
+	return nil
+}
+
+var gatewayNameMap map[string]*GatewayConfig
+var gatewayNameList []string
+
+func init_gatewayNameMap() {
+	if gatewayNameMap == nil {
+		gatewayNameMap = make(map[string]*GatewayConfig)
+		for _, gc := range ControllerConfig.GatewayConfigs {
+			gatewayNameMap[gc.Name] = gc
 		}
-		if cp.AdminAPI.AdminKey == "" {
-			return fmt.Errorf("control_planes[].admin_api.admin_key is required")
-		}
-		if len(cp.AdminAPI.Endpoints) == 0 {
-			return fmt.Errorf("control_planes[].admin_api.endpoints is required")
-		}
-		if cp.AdminAPI.TLSVerify == nil {
-			cp.AdminAPI.TLSVerify = new(bool)
-			*cp.AdminAPI.TLSVerify = true
-		}
+	}
+}
+
+func GetControlPlaneConfigByGatewatName(gatewatName string) *ControlPlaneConfig {
+	init_gatewayNameMap()
+	if gc, ok := gatewayNameMap[gatewatName]; ok {
+		return gc.ControlPlane
 	}
 	return nil
 }
 
-var gatewayNameMap map[string]*ControlPlaneConfig
-var gatewayNameList []string
-
-func GetControlPlaneConfigByGatewatName(gatewatName string) *ControlPlaneConfig {
-	if gatewayNameMap == nil {
-		gatewayNameMap = make(map[string]*ControlPlaneConfig)
-		for _, cp := range ControllerConfig.ControlPlanes {
-			gatewayNameMap[cp.GatewayName] = cp
-		}
+func GetGatewayConfig(gatewayName string) *GatewayConfig {
+	init_gatewayNameMap()
+	if gc, ok := gatewayNameMap[gatewayName]; ok {
+		return gc
 	}
-	return gatewayNameMap[gatewatName]
+	return nil
 }
 
-func ControlPlanes() []*ControlPlaneConfig {
-	return ControllerConfig.ControlPlanes
+func GetFirstGatewayConfig() *GatewayConfig {
+	if len(ControllerConfig.GatewayConfigs) > 0 {
+		return ControllerConfig.GatewayConfigs[0]
+	}
+	return nil
+}
+
+func GetGatewayAddresses(gatewayName string) []string {
+	init_gatewayNameMap()
+	if gc, ok := gatewayNameMap[gatewayName]; ok {
+		return gc.Addresses
+	}
+	return nil
+}
+
+func GatewayConfigs() []*GatewayConfig {
+	return ControllerConfig.GatewayConfigs
 }
 
 func GatewayNameList() []string {
 	if gatewayNameList == nil {
-		gatewayNameList = make([]string, 0, len(ControllerConfig.ControlPlanes))
-		for _, cp := range ControllerConfig.ControlPlanes {
-			gatewayNameList = append(gatewayNameList, cp.GatewayName)
+		gatewayNameList = make([]string, 0, len(ControllerConfig.GatewayConfigs))
+		for _, gc := range ControllerConfig.GatewayConfigs {
+			gatewayNameList = append(gatewayNameList, gc.Name)
 		}
 	}
 	return gatewayNameList

@@ -1,0 +1,47 @@
+apiVersion: gateway.networking.k8s.io/v1alpha1
+date: "2024-09-09T04:59:12+08:00"
+gatewayAPIChannel: standard
+gatewayAPIVersion: v1.1.0
+implementation:
+  contact: null
+  organization: API7
+  project: api7-ingress-controller
+  url: https://github.com/api7/api7-ingress-controller.git
+  version: v2.0.0
+kind: ConformanceReport
+mode: default
+profiles:
+- core:
+    failedTests:
+    - HTTPRoutePathMatchOrder
+    - HTTPRouteSimpleSameNamespace
+    result: failure
+    skippedTests:
+    - GatewayInvalidTLSConfiguration
+    - GatewaySecretInvalidReferenceGrant
+    - GatewaySecretMissingReferenceGrant
+    - GatewaySecretReferenceGrantAllInNamespace
+    - GatewaySecretReferenceGrantSpecific
+    - HTTPRouteExactPathMatching
+    - HTTPRouteHTTPSListener
+    - HTTPRouteHeaderMatching
+    - HTTPRouteHostnameIntersection
+    - HTTPRouteInvalidBackendRefUnknownKind
+    - HTTPRouteInvalidCrossNamespaceBackendRef
+    - HTTPRouteInvalidCrossNamespaceParentRef
+    - HTTPRouteInvalidNonExistentBackendRef
+    - HTTPRouteInvalidParentRefNotMatchingSectionName
+    - HTTPRouteInvalidReferenceGrant
+    - HTTPRouteListenerHostnameMatching
+    - HTTPRouteMatching
+    - HTTPRouteMatchingAcrossRoutes
+    - HTTPRoutePartiallyInvalidViaInvalidReferenceGrant
+    - HTTPRouteReferenceGrant
+    - HTTPRouteRequestHeaderModifier
+    - HTTPRouteWeight
+    statistics:
+      Failed: 2
+      Passed: 9
+      Skipped: 22
+  name: GATEWAY-HTTP
+  summary: Core tests failed with 2 test failures.

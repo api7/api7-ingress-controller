@@ -326,8 +326,10 @@ func (s *Scaffold) RestartAPISIXDeploy() {
 		err = s.KillPod(pod.Name)
 		Expect(err).NotTo(HaveOccurred(), "kill apisix pod")
 	}
-	err = s.waitAllAPISIXPodsAvailable()
-	Expect(err).NotTo(HaveOccurred(), "wait apisix pods")
+	err = framework.WaitPodsAvailable(s.t, s.kubectlOptions, metav1.ListOptions{
+		LabelSelector: "app.kubernetes.io/name=apisix",
+	})
+	Expect(err).ToNot(HaveOccurred(), "waiting for gateway pod ready")
 	err = s.newAPISIXTunnels()
 	Expect(err).NotTo(HaveOccurred(), "renew apisix tunnels")
 }
@@ -381,15 +383,14 @@ func (s *Scaffold) beforeEach() {
 	s.gatewaygroupid = s.CreateNewGatewayGroupWithIngress()
 	s.Logf("gateway group id: %s", s.gatewaygroupid)
 
-	s.opts.APISIXAdminAPIKey, err = s.GetAPIKey()
-	Expect(err).NotTo(HaveOccurred(), "getting api key")
+	s.opts.APISIXAdminAPIKey = s.GetAdminKey(s.gatewaygroupid)
 
 	s.Logf("apisix admin api key: %s", s.opts.APISIXAdminAPIKey)
 
 	e := utils.ParallelExecutor{}
 
 	e.Add(func() {
-		s.DeployDataplane()
+		s.deployDataplane()
 		s.initDataPlaneClient()
 	})
 	e.Add(s.DeployTestService)
@@ -445,8 +446,8 @@ func (s *Scaffold) DeployTestService() {
 }
 
 func (s *Scaffold) afterEach() {
-	s.DeleteGatewayGroup()
 	defer GinkgoRecover()
+	s.DeleteGatewayGroup(s.gatewaygroupid)
 
 	if CurrentSpecReport().Failed() {
 		if os.Getenv("TSET_ENV") == "CI" {
@@ -572,7 +573,7 @@ func (s *Scaffold) labelSelector(label string) metav1.ListOptions {
 	}
 }
 
-func (s *Scaffold) waitPodsAvailable(opts metav1.ListOptions) error {
+func (s *Scaffold) waitPodsAvailable(t testing.TestingT, kubeOps *k8s.KubectlOptions, opts metav1.ListOptions) error {
 	condFunc := func() (bool, error) {
 		items, err := k8s.ListPodsE(s.t, s.kubectlOptions, opts)
 		if err != nil {

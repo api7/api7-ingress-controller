@@ -3,11 +3,16 @@ package framework
 import (
 	"bytes"
 	_ "embed"
+	"encoding/json"
+	"fmt"
 	"os"
 	"text/template"
 	"time"
 
+	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
 	"github.com/api7/gopkg/pkg/log"
+	"github.com/google/uuid"
+	"github.com/gruntwork-io/terratest/modules/k8s"
 	. "github.com/onsi/gomega"
 	"golang.org/x/net/html"
 	"helm.sh/helm/v3/pkg/action"
@@ -15,6 +20,8 @@ import (
 
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/kube"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
@@ -215,6 +222,17 @@ developer_portal_configuration:
 	valuesTemplate = tmpl
 }
 
+type responseCreateGateway struct {
+	Value    responseCreateGatewayValue `json:"value"`
+	ErrorMsg string                     `json:"error_msg"`
+}
+
+type responseCreateGatewayValue struct {
+	ID             string `json:"id"`
+	TokenPlainText string `json:"token_plain_text"`
+	Key            string `json:"key"`
+}
+
 func (f *Framework) deploy() {
 	debug := func(format string, v ...any) {
 		log.Infof(format, v...)
@@ -300,4 +318,162 @@ func (f *Framework) ParseHTML(doc *html.Node) map[string]string {
 	fu(doc)
 
 	return htmlMap
+}
+
+func (f *Framework) GetTokenFromDashboard(gatewayGroupID string) (string, error) {
+	respExp := f.DashboardHTTPClient().
+		POST("/api/gateway_groups/"+gatewayGroupID+"/instance_token").
+		WithHeader("Content-Type", "application/json").
+		WithBasicAuth("admin", "admin").
+		Expect()
+
+	respExp.Status(200).Body().Contains("token_plain_text")
+	body := respExp.Body().Raw()
+	// unmarshal into responseCreateGateway
+	var response responseCreateGateway
+	err := json.Unmarshal([]byte(body), &response)
+	if err != nil {
+		return "", err
+	}
+	return response.Value.TokenPlainText, nil
+}
+
+func (f *Framework) GetDataplaneCertificates(gatewayGroupID string) *v1.DataplaneCertificate {
+	respExp := f.DashboardHTTPClient().
+		POST("/api/gateway_groups/"+gatewayGroupID+"/dp_client_certificates").
+		WithBasicAuth("admin", "admin").
+		WithHeader("Content-Type", "application/json").
+		Expect()
+
+	f.Logger.Logf(f.GinkgoT, "dataplane certificates issuer response: %s", respExp.Body().Raw())
+
+	respExp.Status(200).Body().Contains("certificate").Contains("private_key").Contains("ca_certificate")
+	body := respExp.Body().Raw()
+
+	var dpCertResp struct {
+		Value v1.DataplaneCertificate `json:"value"`
+	}
+	err := json.Unmarshal([]byte(body), &dpCertResp)
+	Expect(err).ToNot(HaveOccurred())
+
+	return &dpCertResp.Value
+}
+
+func (s *Framework) GetAdminKey(gatewayGroupID string) string {
+	respExp := s.DashboardHTTPClient().PUT("/api/gateway_groups/"+gatewayGroupID+"/admin_key").
+		WithHeader("Content-Type", "application/json").
+		WithBasicAuth("admin", "admin").
+		Expect()
+
+	respExp.Status(200).Body().Contains("key")
+
+	body := respExp.Body().Raw()
+
+	var response responseCreateGateway
+	err := json.Unmarshal([]byte(body), &response)
+	Expect(err).ToNot(HaveOccurred(), "unmarshal response")
+	return response.Value.Key
+}
+
+func (f *Framework) DeleteGatewayGroup(gatewayGroupID string) {
+	respExp := f.DashboardHTTPClient().
+		DELETE("/api/gateway_groups/"+gatewayGroupID).
+		WithHeader("Content-Type", "application/json").
+		WithBasicAuth("admin", "admin").
+		Expect()
+
+	body := respExp.Body().Raw()
+
+	// unmarshal into responseCreateGateway
+	var response responseCreateGateway
+	err := json.Unmarshal([]byte(body), &response)
+	Expect(err).ToNot(HaveOccurred())
+}
+
+func (f *Framework) CreateNewGatewayGroupWithIngress() string {
+	gid, err := f.CreateNewGatewayGroupWithIngressE()
+	Expect(err).ToNot(HaveOccurred())
+	return gid
+}
+
+func (f *Framework) CreateNewGatewayGroupWithIngressE() (string, error) {
+	gatewayGroupName := uuid.NewString()
+	payload := []byte(fmt.Sprintf(
+		`{"name":"%s","description":"","labels":{},"type":"api7_ingress_controller"}`,
+		gatewayGroupName,
+	))
+
+	respExp := f.DashboardHTTPClient().
+		POST("/api/gateway_groups").
+		WithBasicAuth("admin", "admin").
+		WithHeader("Content-Type", "application/json").
+		WithBytes(payload).
+		Expect()
+
+	f.Logger.Logf(f.GinkgoT, "create gateway group response: %s", respExp.Body().Raw())
+
+	respExp.Status(200).Body().Contains("id")
+
+	body := respExp.Body().Raw()
+
+	var response responseCreateGateway
+
+	err := json.Unmarshal([]byte(body), &response)
+	if err != nil {
+		return "", err
+	}
+
+	if response.ErrorMsg != "" {
+		return "", fmt.Errorf("error creating gateway group: %s", response.ErrorMsg)
+	}
+	return response.Value.ID, nil
+}
+
+type DataPlaneDeployOptions struct {
+	Namespace string
+	Name      string
+
+	GatewayGroupID         string
+	TLSEnabled             bool
+	SSLKey                 string
+	SSLCert                string
+	DPManagerEndpoint      string
+	SetEnv                 bool
+	ForIngressGatewayGroup bool
+
+	ServiceName string
+	ServiceType string
+}
+
+func (f *Framework) DeployGateway(opts DataPlaneDeployOptions) *corev1.Service {
+	if opts.ServiceType == "" {
+		opts.ServiceType = "ClusterIP"
+	}
+	if opts.ServiceName == "" {
+		opts.ServiceName = "api7ee3-apisix-gateway-mtls"
+	}
+
+	dpCert := f.GetDataplaneCertificates(opts.GatewayGroupID)
+
+	f.applySSLSecret(opts.Namespace, "dp-ssl", []byte(dpCert.Certificate), []byte(dpCert.PrivateKey), []byte(dpCert.CACertificate))
+
+	buf := bytes.NewBuffer(nil)
+
+	_ = DPSpecTpl.Execute(buf, opts)
+
+	kubectlOpts := k8s.NewKubectlOptions("", "", opts.Namespace)
+
+	fmt.Println(buf.String())
+
+	k8s.KubectlApplyFromString(f.GinkgoT, kubectlOpts, buf.String())
+
+	err := WaitPodsAvailable(f.GinkgoT, kubectlOpts, metav1.ListOptions{
+		LabelSelector: "app.kubernetes.io/name=apisix",
+	})
+	Expect(err).ToNot(HaveOccurred(), "waiting for gateway pod ready")
+
+	svc, err := k8s.GetServiceE(f.GinkgoT, kubectlOpts, opts.ServiceName)
+	Expect(err).ToNot(HaveOccurred(), "getting service")
+
+	return svc
 }

@@ -40,26 +40,26 @@ import (
 	"github.com/api7/gopkg/pkg/log"
 )
 
-type ControlPlanesFlag struct {
-	ControlPlanes []*config.ControlPlaneConfig
+type GatewayConfigsFlag struct {
+	GatewayConfigs []*config.GatewayConfig
 }
 
-func (f *ControlPlanesFlag) String() string {
-	data, _ := yaml.Marshal(f.ControlPlanes)
+func (f *GatewayConfigsFlag) String() string {
+	data, _ := yaml.Marshal(f.GatewayConfigs)
 	return string(data)
 }
 
-func (f *ControlPlanesFlag) Set(value string) error {
-	var controlPlanes []*config.ControlPlaneConfig
-	if err := yaml.Unmarshal([]byte(value), &controlPlanes); err != nil {
+func (f *GatewayConfigsFlag) Set(value string) error {
+	var gatewayConfigs []*config.GatewayConfig
+	if err := yaml.Unmarshal([]byte(value), &gatewayConfigs); err != nil {
 		return err
 	}
-	f.ControlPlanes = controlPlanes
+	f.GatewayConfigs = gatewayConfigs
 	return nil
 }
 
-func (f *ControlPlanesFlag) Type() string {
-	return "controlPlanes"
+func (f *GatewayConfigsFlag) Type() string {
+	return "gateway_configs"
 }
 
 func NewRootCmd() *cobra.Command {
@@ -91,7 +91,7 @@ func newAPI7IngressController() *cobra.Command {
 	cfg := config.ControllerConfig
 	var configPath string
 
-	var controlPlanesFlag ControlPlanesFlag
+	var controlPlanesFlag GatewayConfigsFlag
 	cmd := &cobra.Command{
 		Use:     "api7-ingress-controller [command]",
 		Long:    "Yet another Ingress controller for Kubernetes using api7ee Gateway as the high performance reverse proxy.",
@@ -105,7 +105,7 @@ func newAPI7IngressController() *cobra.Command {
 				cfg = c
 				config.SetControllerConfig(c)
 			} else {
-				cfg.ControlPlanes = controlPlanesFlag.ControlPlanes
+				cfg.GatewayConfigs = controlPlanesFlag.GatewayConfigs
 			}
 
 			if err := cfg.Validate(); err != nil {

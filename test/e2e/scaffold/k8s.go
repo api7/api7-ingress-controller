@@ -153,45 +153,6 @@ func (s *Scaffold) ClusterClient() (apisix.Cluster, error) {
 	return cli.Cluster(""), nil
 }
 
-func (s *Scaffold) newAPISIXTunnels() error {
-	var (
-		httpNodePort  int
-		httpsNodePort int
-		httpPort      int
-		httpsPort     int
-		serviceName   = "api7ee3-apisix-gateway-mtls"
-	)
-
-	svc, err := k8s.GetServiceE(s.t, s.kubectlOptions, serviceName)
-	if err != nil {
-		return err
-	}
-	s.dataplaneService = svc
-	for _, port := range svc.Spec.Ports {
-		if port.Name == "http" {
-			httpNodePort = int(port.NodePort)
-			httpPort = int(port.Port)
-		} else if port.Name == "https" {
-			httpsNodePort = int(port.NodePort)
-			httpsPort = int(port.Port)
-		}
-	}
-	s.apisixHttpTunnel = k8s.NewTunnel(s.kubectlOptions, k8s.ResourceTypeService, serviceName,
-		httpNodePort, httpPort)
-	s.apisixHttpsTunnel = k8s.NewTunnel(s.kubectlOptions, k8s.ResourceTypeService, serviceName,
-		httpsNodePort, httpsPort)
-
-	if err := s.apisixHttpTunnel.ForwardPortE(s.t); err != nil {
-		return err
-	}
-	s.addFinalizers(s.apisixHttpTunnel.Close)
-	if err := s.apisixHttpsTunnel.ForwardPortE(s.t); err != nil {
-		return err
-	}
-	s.addFinalizers(s.apisixHttpsTunnel.Close)
-	return nil
-}
-
 func (s *Scaffold) shutdownApisixTunnel() {
 	s.apisixHttpTunnel.Close()
 	s.apisixHttpsTunnel.Close()

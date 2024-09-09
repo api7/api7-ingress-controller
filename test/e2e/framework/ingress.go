@@ -1,10 +1,15 @@
 package framework
 
 import (
+	"bytes"
 	_ "embed"
+	"fmt"
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
+	"github.com/gruntwork-io/terratest/modules/k8s"
+	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var (
@@ -19,4 +24,30 @@ func init() {
 		panic(err)
 	}
 	IngressSpecTpl = tpl
+}
+
+type IngressDeployOpts struct {
+	ControllerName string
+	AdminKey       string
+	AdminTLSVerify bool
+	Namespace      string
+	AdminEnpoint   string
+	StatusAddress  string
+}
+
+func (f *Framework) DeployIngress(opts IngressDeployOpts) {
+	buf := bytes.NewBuffer(nil)
+
+	err := IngressSpecTpl.Execute(buf, opts)
+	fmt.Println(err)
+	f.GomegaT.Expect(err).ToNot(HaveOccurred(), "rendering ingress spec")
+
+	kubectlOpts := k8s.NewKubectlOptions("", "", opts.Namespace)
+
+	k8s.KubectlApplyFromString(f.GinkgoT, kubectlOpts, buf.String())
+
+	err = WaitPodsAvailable(f.GinkgoT, kubectlOpts, metav1.ListOptions{
+		LabelSelector: "control-plane=controller-manager",
+	})
+	f.GomegaT.Expect(err).ToNot(HaveOccurred(), "waiting for controller-manager pod ready")
 }

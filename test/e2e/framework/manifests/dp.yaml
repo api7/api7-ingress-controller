@@ -148,11 +148,6 @@ spec:
       {{- if .TLSEnabled }}
       cp-connection: mtls
       {{- end }}
-      {{- if .API7GatewayLabels }}
-      {{- range $key, $value := .API7GatewayLabels }}
-      {{ $key }}: {{ $value }}
-      {{- end }}
-      {{- end }}
   template:
     metadata:
       labels:
@@ -242,11 +237,11 @@ metadata:
     app.kubernetes.io/instance: api7ee3
     app.kubernetes.io/name: apisix
     app.kubernetes.io/service: apisix-gateway
-  name: api7ee3-apisix-gateway-mtls
+  name: {{ .ServiceName }}
 spec:
   ports:
   - name: http
-    port: 9080
+    port: 80
     protocol: TCP
     targetPort: 9080
   - name: http2
@@ -254,7 +249,7 @@ spec:
     protocol: TCP
     targetPort: 9081
   - name: https
-    port: 9443
+    port: 443
     protocol: TCP
     targetPort: 9443
   - name: control-api
@@ -268,3 +263,4 @@ spec:
     app.kubernetes.io/instance: api7ee3
     app.kubernetes.io/name: apisix
     cp-connection: mtls
+  type: {{ .ServiceType }}

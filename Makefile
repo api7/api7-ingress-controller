@@ -88,6 +88,10 @@ kind-e2e-test: kind-up build-image kind-load-images e2e-test
 e2e-test:
 	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test ./test/e2e/ -v -ginkgo.v
 
+.PHONY: conformance-test
+conformance-test:
+	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test ./test/conformance/ -v -ginkgo.v
+
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter
 	$(GOLANGCI_LINT) run
@@ -183,6 +187,10 @@ endif
 .PHONY: install-gateway-api
 install-gateway-api: ## Install Gateway API CRDs into the K8s cluster specified in ~/.kube/config.
 	kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/$(GATEAY_API_VERSION)/standard-install.yaml
+
+.PHONY: uninstall-gateway-api
+uninstall-gateway-api: ## Uninstall Gateway API CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+	kubectl delete -f https://github.com/kubernetes-sigs/gateway-api/releases/download/$(GATEAY_API_VERSION)/standard-install.yaml
 
 .PHONY: install
 install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.

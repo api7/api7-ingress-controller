@@ -58,13 +58,12 @@ spec:
         # seccompProfile:
         #   type: RuntimeDefault
       containers:
-      - command:
-        - /manager
-        args:
-          - --leader-elect
-          - --health-probe-bind-address=:8081
-        image: controller:latest
+      - image: controller:latest
         name: manager
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/conf/config.yaml
+          subPath: config.yaml
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -91,5 +90,9 @@ spec:
           requests:
             cpu: 10m
             memory: 64Mi
+      volumes:
+      - name: config-volume
+        configMap:
+          name: controller-config
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10

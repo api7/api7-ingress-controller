@@ -31,7 +31,11 @@ import (
 // Run e2e tests using the Ginkgo runner.
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(Fail)
-	_ = framework.NewFramework()
+	f := framework.NewFramework()
+
+	BeforeSuite(f.BeforeSuite)
+	AfterSuite(f.AfterSuite)
+
 	_, _ = fmt.Fprintf(GinkgoWriter, "Starting api7-ingress suite\n")
 	RunSpecs(t, "e2e suite")
 }

@@ -20,25 +20,26 @@ const (
 // Config contains all config items which are necessary for
 // apisix-ingress-controller's running.
 type Config struct {
-	CertFilePath     string                `json:"cert_file" yaml:"cert_file"`
-	KeyFilePath      string                `json:"key_file" yaml:"key_file"`
-	LogLevel         string                `json:"log_level" yaml:"log_level"`
-	ControllerName   string                `json:"controller_name" yaml:"controller_name"`
-	LeaderElectionID string                `json:"leader_election_id" yaml:"leader_election_id"`
-	ControlPlanes    []*ControlPlaneConfig `json:"control_planes" yaml:"control_planes"`
-	MetricsAddr      string                `json:"metrics_addr" yaml:"metrics_addr"`
-	EnableHTTP2      bool                  `json:"enable_http2" yaml:"enable_http2"`
-	ProbeAddr        string                `json:"probe_addr" yaml:"probe_addr"`
-	SecureMetrics    bool                  `json:"secure_metrics" yaml:"secure_metrics"`
+	CertFilePath     string           `json:"cert_file" yaml:"cert_file"`
+	KeyFilePath      string           `json:"key_file" yaml:"key_file"`
+	LogLevel         string           `json:"log_level" yaml:"log_level"`
+	ControllerName   string           `json:"controller_name" yaml:"controller_name"`
+	LeaderElectionID string           `json:"leader_election_id" yaml:"leader_election_id"`
+	GatewayConfigs   []*GatewayConfig `json:"gateway_configs" yaml:"gateway_configs"`
+	MetricsAddr      string           `json:"metrics_addr" yaml:"metrics_addr"`
+	EnableHTTP2      bool             `json:"enable_http2" yaml:"enable_http2"`
+	ProbeAddr        string           `json:"probe_addr" yaml:"probe_addr"`
+	SecureMetrics    bool             `json:"secure_metrics" yaml:"secure_metrics"`
+}
+
+type GatewayConfig struct {
+	Name         string              `json:"name" yaml:"name"`
+	ControlPlane *ControlPlaneConfig `json:"control_plane" yaml:"control_plane"`
+	Addresses    []string            `json:"addresses" yaml:"addresses"`
 }
 
 type ControlPlaneConfig struct {
-	GatewayName string   `json:"gateway_name" yaml:"gateway_name"`
-	AdminAPI    AdminAPI `json:"admin_api" yaml:"admin_api"`
-}
-
-type AdminAPI struct {
-	Endpoints []string `json:"endpoints" yaml:"endpoints"`
 	AdminKey  string   `json:"admin_key" yaml:"admin_key"`
+	Endpoints []string `json:"endpoints" yaml:"endpoints"`
 	TLSVerify *bool    `json:"tls_verify" yaml:"tls_verify"`
 }
