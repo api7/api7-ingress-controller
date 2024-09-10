@@ -5,10 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/api7/api7-ingress-controller/internal/controller/config"
-	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
-	"github.com/api7/api7-ingress-controller/internal/controlplane"
-	"github.com/api7/api7-ingress-controller/internal/controlplane/translator"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
@@ -18,6 +14,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
+	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
+	"github.com/api7/api7-ingress-controller/internal/controlplane"
+	"github.com/api7/api7-ingress-controller/internal/controlplane/translator"
 )
 
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch
@@ -51,7 +51,6 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-
 	hr := new(gatewayv1.HTTPRoute)
 	if err := r.Get(ctx, req.NamespacedName, hr); err != nil {
 		if client.IgnoreNotFound(err) == nil {
@@ -65,43 +64,6 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
-	}
-	gateways := make([]*gatewayv1.Gateway, 0)
-	for _, gatewayRef := range hr.Spec.ParentRefs {
-		namespace := hr.GetNamespace()
-		if gatewayRef.Namespace != nil {
-			namespace = string(*gatewayRef.Namespace)
-		}
-
-		gateway := new(gatewayv1.Gateway)
-		if err := r.Get(ctx, client.ObjectKey{
-			Name:      string(gatewayRef.Name),
-			Namespace: namespace,
-		}, gateway); err != nil {
-			if client.IgnoreNotFound(err) != nil {
-				continue
-			}
-			return ctrl.Result{}, err
-		}
-
-		gatewayClass := new(gatewayv1.GatewayClass)
-		if err := r.Get(ctx, client.ObjectKey{
-			Name: string(gateway.Spec.GatewayClassName),
-		}, gatewayClass); err != nil {
-			if client.IgnoreNotFound(err) != nil {
-				continue
-			}
-			return ctrl.Result{}, err
-		}
-
-		if string(gatewayClass.Spec.ControllerName) != config.ControllerConfig.ControllerName {
-			continue
-		}
-		gateways = append(gateways, gateway)
-	}
-
-	if len(gateways) == 0 {
-		return ctrl.Result{}, nil
 	}
 
 	type status struct {
@@ -118,8 +80,16 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		msg:    "Route is accepted",
 	}
 
+	gateways, err := ParseRouteParentRefs(ctx, r.Client, hr, hr.Spec.ParentRefs)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if len(gateways) == 0 {
+		return ctrl.Result{}, nil
+	}
+
 	tctx := &translator.TranslateContext{
-		Gateways:       gateways,
 		EndpointSlices: make(map[client.ObjectKey][]discoveryv1.EndpointSlice),
 	}
 	if err := r.processHTTPRoute(tctx, hr); err != nil {
@@ -128,8 +98,10 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	if err := r.processHTTPRouteBackendRefs(tctx); err != nil {
-		resolveRefStatus.status = false
-		resolveRefStatus.msg = err.Error()
+		resolveRefStatus = status{
+			status: false,
+			msg:    err.Error(),
+		}
 	}
 
 	if err := r.ControlPalneClient.Update(ctx, tctx, hr); err != nil {
@@ -140,12 +112,19 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// process the HTTPRoute
 
 	// TODO: diff the old and new status
-	hr.Status.Parents = make([]gatewayv1.RouteParentStatus, len(gateways))
-	for i, gateway := range gateways {
-		SetRouteConditionAccepted(hr, i, acceptStatus.status, acceptStatus.msg)
-		SetRouteConditionResolvedRefs(hr, i, resolveRefStatus.status, resolveRefStatus.msg)
-		SetRouteStatusParentRef(hr, i, gateway.Name)
-		hr.Status.Parents[i].ControllerName = gatewayv1.GatewayController(config.ControllerConfig.ControllerName)
+	hr.Status.Parents = make([]gatewayv1.RouteParentStatus, 0, len(gateways))
+	for _, gateway := range gateways {
+		parentStatus := gatewayv1.RouteParentStatus{}
+		SetRouteParentRef(&parentStatus, gateway.Gateway.Name, gateway.Gateway.Namespace)
+		for _, condition := range gateway.Conditions {
+			parentStatus.Conditions = MergeCondition(parentStatus.Conditions, condition)
+		}
+		if gateway.ListenerName == "" {
+			continue
+		}
+		SetRouteConditionAccepted(&parentStatus, hr.GetGeneration(), acceptStatus.status, acceptStatus.msg)
+		SetRouteConditionResolvedRefs(&parentStatus, hr.GetGeneration(), resolveRefStatus.status, resolveRefStatus.msg)
+		hr.Status.Parents = append(hr.Status.Parents, parentStatus)
 	}
 	if err := r.Status().Update(ctx, hr); err != nil {
 		return ctrl.Result{}, err
@@ -188,6 +167,7 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *translator.Trans
 		name := string(backend.Name)
 
 		if backend.Kind != nil && *backend.Kind != "Service" {
+			terr = fmt.Errorf("kind %s is not supported", *backend.Kind)
 			continue
 		}
 
@@ -202,6 +182,7 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *translator.Trans
 			Name:      name,
 		}, &service); err != nil {
 			terr = err
+			continue
 		}
 
 		portExists := false

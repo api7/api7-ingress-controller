@@ -121,6 +121,22 @@ rules:
   - list
   - watch
 - apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - coordination.k8s.io
   resources:
   - leases
@@ -297,17 +313,19 @@ data:
   config.yaml: |
     log_level: "debug"
 
-    controller_name: {{ .ControllerName }}
+    controller_name: {{ .ControllerName | default "gateway.api7.io/api7-ingress-controller" }}
 
     leader_election_id: "api7-ingress-controller-leader"
-
-    control_planes:
-      - gateway_name: "api7ee"
-        admin_api:
-          endpoints:
-            - "{{ .AdminEnpoint }}"
-          admin_key: "{{ .AdminKey }}"
-          tls_verify: {{ .AdminTLSVerify }}
+    
+    gateway_configs:
+    - name: "api7ee"
+      control_plane:
+        admin_key: "{{ .AdminKey }}"
+        endpoints:
+          - "{{ .AdminEnpoint }}"
+        tls_verify: {{ .AdminTLSVerify }}
+      addresses:                      # record the status address of the gateway-api gateway
+      - "{{ .StatusAddress }}"
 ---
 apiVersion: v1
 kind: Service

@@ -14,7 +14,6 @@ type Translator struct {
 }
 
 type TranslateContext struct {
-	Gateways       []*gatewayv1.Gateway
 	BackendRefs    []gatewayv1.BackendRef
 	EndpointSlices map[types.NamespacedName][]discoveryv1.EndpointSlice
 }

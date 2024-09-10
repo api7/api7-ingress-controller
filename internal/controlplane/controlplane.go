@@ -27,15 +27,14 @@ func NewDashboard() (Controlplane, error) {
 		return nil, err
 	}
 
-	for _, cp := range config.ControllerConfig.ControlPlanes {
-		if err := control.AddCluster(context.TODO(), &dashboard.ClusterOptions{
-			Name:          cp.GatewayName,
-			BaseURL:       cp.AdminAPI.Endpoints[0],
-			AdminKey:      cp.AdminAPI.AdminKey,
-			SkipTLSVerify: !*cp.AdminAPI.TLSVerify,
-		}); err != nil {
-			return nil, err
-		}
+	gc := config.GetFirstGatewayConfig()
+	if err := control.AddCluster(context.TODO(), &dashboard.ClusterOptions{
+		Name:          "default",
+		BaseURL:       gc.ControlPlane.Endpoints[0],
+		AdminKey:      gc.ControlPlane.AdminKey,
+		SkipTLSVerify: !*gc.ControlPlane.TLSVerify,
+	}); err != nil {
+		return nil, err
 	}
 
 	return &dashboardClient{
@@ -55,17 +54,15 @@ func (d *dashboardClient) Update(ctx context.Context, tctx *translator.Translate
 		return err
 	}
 	// TODO: support diff resources
-	for _, gateway := range tctx.Gateways {
-		name := gateway.Name
-		for _, service := range result.Services {
-			if _, err := d.c.Cluster(name).Service().Update(ctx, service); err != nil {
-				return err
-			}
+	name := "default"
+	for _, service := range result.Services {
+		if _, err := d.c.Cluster(name).Service().Update(ctx, service); err != nil {
+			return err
 		}
-		for _, route := range result.Routes {
-			if _, err := d.c.Cluster(name).Route().Update(ctx, route); err != nil {
-				return err
-			}
+	}
+	for _, route := range result.Routes {
+		if _, err := d.c.Cluster(name).Route().Update(ctx, route); err != nil {
+			return err
 		}
 	}
 	return nil

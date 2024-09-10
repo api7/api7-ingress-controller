@@ -1,0 +1,16 @@
+log_level: "info"
+
+controller_name: gateway.api7.io/api7-ingress-controller
+
+leader_election_id: "api7-ingress-controller-leader"
+
+
+gateway_configs:
+- name: api7
+  control_plane:
+    admin_key: "a7adm-Bu1gnDLqhX1EBF5x1Tjd5zfqiN8AxZ2niZ0coJ5V9A5bI5ghFI-91cb232c6b3a4b2f940f240fc4fbea4e"
+    endpoints:
+      - "http://172.18.0.3:7080/apisix/admin"
+    tls_verify: false
+  addresses:                      # record the status address of the gateway-api gateway
+  - "172.18.0.4"

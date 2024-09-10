@@ -62,8 +62,6 @@ type Framework struct {
 
 // NewFramework create a global framework with special settings.
 func NewFramework() *Framework {
-	GinkgoWriter.Println("into NewFramework")
-
 	f := &Framework{
 		GinkgoT:           GinkgoT(),
 		GomegaT:           NewWithT(GinkgoT(4)),
@@ -87,37 +85,41 @@ func NewFramework() *Framework {
 
 	_framework = f
 
-	BeforeSuite(func() {
-		_ = k8s.DeleteNamespaceE(GinkgoT(), f.kubectlOpts, _namespace)
-
-		Eventually(func() error {
-			_, err := k8s.GetNamespaceE(GinkgoT(), f.kubectlOpts, _namespace)
-			if k8serrors.IsNotFound(err) {
-				return nil
-			}
-			return fmt.Errorf("namespace %s still exists", _namespace)
-		}, "1m", "2s").Should(Succeed())
-
-		k8s.CreateNamespace(GinkgoT(), f.kubectlOpts, _namespace)
-
-		f.DeployComponents()
-
-		time.Sleep(1 * time.Minute)
-		err := f.newDashboardTunnel()
-		f.Logf("Dashboard HTTP Tunnel:" + f.dashboardHTTPTunnel.Endpoint())
-		Expect(err).ShouldNot(HaveOccurred(), "creating dashboard tunnel")
-
-		f.UploadLicense()
-
-		f.setDpManagerEndpoints()
-	})
-	AfterSuite(func() {
-		f.shutdownDashboardTunnel()
-	})
+	// BeforeSuite(f.BeforeSuite)
+	// AfterSuite(f.AfterSuite)
 
 	GinkgoWriter.Println("Another debug message")
 
 	return f
+}
+
+func (f *Framework) BeforeSuite() {
+	_ = k8s.DeleteNamespaceE(GinkgoT(), f.kubectlOpts, _namespace)
+
+	Eventually(func() error {
+		_, err := k8s.GetNamespaceE(GinkgoT(), f.kubectlOpts, _namespace)
+		if k8serrors.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("namespace %s still exists", _namespace)
+	}, "1m", "2s").Should(Succeed())
+
+	k8s.CreateNamespace(GinkgoT(), f.kubectlOpts, _namespace)
+
+	f.DeployComponents()
+
+	time.Sleep(1 * time.Minute)
+	err := f.newDashboardTunnel()
+	f.Logf("Dashboard HTTP Tunnel:" + f.dashboardHTTPTunnel.Endpoint())
+	Expect(err).ShouldNot(HaveOccurred(), "creating dashboard tunnel")
+
+	f.UploadLicense()
+
+	f.setDpManagerEndpoints()
+}
+
+func (f *Framework) AfterSuite() {
+	f.shutdownDashboardTunnel()
 }
 
 type Items[T any] []T

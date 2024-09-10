@@ -33,7 +33,6 @@ import (
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/testing"
 	. "github.com/onsi/ginkgo/v2"
-	ginkgo "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -84,6 +83,7 @@ type Scaffold struct {
 	nodes            []corev1.Node
 	dataplaneService *corev1.Service
 	httpbinService   *corev1.Service
+	gatewayAddress   string
 
 	finalizers []func()
 	label      map[string]string
@@ -326,8 +326,10 @@ func (s *Scaffold) RestartAPISIXDeploy() {
 		err = s.KillPod(pod.Name)
 		Expect(err).NotTo(HaveOccurred(), "kill apisix pod")
 	}
-	err = s.waitAllAPISIXPodsAvailable()
-	Expect(err).NotTo(HaveOccurred(), "wait apisix pods")
+	err = framework.WaitPodsAvailable(s.t, s.kubectlOptions, metav1.ListOptions{
+		LabelSelector: "app.kubernetes.io/name=apisix",
+	})
+	Expect(err).ToNot(HaveOccurred(), "waiting for gateway pod ready")
 	err = s.newAPISIXTunnels()
 	Expect(err).NotTo(HaveOccurred(), "renew apisix tunnels")
 }
@@ -381,19 +383,18 @@ func (s *Scaffold) beforeEach() {
 	s.gatewaygroupid = s.CreateNewGatewayGroupWithIngress()
 	s.Logf("gateway group id: %s", s.gatewaygroupid)
 
-	s.opts.APISIXAdminAPIKey, err = s.GetAPIKey()
-	Expect(err).NotTo(HaveOccurred(), "getting api key")
+	s.opts.APISIXAdminAPIKey = s.GetAdminKey(s.gatewaygroupid)
 
 	s.Logf("apisix admin api key: %s", s.opts.APISIXAdminAPIKey)
 
 	e := utils.ParallelExecutor{}
 
 	e.Add(func() {
-		s.DeployDataplane()
+		s.deployDataplane()
+		s.deployIngress()
 		s.initDataPlaneClient()
 	})
 	e.Add(s.DeployTestService)
-	e.Add(s.deployIngress)
 
 	e.Wait()
 }
@@ -445,8 +446,9 @@ func (s *Scaffold) DeployTestService() {
 }
 
 func (s *Scaffold) afterEach() {
-	s.DeleteGatewayGroup()
 	defer GinkgoRecover()
+	s.DeleteGatewayGroup(s.gatewaygroupid)
+	s.shutdownApisixTunnel()
 
 	if CurrentSpecReport().Failed() {
 		if os.Getenv("TSET_ENV") == "CI" {
@@ -570,36 +572,6 @@ func (s *Scaffold) labelSelector(label string) metav1.ListOptions {
 	return metav1.ListOptions{
 		LabelSelector: label,
 	}
-}
-
-func (s *Scaffold) waitPodsAvailable(opts metav1.ListOptions) error {
-	condFunc := func() (bool, error) {
-		items, err := k8s.ListPodsE(s.t, s.kubectlOptions, opts)
-		if err != nil {
-			return false, err
-		}
-		if len(items) == 0 {
-			ginkgo.GinkgoT().Log("no apisix pods created")
-			return false, nil
-		}
-		for _, item := range items {
-			foundPodReady := false
-			for _, cond := range item.Status.Conditions {
-				if cond.Type != corev1.PodReady {
-					continue
-				}
-				foundPodReady = true
-				if cond.Status != "True" {
-					return false, nil
-				}
-			}
-			if !foundPodReady {
-				return false, nil
-			}
-		}
-		return true, nil
-	}
-	return waitExponentialBackoff(condFunc)
 }
 
 func (s *Scaffold) GetControllerName() string {

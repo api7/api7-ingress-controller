@@ -1,4 +1,5 @@
 ## Append samples of your project ##
-resources:
-- gateway.apisix.io_v1alpha1_guestbook.yaml
-# +kubebuilder:scaffold:manifestskustomizesamples
+configMapGenerator:
+  - name: controller-config
+    files:
+      - config.yaml
