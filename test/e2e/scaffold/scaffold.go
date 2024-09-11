@@ -448,7 +448,6 @@ func (s *Scaffold) DeployTestService() {
 func (s *Scaffold) afterEach() {
 	defer GinkgoRecover()
 	s.DeleteGatewayGroup(s.gatewaygroupid)
-	s.shutdownApisixTunnel()
 
 	if CurrentSpecReport().Failed() {
 		if os.Getenv("TSET_ENV") == "CI" {

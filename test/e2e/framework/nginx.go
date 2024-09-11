@@ -40,9 +40,10 @@ func (f *Framework) DeployNginx(opts NginxOptions) *corev1.Service {
 
 	k8s.KubectlApplyFromString(f.GinkgoT, kubectlOpts, buf.String())
 
-	WaitPodsAvailable(f.GinkgoT, kubectlOpts, metav1.ListOptions{
+	err = WaitPodsAvailable(f.GinkgoT, kubectlOpts, metav1.ListOptions{
 		LabelSelector: "app=nginx",
 	})
+	Expect(err).ToNot(HaveOccurred(), "waiting for nginx pod ready")
 
 	return k8s.GetService(f.GinkgoT, kubectlOpts, "nginx")
 }
