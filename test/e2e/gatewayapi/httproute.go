@@ -3,11 +3,13 @@ package gatewayapi
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
@@ -501,6 +503,116 @@ spec:
 			Expect(echoLogs).To(ContainSubstring("GET /headers"))
 		})
 	})
+
+	Context("HTTPRoute Multiple Backend", func() {
+		var sameWeiht = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin.example
+  rules:
+  - matches:
+    - path:
+        type: Exact
+        value: /get
+    filters:
+    - type: RequestMirror
+      requestMirror:
+        backendRef:
+          name: echo-service
+          port: 80
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+      weight: 50
+    - name: nginx
+      port: 80
+      weight: 50
+ `
+		var oneWeiht = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin.example
+  rules:
+  - matches:
+    - path:
+        type: Exact
+        value: /get
+    filters:
+    - type: RequestMirror
+      requestMirror:
+        backendRef:
+          name: echo-service
+          port: 80
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+      weight: 100
+    - name: nginx
+      port: 80
+      weight: 0
+ `
+
+		BeforeEach(func() {
+			beforeEach()
+			s.DeployNginx(framework.NginxOptions{
+				Namespace: s.Namespace(),
+			})
+		})
+		It("HTTPRoute Canary", func() {
+			ResourceApplied("HTTPRoute", "httpbin", sameWeiht, 1)
+
+			var (
+				hitNginxCnt   = 0
+				hitHttpbinCnt = 0
+			)
+			for i := 0; i < 100; i++ {
+				body := s.NewAPISIXClient().GET("/get").
+					WithHeader("Host", "httpbin.example").
+					Expect().
+					Status(http.StatusOK).
+					Body().Raw()
+
+				if strings.Contains(body, "Hello") {
+					hitNginxCnt++
+				} else {
+					hitHttpbinCnt++
+				}
+			}
+			Expect(hitNginxCnt - hitHttpbinCnt).To(BeNumerically("~", 0, 2))
+
+			ResourceApplied("HTTPRoute", "httpbin", oneWeiht, 2)
+
+			hitNginxCnt = 0
+			hitHttpbinCnt = 0
+			for i := 0; i < 100; i++ {
+				body := s.NewAPISIXClient().GET("/get").
+					WithHeader("Host", "httpbin.example").
+					Expect().
+					Status(http.StatusOK).
+					Body().Raw()
+
+				if strings.Contains(body, "Hello") {
+					hitNginxCnt++
+				} else {
+					hitHttpbinCnt++
+				}
+			}
+			Expect(hitHttpbinCnt - hitNginxCnt).To(Equal(100))
+		})
+	})
+
 	/*
 		Context("HTTPRoute Status Updated", func() {
 		})
@@ -508,8 +620,6 @@ spec:
 		Context("HTTPRoute ParentRefs With Multiple Gateway", func() {
 		})
 
-		Context("HTTPRoute Canary", func() {
-		})
 
 		Context("HTTPRoute BackendRefs Discovery", func() {
 		})

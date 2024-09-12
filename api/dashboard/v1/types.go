@@ -557,6 +557,7 @@ func NewDefaultService() *Service {
 				"managed-by": "api7-ingress-controller",
 			},
 		},
+		Plugins: make(Plugins),
 	}
 }
 
@@ -649,6 +650,23 @@ func ComposeUpstreamName(namespace, name string, port int32) string {
 }
 
 func ComposeServiceNameWithRule(namespace, name string, rule string) string {
+	// FIXME Use sync.Pool to reuse this buffer if the upstream
+	// name composing code path is hot.
+	var p []byte
+	plen := len(namespace) + len(name) + 2
+
+	p = make([]byte, 0, plen)
+	buf := bytes.NewBuffer(p)
+	buf.WriteString(namespace)
+	buf.WriteByte('_')
+	buf.WriteString(name)
+	buf.WriteByte('_')
+	buf.WriteString(rule)
+
+	return buf.String()
+}
+
+func ComposeUpstreamNameWithRule(namespace, name string, rule string) string {
 	// FIXME Use sync.Pool to reuse this buffer if the upstream
 	// name composing code path is hot.
 	var p []byte

@@ -108,7 +108,7 @@ func (c *Config) validateGatewayConfig(gc *GatewayConfig) error {
 var gatewayNameMap map[string]*GatewayConfig
 var gatewayNameList []string
 
-func init_gatewayNameMap() {
+func initGatewayNameMap() {
 	if gatewayNameMap == nil {
 		gatewayNameMap = make(map[string]*GatewayConfig)
 		for _, gc := range ControllerConfig.GatewayConfigs {
@@ -118,7 +118,7 @@ func init_gatewayNameMap() {
 }
 
 func GetControlPlaneConfigByGatewatName(gatewatName string) *ControlPlaneConfig {
-	init_gatewayNameMap()
+	initGatewayNameMap()
 	if gc, ok := gatewayNameMap[gatewatName]; ok {
 		return gc.ControlPlane
 	}
@@ -126,7 +126,7 @@ func GetControlPlaneConfigByGatewatName(gatewatName string) *ControlPlaneConfig 
 }
 
 func GetGatewayConfig(gatewayName string) *GatewayConfig {
-	init_gatewayNameMap()
+	initGatewayNameMap()
 	if gc, ok := gatewayNameMap[gatewayName]; ok {
 		return gc
 	}
@@ -141,7 +141,7 @@ func GetFirstGatewayConfig() *GatewayConfig {
 }
 
 func GetGatewayAddresses(gatewayName string) []string {
-	init_gatewayNameMap()
+	initGatewayNameMap()
 	if gc, ok := gatewayNameMap[gatewayName]; ok {
 		return gc.Addresses
 	}

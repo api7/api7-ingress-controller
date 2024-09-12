@@ -19,42 +19,8 @@ data:
           return 200 'Hello, World!';
         }
       }
-    
-      server {
-        listen 8080 default_server;
-
-        location / {
-          return 500 'Internal Server Error!';
-        }
-
-      }
     }
 
-    
-    stream {
-      server {
-        listen 443 reuseport ssl;
-        ssl_certificate /etc/nginx/ssl/tls.crt;
-        ssl_certificate_key /etc/nginx/ssl/tls.key;
-        ssl_protocols  TLSv1 TLSv1.1 TLSv1.2;
-        ssl_ciphers    HIGH:!aNULL:!MD5;
-
-        proxy_pass 127.0.0.1:80;
-      }
-
-      server {
-        listen 8443 reuseport ssl;
-        ssl_certificate /etc/nginx/ssl/tls.crt;
-        ssl_certificate_key /etc/nginx/ssl/tls.key;
-        ssl_trusted_certificate /etc/nginx/ssl/ca.crt;
-        ssl_verify_client on;
-        ssl_client_certificate /etc/nginx/ssl/tls.crt;
-        ssl_protocols  TLSv1 TLSv1.1 TLSv1.2;
-        ssl_ciphers    HIGH:!aNULL:!MD5;
-
-        proxy_pass 127.0.0.1:80;
-      }
-    }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -71,9 +37,6 @@ spec:
         app: nginx
     spec:
       volumes:
-        - name: nginx-ssl
-          secret:
-            secretName: nginx-ssl
         - name: nginx-config
           configMap:
             name: nginx-config
@@ -91,21 +54,10 @@ spec:
           imagePullPolicy: IfNotPresent
           name: nginx
           ports:
-            - containerPort: 443
-              name: "https"
-              protocol: "TCP"
-            - containerPort: 8443
-              name: "mtls"
-              protocol: "TCP"
-            - containerPort: 8080
-              name: "http1"
-              protocol: "TCP"
             - containerPort: 80
               name: "http"
               protocol: "TCP"
           volumeMounts:
-            - mountPath: /etc/nginx/ssl
-              name: nginx-ssl
             - mountPath: /etc/nginx/nginx.conf
               name: nginx-config
               subPath: nginx.conf
@@ -122,16 +74,4 @@ spec:
       port: 80
       protocol: TCP
       targetPort: 80
-    - name: http1
-      port: 8080
-      protocol: TCP
-      targetPort: 8080
-    - name: https
-      port: 443
-      protocol: TCP
-      targetPort: 443
-    - name: mtls
-      port: 8443
-      protocol: TCP
-      targetPort: 8443
   type: ClusterIP

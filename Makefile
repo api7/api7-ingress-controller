@@ -12,7 +12,8 @@ ENVTEST_K8S_VERSION = 1.30.0
 KIND_NAME ?= api7-ingress-cluster
 GATEAY_API_VERSION ?= v1.1.0
 
-DASHBOARD_VERSION ?= v3.2.14.2
+DASHBOARD_VERSION ?= v3.2.14.6
+TEST_TIMEOUT ?= 30m
 
 # go 
 VERSYM="github.com/api7/api7-ingress-controller/internal/version._buildVersion"
@@ -86,11 +87,11 @@ kind-e2e-test: kind-up build-image kind-load-images e2e-test
 # Utilize Kind or modify the e2e tests to load the image locally, enabling compatibility with other vendors.
 .PHONY: e2e-test
 e2e-test:
-	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test ./test/e2e/ -v -ginkgo.v
+	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test ./test/e2e/ -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v
 
 .PHONY: conformance-test
 conformance-test:
-	DASHBOARD_VERSION=v3.2.14.2 go test -v ./test/conformance -tags=conformance
+	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test -v ./test/conformance -tags=conformance
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter

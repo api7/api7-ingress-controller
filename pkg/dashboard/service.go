@@ -165,6 +165,7 @@ func (u *serviceClient) Delete(ctx context.Context, obj *v1.Service) error {
 
 func (u *serviceClient) Update(ctx context.Context, obj *v1.Service) (*v1.Service, error) {
 	url := u.url + "/" + obj.ID
+	log.Debugw("try to update service", zap.Any("service", obj), zap.String("url", url))
 	return updateResource(
 		ctx,
 		obj,

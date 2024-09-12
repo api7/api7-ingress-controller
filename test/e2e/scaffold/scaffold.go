@@ -97,6 +97,7 @@ type Scaffold struct {
 	apisixTLSOverTCPTunnel *k8s.Tunnel
 	apisixUDPTunnel        *k8s.Tunnel
 	// apisixControlTunnel    *k8s.Tunnel
+
 }
 
 func (s *Scaffold) AdminKey() string {
@@ -395,7 +396,6 @@ func (s *Scaffold) beforeEach() {
 		s.initDataPlaneClient()
 	})
 	e.Add(s.DeployTestService)
-
 	e.Wait()
 }
 
@@ -448,7 +448,6 @@ func (s *Scaffold) DeployTestService() {
 func (s *Scaffold) afterEach() {
 	defer GinkgoRecover()
 	s.DeleteGatewayGroup(s.gatewaygroupid)
-	s.shutdownApisixTunnel()
 
 	if CurrentSpecReport().Failed() {
 		if os.Getenv("TSET_ENV") == "CI" {
