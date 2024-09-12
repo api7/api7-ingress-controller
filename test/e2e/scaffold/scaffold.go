@@ -37,6 +37,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	"github.com/api7/api7-ingress-controller/pkg/dashboard"
 	"github.com/api7/api7-ingress-controller/pkg/utils"
@@ -97,6 +99,8 @@ type Scaffold struct {
 	apisixTLSOverTCPTunnel *k8s.Tunnel
 	apisixUDPTunnel        *k8s.Tunnel
 	// apisixControlTunnel    *k8s.Tunnel
+
+	kubeClient client.Client
 }
 
 func (s *Scaffold) AdminKey() string {
@@ -576,4 +580,14 @@ func (s *Scaffold) labelSelector(label string) metav1.ListOptions {
 
 func (s *Scaffold) GetControllerName() string {
 	return s.opts.ControllerName
+}
+
+func (s *Scaffold) GetKubeClient() client.Client {
+	if s.kubeClient == nil {
+		var err error
+		cli, err := client.New(config.GetConfigOrDie(), client.Options{})
+		Expect(err).NotTo(HaveOccurred(), "get kube client")
+		s.kubeClient = cli
+	}
+	return s.kubeClient
 }

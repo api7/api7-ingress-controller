@@ -19,6 +19,19 @@ type TranslateContext struct {
 }
 
 type TranslateResult struct {
-	Routes   []*v1.Route
-	Services []*v1.Service
+	RouteMap   map[string]*v1.Route
+	ServiceMap map[string]*v1.Service
+}
+
+func NewTranslator(log logr.Logger) *Translator {
+	return &Translator{
+		Log: log,
+	}
+}
+
+func NewTranslateResult() *TranslateResult {
+	return &TranslateResult{
+		RouteMap:   make(map[string]*v1.Route),
+		ServiceMap: make(map[string]*v1.Service),
+	}
 }

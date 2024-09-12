@@ -80,7 +80,6 @@ spec:
 	}
 
 	Context("HTTPRoute Base", func() {
-
 		var exactRouteByGet = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -100,6 +99,55 @@ spec:
     - name: httpbin-service-e2e-test
       port: 80
 `
+		var addMatch = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin.example
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /get
+    - path:
+        type: Exact
+        value: /headers
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
+
+		var addRule = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin.example
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /get
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+  - matches: 
+    - path:
+        type: Exact
+        value: /ip
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
 
 		BeforeEach(beforeEach)
 
@@ -107,7 +155,7 @@ spec:
 			By("create HTTPRoute")
 			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 1)
 
-			By("access daataplane to check the HTTPRoute")
+			By("access gateway to check the HTTPRoute")
 			s.NewAPISIXClient().
 				GET("/get").
 				Expect().
@@ -130,7 +178,94 @@ spec:
 				Expect().
 				Status(404)
 		})
+
+		FIt("HTTPRoute Updated", func() {
+			By("create HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 1)
+
+			By("access gateway to check the HTTPRoute")
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.example").
+				Expect().
+				Status(200)
+
+			By("update HTTPRoute, add match")
+			ResourceApplied("HTTPRoute", "httpbin", addMatch, 2)
+
+			By("access gateway to check the HTTPRoute")
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.example").
+				Expect().
+				Status(200)
+
+			s.NewAPISIXClient().
+				GET("/headers").
+				WithHost("httpbin.example").
+				Expect().
+				Status(200)
+
+			By("reset the HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 3)
+
+			By("access gateway to check the HTTPRoute")
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.example").
+				Expect().
+				Status(200)
+
+			s.NewAPISIXClient().
+				GET("/headers").
+				WithHost("httpbin.example").
+				Expect().
+				Status(404)
+
+			By("update HTTPRoute, add rule")
+			ResourceApplied("HTTPRoute", "httpbin", addRule, 4)
+
+			By("access gateway to check the HTTPRoute")
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.example").
+				Expect().
+				Status(200)
+
+			s.NewAPISIXClient().
+				GET("/ip").
+				WithHost("httpbin.example").
+				Expect().
+				Status(200)
+
+			s.NewAPISIXClient().
+				GET("/headers").
+				WithHost("httpbin.example").
+				Expect().
+				Status(404)
+
+			By("reset the HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 5)
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.example").
+				Expect().
+				Status(200)
+
+			s.NewAPISIXClient().
+				GET("/ip").
+				WithHost("httpbin.example").
+				Expect().
+				Status(404)
+
+			s.NewAPISIXClient().
+				GET("/headers").
+				WithHost("httpbin.example").
+				Expect().
+				Status(404)
+		})
 	})
+
 	Context("HTTPRoute Rule Match", func() {
 		var exactRouteByGet = `
 apiVersion: gateway.networking.k8s.io/v1

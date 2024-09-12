@@ -12,7 +12,7 @@ ENVTEST_K8S_VERSION = 1.30.0
 KIND_NAME ?= api7-ingress-cluster
 GATEAY_API_VERSION ?= v1.1.0
 
-DASHBOARD_VERSION ?= v3.2.14.2
+DASHBOARD_VERSION ?= v3.2.14.6
 
 # go 
 VERSYM="github.com/api7/api7-ingress-controller/internal/version._buildVersion"
@@ -90,7 +90,7 @@ e2e-test:
 
 .PHONY: conformance-test
 conformance-test:
-	DASHBOARD_VERSION=v3.2.14.2 go test -v ./test/conformance -tags=conformance
+	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test -v ./test/conformance -tags=conformance
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter

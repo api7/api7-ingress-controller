@@ -197,7 +197,7 @@ func (t *Translator) translateBackendRef(tctx *TranslateContext, ref gatewayv1.B
 }
 
 func (t *Translator) TranslateGatewayHTTPRoute(tctx *TranslateContext, httpRoute *gatewayv1.HTTPRoute) (*TranslateResult, error) {
-	result := &TranslateResult{}
+	result := NewTranslateResult()
 
 	hosts := make([]string, 0, len(httpRoute.Spec.Hostnames))
 	for _, hostname := range httpRoute.Spec.Hostnames {
@@ -248,7 +248,7 @@ func (t *Translator) TranslateGatewayHTTPRoute(tctx *TranslateContext, httpRoute
 		service.Hosts = hosts
 		service.Plugins = t.generatePluginsFromHTTPRouteFilters(httpRoute.GetNamespace(), rule.Filters)
 
-		result.Services = append(result.Services, service)
+		result.ServiceMap[service.ID] = service
 
 		matches := rule.Matches
 		if len(matches) == 0 {
@@ -275,7 +275,7 @@ func (t *Translator) TranslateGatewayHTTPRoute(tctx *TranslateContext, httpRoute
 			route.ID = id.GenID(name)
 			route.Labels = label.GenLabel(httpRoute)
 			route.ServiceID = service.ID
-			result.Routes = append(result.Routes, route)
+			result.RouteMap[route.ID] = route
 		}
 	}
 
