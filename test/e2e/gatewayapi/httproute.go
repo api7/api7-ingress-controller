@@ -179,7 +179,7 @@ spec:
 				Status(404)
 		})
 
-		FIt("HTTPRoute Updated", func() {
+		It("HTTPRoute Updated", func() {
 			By("create HTTPRoute")
 			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 1)
 
