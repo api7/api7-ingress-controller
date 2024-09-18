@@ -28,7 +28,7 @@ import (
 type GatewayReconciler struct { //nolint:revive
 	client.Client
 	Scheme             *runtime.Scheme
-	ControlPalneClient controlplane.Controlplane
+	ControlPlaneClient controlplane.Controlplane
 	Log                logr.Logger
 }
 
@@ -95,7 +95,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			msg:    err.Error(),
 		}
 	}
-	if err := r.ControlPalneClient.Update(ctx, tctx, gateway); err != nil {
+	if err := r.ControlPlaneClient.Update(ctx, tctx, gateway); err != nil {
 		acceptStatus = status{
 			status: false,
 			msg:    err.Error(),
