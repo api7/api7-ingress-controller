@@ -49,6 +49,8 @@ func (d *dashboardClient) Update(ctx context.Context, tctx *translator.Translate
 	switch obj := obj.(type) {
 	case *gatewayv1.HTTPRoute:
 		result, err = d.translator.TranslateGatewayHTTPRoute(tctx, obj.DeepCopy())
+	case *gatewayv1.Gateway:
+		result, err = d.translator.TranslateGateway(tctx, obj.DeepCopy())
 	}
 	if err != nil {
 		return err
@@ -62,6 +64,11 @@ func (d *dashboardClient) Update(ctx context.Context, tctx *translator.Translate
 	}
 	for _, route := range result.Routes {
 		if _, err := d.c.Cluster(name).Route().Update(ctx, route); err != nil {
+			return err
+		}
+	}
+	for _, ssl := range result.SSL {
+		if _, err := d.c.Cluster(name).SSL().Update(ctx, ssl); err != nil {
 			return err
 		}
 	}
