@@ -89,7 +89,7 @@ jobs:
           make conformance-test
       
       - name: Upload Gateway API Conformance Report
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: api7-ingress-controller-conformance-report.yaml
           path: api7-ingress-controller-conformance-report.yaml
