@@ -9,21 +9,17 @@ import (
 
 func (t *Translator) TranslateGateway(tctx *TranslateContext, obj *gatewayv1.Gateway) (*TranslateResult, error) {
 	result := &TranslateResult{}
-	//set ssl
 	for _, listener := range obj.Spec.Listeners {
 		tctx.GatewayTLSConfig = append(tctx.GatewayTLSConfig, *listener.TLS)
-		ssl, err := t.translateSecret(tctx, listener, obj.Name, obj.Namespace)
-		if err != nil {
-			return nil, err
-		}
+		ssl := t.translateSecret(tctx, listener, obj.Name, obj.Namespace)
 		result.SSL = append(result.SSL, ssl)
 	}
 	return result, nil
 }
 
-func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.Listener, name, ns string) (*v1.Ssl, error) {
+func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.Listener, name, ns string) *v1.Ssl {
 	if tctx.Secrets == nil {
-		return nil, nil
+		return nil
 	}
 	sslObj := &v1.Ssl{}
 	sslObj.ID = uuid.NewString()
@@ -32,5 +28,5 @@ func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.
 		sslObj.Snis = []string{string(*listener.Hostname)}
 	}
 	sslObj.Key = string(tctx.Secrets[types.NamespacedName{Namespace: ns, Name: name}].Data["tls.key"])
-	return sslObj, nil
+	return sslObj
 }
