@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
@@ -98,7 +97,7 @@ jW4KB95bGOTa7r7DM1Up0MbAIwWoeLBGhOIXk7inurZGg+FNjZMA5Lzm6qo=
 -----END RSA PRIVATE KEY-----`
 	// create kube secret
 	err := s.NewKubeTlsSecret(secretName, cert, key)
-	assert.Nil(ginkgo.GinkgoT(), err, "create secret error")
+	assert.Nil(GinkgoT(), err, "create secret error")
 	// create ApisixTls resource
 	// tlsName := "tls-name"
 	// host := "api7.com"
@@ -181,7 +180,7 @@ spec:
 	})
 
 	Context("Gateway SSL", func() {
-		ginkgo.It("Check if SSL resource was created", func() {
+		It("Check if SSL resource was created", func() {
 			secretName := "test-apisix-tls"
 			host := "api6.com"
 			createSecret(s, secretName)
@@ -222,8 +221,8 @@ spec:
 			Expect(err).NotTo(HaveOccurred(), "creating Gateway")
 			time.Sleep(5 * time.Second)
 			tls, err := s.ListApisixSsl()
-			assert.Nil(ginkgo.GinkgoT(), err, "list tls error")
-			assert.Len(ginkgo.GinkgoT(), tls, 1, "tls number not expect")
+			assert.Nil(GinkgoT(), err, "list tls error")
+			assert.Len(GinkgoT(), tls, 1, "tls number not expect")
 		})
 	})
 })
