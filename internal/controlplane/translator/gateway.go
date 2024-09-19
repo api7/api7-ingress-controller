@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
+	"github.com/api7/api7-ingress-controller/internal/controlplane/label"
 	"github.com/api7/api7-ingress-controller/pkg/id"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -15,7 +16,7 @@ func (t *Translator) TranslateGateway(tctx *TranslateContext, obj *gatewayv1.Gat
 	result := &TranslateResult{}
 	for _, listener := range obj.Spec.Listeners {
 		tctx.GatewayTLSConfig = append(tctx.GatewayTLSConfig, *listener.TLS)
-		ssl, err := t.translateSecret(tctx, listener, obj.Name, obj.Namespace)
+		ssl, err := t.translateSecret(tctx, listener, obj)
 		if err != nil {
 			return nil, fmt.Errorf("failed to translate secret: %w", err)
 		}
@@ -24,12 +25,14 @@ func (t *Translator) TranslateGateway(tctx *TranslateContext, obj *gatewayv1.Gat
 	return result, nil
 }
 
-func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.Listener, name, ns string) (*v1.Ssl, error) {
+func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.Listener, obj *gatewayv1.Gateway) (*v1.Ssl, error) {
 	if tctx.Secrets == nil {
 		return nil, nil
 	}
 	sslObj := &v1.Ssl{}
-	sslObj.ID = id.GenID(fmt.Sprintf("%s_%s", ns, name))
+	ns := obj.GetNamespace()
+	name := obj.GetName()
+	sslObj.ID = id.GenID(fmt.Sprintf("%s_%s_%s", ns, name, listener.Name))
 	if listener.Hostname != nil && *listener.Hostname != "" {
 		sslObj.Snis = []string{string(*listener.Hostname)}
 	}
@@ -40,9 +43,7 @@ func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.
 	}
 	sslObj.Cert = string(cert)
 	sslObj.Key = string(key)
-	sslObj.Labels = map[string]string{
-		"managed-by": "api7-ingress-controller",
-	}
+	sslObj.Labels = label.GenLabel(obj)
 	return sslObj, nil
 }
 
