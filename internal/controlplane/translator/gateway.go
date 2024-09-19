@@ -1,8 +1,12 @@
 package translator
 
 import (
+	"fmt"
+
 	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
-	"github.com/google/uuid"
+	"github.com/api7/api7-ingress-controller/pkg/id"
+	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
@@ -11,22 +15,77 @@ func (t *Translator) TranslateGateway(tctx *TranslateContext, obj *gatewayv1.Gat
 	result := &TranslateResult{}
 	for _, listener := range obj.Spec.Listeners {
 		tctx.GatewayTLSConfig = append(tctx.GatewayTLSConfig, *listener.TLS)
-		ssl := t.translateSecret(tctx, listener, obj.Name, obj.Namespace)
+		ssl, err := t.translateSecret(tctx, listener, obj.Name, obj.Namespace)
+		if err != nil {
+			return nil, fmt.Errorf("failed to translate secret: %w", err)
+		}
 		result.SSL = append(result.SSL, ssl)
 	}
 	return result, nil
 }
 
-func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.Listener, name, ns string) *v1.Ssl {
+func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.Listener, name, ns string) (*v1.Ssl, error) {
 	if tctx.Secrets == nil {
-		return nil
+		return nil, nil
 	}
 	sslObj := &v1.Ssl{}
-	sslObj.ID = uuid.NewString()
-	sslObj.Cert = string(tctx.Secrets[types.NamespacedName{Namespace: ns, Name: name}].Data["tls.crt"])
-	if listener.Hostname != nil {
+	sslObj.ID = id.GenID(fmt.Sprintf("%s_%s", ns, name))
+	if listener.Hostname != nil && *listener.Hostname != "" {
 		sslObj.Snis = []string{string(*listener.Hostname)}
 	}
-	sslObj.Key = string(tctx.Secrets[types.NamespacedName{Namespace: ns, Name: name}].Data["tls.key"])
-	return sslObj
+	secret := tctx.Secrets[types.NamespacedName{Namespace: ns, Name: name}]
+	cert, key, err := extractKeyPair(secret, true)
+	if err != nil {
+		return nil, err
+	}
+	sslObj.Cert = string(cert)
+	sslObj.Key = string(key)
+	sslObj.Labels = map[string]string{
+		"managed-by": "api7-ingress-controller",
+	}
+	return sslObj, nil
+}
+
+func extractKeyPair(s *corev1.Secret, hasPrivateKey bool) ([]byte, []byte, error) {
+	if _, ok := s.Data["cert"]; ok {
+		return extractApisixSecretKeyPair(s, hasPrivateKey)
+	} else if _, ok := s.Data[corev1.TLSCertKey]; ok {
+		return extractKubeSecretKeyPair(s, hasPrivateKey)
+	} else if ca, ok := s.Data[corev1.ServiceAccountRootCAKey]; ok && !hasPrivateKey {
+		return ca, nil, nil
+	} else {
+		return nil, nil, errors.New("unknown secret format")
+	}
+}
+
+func extractApisixSecretKeyPair(s *corev1.Secret, hasPrivateKey bool) (cert []byte, key []byte, err error) {
+	var ok bool
+	cert, ok = s.Data["cert"]
+	if !ok {
+		return nil, nil, errors.New("missing cert field")
+	}
+
+	if hasPrivateKey {
+		key, ok = s.Data["key"]
+		if !ok {
+			return nil, nil, errors.New("missing key field")
+		}
+	}
+	return
+}
+
+func extractKubeSecretKeyPair(s *corev1.Secret, hasPrivateKey bool) (cert []byte, key []byte, err error) {
+	var ok bool
+	cert, ok = s.Data[corev1.TLSCertKey]
+	if !ok {
+		return nil, nil, errors.New("missing cert field")
+	}
+
+	if hasPrivateKey {
+		key, ok = s.Data[corev1.TLSPrivateKeyKey]
+		if !ok {
+			return nil, nil, errors.New("missing key field")
+		}
+	}
+	return
 }
