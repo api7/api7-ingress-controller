@@ -1,6 +1,7 @@
 package gatewayapi
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -103,7 +104,7 @@ jW4KB95bGOTa7r7DM1Up0MbAIwWoeLBGhOIXk7inurZGg+FNjZMA5Lzm6qo=
 	// host := "api7.com"
 }
 
-var _ = FDescribe("Test Gateway", func() {
+var _ = Describe("Test Gateway", func() {
 	s := scaffold.NewScaffold(&scaffold.Options{
 		ControllerName: "gateway.api7.io/api7-ingress-controller",
 	})
@@ -219,8 +220,9 @@ spec:
 			By("create Gateway")
 			err = s.CreateResourceFromString(defaultGateway)
 			Expect(err).NotTo(HaveOccurred(), "creating Gateway")
-			time.Sleep(5 * time.Second)
-			tls, err := s.ListApisixSsl()
+			time.Sleep(10 * time.Second)
+
+			tls, err := s.DefaultDataplaneResource().SSL().List(context.Background())
 			assert.Nil(GinkgoT(), err, "list tls error")
 			assert.Len(GinkgoT(), tls, 1, "tls number not expect")
 		})
