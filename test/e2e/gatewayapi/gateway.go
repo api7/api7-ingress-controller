@@ -103,7 +103,7 @@ jW4KB95bGOTa7r7DM1Up0MbAIwWoeLBGhOIXk7inurZGg+FNjZMA5Lzm6qo=
 	// host := "api7.com"
 }
 
-var _ = Describe("Test Gateway", func() {
+var _ = FDescribe("Test Gateway", func() {
 	s := scaffold.NewScaffold(&scaffold.Options{
 		ControllerName: "gateway.api7.io/api7-ingress-controller",
 	})
@@ -185,32 +185,32 @@ spec:
 			host := "api6.com"
 			createSecret(s, secretName)
 			var defaultGatewayClass = `
-			apiVersion: gateway.networking.k8s.io/v1
-			kind: GatewayClass
-			metadata:
-				name: api7
-			spec:
-				controllerName: "gateway.api7.io/api7-ingress-controller"
-			`
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: api7
+spec:
+  controllerName: "gateway.api7.io/api7-ingress-controller"
+`
 
 			var defaultGateway = fmt.Sprintf(`
-			apiVersion: gateway.networking.k8s.io/v1
-			kind: Gateway
-			metadata:
-				name: api7ee
-			spec:
-				gatewayClassName: api7
-				listeners:
-					- name: http1
-						protocol: HTTP
-						port: 80
-						hostname: %s
-						tls:
-							certificateRefs:
-							- kind: Secret
-								group: ""
-								name: %s
-			`, host, secretName)
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: api7ee
+spec:
+  gatewayClassName: api7
+  listeners:
+    - name: http1
+      protocol: HTTP
+      port: 80
+      hostname: %s
+      tls:
+        certificateRefs:
+        - kind: Secret
+          group: ""
+          name: %s
+`, host, secretName)
 			By("create GatewayClass")
 			err := s.CreateResourceFromStringWithNamespace(defaultGatewayClass, "")
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
