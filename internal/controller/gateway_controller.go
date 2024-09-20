@@ -8,6 +8,7 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/api7/api7-ingress-controller/internal/controlplane"
 	"github.com/api7/api7-ingress-controller/internal/controlplane/translator"
+	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -214,6 +215,9 @@ func (r *GatewayReconciler) listGatewaysForHTTPRoute(_ context.Context, obj clie
 func (r *GatewayReconciler) processListenerConfig(tctx *translator.TranslateContext, listeners []gatewayv1.Listener, ns string) error {
 	var terror error
 	for _, listener := range listeners {
+		if listener.TLS == nil || listener.TLS.CertificateRefs == nil {
+			continue
+		}
 		secret := corev1.Secret{}
 		for _, ref := range listener.TLS.CertificateRefs {
 			if ref.Namespace != nil {
@@ -223,9 +227,11 @@ func (r *GatewayReconciler) processListenerConfig(tctx *translator.TranslateCont
 				Namespace: ns,
 				Name:      string(ref.Name),
 			}, &secret); err != nil {
+				log.Error(err, "failed to get secret", "namespace", ns, "name", string(ref.Name))
 				terror = err
 				break
 			}
+			log.Info("Setting secret for listener", "listener", listener.Name, "secret", secret.Name, " namespace", ns)
 			tctx.Secrets[types.NamespacedName{Namespace: ns, Name: string(ref.Name)}] = &secret
 		}
 	}

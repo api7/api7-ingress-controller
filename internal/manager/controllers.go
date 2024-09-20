@@ -29,9 +29,10 @@ func setupControllers(ctx context.Context, mgr manager.Manager, cpclient control
 			Log:    ctrl.LoggerFrom(ctx).WithName("controllers").WithName("GatewayClass"),
 		},
 		&controller.GatewayReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-			Log:    ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Gateway"),
+			Client:             mgr.GetClient(),
+			ControlPlaneClient: cpclient,
+			Scheme:             mgr.GetScheme(),
+			Log:                ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Gateway"),
 		},
 		&controller.HTTPRouteReconciler{
 			Client:             mgr.GetClient(),
