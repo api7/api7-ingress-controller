@@ -12,8 +12,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-func createSecret(s *scaffold.Scaffold, secretName string) {
-	cert := `-----BEGIN CERTIFICATE-----
+var Cert = `-----BEGIN CERTIFICATE-----
 MIIFcjCCA1qgAwIBAgIJALDqPppBVXQ3MA0GCSqGSIb3DQEBCwUAMGUxCzAJBgNV
 BAYTAkNOMRAwDgYDVQQIDAdKaWFuZ3N1MQ8wDQYDVQQHDAZTdXpob3UxEDAOBgNV
 BAoMB2FwaTcuYWkxEDAOBgNVBAsMB2FwaTcuYWkxDzANBgNVBAMMBmp3LmNvbTAg
@@ -45,7 +44,8 @@ bDs+00FijzHFBvC8cIhNffj0qqiv35g+9FTwnE9qpunlrtKG/sMgEXX6m8kL1YQ8
 m5DPGhyEZyt5Js2kzzo8TyINPKmrqriYuiD4p4EH13eSRs3ayanQh6ckC7lb+WXq
 3IrSc5hO
 -----END CERTIFICATE-----`
-	key := `-----BEGIN RSA PRIVATE KEY-----
+
+var Key = `-----BEGIN RSA PRIVATE KEY-----
 MIIJKAIBAAKCAgEAuEPPnUMlSw41CTdxUNxkQ4gAZ7cPotwYY6sVLGtWoR8gKFSZ
 ImQIor3UF+8HhN/ZOFRv5tSeeQ/MTE72cs2T5mp6eRU8OrSV0npk/TpZfaCx7zob
 sfXB4YU1NZcVWKthFF5X8p//l5gxUMU8V4a01P0aDTmZ67wG3Fhr0AC067GVYvdw
@@ -96,8 +96,10 @@ gNnZmws4l3i7RlVMtACCenmof9VtOcMK/9Qr502WHEoGkQR1r6HZFb25841cehL2
 do+oXlr8db++r87a8QQUkizzc6wXD9JffBNo9AO9Ed4HVOukpEA0gqVGBu85N3xW
 jW4KB95bGOTa7r7DM1Up0MbAIwWoeLBGhOIXk7inurZGg+FNjZMA5Lzm6qo=
 -----END RSA PRIVATE KEY-----`
+
+func createSecret(s *scaffold.Scaffold, secretName string) {
 	// create kube secret
-	err := s.NewKubeTlsSecret(secretName, cert, key)
+	err := s.NewKubeTlsSecret(secretName, Cert, Key)
 	assert.Nil(GinkgoT(), err, "create secret error")
 	// create ApisixTls resource
 	// tlsName := "tls-name"
@@ -225,6 +227,8 @@ spec:
 			tls, err := s.DefaultDataplaneResource().SSL().List(context.Background())
 			assert.Nil(GinkgoT(), err, "list tls error")
 			assert.Len(GinkgoT(), tls, 1, "tls number not expect")
+			assert.Equal(GinkgoT(), Cert, tls[0].Cert, "tls cert not expect")
+			assert.Equal(GinkgoT(), []string{host}, tls[0].Snis)
 		})
 	})
 })
