@@ -205,7 +205,7 @@ spec:
   gatewayClassName: api7
   listeners:
     - name: http1
-      protocol: HTTP
+      protocol: HTTPS
       port: 80
       hostname: %s
       tls:
