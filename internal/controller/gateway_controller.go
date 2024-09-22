@@ -52,7 +52,15 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	gateway := new(gatewayv1.Gateway)
 	if err := r.Get(ctx, req.NamespacedName, gateway); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		if client.IgnoreNotFound(err) == nil {
+			gateway.Namespace = req.Namespace
+			gateway.Name = req.Name
+
+			if err := r.ControlPlaneClient.Delete(ctx, gateway); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		return ctrl.Result{}, nil
 	}
 	ns := gateway.GetNamespace()
 	if !r.checkGatewayClass(gateway) {

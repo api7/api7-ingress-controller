@@ -109,6 +109,13 @@ func (d *dashboardClient) Delete(ctx context.Context, obj client.Object) error {
 				return err
 			}
 		}
+
+		ssls, _ := cluster.SSL().List(ctx)
+		for _, ssl := range ssls {
+			if err := cluster.SSL().Delete(ctx, ssl); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
