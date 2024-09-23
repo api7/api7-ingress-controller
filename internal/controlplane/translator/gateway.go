@@ -66,7 +66,7 @@ func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.
 			sslObj.Labels = label.GenLabel(obj)
 			sslObjs = append(sslObjs, sslObj)
 		}
-	//Only supported on TLSRoute. The certificateRefs field is ignored in this mode.
+	// Only supported on TLSRoute. The certificateRefs field is ignored in this mode.
 	case gatewayv1.TLSModePassthrough:
 		return sslObjs, nil
 	default:
