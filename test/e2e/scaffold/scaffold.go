@@ -214,6 +214,26 @@ func (s *Scaffold) NewAPISIXClient() *httpexpect.Expect {
 	})
 }
 
+// NewAPISIXClient creates the default HTTP client.
+func (s *Scaffold) NewAPISIXClientWithHTTPS() *httpexpect.Expect {
+	u := url.URL{
+		Scheme: "https",
+		Host:   s.apisixHttpsTunnel.Endpoint(),
+	}
+	return httpexpect.WithConfig(httpexpect.Config{
+		BaseURL: u.String(),
+		Client: &http.Client{
+			Transport: &http.Transport{},
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
+		Reporter: httpexpect.NewAssertReporter(
+			httpexpect.NewAssertReporter(GinkgoT()),
+		),
+	})
+}
+
 // GetAPISIXHTTPSEndpoint get apisix https endpoint from tunnel map
 func (s *Scaffold) GetAPISIXHTTPSEndpoint() string {
 	return s.apisixHttpsTunnel.Endpoint()
