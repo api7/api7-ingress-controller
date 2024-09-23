@@ -36,32 +36,43 @@ func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.
 		return nil, fmt.Errorf("no certificateRefs found in listener %s", listener.Name)
 	}
 	sslObjs := make([]*v1.Ssl, 0)
-	ns := obj.GetNamespace()
 	gatewayName := obj.GetName()
-
-	for _, ref := range listener.TLS.CertificateRefs {
-		sslObj := &v1.Ssl{}
-		sslObj.ID = id.GenID(fmt.Sprintf("%s_%s_%s", ns, gatewayName, listener.Name))
-		if listener.Hostname != nil && *listener.Hostname != "" {
-			sslObj.Snis = []string{string(*listener.Hostname)}
-		} else {
-			sslObj.Snis = []string{"*"}
+	switch *listener.TLS.Mode {
+	case gatewayv1.TLSModeTerminate:
+		for _, ref := range listener.TLS.CertificateRefs {
+			ns := obj.GetNamespace()
+			if ref.Namespace != nil {
+				ns = string(*ref.Namespace)
+			}
+			sslObj := &v1.Ssl{}
+			sslObj.ID = id.GenID(fmt.Sprintf("%s_%s_%s", ns, gatewayName, listener.Name))
+			if listener.Hostname != nil && *listener.Hostname != "" {
+				sslObj.Snis = []string{string(*listener.Hostname)}
+			} else {
+				sslObj.Snis = []string{"*"}
+			}
+			name := listener.TLS.CertificateRefs[0].Name
+			secret := tctx.Secrets[types.NamespacedName{Namespace: ns, Name: string(ref.Name)}]
+			if secret.Data == nil {
+				log.Error("secret data is nil", "secret", secret)
+				return nil, fmt.Errorf("no secret data found for %s/%s", ns, name)
+			}
+			cert, key, err := extractKeyPair(secret, true)
+			if err != nil {
+				return nil, err
+			}
+			sslObj.Cert = string(cert)
+			sslObj.Key = string(key)
+			sslObj.Labels = label.GenLabel(obj)
+			sslObjs = append(sslObjs, sslObj)
 		}
-		name := listener.TLS.CertificateRefs[0].Name
-		secret := tctx.Secrets[types.NamespacedName{Namespace: ns, Name: string(ref.Name)}]
-		if secret.Data == nil {
-			log.Error("secret data is nil", "secret", secret)
-			return nil, fmt.Errorf("no secret data found for %s/%s", ns, name)
-		}
-		cert, key, err := extractKeyPair(secret, true)
-		if err != nil {
-			return nil, err
-		}
-		sslObj.Cert = string(cert)
-		sslObj.Key = string(key)
-		sslObj.Labels = label.GenLabel(obj)
-		sslObjs = append(sslObjs, sslObj)
+	//Only supported on TLSRoute. The certificateRefs field is ignored in this mode.
+	case gatewayv1.TLSModePassthrough:
+		return sslObjs, nil
+	default:
+		return nil, fmt.Errorf("unknown TLS mode %s", *listener.TLS.Mode)
 	}
+
 	return sslObjs, nil
 }
 
