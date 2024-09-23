@@ -46,10 +46,9 @@ func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.
 			}
 			sslObj := &v1.Ssl{}
 			sslObj.ID = id.GenID(fmt.Sprintf("%s_%s_%s", ns, gatewayName, listener.Name))
+			sslObj.Snis = []string{}
 			if listener.Hostname != nil && *listener.Hostname != "" {
-				sslObj.Snis = []string{string(*listener.Hostname)}
-			} else {
-				sslObj.Snis = []string{"*"}
+				sslObj.Snis = append(sslObj.Snis, string(*listener.Hostname))
 			}
 			name := listener.TLS.CertificateRefs[0].Name
 			secret := tctx.Secrets[types.NamespacedName{Namespace: ns, Name: string(ref.Name)}]
