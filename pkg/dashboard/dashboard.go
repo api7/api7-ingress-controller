@@ -83,7 +83,7 @@ type Route interface {
 type SSL interface {
 	// name is namespace_sslname
 	Get(ctx context.Context, name string) (*v1.Ssl, error)
-	List(ctx context.Context) ([]*v1.Ssl, error)
+	List(ctx context.Context, args ...interface{}) ([]*v1.Ssl, error)
 	Create(ctx context.Context, ssl *v1.Ssl) (*v1.Ssl, error)
 	Delete(ctx context.Context, ssl *v1.Ssl) error
 	Update(ctx context.Context, ssl *v1.Ssl) (*v1.Ssl, error)

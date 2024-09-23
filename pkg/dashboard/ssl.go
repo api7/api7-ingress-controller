@@ -53,7 +53,23 @@ func (s *sslClient) Get(ctx context.Context, name string) (*v1.Ssl, error) {
 
 // List is only used in cache warming up. So here just pass through
 // to APISIX.
-func (s *sslClient) List(ctx context.Context) ([]*v1.Ssl, error) {
+func (s *sslClient) List(ctx context.Context, listOptions ...interface{}) ([]*v1.Ssl, error) {
+	var options ListOptions
+	if len(listOptions) > 0 {
+		options = listOptions[0].(ListOptions)
+	}
+	if options.From == ListFromCache {
+		log.Debugw("try to list ssls in cache",
+			zap.String("cluster", s.cluster.name),
+			zap.String("url", s.url),
+		)
+		return s.cluster.cache.ListSSL(
+			"label",
+			options.KindLabel.Kind,
+			options.KindLabel.Namespace,
+			options.KindLabel.Name,
+		)
+	}
 	log.Debugw("try to list ssl in APISIX",
 		zap.String("url", s.url),
 		zap.String("cluster", s.cluster.name),
@@ -75,6 +91,7 @@ func (s *sslClient) List(ctx context.Context) ([]*v1.Ssl, error) {
 			)
 			return nil, err
 		}
+
 		items = append(items, ssl)
 	}
 

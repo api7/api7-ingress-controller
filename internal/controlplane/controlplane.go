@@ -77,43 +77,44 @@ func (d *dashboardClient) Update(ctx context.Context, tctx *translator.Translate
 
 func (d *dashboardClient) Delete(ctx context.Context, obj client.Object) error {
 	clusters := d.c.ListClusters()
+	kindLabel := dashboard.ListByKindLabelOptions{
+		Kind:      obj.GetObjectKind().GroupVersionKind().Kind,
+		Namespace: obj.GetNamespace(),
+		Name:      obj.GetName(),
+	}
 	for _, cluster := range clusters {
-		routes, _ := cluster.Route().List(ctx, dashboard.ListOptions{
-			From: dashboard.ListFromCache,
-			Args: []interface{}{
-				"label",
-				obj.GetObjectKind().GroupVersionKind().Kind,
-				obj.GetNamespace(),
-				obj.GetName(),
-			},
-		})
-
-		for _, route := range routes {
-			if err := cluster.Route().Delete(ctx, route); err != nil {
-				return err
+		switch obj.(type) {
+		case *gatewayv1.Gateway:
+			ssls, _ := cluster.SSL().List(ctx, dashboard.ListOptions{
+				From:      dashboard.ListFromCache,
+				KindLabel: kindLabel,
+			})
+			for _, ssl := range ssls {
+				if err := cluster.SSL().Delete(ctx, ssl); err != nil {
+					return err
+				}
 			}
-		}
+		case *gatewayv1.HTTPRoute:
+			routes, _ := cluster.Route().List(ctx, dashboard.ListOptions{
+				From:      dashboard.ListFromCache,
+				KindLabel: kindLabel,
+			})
 
-		services, _ := cluster.Service().List(ctx, dashboard.ListOptions{
-			From: dashboard.ListFromCache,
-			Args: []interface{}{
-				"label",
-				obj.GetObjectKind().GroupVersionKind().Kind,
-				obj.GetNamespace(),
-				obj.GetName(),
-			},
-		})
-
-		for _, service := range services {
-			if err := cluster.Service().Delete(ctx, service); err != nil {
-				return err
+			for _, route := range routes {
+				if err := cluster.Route().Delete(ctx, route); err != nil {
+					return err
+				}
 			}
-		}
 
-		ssls, _ := cluster.SSL().List(ctx)
-		for _, ssl := range ssls {
-			if err := cluster.SSL().Delete(ctx, ssl); err != nil {
-				return err
+			services, _ := cluster.Service().List(ctx, dashboard.ListOptions{
+				From:      dashboard.ListFromCache,
+				KindLabel: kindLabel,
+			})
+
+			for _, service := range services {
+				if err := cluster.Service().Delete(ctx, service); err != nil {
+					return err
+				}
 			}
 		}
 	}

@@ -80,7 +80,7 @@ func (c *noopCache) ListRoutes(...interface{}) ([]*v1.Route, error) {
 	return nil, nil
 }
 
-func (c *noopCache) ListSSL() ([]*v1.Ssl, error) {
+func (c *noopCache) ListSSL(...interface{}) ([]*v1.Ssl, error) {
 	return nil, nil
 }
 
