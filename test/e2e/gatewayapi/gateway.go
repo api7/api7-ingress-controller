@@ -206,7 +206,7 @@ spec:
   listeners:
     - name: http1
       protocol: HTTPS
-      port: 80
+      port: 443
       hostname: %s
       tls:
         certificateRefs:
@@ -229,6 +229,7 @@ spec:
 			assert.Len(GinkgoT(), tls, 1, "tls number not expect")
 			assert.Equal(GinkgoT(), Cert, tls[0].Cert, "tls cert not expect")
 			assert.Equal(GinkgoT(), []string{host}, tls[0].Snis)
+			assert.Equal(GinkgoT(), Key, tls[0].Key, "tls key not expect, got "+tls[0].Key)
 		})
 	})
 })

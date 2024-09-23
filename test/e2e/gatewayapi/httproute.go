@@ -125,7 +125,7 @@ spec:
 		Expect(gwyaml).To(ContainSubstring(`status: "True"`), "checking Gateway condition status")
 		Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the api7-ingress-controller"), "checking Gateway condition message")
 	}
-	FContext("HTTPRoute with HTTPS Gateway", func() {
+	Context("HTTPRoute with HTTPS Gateway", func() {
 		var exactRouteByGet = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -153,22 +153,23 @@ spec:
 			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 1)
 
 			By("access dataplane to check the HTTPRoute")
+			// time.Sleep(1000000 * time.Second)
 			s.NewAPISIXClientWithHTTPS().
 				GET("/get").
 				WithHost("api6.com").
 				Expect().
 				Status(200)
-			time.Sleep(1000 * time.Second)
-			// By("delete HTTPRoute")
-			// err := s.DeleteResourceFromString(exactRouteByGet)
-			// Expect(err).NotTo(HaveOccurred(), "deleting HTTPRoute")
-			// time.Sleep(5 * time.Second)
+			// time.Sleep(1000 * time.Second)
+			By("delete HTTPRoute")
+			err := s.DeleteResourceFromString(exactRouteByGet)
+			Expect(err).NotTo(HaveOccurred(), "deleting HTTPRoute")
+			time.Sleep(5 * time.Second)
 
-			// s.NewAPISIXClientWithHTTPS().
-			// 	GET("/get").
-			// 	WithHost("api6.com").
-			// 	Expect().
-			// 	Status(404)
+			s.NewAPISIXClientWithHTTPS().
+				GET("/get").
+				WithHost("api6.com").
+				Expect().
+				Status(404)
 		})
 	})
 
