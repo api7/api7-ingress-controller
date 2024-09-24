@@ -60,7 +60,7 @@ func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.
 			}
 			sslObj.Cert = string(cert)
 			sslObj.Key = string(key)
-			//Note: Dashboard doesn't allow duplicate certificate across ssl objects
+			// Note: Dashboard doesn't allow duplicate certificate across ssl objects
 			sslObj.ID = id.GenID(sslObj.Cert)
 			sslObj.Labels = label.GenLabel(obj)
 			sslObjs = append(sslObjs, sslObj)
