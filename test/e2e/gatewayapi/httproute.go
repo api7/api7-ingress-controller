@@ -153,19 +153,17 @@ spec:
 			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 1)
 
 			By("access dataplane to check the HTTPRoute")
-			// time.Sleep(1000000 * time.Second)
-			s.NewAPISIXClientWithHTTPS().
+			s.NewAPISIXHttpsClient("api6.com").
 				GET("/get").
 				WithHost("api6.com").
 				Expect().
 				Status(200)
-			// time.Sleep(1000 * time.Second)
 			By("delete HTTPRoute")
 			err := s.DeleteResourceFromString(exactRouteByGet)
 			Expect(err).NotTo(HaveOccurred(), "deleting HTTPRoute")
 			time.Sleep(5 * time.Second)
 
-			s.NewAPISIXClientWithHTTPS().
+			s.NewAPISIXHttpsClient("api6.com").
 				GET("/get").
 				WithHost("api6.com").
 				Expect().
