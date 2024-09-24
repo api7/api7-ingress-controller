@@ -21,7 +21,7 @@ import (
 var skippedTestsForSSL = []string{
 	// Reason: https://github.com/kubernetes-sigs/gateway-api/blob/5c5fc388829d24e8071071b01e8313ada8f15d9f/conformance/utils/suite/suite.go#L358.  SAN includes '*'
 	tests.HTTPRouteHTTPSListener.ShortName,
-	tests.HTTPRouteRedirectPortAndScheme.ShortName
+	tests.HTTPRouteRedirectPortAndScheme.ShortName,
 }
 var skippedTestsForTraditionalRoutes = []string{
 	// TODO: Support ReferenceGrant resource
