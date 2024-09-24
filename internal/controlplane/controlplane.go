@@ -68,8 +68,16 @@ func (d *dashboardClient) Update(ctx context.Context, tctx *translator.Translate
 		}
 	}
 	for _, ssl := range result.SSL {
-		if _, err := d.c.Cluster(name).SSL().Update(ctx, ssl); err != nil {
-			return err
+		oldssl, err := d.c.Cluster(name).SSL().Get(ctx, ssl.Cert)
+		if err != nil || oldssl == nil {
+			if _, err := d.c.Cluster(name).SSL().Create(ctx, ssl); err != nil {
+				return err
+			}
+		} else {
+			ssl.Snis = append(ssl.Snis, oldssl.Snis...)
+			if _, err := d.c.Cluster(name).SSL().Update(ctx, ssl); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

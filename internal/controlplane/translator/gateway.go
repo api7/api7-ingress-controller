@@ -5,7 +5,7 @@ import (
 
 	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
 	"github.com/api7/api7-ingress-controller/internal/controlplane/label"
-	"github.com/api7/api7-ingress-controller/pkg/id"
+	"github.com/api7/api7-ingress-controller/internal/id"
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -36,7 +36,6 @@ func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.
 		return nil, fmt.Errorf("no certificateRefs found in listener %s", listener.Name)
 	}
 	sslObjs := make([]*v1.Ssl, 0)
-	gatewayName := obj.GetName()
 	switch *listener.TLS.Mode {
 	case gatewayv1.TLSModeTerminate:
 		for _, ref := range listener.TLS.CertificateRefs {
@@ -45,7 +44,6 @@ func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.
 				ns = string(*ref.Namespace)
 			}
 			sslObj := &v1.Ssl{}
-			sslObj.ID = id.GenID(fmt.Sprintf("%s_%s_%s", ns, gatewayName, listener.Name))
 			sslObj.Snis = []string{}
 			if listener.Hostname != nil && *listener.Hostname != "" {
 				sslObj.Snis = append(sslObj.Snis, string(*listener.Hostname))
@@ -62,6 +60,8 @@ func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.
 			}
 			sslObj.Cert = string(cert)
 			sslObj.Key = string(key)
+			//Note: Dashboard doesn't allow duplicate certificate across ssl objects
+			sslObj.ID = id.GenID(sslObj.Cert)
 			sslObj.Labels = label.GenLabel(obj)
 			sslObjs = append(sslObjs, sslObj)
 		}

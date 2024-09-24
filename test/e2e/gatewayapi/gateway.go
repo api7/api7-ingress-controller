@@ -227,9 +227,18 @@ spec:
 			assert.Len(GinkgoT(), tls, 1, "tls number not expect")
 			assert.Equal(GinkgoT(), Cert, tls[0].Cert, "tls cert not expect")
 			assert.Equal(GinkgoT(), []string{host}, tls[0].Snis)
+
+			By("Delete Gateway")
+			err = s.DeleteResource("Gateway", "api7ee")
+			Expect(err).NotTo(HaveOccurred(), "deleting Gateway")
+			time.Sleep(5 * time.Second)
+
+			tls, err = s.DefaultDataplaneResource().SSL().List(context.Background())
+			assert.Nil(GinkgoT(), err, "list tls error")
+			assert.Len(GinkgoT(), tls, 0, "tls number not expect")
 		})
 
-		Context("Gateway SSL without hostname", func() {
+		Context("Gateway SSL with and without hostname", func() {
 			It("Check if SSL resource was created", func() {
 				secretName := _secretName
 				createSecret(s, secretName)
@@ -246,19 +255,34 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: api7ee
+  name: same-namespace-with-https-listener
 spec:
   gatewayClassName: api7
   listeners:
-    - name: http1
-      protocol: HTTPS
-      port: 443
-      tls:
-        certificateRefs:
-        - kind: Secret
-          group: ""
-          name: %s
-`, secretName)
+  - name: https
+    port: 443
+    protocol: HTTPS
+    allowedRoutes:
+      namespaces:
+        from: Same
+    tls:
+      certificateRefs:
+      - group: ""
+        kind: Secret
+        name: %s
+  - name: https-with-hostname
+    port: 443
+    hostname: api6.com
+    protocol: HTTPS
+    allowedRoutes:
+      namespaces:
+        from: Same
+    tls:
+      certificateRefs:
+      - group: ""
+        kind: Secret
+        name: %s
+`, secretName, secretName)
 				By("create GatewayClass")
 				err := s.CreateResourceFromStringWithNamespace(defaultGatewayClass, "")
 				Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
