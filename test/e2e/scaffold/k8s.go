@@ -22,7 +22,6 @@ import (
 	"strings"
 	"time"
 
-	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
 	"github.com/api7/api7-ingress-controller/pkg/dashboard"
 	apisix "github.com/api7/api7-ingress-controller/pkg/dashboard"
 	"github.com/gruntwork-io/terratest/modules/k8s"
@@ -105,26 +104,6 @@ func (s *Scaffold) ListPodsByLabels(labels string) ([]corev1.Pod, error) {
 	return k8s.ListPodsE(s.t, s.kubectlOptions, metav1.ListOptions{
 		LabelSelector: labels,
 	})
-}
-
-func (s *Scaffold) ListApisixSsl() ([]*v1.Ssl, error) {
-	u := url.URL{
-		Scheme: "http",
-		Host:   "localhost:7080",
-		Path:   "/apisix/admin",
-	}
-	cli, err := s.NewAPISIX()
-	if err != nil {
-		return nil, err
-	}
-	err = cli.AddCluster(context.Background(), &apisix.ClusterOptions{
-		BaseURL:  u.String(),
-		AdminKey: s.opts.APISIXAdminAPIKey,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return cli.Cluster("").SSL().List(context.TODO())
 }
 
 // CreateResourceFromStringWithNamespace creates resource from a loaded yaml string
