@@ -100,12 +100,8 @@ jW4KB95bGOTa7r7DM1Up0MbAIwWoeLBGhOIXk7inurZGg+FNjZMA5Lzm6qo=
 -----END RSA PRIVATE KEY-----`
 
 func createSecret(s *scaffold.Scaffold, secretName string) {
-	// create kube secret
 	err := s.NewKubeTlsSecret(secretName, Cert, Key)
 	assert.Nil(GinkgoT(), err, "create secret error")
-	// create ApisixTls resource
-	// tlsName := "tls-name"
-	// host := "api7.com"
 }
 
 var _ = Describe("Test Gateway", func() {
