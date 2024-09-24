@@ -230,5 +230,53 @@ spec:
 			assert.Equal(GinkgoT(), Cert, tls[0].Cert, "tls cert not expect")
 			assert.Equal(GinkgoT(), []string{host}, tls[0].Snis)
 		})
+
+		Context("Gateway SSL without hostname", func() {
+			It("Check if SSL resource was created", func() {
+				secretName := "test-apisix-tls"
+				createSecret(s, secretName)
+				var defaultGatewayClass = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: api7
+spec:
+  controllerName: "gateway.api7.io/api7-ingress-controller"
+`
+
+				var defaultGateway = fmt.Sprintf(`
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: api7ee
+spec:
+  gatewayClassName: api7
+  listeners:
+    - name: http1
+      protocol: HTTPS
+      port: 443
+      tls:
+        certificateRefs:
+        - kind: Secret
+          group: ""
+          name: %s
+`, secretName)
+				By("create GatewayClass")
+				err := s.CreateResourceFromStringWithNamespace(defaultGatewayClass, "")
+				Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
+				time.Sleep(5 * time.Second)
+
+				By("create Gateway")
+				err = s.CreateResourceFromString(defaultGateway)
+				Expect(err).NotTo(HaveOccurred(), "creating Gateway")
+				time.Sleep(10 * time.Second)
+
+				tls, err := s.DefaultDataplaneResource().SSL().List(context.Background())
+				assert.Nil(GinkgoT(), err, "list tls error")
+				assert.Len(GinkgoT(), tls, 1, "tls number not expect")
+				assert.Equal(GinkgoT(), Cert, tls[0].Cert, "tls cert not expect")
+			})
+		})
 	})
+
 })
