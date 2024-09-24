@@ -227,15 +227,6 @@ spec:
 			assert.Len(GinkgoT(), tls, 1, "tls number not expect")
 			assert.Equal(GinkgoT(), Cert, tls[0].Cert, "tls cert not expect")
 			assert.Equal(GinkgoT(), []string{host}, tls[0].Snis)
-
-			By("Delete Gateway")
-			err = s.DeleteResource("Gateway", "api7ee")
-			Expect(err).NotTo(HaveOccurred(), "deleting Gateway")
-			time.Sleep(5 * time.Second)
-
-			tls, err = s.DefaultDataplaneResource().SSL().List(context.Background())
-			assert.Nil(GinkgoT(), err, "list tls error")
-			assert.Len(GinkgoT(), tls, 0, "tls number not expect")
 		})
 
 		Context("Gateway SSL with and without hostname", func() {

@@ -74,13 +74,33 @@ func (d *dashboardClient) Update(ctx context.Context, tctx *translator.Translate
 				return err
 			}
 		} else {
-			ssl.Snis = append(ssl.Snis, oldssl.Snis...)
+			// array union is done to avoid host duplication
+			ssl.Snis = arrayUnion(ssl.Snis, oldssl.Snis)
 			if _, err := d.c.Cluster(name).SSL().Update(ctx, ssl); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+func arrayUnion(arr1 []string, arr2 []string) []string {
+	// return a union of elements from both array
+	presentEle := make(map[string]bool)
+	newArr := make([]string, 0)
+	for _, ele := range arr1 {
+		if !presentEle[ele] {
+			presentEle[ele] = true
+			newArr = append(newArr, ele)
+		}
+	}
+	for _, ele := range arr2 {
+		if !presentEle[ele] {
+			presentEle[ele] = true
+			newArr = append(newArr, ele)
+		}
+	}
+	return newArr
 }
 
 func (d *dashboardClient) Delete(ctx context.Context, obj client.Object) error {
