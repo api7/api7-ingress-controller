@@ -107,7 +107,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err := r.ControlPlaneClient.Update(ctx, tctx, gateway); err != nil {
 		acceptStatus = status{
 			status: false,
-			msg:    err.Error(),
+			msg:    fmt.Errorf("failed to update gateway: %w for gateway %+v", err, gateway.Spec).Error(),
 		}
 	}
 
