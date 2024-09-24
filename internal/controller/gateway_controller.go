@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"reflect"
 
@@ -105,11 +104,10 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			msg:    err.Error(),
 		}
 	}
-	byt, _ := json.Marshal(gateway.Spec)
 	if err := r.ControlPlaneClient.Update(ctx, tctx, gateway); err != nil {
 		acceptStatus = status{
 			status: false,
-			msg:    fmt.Errorf("failed to update gateway: %w for gateway %s", err, string(byt)).Error(),
+			msg:    err.Error(),
 		}
 	}
 

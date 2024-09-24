@@ -2,8 +2,6 @@ package controlplane
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -73,15 +71,13 @@ func (d *dashboardClient) Update(ctx context.Context, tctx *translator.Translate
 		oldssl, err := d.c.Cluster(name).SSL().Get(ctx, ssl.Cert)
 		if err != nil || oldssl == nil {
 			if _, err := d.c.Cluster(name).SSL().Create(ctx, ssl); err != nil {
-				byt, _ := json.Marshal(ssl.Snis)
-				return fmt.Errorf("failed to create ssl with sni: %s: %w", string(byt), err)
+				return err
 			}
 		} else {
 			// array union is done to avoid host duplication
 			ssl.Snis = arrayUnion(ssl.Snis, oldssl.Snis)
 			if _, err := d.c.Cluster(name).SSL().Update(ctx, ssl); err != nil {
-				byt, _ := json.Marshal(ssl.Snis)
-				return fmt.Errorf("failed to update ssl with sni: %s: %w", string(byt), err)
+				return err
 			}
 		}
 	}
