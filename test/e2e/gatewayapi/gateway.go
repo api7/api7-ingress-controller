@@ -12,6 +12,8 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
+const _secretName = "test-apisix-tls"
+
 var Cert = `-----BEGIN CERTIFICATE-----
 MIIFcjCCA1qgAwIBAgIJALDqPppBVXQ3MA0GCSqGSIb3DQEBCwUAMGUxCzAJBgNV
 BAYTAkNOMRAwDgYDVQQIDAdKaWFuZ3N1MQ8wDQYDVQQHDAZTdXpob3UxEDAOBgNV
@@ -184,7 +186,7 @@ spec:
 
 	Context("Gateway SSL", func() {
 		It("Check if SSL resource was created", func() {
-			secretName := "test-apisix-tls"
+			secretName := _secretName
 			host := "api6.com"
 			createSecret(s, secretName)
 			var defaultGatewayClass = `
@@ -233,7 +235,7 @@ spec:
 
 		Context("Gateway SSL without hostname", func() {
 			It("Check if SSL resource was created", func() {
-				secretName := "test-apisix-tls"
+				secretName := _secretName
 				createSecret(s, secretName)
 				var defaultGatewayClass = `
 apiVersion: gateway.networking.k8s.io/v1

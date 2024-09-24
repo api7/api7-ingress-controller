@@ -100,7 +100,7 @@ spec:
 	}
 
 	var beforeEachHTTPS = func() {
-		secretName := "test-apisix-tls"
+		secretName := _secretName
 		createSecret(s, secretName)
 		By("create GatewayClass")
 		gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
