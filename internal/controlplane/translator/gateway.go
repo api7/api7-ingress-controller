@@ -2,6 +2,7 @@ package translator
 
 import (
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 
 	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
@@ -84,11 +85,15 @@ func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.
 }
 
 func extractHost(cert []byte) ([]string, error) {
-	parsedCert, err := x509.ParseCertificate(cert)
-	if err != nil {
-		return nil, err
+	block, _ := pem.Decode(cert)
+	if block == nil {
+		return nil, errors.New("parse certificate: not in PEM format")
 	}
-	return parsedCert.DNSNames, nil
+	der, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse certificate")
+	}
+	return der.DNSNames, nil
 }
 
 func extractKeyPair(s *corev1.Secret, hasPrivateKey bool) ([]byte, []byte, error) {
