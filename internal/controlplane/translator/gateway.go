@@ -1,6 +1,7 @@
 package translator
 
 import (
+	"crypto/x509"
 	"fmt"
 
 	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
@@ -43,11 +44,8 @@ func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.
 			if ref.Namespace != nil {
 				ns = string(*ref.Namespace)
 			}
-			sslObj := &v1.Ssl{}
-			sslObj.Snis = []string{}
-			// Dashboard doesn't allow wildcard hostname
-			if listener.Hostname != nil && *listener.Hostname != "" && *listener.Hostname != "*" {
-				sslObj.Snis = append(sslObj.Snis, string(*listener.Hostname))
+			sslObj := &v1.Ssl{
+				Snis: []string{},
 			}
 			name := listener.TLS.CertificateRefs[0].Name
 			secret := tctx.Secrets[types.NamespacedName{Namespace: ns, Name: string(ref.Name)}]
@@ -61,6 +59,15 @@ func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.
 			}
 			sslObj.Cert = string(cert)
 			sslObj.Key = string(key)
+			// Dashboard doesn't allow wildcard hostname
+			if listener.Hostname != nil && *listener.Hostname != "" {
+				sslObj.Snis = append(sslObj.Snis, string(*listener.Hostname))
+			}
+			hosts, err := extractHost(cert)
+			if err != nil {
+				return nil, err
+			}
+			sslObj.Snis = append(sslObj.Snis, hosts...)
 			// Note: Dashboard doesn't allow duplicate certificate across ssl objects
 			sslObj.ID = id.GenID(sslObj.Cert)
 			sslObj.Labels = label.GenLabel(obj)
@@ -74,6 +81,14 @@ func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.
 	}
 
 	return sslObjs, nil
+}
+
+func extractHost(cert []byte) ([]string, error) {
+	parsedCert, err := x509.ParseCertificate(cert)
+	if err != nil {
+		return nil, err
+	}
+	return parsedCert.DNSNames, nil
 }
 
 func extractKeyPair(s *corev1.Secret, hasPrivateKey bool) ([]byte, []byte, error) {

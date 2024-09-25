@@ -69,6 +69,13 @@ func (d *dashboardClient) Update(ctx context.Context, tctx *translator.Translate
 		}
 	}
 	for _, ssl := range result.SSL {
+		// to avoid duplication
+		ssl.Snis = arrayUniqueElements(ssl.Snis, []string{})
+		if len(ssl.Snis) == 1 && ssl.Snis[0] == "*" {
+			// skip creating ssl without throwing error
+			return nil
+		}
+		ssl.Snis = removeWildcard(ssl.Snis)
 		oldssl, err := d.c.Cluster(name).SSL().Get(ctx, ssl.Cert)
 		if err != nil || oldssl == nil {
 			if _, err := d.c.Cluster(name).SSL().Create(ctx, ssl); err != nil {
@@ -76,7 +83,7 @@ func (d *dashboardClient) Update(ctx context.Context, tctx *translator.Translate
 			}
 		} else {
 			// array union is done to avoid host duplication
-			ssl.Snis = arrayUnion(ssl.Snis, oldssl.Snis)
+			ssl.Snis = arrayUniqueElements(ssl.Snis, oldssl.Snis)
 			if _, err := d.c.Cluster(name).SSL().Update(ctx, ssl); err != nil {
 				return fmt.Errorf("failed to update ssl for sni %+v: %w", ssl.Snis, err)
 			}
@@ -85,7 +92,17 @@ func (d *dashboardClient) Update(ctx context.Context, tctx *translator.Translate
 	return nil
 }
 
-func arrayUnion(arr1 []string, arr2 []string) []string {
+func removeWildcard(snis []string) []string {
+	newSni := make([]string, 0)
+	for _, sni := range snis {
+		if sni != "*" {
+			newSni = append(newSni, sni)
+		}
+	}
+	return newSni
+}
+
+func arrayUniqueElements(arr1 []string, arr2 []string) []string {
 	// return a union of elements from both array
 	presentEle := make(map[string]bool)
 	newArr := make([]string, 0)
