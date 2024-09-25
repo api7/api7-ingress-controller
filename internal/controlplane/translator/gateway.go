@@ -45,7 +45,8 @@ func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.
 			}
 			sslObj := &v1.Ssl{}
 			sslObj.Snis = []string{}
-			if listener.Hostname != nil && *listener.Hostname != "" {
+			// Dashboard doesn't allow wildcard hostname
+			if listener.Hostname != nil && *listener.Hostname != "" && *listener.Hostname != "*" {
 				sslObj.Snis = append(sslObj.Snis, string(*listener.Hostname))
 			}
 			name := listener.TLS.CertificateRefs[0].Name
