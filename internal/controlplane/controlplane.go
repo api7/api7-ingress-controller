@@ -10,6 +10,7 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/api7/api7-ingress-controller/internal/controlplane/translator"
 	"github.com/api7/api7-ingress-controller/pkg/dashboard"
+	"github.com/api7/gopkg/pkg/log"
 )
 
 type Controlplane interface {
@@ -72,7 +73,7 @@ func (d *dashboardClient) Update(ctx context.Context, tctx *translator.Translate
 		// to avoid duplication
 		ssl.Snis = arrayUniqueElements(ssl.Snis, []string{})
 		if len(ssl.Snis) == 1 && ssl.Snis[0] == "*" {
-			// skip creating ssl without throwing error
+			log.Warnf("wildcard hostname is not allowed in ssl object. Skipping SSL creation for %s: %s", obj.GetObjectKind().GroupVersionKind().Kind, obj.GetName())
 			return nil
 		}
 		ssl.Snis = removeWildcard(ssl.Snis)
