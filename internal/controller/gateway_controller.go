@@ -222,7 +222,6 @@ func (r *GatewayReconciler) listGatewaysForHTTPRoute(_ context.Context, obj clie
 }
 
 func (r *GatewayReconciler) processListenerConfig(tctx *translator.TranslateContext, gateway *gatewayv1.Gateway, ns string) error {
-	var terror error
 	listeners := gateway.Spec.Listeners
 	for _, listener := range listeners {
 		if listener.TLS == nil || listener.TLS.CertificateRefs == nil {
@@ -248,5 +247,5 @@ func (r *GatewayReconciler) processListenerConfig(tctx *translator.TranslateCont
 			}
 		}
 	}
-	return terror
+	return nil
 }
