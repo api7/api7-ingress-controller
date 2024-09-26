@@ -103,11 +103,12 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			status: false,
 			msg:    err.Error(),
 		}
-	}
-	if err := r.ControlPlaneClient.Update(ctx, tctx, gateway); err != nil {
-		acceptStatus = status{
-			status: false,
-			msg:    err.Error(),
+	} else {
+		if err := r.ControlPlaneClient.Update(ctx, tctx, gateway); err != nil {
+			acceptStatus = status{
+				status: false,
+				msg:    err.Error(),
+			}
 		}
 	}
 
