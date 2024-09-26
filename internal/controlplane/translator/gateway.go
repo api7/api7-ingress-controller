@@ -45,34 +45,37 @@ func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.
 			if ref.Namespace != nil {
 				ns = string(*ref.Namespace)
 			}
-			sslObj := &v1.Ssl{
-				Snis: []string{},
+			if listener.TLS.CertificateRefs[0].Kind != nil && *listener.TLS.CertificateRefs[0].Kind == "Secret" {
+				sslObj := &v1.Ssl{
+					Snis: []string{},
+				}
+				name := listener.TLS.CertificateRefs[0].Name
+				secret := tctx.Secrets[types.NamespacedName{Namespace: ns, Name: string(ref.Name)}]
+				if secret.Data == nil {
+					log.Error("secret data is nil", "secret", secret)
+					return nil, fmt.Errorf("no secret data found for %s/%s", ns, name)
+				}
+				cert, key, err := extractKeyPair(secret, true)
+				if err != nil {
+					return nil, err
+				}
+				sslObj.Cert = string(cert)
+				sslObj.Key = string(key)
+				// Dashboard doesn't allow wildcard hostname
+				if listener.Hostname != nil && *listener.Hostname != "" {
+					sslObj.Snis = append(sslObj.Snis, string(*listener.Hostname))
+				}
+				hosts, err := extractHost(cert)
+				if err != nil {
+					return nil, err
+				}
+				sslObj.Snis = append(sslObj.Snis, hosts...)
+				// Note: Dashboard doesn't allow duplicate certificate across ssl objects
+				sslObj.ID = id.GenID(sslObj.Cert)
+				sslObj.Labels = label.GenLabel(obj)
+				sslObjs = append(sslObjs, sslObj)
 			}
-			name := listener.TLS.CertificateRefs[0].Name
-			secret := tctx.Secrets[types.NamespacedName{Namespace: ns, Name: string(ref.Name)}]
-			if secret.Data == nil {
-				log.Error("secret data is nil", "secret", secret)
-				return nil, fmt.Errorf("no secret data found for %s/%s", ns, name)
-			}
-			cert, key, err := extractKeyPair(secret, true)
-			if err != nil {
-				return nil, err
-			}
-			sslObj.Cert = string(cert)
-			sslObj.Key = string(key)
-			// Dashboard doesn't allow wildcard hostname
-			if listener.Hostname != nil && *listener.Hostname != "" {
-				sslObj.Snis = append(sslObj.Snis, string(*listener.Hostname))
-			}
-			hosts, err := extractHost(cert)
-			if err != nil {
-				return nil, err
-			}
-			sslObj.Snis = append(sslObj.Snis, hosts...)
-			// Note: Dashboard doesn't allow duplicate certificate across ssl objects
-			sslObj.ID = id.GenID(sslObj.Cert)
-			sslObj.Labels = label.GenLabel(obj)
-			sslObjs = append(sslObjs, sslObj)
+
 		}
 	// Only supported on TLSRoute. The certificateRefs field is ignored in this mode.
 	case gatewayv1.TLSModePassthrough:

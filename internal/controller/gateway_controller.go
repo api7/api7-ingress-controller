@@ -231,16 +231,19 @@ func (r *GatewayReconciler) processListenerConfig(tctx *translator.TranslateCont
 			if ref.Namespace != nil {
 				ns = string(*ref.Namespace)
 			}
-			if err := r.Get(context.Background(), client.ObjectKey{
-				Namespace: ns,
-				Name:      string(ref.Name),
-			}, &secret); err != nil {
-				log.Error(err, "failed to get secret", "namespace", ns, "name", string(ref.Name))
-				terror = err
-				break
+			if ref.Kind != nil && *ref.Kind == gatewayv1.Kind("Secret") {
+				if err := r.Get(context.Background(), client.ObjectKey{
+					Namespace: ns,
+					Name:      string(ref.Name),
+				}, &secret); err != nil {
+					log.Error(err, "failed to get secret", "namespace", ns, "name", string(ref.Name))
+					terror = err
+					break
+				}
+				log.Info("Setting secret for listener", "listener", listener.Name, "secret", secret.Name, " namespace", ns)
+				tctx.Secrets[types.NamespacedName{Namespace: ns, Name: string(ref.Name)}] = &secret
 			}
-			log.Info("Setting secret for listener", "listener", listener.Name, "secret", secret.Name, " namespace", ns)
-			tctx.Secrets[types.NamespacedName{Namespace: ns, Name: string(ref.Name)}] = &secret
+
 		}
 	}
 	return terror
