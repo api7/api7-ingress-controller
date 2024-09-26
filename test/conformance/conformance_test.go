@@ -74,8 +74,7 @@ func TestGatewayAPIConformance(t *testing.T) {
 	opts.CleanupBaseResources = true
 	opts.GatewayClassName = gatewayClassName
 	opts.SupportedFeatures = sets.New(gatewaySupportedFeatures...)
-	opts.SkipTests = skippedTestsForSSL
-	opts.SkipTests = append(opts.SkipTests, skippedTestsForTraditionalRoutes...)
+	opts.SkipTests = append(skippedTestsForSSL, skippedTestsForTraditionalRoutes...)
 	opts.Implementation = conformancev1.Implementation{
 		Organization: "API7",
 		Project:      "api7-ingress-controller",
