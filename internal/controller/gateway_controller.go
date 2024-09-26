@@ -98,17 +98,11 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	tctx := &translator.TranslateContext{
 		Secrets: make(map[types.NamespacedName]*corev1.Secret),
 	}
-	if err := r.processListenerConfig(tctx, gateway, ns); err != nil {
+	r.processListenerConfig(tctx, gateway, ns)
+	if err := r.ControlPlaneClient.Update(ctx, tctx, gateway); err != nil {
 		acceptStatus = status{
 			status: false,
 			msg:    err.Error(),
-		}
-	} else {
-		if err := r.ControlPlaneClient.Update(ctx, tctx, gateway); err != nil {
-			acceptStatus = status{
-				status: false,
-				msg:    err.Error(),
-			}
 		}
 	}
 
@@ -221,7 +215,7 @@ func (r *GatewayReconciler) listGatewaysForHTTPRoute(_ context.Context, obj clie
 	return recs
 }
 
-func (r *GatewayReconciler) processListenerConfig(tctx *translator.TranslateContext, gateway *gatewayv1.Gateway, ns string) error {
+func (r *GatewayReconciler) processListenerConfig(tctx *translator.TranslateContext, gateway *gatewayv1.Gateway, ns string) {
 	listeners := gateway.Spec.Listeners
 	for _, listener := range listeners {
 		if listener.TLS == nil || listener.TLS.CertificateRefs == nil {
@@ -247,5 +241,4 @@ func (r *GatewayReconciler) processListenerConfig(tctx *translator.TranslateCont
 			}
 		}
 	}
-	return nil
 }
