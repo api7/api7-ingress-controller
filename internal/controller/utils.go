@@ -43,6 +43,15 @@ func setGatewayCondition(gw *gatewayv1.Gateway, newCondition metav1.Condition) {
 	gw.Status.Conditions = MergeCondition(gw.Status.Conditions, newCondition)
 }
 
+func setListenerCondition(gw *gatewayv1.Gateway, listenerName string, newCondition metav1.Condition) {
+	for i, listener := range gw.Status.Listeners {
+		if listener.Name == gatewayv1.SectionName(listenerName) {
+			gw.Status.Listeners[i].Conditions = MergeCondition(listener.Conditions, newCondition)
+			return
+		}
+	}
+}
+
 func reconcileGatewaysMatchGatewayClass(gatewayClass client.Object, gateways []gatewayv1.Gateway) (recs []reconcile.Request) {
 	for _, gateway := range gateways {
 		if string(gateway.Spec.GatewayClassName) == gatewayClass.GetName() {
@@ -86,6 +95,72 @@ func SetGatewayConditionAccepted(gw *gatewayv1.Gateway, status bool, message str
 
 	if !IsConditionPresentAndEqual(gw.Status.Conditions, condition) {
 		setGatewayCondition(gw, condition)
+		ok = true
+	}
+	return
+}
+
+func SetGatewayListenerConditionAccepted(gw *gatewayv1.Gateway, listenerName string, status bool, message string) (ok bool) {
+	conditionStatus := metav1.ConditionTrue
+	if !status {
+		conditionStatus = metav1.ConditionFalse
+	}
+
+	condition := metav1.Condition{
+		Type:               string(gatewayv1.ListenerConditionAccepted),
+		Status:             conditionStatus,
+		Reason:             string(gatewayv1.ListenerConditionAccepted),
+		ObservedGeneration: gw.GetGeneration(),
+		Message:            message,
+		LastTransitionTime: metav1.Now(),
+	}
+
+	if !IsConditionPresentAndEqual(gw.Status.Conditions, condition) {
+		setListenerCondition(gw, listenerName, condition)
+		ok = true
+	}
+	return
+}
+
+func SetGatewayListenerConditionProgrammed(gw *gatewayv1.Gateway, listenerName string, status bool, message string) (ok bool) {
+	conditionStatus := metav1.ConditionTrue
+	if !status {
+		conditionStatus = metav1.ConditionFalse
+	}
+
+	condition := metav1.Condition{
+		Type:               string(gatewayv1.ListenerConditionProgrammed),
+		Status:             conditionStatus,
+		Reason:             string(gatewayv1.ListenerReasonProgrammed),
+		ObservedGeneration: gw.GetGeneration(),
+		Message:            message,
+		LastTransitionTime: metav1.Now(),
+	}
+
+	if !IsConditionPresentAndEqual(gw.Status.Conditions, condition) {
+		setListenerCondition(gw, listenerName, condition)
+		ok = true
+	}
+	return
+}
+
+func SetGatewayListenerConditionResolvedRefs(gw *gatewayv1.Gateway, listenerName string, status bool, message string) (ok bool) {
+	conditionStatus := metav1.ConditionTrue
+	if !status {
+		conditionStatus = metav1.ConditionFalse
+	}
+
+	condition := metav1.Condition{
+		Type:               string(gatewayv1.ListenerConditionResolvedRefs),
+		Status:             conditionStatus,
+		Reason:             string(gatewayv1.ListenerReasonResolvedRefs),
+		ObservedGeneration: gw.GetGeneration(),
+		Message:            message,
+		LastTransitionTime: metav1.Now(),
+	}
+
+	if !IsConditionPresentAndEqual(gw.Status.Conditions, condition) {
+		setListenerCondition(gw, listenerName, condition)
 		ok = true
 	}
 	return
@@ -288,21 +363,17 @@ func checkRouteAcceptedByListener(
 			return false, gatewayv1.RouteReasonNoMatchingParent, nil
 		}
 	}
-
 	if parentRef.Port != nil {
 		if *parentRef.Port != listener.Port {
 			return false, gatewayv1.RouteReasonNoMatchingParent, nil
 		}
 	}
-
 	if !routeMatchesListenerType(route, listener) {
 		return false, gatewayv1.RouteReasonNoMatchingParent, nil
 	}
-
 	if !routeHostnamesIntersectsWithListenerHostname(route, listener) {
 		return false, gatewayv1.RouteReasonNoMatchingListenerHostname, nil
 	}
-
 	if ok, err := routeMatchesListenerAllowedRoutes(ctx, mgrc, route, listener.AllowedRoutes, gateway.Namespace, parentRef.Namespace); err != nil {
 		return false, gatewayv1.RouteReasonNotAllowedByListeners, fmt.Errorf("failed matching listener %s to a route %s for gateway %s: %w",
 			listener.Name, route.GetName(), gateway.Name, err,
@@ -480,7 +551,6 @@ func getAttachedRoutesForListener(ctx context.Context, mgrc client.Client, gatew
 	if err := mgrc.List(ctx, &httpRouteList); err != nil {
 		return 0, err
 	}
-
 	var attachedRoutes int32
 	for _, route := range httpRouteList.Items {
 		route := route
@@ -534,7 +604,6 @@ func getListenerStatus(
 		if err != nil {
 			return nil, err
 		}
-
 		var (
 			reasonResolvedRef = string(gatewayv1.ListenerReasonResolvedRefs)
 			statusResolvedRef = metav1.ConditionTrue

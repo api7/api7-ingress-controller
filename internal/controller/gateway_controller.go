@@ -98,7 +98,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	tctx := &translator.TranslateContext{
 		Secrets: make(map[types.NamespacedName]*corev1.Secret),
 	}
-	if err := r.processListenerConfig(tctx, gateway.Spec.Listeners, ns); err != nil {
+	if err := r.processListenerConfig(tctx, gateway, ns); err != nil {
 		acceptStatus = status{
 			status: false,
 			msg:    err.Error(),
@@ -220,8 +220,9 @@ func (r *GatewayReconciler) listGatewaysForHTTPRoute(_ context.Context, obj clie
 	return recs
 }
 
-func (r *GatewayReconciler) processListenerConfig(tctx *translator.TranslateContext, listeners []gatewayv1.Listener, ns string) error {
+func (r *GatewayReconciler) processListenerConfig(tctx *translator.TranslateContext, gateway *gatewayv1.Gateway, ns string) error {
 	var terror error
+	listeners := gateway.Spec.Listeners
 	for _, listener := range listeners {
 		if listener.TLS == nil || listener.TLS.CertificateRefs == nil {
 			continue
@@ -237,13 +238,14 @@ func (r *GatewayReconciler) processListenerConfig(tctx *translator.TranslateCont
 					Name:      string(ref.Name),
 				}, &secret); err != nil {
 					log.Error(err, "failed to get secret", "namespace", ns, "name", string(ref.Name))
+					SetGatewayListenerConditionProgrammed(gateway, string(listener.Name), false, err.Error())
+					SetGatewayListenerConditionResolvedRefs(gateway, string(listener.Name), false, err.Error())
 					terror = err
 					break
 				}
 				log.Info("Setting secret for listener", "listener", listener.Name, "secret", secret.Name, " namespace", ns)
 				tctx.Secrets[types.NamespacedName{Namespace: ns, Name: string(ref.Name)}] = &secret
 			}
-
 		}
 	}
 	return terror
