@@ -51,6 +51,9 @@ func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.
 				}
 				name := listener.TLS.CertificateRefs[0].Name
 				secret := tctx.Secrets[types.NamespacedName{Namespace: ns, Name: string(ref.Name)}]
+				if secret == nil {
+					continue
+				}
 				if secret.Data == nil {
 					log.Error("secret data is nil", "secret", secret)
 					return nil, fmt.Errorf("no secret data found for %s/%s", ns, name)

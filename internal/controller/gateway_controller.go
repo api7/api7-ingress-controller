@@ -241,7 +241,6 @@ func (r *GatewayReconciler) processListenerConfig(tctx *translator.TranslateCont
 					log.Error(err, "failed to get secret", "namespace", ns, "name", string(ref.Name))
 					SetGatewayListenerConditionProgrammed(gateway, string(listener.Name), false, err.Error())
 					SetGatewayListenerConditionResolvedRefs(gateway, string(listener.Name), false, err.Error())
-					terror = err
 					break
 				}
 				log.Info("Setting secret for listener", "listener", listener.Name, "secret", secret.Name, " namespace", ns)
