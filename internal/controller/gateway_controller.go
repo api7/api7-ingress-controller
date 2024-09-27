@@ -60,7 +60,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				return ctrl.Result{}, err
 			}
 		}
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, err
 	}
 	ns := gateway.GetNamespace()
 	if !r.checkGatewayClass(gateway) {
