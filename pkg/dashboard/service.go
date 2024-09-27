@@ -57,8 +57,14 @@ var (
 )
 
 type ListOptions struct {
-	From ListFrom
-	Args []interface{}
+	From      ListFrom
+	KindLabel ListByKindLabelOptions
+}
+
+type ListByKindLabelOptions struct {
+	Kind      string
+	Namespace string
+	Name      string
 }
 
 // List is only used in cache warming up. So here just pass through
@@ -74,7 +80,10 @@ func (u *serviceClient) List(ctx context.Context, listOptions ...interface{}) ([
 			zap.String("cluster", u.cluster.name),
 			zap.String("url", u.url),
 		)
-		return u.cluster.cache.ListServices()
+		return u.cluster.cache.ListServices("label",
+			options.KindLabel.Kind,
+			options.KindLabel.Namespace,
+			options.KindLabel.Name)
 	}
 
 	log.Debugw("try to list upstreams in APISIX",

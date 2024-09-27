@@ -37,6 +37,24 @@ spec:
       protocol: HTTP
       port: 80
 `
+	var defautlGatewayHTTPS = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: api7ee
+spec:
+  gatewayClassName: %s
+  listeners:
+    - name: http1
+      protocol: HTTPS
+      port: 443
+      hostname: api6.com
+      tls:
+        certificateRefs:
+        - kind: Secret
+          group: ""
+          name: test-apisix-tls
+`
 
 	var ResourceApplied = func(resourType, resourceName, resourceRaw string, observedGeneration int) {
 		Expect(s.CreateResourceFromString(resourceRaw)).
@@ -56,7 +74,7 @@ spec:
 			)
 		time.Sleep(1 * time.Second)
 	}
-	var beforeEach = func() {
+	var beforeEachHTTP = func() {
 		By("create GatewayClass")
 		gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
 		err := s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defautlGatewayClass, gatewayClassName, s.GetControllerName()), "")
@@ -81,6 +99,78 @@ spec:
 		Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the api7-ingress-controller"), "checking Gateway condition message")
 	}
 
+	var beforeEachHTTPS = func() {
+		secretName := _secretName
+		createSecret(s, secretName)
+		By("create GatewayClass")
+		gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
+		err := s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defautlGatewayClass, gatewayClassName, s.GetControllerName()), "")
+		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
+		time.Sleep(5 * time.Second)
+
+		By("check GatewayClass condition")
+		gcyaml, err := s.GetResourceYaml("GatewayClass", gatewayClassName)
+		Expect(err).NotTo(HaveOccurred(), "getting GatewayClass yaml")
+		Expect(gcyaml).To(ContainSubstring(`status: "True"`), "checking GatewayClass condition status")
+		Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"), "checking GatewayClass condition message")
+
+		By("create Gateway")
+		err = s.CreateResourceFromString(fmt.Sprintf(defautlGatewayHTTPS, gatewayClassName))
+		Expect(err).NotTo(HaveOccurred(), "creating Gateway")
+		time.Sleep(5 * time.Second)
+
+		By("check Gateway condition")
+		gwyaml, err := s.GetResourceYaml("Gateway", "api7ee")
+		Expect(err).NotTo(HaveOccurred(), "getting Gateway yaml")
+		Expect(gwyaml).To(ContainSubstring(`status: "True"`), "checking Gateway condition status")
+		Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the api7-ingress-controller"), "checking Gateway condition message")
+	}
+	Context("HTTPRoute with HTTPS Gateway", func() {
+		var exactRouteByGet = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - api6.com
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /get
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
+
+		BeforeEach(beforeEachHTTPS)
+
+		It("Create/Updtea/Delete HTTPRoute", func() {
+			By("create HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 1)
+
+			By("access dataplane to check the HTTPRoute")
+			s.NewAPISIXHttpsClient("api6.com").
+				GET("/get").
+				WithHost("api6.com").
+				Expect().
+				Status(200)
+			By("delete HTTPRoute")
+			err := s.DeleteResourceFromString(exactRouteByGet)
+			Expect(err).NotTo(HaveOccurred(), "deleting HTTPRoute")
+			time.Sleep(5 * time.Second)
+
+			s.NewAPISIXHttpsClient("api6.com").
+				GET("/get").
+				WithHost("api6.com").
+				Expect().
+				Status(404)
+		})
+	})
+
 	Context("HTTPRoute Base", func() {
 
 		var exactRouteByGet = `
@@ -103,7 +193,7 @@ spec:
       port: 80
 `
 
-		BeforeEach(beforeEach)
+		BeforeEach(beforeEachHTTP)
 
 		It("Create/Updtea/Delete HTTPRoute", func() {
 			By("create HTTPRoute")
@@ -198,7 +288,7 @@ spec:
     - name: httpbin-service-e2e-test
       port: 80
 `
-		BeforeEach(beforeEach)
+		BeforeEach(beforeEachHTTP)
 
 		It("HTTPRoute Exact Match", func() {
 			By("create HTTPRoute")
@@ -421,7 +511,7 @@ spec:
       port: 80
 `
 
-		BeforeEach(beforeEach)
+		BeforeEach(beforeEachHTTP)
 
 		It("HTTPRoute RequestHeaderModifier", func() {
 			By("create HTTPRoute")
@@ -656,7 +746,7 @@ spec:
  `
 
 		BeforeEach(func() {
-			beforeEach()
+			beforeEachHTTP()
 			s.DeployNginx(framework.NginxOptions{
 				Namespace: s.Namespace(),
 			})
