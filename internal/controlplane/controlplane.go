@@ -35,6 +35,7 @@ func NewDashboard() (Controlplane, error) {
 		BaseURL:       gc.ControlPlane.Endpoints[0],
 		AdminKey:      gc.ControlPlane.AdminKey,
 		SkipTLSVerify: !*gc.ControlPlane.TLSVerify,
+		SyncCache:     true,
 	}); err != nil {
 		return nil, err
 	}

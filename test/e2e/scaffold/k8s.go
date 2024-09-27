@@ -144,8 +144,9 @@ func (s *Scaffold) ClusterClient() (apisix.Cluster, error) {
 		return nil, err
 	}
 	err = cli.AddCluster(context.Background(), &apisix.ClusterOptions{
-		BaseURL:  u.String(),
-		AdminKey: s.opts.APISIXAdminAPIKey,
+		BaseURL:   u.String(),
+		AdminKey:  s.opts.APISIXAdminAPIKey,
+		SyncCache: true,
 	})
 	if err != nil {
 		return nil, err

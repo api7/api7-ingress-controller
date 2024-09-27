@@ -79,7 +79,7 @@ type ClusterOptions struct {
 	Prefix            string
 	ListenAddress     string
 	SchemaSynced      bool
-	CacheSynced       bool
+	SyncCache         bool
 	SSLKeyEncryptSalt string
 	SkipTLSVerify     bool
 }
@@ -177,8 +177,7 @@ func newCluster(ctx context.Context, o *ClusterOptions) (Cluster, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	if o.CacheSynced {
+	if o.SyncCache {
 		c.waitforCacheSync = true
 		go c.syncCache(ctx)
 	}
@@ -293,6 +292,7 @@ func (c *cluster) syncCacheOnce(ctx context.Context) (bool, error) {
 			)
 		}
 	}
+	log.Info("All cache synced successfully")
 	// for _, u := range pluginConfigs {
 	// 	if err := c.cache.InsertPluginConfig(u); err != nil {
 	// 		log.Errorw("failed to insert pluginConfig to cache",
