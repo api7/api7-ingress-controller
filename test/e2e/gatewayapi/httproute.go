@@ -556,7 +556,7 @@ spec:
 			Expect(echoLogs).To(ContainSubstring("GET /headers"))
 		})
 
-		FIt("HTTPRoute URLRewrite with ReplaceFullPath And Hostname", func() {
+		It("HTTPRoute URLRewrite with ReplaceFullPath And Hostname", func() {
 			By("create HTTPRoute")
 			ResourceApplied("HTTPRoute", "httpbin", replaceFullPathAndHost, 1)
 
@@ -577,7 +577,7 @@ spec:
 				Contains("replace.example.org")
 		})
 
-		FIt("HTTPRoute URLRewrite with ReplacePrefixMatch", func() {
+		It("HTTPRoute URLRewrite with ReplacePrefixMatch", func() {
 			By("create HTTPRoute")
 			ResourceApplied("HTTPRoute", "httpbin", replacePrefixMatch, 1)
 
