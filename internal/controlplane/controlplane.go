@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"context"
+	"fmt"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -9,6 +10,7 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/api7/api7-ingress-controller/internal/controlplane/translator"
 	"github.com/api7/api7-ingress-controller/pkg/dashboard"
+	"github.com/api7/gopkg/pkg/log"
 )
 
 type Controlplane interface {
@@ -49,6 +51,8 @@ func (d *dashboardClient) Update(ctx context.Context, tctx *translator.Translate
 	switch obj := obj.(type) {
 	case *gatewayv1.HTTPRoute:
 		result, err = d.translator.TranslateGatewayHTTPRoute(tctx, obj.DeepCopy())
+	case *gatewayv1.Gateway:
+		result, err = d.translator.TranslateGateway(tctx, obj.DeepCopy())
 	}
 	if err != nil {
 		return err
@@ -65,41 +69,99 @@ func (d *dashboardClient) Update(ctx context.Context, tctx *translator.Translate
 			return err
 		}
 	}
+	for _, ssl := range result.SSL {
+		// to avoid duplication
+		ssl.Snis = arrayUniqueElements(ssl.Snis, []string{})
+		if len(ssl.Snis) == 1 && ssl.Snis[0] == "*" {
+			log.Warnf("wildcard hostname is not allowed in ssl object. Skipping SSL creation for %s: %s", obj.GetObjectKind().GroupVersionKind().Kind, obj.GetName())
+			return nil
+		}
+		ssl.Snis = removeWildcard(ssl.Snis)
+		oldssl, err := d.c.Cluster(name).SSL().Get(ctx, ssl.Cert)
+		if err != nil || oldssl == nil {
+			if _, err := d.c.Cluster(name).SSL().Create(ctx, ssl); err != nil {
+				return fmt.Errorf("failed to create ssl for sni %+v: %w", ssl.Snis, err)
+			}
+		} else {
+			// array union is done to avoid host duplication
+			ssl.Snis = arrayUniqueElements(ssl.Snis, oldssl.Snis)
+			if _, err := d.c.Cluster(name).SSL().Update(ctx, ssl); err != nil {
+				return fmt.Errorf("failed to update ssl for sni %+v: %w", ssl.Snis, err)
+			}
+		}
+	}
 	return nil
+}
+
+func removeWildcard(snis []string) []string {
+	newSni := make([]string, 0)
+	for _, sni := range snis {
+		if sni != "*" {
+			newSni = append(newSni, sni)
+		}
+	}
+	return newSni
+}
+
+func arrayUniqueElements(arr1 []string, arr2 []string) []string {
+	// return a union of elements from both array
+	presentEle := make(map[string]bool)
+	newArr := make([]string, 0)
+	for _, ele := range arr1 {
+		if !presentEle[ele] {
+			presentEle[ele] = true
+			newArr = append(newArr, ele)
+		}
+	}
+	for _, ele := range arr2 {
+		if !presentEle[ele] {
+			presentEle[ele] = true
+			newArr = append(newArr, ele)
+		}
+	}
+	return newArr
 }
 
 func (d *dashboardClient) Delete(ctx context.Context, obj client.Object) error {
 	clusters := d.c.ListClusters()
+	kindLabel := dashboard.ListByKindLabelOptions{
+		Kind:      obj.GetObjectKind().GroupVersionKind().Kind,
+		Namespace: obj.GetNamespace(),
+		Name:      obj.GetName(),
+	}
 	for _, cluster := range clusters {
-		routes, _ := cluster.Route().List(ctx, dashboard.ListOptions{
-			From: dashboard.ListFromCache,
-			Args: []interface{}{
-				"label",
-				obj.GetObjectKind().GroupVersionKind().Kind,
-				obj.GetNamespace(),
-				obj.GetName(),
-			},
-		})
-
-		for _, route := range routes {
-			if err := cluster.Route().Delete(ctx, route); err != nil {
-				return err
+		switch obj.(type) {
+		case *gatewayv1.Gateway:
+			ssls, _ := cluster.SSL().List(ctx, dashboard.ListOptions{
+				From:      dashboard.ListFromCache,
+				KindLabel: kindLabel,
+			})
+			for _, ssl := range ssls {
+				if err := cluster.SSL().Delete(ctx, ssl); err != nil {
+					return err
+				}
 			}
-		}
+		case *gatewayv1.HTTPRoute:
+			routes, _ := cluster.Route().List(ctx, dashboard.ListOptions{
+				From:      dashboard.ListFromCache,
+				KindLabel: kindLabel,
+			})
 
-		services, _ := cluster.Service().List(ctx, dashboard.ListOptions{
-			From: dashboard.ListFromCache,
-			Args: []interface{}{
-				"label",
-				obj.GetObjectKind().GroupVersionKind().Kind,
-				obj.GetNamespace(),
-				obj.GetName(),
-			},
-		})
+			for _, route := range routes {
+				if err := cluster.Route().Delete(ctx, route); err != nil {
+					return err
+				}
+			}
 
-		for _, service := range services {
-			if err := cluster.Service().Delete(ctx, service); err != nil {
-				return err
+			services, _ := cluster.Service().List(ctx, dashboard.ListOptions{
+				From:      dashboard.ListFromCache,
+				KindLabel: kindLabel,
+			})
+
+			for _, service := range services {
+				if err := cluster.Service().Delete(ctx, service); err != nil {
+					return err
+				}
 			}
 		}
 	}

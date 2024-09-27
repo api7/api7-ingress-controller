@@ -18,6 +18,12 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+var skippedTestsForSSL = []string{
+	// Reason: https://github.com/kubernetes-sigs/gateway-api/blob/5c5fc388829d24e8071071b01e8313ada8f15d9f/conformance/utils/suite/suite.go#L358.  SAN includes '*'
+	tests.HTTPRouteHTTPSListener.ShortName,
+	tests.HTTPRouteRedirectPortAndScheme.ShortName,
+}
+
 var skippedTestsForTraditionalRoutes = []string{
 	// TODO: Support ReferenceGrant resource
 	tests.HTTPRouteInvalidReferenceGrant.ShortName,
@@ -68,7 +74,7 @@ func TestGatewayAPIConformance(t *testing.T) {
 	opts.CleanupBaseResources = true
 	opts.GatewayClassName = gatewayClassName
 	opts.SupportedFeatures = sets.New(gatewaySupportedFeatures...)
-	opts.SkipTests = skippedTestsForTraditionalRoutes
+	opts.SkipTests = append(skippedTestsForSSL, skippedTestsForTraditionalRoutes...)
 	opts.Implementation = conformancev1.Implementation{
 		Organization: "API7",
 		Project:      "api7-ingress-controller",

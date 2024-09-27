@@ -179,8 +179,8 @@ func (c *dbCache) ListRoutes(args ...interface{}) ([]*v1.Route, error) {
 	return routes, nil
 }
 
-func (c *dbCache) ListSSL() ([]*v1.Ssl, error) {
-	raws, err := c.list("ssl")
+func (c *dbCache) ListSSL(args ...interface{}) ([]*v1.Ssl, error) {
+	raws, err := c.list("ssl", args...)
 	if err != nil {
 		return nil, err
 	}

@@ -85,7 +85,7 @@ func (f *dummySSL) Get(_ context.Context, _ string) (*v1.Ssl, error) {
 	return nil, ErrClusterNotExist
 }
 
-func (f *dummySSL) List(_ context.Context) ([]*v1.Ssl, error) {
+func (f *dummySSL) List(_ context.Context, _ ...interface{}) ([]*v1.Ssl, error) {
 	return nil, ErrClusterNotExist
 }
 
@@ -356,7 +356,7 @@ func (c *dummyCache) GetPluginConfig(_ string) (*v1.PluginConfig, error) {
 }
 
 func (c *dummyCache) ListRoutes(...interface{}) ([]*v1.Route, error)     { return nil, nil }
-func (c *dummyCache) ListSSL() ([]*v1.Ssl, error)                        { return nil, nil }
+func (c *dummyCache) ListSSL(_ ...interface{}) ([]*v1.Ssl, error)        { return nil, nil }
 func (c *dummyCache) ListServices(...interface{}) ([]*v1.Service, error) { return nil, nil }
 func (c *dummyCache) ListStreamRoutes() ([]*v1.StreamRoute, error)       { return nil, nil }
 func (c *dummyCache) ListGlobalRules() ([]*v1.GlobalRule, error)         { return nil, nil }

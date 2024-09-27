@@ -33,15 +33,8 @@ type sslClient struct {
 }
 
 func newSSLClient(c *cluster) SSL {
-	if c.adminVersion == "v3" {
-		return &sslClient{
-			url:     c.baseURL + "/ssls",
-			cluster: c,
-		}
-	}
-
 	return &sslClient{
-		url:     c.baseURL + "/ssl",
+		url:     c.baseURL + "/ssls",
 		cluster: c,
 	}
 }
@@ -60,13 +53,29 @@ func (s *sslClient) Get(ctx context.Context, name string) (*v1.Ssl, error) {
 
 // List is only used in cache warming up. So here just pass through
 // to APISIX.
-func (s *sslClient) List(ctx context.Context) ([]*v1.Ssl, error) {
+func (s *sslClient) List(ctx context.Context, listOptions ...interface{}) ([]*v1.Ssl, error) {
+	var options ListOptions
+	if len(listOptions) > 0 {
+		options = listOptions[0].(ListOptions)
+	}
+	if options.From == ListFromCache {
+		log.Debugw("try to list ssls in cache",
+			zap.String("cluster", s.cluster.name),
+			zap.String("url", s.url),
+		)
+		return s.cluster.cache.ListSSL(
+			"label",
+			options.KindLabel.Kind,
+			options.KindLabel.Namespace,
+			options.KindLabel.Name,
+		)
+	}
 	log.Debugw("try to list ssl in APISIX",
 		zap.String("url", s.url),
 		zap.String("cluster", s.cluster.name),
 	)
 	url := s.url
-	sslItems, err := s.cluster.listResource(ctx, url, "ssl")
+	sslItems, err := s.cluster.listResource(ctx, url, "ssls")
 	if err != nil {
 		log.Errorf("failed to list ssl: %s", err)
 		return nil, err
@@ -82,6 +91,7 @@ func (s *sslClient) List(ctx context.Context) ([]*v1.Ssl, error) {
 			)
 			return nil, err
 		}
+
 		items = append(items, ssl)
 	}
 
@@ -103,7 +113,7 @@ func (s *sslClient) Create(ctx context.Context, obj *v1.Ssl) (*v1.Ssl, error) {
 	}
 	url := s.url + "/" + obj.ID
 	log.Debugw("creating ssl", zap.ByteString("body", data), zap.String("url", url))
-	resp, err := s.cluster.createResource(ctx, url, "ssl", data)
+	resp, err := s.cluster.createResource(ctx, url, "ssls", data)
 	if err != nil {
 		log.Errorf("failed to create ssl: %s", err)
 		return nil, err
@@ -130,7 +140,7 @@ func (s *sslClient) Delete(ctx context.Context, obj *v1.Ssl) error {
 		return err
 	}
 	url := s.url + "/" + obj.ID
-	if err := s.cluster.deleteResource(ctx, url, "ssl"); err != nil {
+	if err := s.cluster.deleteResource(ctx, url, "ssls"); err != nil {
 		return err
 	}
 	if err := s.cluster.cache.DeleteSSL(obj); err != nil {
@@ -148,7 +158,7 @@ func (s *sslClient) Update(ctx context.Context, obj *v1.Ssl) (*v1.Ssl, error) {
 		ctx,
 		obj,
 		url,
-		"ssl",
+		"ssls",
 		s.cluster.updateResource,
 		s.cluster.cache.InsertSSL,
 		func(resp *getResponse) (*v1.Ssl, error) {
