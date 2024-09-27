@@ -368,6 +368,59 @@ spec:
         statusCode: 301
 `
 
+		var replacePrefixMatch = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin.example
+  rules:
+  - matches: 
+    - path:
+        type: PathPrefix
+        value: /replace
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /status
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
+
+		var replaceFullPathAndHost = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin.example
+  rules:
+  - matches: 
+    - path:
+        type: PathPrefix
+        value: /replace
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        hostname: replace.example.org
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /headers
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
+
 		BeforeEach(beforeEach)
 
 		It("HTTPRoute RequestHeaderModifier", func() {
@@ -501,6 +554,44 @@ spec:
 
 			echoLogs := s.GetDeploymentLogs("echo")
 			Expect(echoLogs).To(ContainSubstring("GET /headers"))
+		})
+
+		FIt("HTTPRoute URLRewrite with ReplaceFullPath And Hostname", func() {
+			By("create HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", replaceFullPathAndHost, 1)
+
+			By("/replace/201 should be rewritten to /headers")
+			s.NewAPISIXClient().GET("/replace/201").
+				WithHeader("Host", "httpbin.example").
+				Expect().
+				Status(http.StatusOK).
+				Body().
+				Contains("replace.example.org")
+
+			By("/replace/500 should be rewritten to /headers")
+			s.NewAPISIXClient().GET("/replace/500").
+				WithHeader("Host", "httpbin.example").
+				Expect().
+				Status(http.StatusOK).
+				Body().
+				Contains("replace.example.org")
+		})
+
+		FIt("HTTPRoute URLRewrite with ReplacePrefixMatch", func() {
+			By("create HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", replacePrefixMatch, 1)
+
+			By("/replace/201 should be rewritten to /status/201")
+			s.NewAPISIXClient().GET("/replace/201").
+				WithHeader("Host", "httpbin.example").
+				Expect().
+				Status(http.StatusCreated)
+
+			By("/replace/500 should be rewritten to /status/500")
+			s.NewAPISIXClient().GET("/replace/500").
+				WithHeader("Host", "httpbin.example").
+				Expect().
+				Status(http.StatusInternalServerError)
 		})
 	})
 
