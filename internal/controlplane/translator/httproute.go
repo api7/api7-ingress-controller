@@ -14,11 +14,7 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/id"
 )
 
-const (
-	RequestMirror = "proxy-mirror"
-)
-
-func (t *Translator) fillPluginsFromHTTPRouteFilters(plugins v1.Plugins, namespace string, filters []gatewayv1.HTTPRouteFilter) {
+func (t *Translator) fillPluginsFromHTTPRouteFilters(plugins v1.Plugins, namespace string, filters []gatewayv1.HTTPRouteFilter, matches []gatewayv1.HTTPRouteMatch) {
 	for _, filter := range filters {
 		switch filter.Type {
 		case gatewayv1.HTTPRouteFilterRequestHeaderModifier:
@@ -28,9 +24,47 @@ func (t *Translator) fillPluginsFromHTTPRouteFilters(plugins v1.Plugins, namespa
 		case gatewayv1.HTTPRouteFilterRequestMirror:
 			t.fillPluginFromHTTPRequestMirrorFilter(namespace, plugins, filter.RequestMirror)
 		case gatewayv1.HTTPRouteFilterURLRewrite:
-			// TODO: Supported, to be implemented
+			t.fillPluginFromURLRewriteFilter(plugins, filter.URLRewrite, matches)
 		case gatewayv1.HTTPRouteFilterResponseHeaderModifier:
 			t.fillPluginFromHTTPResponseHeaderFilter(plugins, filter.ResponseHeaderModifier)
+		}
+	}
+}
+
+func (t *Translator) fillPluginFromURLRewriteFilter(plugins v1.Plugins, urlRewrite *gatewayv1.HTTPURLRewriteFilter, matches []gatewayv1.HTTPRouteMatch) {
+	pluginName := v1.PluginProxyRewrite
+	obj := plugins[pluginName]
+	var plugin *v1.RewriteConfig
+	if obj == nil {
+		plugin = &v1.RewriteConfig{}
+		plugins[pluginName] = plugin
+	} else {
+		plugin = obj.(*v1.RewriteConfig)
+	}
+	if urlRewrite.Hostname != nil {
+		plugin.Host = string(*urlRewrite.Hostname)
+	}
+
+	if urlRewrite.Path != nil {
+		switch urlRewrite.Path.Type {
+		case gatewayv1.FullPathHTTPPathModifier:
+			plugin.RewriteTarget = *urlRewrite.Path.ReplaceFullPath
+		case gatewayv1.PrefixMatchHTTPPathModifier:
+			prefixPaths := make([]string, 0, len(matches))
+			for _, match := range matches {
+				if match.Path == nil || match.Path.Type == nil || *match.Path.Type != gatewayv1.PathMatchPathPrefix {
+					continue
+				}
+				prefixPaths = append(prefixPaths, *match.Path.Value)
+			}
+			regexPattern := "^(" + strings.Join(prefixPaths, "|") + ")" + "/(.*)"
+			replaceTarget := *urlRewrite.Path.ReplacePrefixMatch
+			regexTarget := replaceTarget + "/$2"
+
+			plugin.RewriteTargetRegex = []string{
+				regexPattern,
+				regexTarget,
+			}
 		}
 	}
 }
@@ -41,7 +75,7 @@ func (t *Translator) fillPluginFromHTTPRequestHeaderFilter(plugins v1.Plugins, r
 	var plugin *v1.RewriteConfig
 	if obj == nil {
 		plugin = &v1.RewriteConfig{
-			Headers: v1.Headers{
+			Headers: &v1.Headers{
 				Add:    make(map[string]string, len(reqHeaderModifier.Add)),
 				Set:    make(map[string]string, len(reqHeaderModifier.Set)),
 				Remove: make([]string, 0, len(reqHeaderModifier.Remove)),
@@ -72,7 +106,7 @@ func (t *Translator) fillPluginFromHTTPResponseHeaderFilter(plugins v1.Plugins, 
 	var plugin *v1.ResponseRewriteConfig
 	if obj == nil {
 		plugin = &v1.ResponseRewriteConfig{
-			Headers: v1.ResponseHeaders{
+			Headers: &v1.ResponseHeaders{
 				Add:    make([]string, 0, len(respHeaderModifier.Add)),
 				Set:    make(map[string]string, len(respHeaderModifier.Set)),
 				Remove: make([]string, 0, len(respHeaderModifier.Remove)),
@@ -262,7 +296,7 @@ func (t *Translator) TranslateGatewayHTTPRoute(tctx *TranslateContext, httpRoute
 		service.ID = id.GenID(service.Name)
 		service.Labels = label.GenLabel(httpRoute)
 		service.Hosts = hosts
-		t.fillPluginsFromHTTPRouteFilters(service.Plugins, httpRoute.GetNamespace(), rule.Filters)
+		t.fillPluginsFromHTTPRouteFilters(service.Plugins, httpRoute.GetNamespace(), rule.Filters, rule.Matches)
 
 		result.Services = append(result.Services, service)
 

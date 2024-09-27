@@ -143,7 +143,8 @@ type WolfRBACConsumerConfig struct {
 type RewriteConfig struct {
 	RewriteTarget      string   `json:"uri,omitempty"`
 	RewriteTargetRegex []string `json:"regex_uri,omitempty"`
-	Headers            Headers  `json:"headers,omitempty"`
+	Headers            *Headers `json:"headers,omitempty"`
+	Host               string   `json:"host,omitempty"`
 }
 
 // ResponseRewriteConfig is the rule config for response-rewrite plugin.
@@ -152,7 +153,7 @@ type ResponseRewriteConfig struct {
 	StatusCode   int                 `json:"status_code,omitempty"`
 	Body         string              `json:"body,omitempty"`
 	BodyBase64   bool                `json:"body_base64,omitempty"`
-	Headers      ResponseHeaders     `json:"headers,omitempty"`
+	Headers      *ResponseHeaders    `json:"headers,omitempty"`
 	LuaRestyExpr []expr.Expr         `json:"vars,omitempty"`
 	Filters      []map[string]string `json:"filters,omitempty"`
 }
