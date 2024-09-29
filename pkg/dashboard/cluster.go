@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
+	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/api7/api7-ingress-controller/pkg/dashboard/cache"
 	"github.com/api7/gopkg/pkg/log"
 )
@@ -510,13 +511,24 @@ func (c *cluster) getResource(ctx context.Context, url, resource string) (*getRe
 	return &res, nil
 }
 
+func addQueryParam(urlStr, key, value string) string {
+	parsedUrl, err := url.Parse(urlStr)
+	if err != nil {
+		return urlStr
+	}
+	query := parsedUrl.Query()
+	query.Add(key, value)
+	parsedUrl.RawQuery = query.Encode()
+	return parsedUrl.String()
+}
+
 func (c *cluster) listResource(ctx context.Context, url, resource string) (listResponse, error) {
 	log.Debugw("list resource in cluster",
 		zap.String("cluster_name", c.name),
 		zap.String("name", resource),
 		zap.String("url", url),
 	)
-
+	url = addQueryParam(url, fmt.Sprintf("labels[%s]", "controller_name"), config.ControllerConfig.ControllerName)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return listResponse{}, err
