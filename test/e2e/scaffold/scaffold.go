@@ -409,9 +409,10 @@ func (s *Scaffold) initDataPlaneClient() {
 	s.Logf("apisix admin: %s", url)
 
 	err = s.apisixCli.AddCluster(context.Background(), &dashboard.ClusterOptions{
-		Name:     "default",
-		BaseURL:  url,
-		AdminKey: s.AdminKey(),
+		Name:           "default",
+		ControllerName: s.opts.ControllerName,
+		BaseURL:        url,
+		AdminKey:       s.AdminKey(),
 	})
 	Expect(err).NotTo(HaveOccurred(), "adding cluster")
 

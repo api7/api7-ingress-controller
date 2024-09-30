@@ -35,7 +35,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
-	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/api7/api7-ingress-controller/pkg/dashboard/cache"
 	"github.com/api7/gopkg/pkg/log"
 )
@@ -69,6 +68,7 @@ var (
 
 // ClusterOptions contains parameters to customize APISIX client.
 type ClusterOptions struct {
+	ControllerName  string
 	AdminAPIVersion string
 	Name            string
 	AdminKey        string
@@ -86,6 +86,7 @@ type ClusterOptions struct {
 }
 
 type cluster struct {
+	controllerName    string
 	adminVersion      string
 	name              string
 	baseURL           string
@@ -136,12 +137,13 @@ func newCluster(ctx context.Context, o *ClusterOptions) (Cluster, error) {
 	// if the version is not v3, then fallback to v2
 	adminVersion := o.AdminAPIVersion
 	c := &cluster{
-		adminVersion: adminVersion,
-		name:         o.Name,
-		baseURL:      o.BaseURL,
-		baseURLHost:  u.Host,
-		adminKey:     o.AdminKey,
-		prefix:       o.Prefix,
+		controllerName: o.ControllerName,
+		adminVersion:   adminVersion,
+		name:           o.Name,
+		baseURL:        o.BaseURL,
+		baseURLHost:    u.Host,
+		adminKey:       o.AdminKey,
+		prefix:         o.Prefix,
 		cli: &http.Client{
 			Timeout: o.Timeout,
 			Transport: &http.Transport{
@@ -528,7 +530,7 @@ func (c *cluster) listResource(ctx context.Context, url, resource string) (listR
 		zap.String("name", resource),
 		zap.String("url", url),
 	)
-	url = addQueryParam(url, fmt.Sprintf("labels[%s]", "controller_name"), config.ControllerConfig.ControllerName)
+	url = addQueryParam(url, fmt.Sprintf("labels[%s]", "controller_name"), c.controllerName)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return listResponse{}, err
