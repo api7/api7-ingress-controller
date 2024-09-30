@@ -55,15 +55,16 @@ spec:
 		time.Sleep(1 * time.Second)
 	}
 	var beforeEach = func(s *scaffold.Scaffold, gatewayName string) {
-		s.CreateResourceFromString(fmt.Sprintf(`
+		err := s.CreateResourceFromString(fmt.Sprintf(`
 kind: Namespace
 apiVersion: v1
 metadata:
   name: %s
 `, gatewayName))
+		Expect(err).NotTo(HaveOccurred(), "creating namespace")
 		By(fmt.Sprintf("create GatewayClass for controller %s", s.GetControllerName()))
 		gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
-		err := s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defautlGatewayClass, gatewayClassName, gatewayName, s.GetControllerName()), gatewayName)
+		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defautlGatewayClass, gatewayClassName, gatewayName, s.GetControllerName()), gatewayName)
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 		time.Sleep(10 * time.Second)
 
