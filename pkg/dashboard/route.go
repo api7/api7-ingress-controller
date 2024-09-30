@@ -55,21 +55,7 @@ func (r *routeClient) Get(ctx context.Context, name string) (*v1.Route, error) {
 
 // List is only used in cache warming up. So here just pass through
 // to APISIX.
-func (r *routeClient) List(ctx context.Context, listOptions ...interface{}) ([]*v1.Route, error) {
-	var options ListOptions
-	if len(listOptions) > 0 {
-		options = listOptions[0].(ListOptions)
-	}
-	if options.From == ListFromCache {
-		log.Debugw("try to list routes in cache",
-			zap.String("cluster", r.cluster.name),
-			zap.String("url", r.url),
-		)
-		return r.cluster.cache.ListRoutes("label",
-			options.KindLabel.Kind,
-			options.KindLabel.Namespace,
-			options.KindLabel.Name)
-	}
+func (r *routeClient) List(ctx context.Context, args ...interface{}) ([]*v1.Route, error) {
 	log.Debugw("try to list routes in APISIX",
 		zap.String("cluster", r.cluster.name),
 		zap.String("url", r.url),
