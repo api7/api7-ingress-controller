@@ -4,6 +4,7 @@ import (
 	"bytes"
 	_ "embed"
 	"text/template"
+	"time"
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/gruntwork-io/terratest/modules/k8s"
@@ -48,4 +49,5 @@ func (f *Framework) DeployIngress(opts IngressDeployOpts) {
 		LabelSelector: "control-plane=controller-manager",
 	})
 	f.GomegaT.Expect(err).ToNot(HaveOccurred(), "waiting for controller-manager pod ready")
+	f.WaitControllerManagerLog("All cache synced successfully", 0, time.Minute)
 }

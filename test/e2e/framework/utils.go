@@ -290,6 +290,10 @@ func (f *Framework) WaitMTLSDPLog(keyword string, sinceSeconds int64, timeout ti
 	f.WaitPodsLog("app.kubernetes.io/name=apisix,cp-connection=mtls", keyword, sinceSeconds, timeout)
 }
 
+func (f *Framework) WaitControllerManagerLog(keyword string, sinceSeconds int64, timeout time.Duration) {
+	f.WaitPodsLog("control-plane=controller-manager", keyword, sinceSeconds, timeout)
+}
+
 func (f *Framework) WaitDPLog(keyword string, sinceSeconds int64, timeout time.Duration) {
 	f.WaitPodsLog("app.kubernetes.io/name=apisix", keyword, sinceSeconds, timeout)
 }
