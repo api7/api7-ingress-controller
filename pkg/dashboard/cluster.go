@@ -260,6 +260,7 @@ func (c *cluster) syncCacheOnce(ctx context.Context) (bool, error) {
 	}
 
 	for _, r := range routes {
+		log.Debug("syncing route with labels", r.Labels)
 		if err := c.cache.InsertRoute(r); err != nil {
 			log.Errorw("failed to insert route to cache",
 				zap.String("route", r.ID),
@@ -270,6 +271,7 @@ func (c *cluster) syncCacheOnce(ctx context.Context) (bool, error) {
 		}
 	}
 	for _, s := range ssl {
+		log.Debug("syncing ssl with labels", s.Labels)
 		if err := c.cache.InsertSSL(s); err != nil {
 			log.Errorw("failed to insert ssl to cache",
 				zap.String("ssl", s.ID),
@@ -290,6 +292,7 @@ func (c *cluster) syncCacheOnce(ctx context.Context) (bool, error) {
 		}
 	}
 	for _, consumer := range consumers {
+		log.Debug("syncing consumer with labels", consumer.Labels)
 		if err := c.cache.InsertConsumer(consumer); err != nil {
 			log.Errorw("failed to insert consumer to cache",
 				zap.Any("consumer", consumer),
