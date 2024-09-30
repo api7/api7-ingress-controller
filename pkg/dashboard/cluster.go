@@ -83,9 +83,11 @@ type ClusterOptions struct {
 	SyncCache         bool
 	SSLKeyEncryptSalt string
 	SkipTLSVerify     bool
+	Labels            map[string]string
 }
 
 type cluster struct {
+	labels            map[string]string
 	controllerName    string
 	adminVersion      string
 	name              string
@@ -137,6 +139,7 @@ func newCluster(ctx context.Context, o *ClusterOptions) (Cluster, error) {
 	// if the version is not v3, then fallback to v2
 	adminVersion := o.AdminAPIVersion
 	c := &cluster{
+		labels:         o.Labels,
 		controllerName: o.ControllerName,
 		adminVersion:   adminVersion,
 		name:           o.Name,
@@ -513,13 +516,15 @@ func (c *cluster) getResource(ctx context.Context, url, resource string) (*getRe
 	return &res, nil
 }
 
-func addQueryParam(urlStr, key, value string) string {
+func addQueryParam(urlStr string, labels map[string]string) string {
 	parsedUrl, err := url.Parse(urlStr)
 	if err != nil {
 		return urlStr
 	}
 	query := parsedUrl.Query()
-	query.Add(key, value)
+	for key, value := range labels {
+		query.Add(key, value)
+	}
 	parsedUrl.RawQuery = query.Encode()
 	return parsedUrl.String()
 }
@@ -530,7 +535,10 @@ func (c *cluster) listResource(ctx context.Context, url, resource string) (listR
 		zap.String("name", resource),
 		zap.String("url", url),
 	)
-	url = addQueryParam(url, fmt.Sprintf("labels[%s]", "controller_name"), c.controllerName)
+	if c.labels != nil {
+		url = addQueryParam(url, c.labels)
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return listResponse{}, err

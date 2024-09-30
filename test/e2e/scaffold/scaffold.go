@@ -411,6 +411,7 @@ func (s *Scaffold) initDataPlaneClient() {
 	err = s.apisixCli.AddCluster(context.Background(), &dashboard.ClusterOptions{
 		Name:           "default",
 		ControllerName: s.opts.ControllerName,
+		Labels:         map[string]string{"controller_name": s.opts.ControllerName},
 		BaseURL:        url,
 		AdminKey:       s.AdminKey(),
 	})
