@@ -523,7 +523,7 @@ func addQueryParam(urlStr string, labels map[string]string) string {
 	}
 	query := parsedUrl.Query()
 	for key, value := range labels {
-		query.Add(key, value)
+		query.Add(fmt.Sprintf("labels[%s]", key), value)
 	}
 	parsedUrl.RawQuery = query.Encode()
 	return parsedUrl.String()
