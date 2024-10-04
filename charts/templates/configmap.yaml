@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ingress-config
+data:
+  config.yaml: |
+    log_level: "debug"
+
+    controller_name: {{ .Values.controllerName | default "gateway.api7.io/api7-ingress-controller" }}
+
+    leader_election_id: "api7-ingress-controller-leader"
+    
+    gateway_configs:
+    - name: "api7ee"
+      control_plane:
+        admin_key: "{{ .Values.admin.key }}"
+        endpoints:
+          - "{{ .Values.adminEnpoint }}"
+        tls_verify: {{ .Values.adminTLSVerify }}
+      addresses:                      # record the status address of the gateway-api gateway
+      - "{{ .Values.statusAddress }}"

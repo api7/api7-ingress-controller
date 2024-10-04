@@ -1,0 +1,7 @@
+controllerName: gateway.api7.io/api7-ingress-controller
+admin:
+  key: '' # Pass the admin key generated for the ingress gateway group
+  adminTLSVerify: false
+  adminEndpoint: https://api7ee3-dashboard.api7-ee-e2e:7443/apisix/admin
+namespace: ingress-apisix
+statusAddress: ''
