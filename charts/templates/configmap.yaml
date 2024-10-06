@@ -17,6 +17,6 @@ data:
         admin_key: "{{ .Values.admin.key }}"
         endpoints:
           - "{{ .Values.admin.adminEndpoint }}"
-        tls_verify: {{ .Values.adminTLSVerify }}
+        tls_verify: {{ .Values.admin.adminTLSVerify }}
       addresses:                      # record the status address of the gateway-api gateway
       - "{{ .Values.statusAddress }}"
