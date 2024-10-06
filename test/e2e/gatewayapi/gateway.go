@@ -288,6 +288,7 @@ spec:
 				assert.Nil(GinkgoT(), err, "list tls error")
 				assert.Len(GinkgoT(), tls, 1, "tls number not expect")
 				assert.Equal(GinkgoT(), Cert, tls[0].Cert, "tls cert not expect")
+				assert.Equal(GinkgoT(), tls[0].Labels["controller_name"], "gateway.api7.io/api7-ingress-controller")
 			})
 		})
 	})

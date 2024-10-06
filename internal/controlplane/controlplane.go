@@ -31,10 +31,15 @@ func NewDashboard() (Controlplane, error) {
 
 	gc := config.GetFirstGatewayConfig()
 	if err := control.AddCluster(context.TODO(), &dashboard.ClusterOptions{
-		Name:          "default",
-		BaseURL:       gc.ControlPlane.Endpoints[0],
-		AdminKey:      gc.ControlPlane.AdminKey,
-		SkipTLSVerify: !*gc.ControlPlane.TLSVerify,
+		Name: "default",
+		Labels: map[string]string{
+			"controller_name": config.ControllerConfig.ControllerName,
+		},
+		ControllerName: config.ControllerConfig.ControllerName,
+		BaseURL:        gc.ControlPlane.Endpoints[0],
+		AdminKey:       gc.ControlPlane.AdminKey,
+		SkipTLSVerify:  !*gc.ControlPlane.TLSVerify,
+		SyncCache:      true,
 	}); err != nil {
 		return nil, err
 	}

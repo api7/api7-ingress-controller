@@ -68,6 +68,7 @@ var (
 
 // ClusterOptions contains parameters to customize APISIX client.
 type ClusterOptions struct {
+	ControllerName  string
 	AdminAPIVersion string
 	Name            string
 	AdminKey        string
@@ -79,12 +80,15 @@ type ClusterOptions struct {
 	Prefix            string
 	ListenAddress     string
 	SchemaSynced      bool
-	CacheSynced       bool
+	SyncCache         bool
 	SSLKeyEncryptSalt string
 	SkipTLSVerify     bool
+	Labels            map[string]string
 }
 
 type cluster struct {
+	labels            map[string]string
+	controllerName    string
 	adminVersion      string
 	name              string
 	baseURL           string
@@ -135,12 +139,14 @@ func newCluster(ctx context.Context, o *ClusterOptions) (Cluster, error) {
 	// if the version is not v3, then fallback to v2
 	adminVersion := o.AdminAPIVersion
 	c := &cluster{
-		adminVersion: adminVersion,
-		name:         o.Name,
-		baseURL:      o.BaseURL,
-		baseURLHost:  u.Host,
-		adminKey:     o.AdminKey,
-		prefix:       o.Prefix,
+		labels:         o.Labels,
+		controllerName: o.ControllerName,
+		adminVersion:   adminVersion,
+		name:           o.Name,
+		baseURL:        o.BaseURL,
+		baseURLHost:    u.Host,
+		adminKey:       o.AdminKey,
+		prefix:         o.Prefix,
 		cli: &http.Client{
 			Timeout: o.Timeout,
 			Transport: &http.Transport{
@@ -177,8 +183,7 @@ func newCluster(ctx context.Context, o *ClusterOptions) (Cluster, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	if o.CacheSynced {
+	if o.SyncCache {
 		c.waitforCacheSync = true
 		go c.syncCache(ctx)
 	}
@@ -255,6 +260,7 @@ func (c *cluster) syncCacheOnce(ctx context.Context) (bool, error) {
 	}
 
 	for _, r := range routes {
+		log.Debug("syncing route with labels", r.Labels)
 		if err := c.cache.InsertRoute(r); err != nil {
 			log.Errorw("failed to insert route to cache",
 				zap.String("route", r.ID),
@@ -265,6 +271,7 @@ func (c *cluster) syncCacheOnce(ctx context.Context) (bool, error) {
 		}
 	}
 	for _, s := range ssl {
+		log.Debug("syncing ssl with labels", s.Labels)
 		if err := c.cache.InsertSSL(s); err != nil {
 			log.Errorw("failed to insert ssl to cache",
 				zap.String("ssl", s.ID),
@@ -285,6 +292,7 @@ func (c *cluster) syncCacheOnce(ctx context.Context) (bool, error) {
 		}
 	}
 	for _, consumer := range consumers {
+		log.Debug("syncing consumer with labels", consumer.Labels)
 		if err := c.cache.InsertConsumer(consumer); err != nil {
 			log.Errorw("failed to insert consumer to cache",
 				zap.Any("consumer", consumer),
@@ -293,6 +301,7 @@ func (c *cluster) syncCacheOnce(ctx context.Context) (bool, error) {
 			)
 		}
 	}
+	log.Info("All cache synced successfully")
 	// for _, u := range pluginConfigs {
 	// 	if err := c.cache.InsertPluginConfig(u); err != nil {
 	// 		log.Errorw("failed to insert pluginConfig to cache",
@@ -510,12 +519,28 @@ func (c *cluster) getResource(ctx context.Context, url, resource string) (*getRe
 	return &res, nil
 }
 
+func addQueryParam(urlStr string, labels map[string]string) string {
+	parsedUrl, err := url.Parse(urlStr)
+	if err != nil {
+		return urlStr
+	}
+	query := parsedUrl.Query()
+	for key, value := range labels {
+		query.Add(fmt.Sprintf("labels[%s]", key), value)
+	}
+	parsedUrl.RawQuery = query.Encode()
+	return parsedUrl.String()
+}
+
 func (c *cluster) listResource(ctx context.Context, url, resource string) (listResponse, error) {
 	log.Debugw("list resource in cluster",
 		zap.String("cluster_name", c.name),
 		zap.String("name", resource),
 		zap.String("url", url),
 	)
+	if c.labels != nil {
+		url = addQueryParam(url, c.labels)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
