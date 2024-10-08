@@ -3,12 +3,12 @@ kind: RoleBinding
 metadata:
   labels:
     {{- include "api7-ingress-controller-manager.labels" . | nindent 4 }}
-  name: api7-ingress-leader-election-rolebinding
+  name: {{ .Release.Name }}-api7-ingress-leader-election-rolebinding
   namespace: {{ .Release.Namespace }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: api7-ingress-leader-election-role
+  name: {{ .Release.Name }}-api7-ingress-leader-election-role
 subjects:
 - kind: ServiceAccount
   name: {{ .Release.Name }}
