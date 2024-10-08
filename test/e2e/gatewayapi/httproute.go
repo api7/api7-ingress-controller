@@ -734,7 +734,8 @@ spec:
 
 		It("HTTPRoute ExtensionRef", func() {
 			By("create HTTPRoute")
-			s.CreateResourceFromString(echoPlugin)
+			err := s.CreateResourceFromString(echoPlugin)
+			Expect(err).NotTo(HaveOccurred(), "creating PluginConfig")
 			ResourceApplied("HTTPRoute", "httpbin", extensionRefEchoPlugin, 1)
 
 			s.NewAPISIXClient().GET("/get").
@@ -743,7 +744,8 @@ spec:
 				Body().
 				Contains("Hello, World!!")
 
-			s.CreateResourceFromString(echoPluginUpdated)
+			err = s.CreateResourceFromString(echoPluginUpdated)
+			Expect(err).NotTo(HaveOccurred(), "updating PluginConfig")
 			time.Sleep(5 * time.Second)
 
 			s.NewAPISIXClient().GET("/get").
