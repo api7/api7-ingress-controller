@@ -5,7 +5,7 @@ podAnnotations: {}
 controllerName: gateway.api7.io/api7-ingress-controller
 replicas: 1
 admin:
-  key: 'a7adm-e8J8XAu6FX3W9LD1f84dg3JCpTIj22e733p5qLZ8NY304ksZIz-1ff6f82c482a41f6b8d86af79d3a1c20' # Pass the admin key generated for the ingress gateway group
+  key: '' # Pass the admin key generated for the ingress gateway group
   tlsVerify: false
   endpoint: https://api7ee3-dashboard.api7-ee-e2e:7443/apisix/admin
 statusAddress: ''
