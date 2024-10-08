@@ -511,6 +511,54 @@ spec:
       port: 80
 `
 
+		var echoPlugin = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: PluginConfig
+metadata:
+  name: example-plugin-config
+spec:
+  plugins:
+  - name: echo
+    config:
+      body: "Hello, World!!"
+`
+		var echoPluginUpdated = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: PluginConfig
+metadata:
+  name: example-plugin-config
+spec:
+  plugins:
+  - name: echo
+    config:
+      body: "Updated"
+`
+		var extensionRefEchoPlugin = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin.example
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /get
+    filters:
+    - type: ExtensionRef
+      extensionRef:
+        group: gateway.api7.io
+        kind: PluginConfig
+        name: example-plugin-config
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
+
 		BeforeEach(beforeEachHTTP)
 
 		It("HTTPRoute RequestHeaderModifier", func() {
@@ -682,6 +730,27 @@ spec:
 				WithHeader("Host", "httpbin.example").
 				Expect().
 				Status(http.StatusInternalServerError)
+		})
+
+		It("HTTPRoute ExtensionRef", func() {
+			By("create HTTPRoute")
+			s.CreateResourceFromString(echoPlugin)
+			ResourceApplied("HTTPRoute", "httpbin", extensionRefEchoPlugin, 1)
+
+			s.NewAPISIXClient().GET("/get").
+				WithHeader("Host", "httpbin.example").
+				Expect().
+				Body().
+				Contains("Hello, World!!")
+
+			s.CreateResourceFromString(echoPluginUpdated)
+			time.Sleep(5 * time.Second)
+
+			s.NewAPISIXClient().GET("/get").
+				WithHeader("Host", "httpbin.example").
+				Expect().
+				Body().
+				Contains("Updated")
 		})
 	})
 

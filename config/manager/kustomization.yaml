@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: api7/api7-ingress-controller
-  newTag: dev4
+  newTag: dev

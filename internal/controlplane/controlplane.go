@@ -50,7 +50,7 @@ func (d *dashboardClient) Update(ctx context.Context, tctx *translator.Translate
 	var err error
 	switch obj := obj.(type) {
 	case *gatewayv1.HTTPRoute:
-		result, err = d.translator.TranslateGatewayHTTPRoute(tctx, obj.DeepCopy())
+		result, err = d.translator.TranslateHTTPRoute(tctx, obj.DeepCopy())
 	case *gatewayv1.Gateway:
 		result, err = d.translator.TranslateGateway(tctx, obj.DeepCopy())
 	}
