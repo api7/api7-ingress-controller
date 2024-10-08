@@ -5,6 +5,10 @@ metadata:
     {{- include "api7-ingress-controller-manager.labels" . | nindent 4 }}
   name: {{ .Release.Name }}
   namespace: {{ .Release.Namespace }}
+  annotations:
+  {{- range $key, $value := .Values.annotations }}
+    {{ $key }}: {{ $value | quote }}
+  {{- end }}
 spec:
   replicas: {{ .Values.replicas }}
   selector:
@@ -13,12 +17,16 @@ spec:
   template:
     metadata:
       annotations:
-        kubectl.kubernetes.io/default-container: manager
+        {{- if .Values.podAnnotations }}
+        {{- range $key, $value := $.Values.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
       labels:
         {{- include "api7-ingress-controller-manager.selectorLabels" . | nindent 8 }}
     spec:
       containers:
-      - image: "api7/api7-ingress-controller:{{ .Values.imageTag }}"
+      - image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         volumeMounts:
         - name: {{ .Release.Name }}-ingress-config
           mountPath: /app/conf/config.yaml
@@ -44,10 +52,23 @@ spec:
             cpu: 10m
             memory: 64Mi
         securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
+          {{- toYaml .Values.podSecurityContext | nindent 10 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- tpl (. | toYaml) $ | nindent 8 }}
+      {{- end }}
       volumes:
       - name: {{ .Release.Name }}-ingress-config
         configMap:
