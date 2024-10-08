@@ -2,21 +2,20 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app.kubernetes.io/name: api7-ingress
-    control-plane: controller-manager
+    {{- include "api7-ingress-controller-manager.labels" . | nindent 4 }}
   name: {{ .Release.Name }}
   namespace: {{ .Release.Namespace }}
 spec:
   replicas: {{ .Values.replicas }}
   selector:
     matchLabels:
-      control-plane: controller-manager
+      {{- include "api7-ingress-controller-manager.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: manager
       labels:
-        control-plane: controller-manager
+        {{- include "api7-ingress-controller-manager.selectorLabels" . | nindent 8 }}
     spec:
       containers:
       - image: "api7/api7-ingress-controller:{{ .Values.imageTag }}"

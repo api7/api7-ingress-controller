@@ -2,7 +2,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   labels:
-    app.kubernetes.io/name: api7-ingress
+    {{- include "api7-ingress-controller-manager.labels" . | nindent 4 }}
   name: {{ .Release.Name }}-{{ .Release.Name }}-api7-ingress-manager-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
