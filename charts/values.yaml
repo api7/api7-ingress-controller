@@ -7,9 +7,9 @@ replicas: 1
 admin:
   key: '' # Pass the admin key generated for the ingress gateway group
   tlsVerify: false
-  endpoint: https://api7ee3-dashboard.api7-ee-e2e:7443/apisix/admin
+  endpoint: '' #Dashboard endpoint 
 statusAddress: ''
-logLevel: debug
+logLevel: info
 nodeSelector: {}
 tolerations: []
 affinity: {}

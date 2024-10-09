@@ -3,7 +3,7 @@ kind: ClusterRoleBinding
 metadata:
   labels:
     {{- include "api7-ingress-controller-manager.labels" . | nindent 4 }}
-  name: {{ .Release.Name }}-{{ .Release.Name }}-api7-ingress-manager-rolebinding
+  name: {{ .Release.Name }}-api7-ingress-manager-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
