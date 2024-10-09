@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/api7/gopkg/pkg/log"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -14,7 +16,13 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/id"
 )
 
-func (t *Translator) fillPluginsFromHTTPRouteFilters(plugins v1.Plugins, namespace string, filters []gatewayv1.HTTPRouteFilter, matches []gatewayv1.HTTPRouteMatch) {
+func (t *Translator) fillPluginsFromHTTPRouteFilters(
+	plugins v1.Plugins,
+	namespace string,
+	filters []gatewayv1.HTTPRouteFilter,
+	matches []gatewayv1.HTTPRouteMatch,
+	tctx *TranslateContext,
+) {
 	for _, filter := range filters {
 		switch filter.Type {
 		case gatewayv1.HTTPRouteFilterRequestHeaderModifier:
@@ -22,12 +30,32 @@ func (t *Translator) fillPluginsFromHTTPRouteFilters(plugins v1.Plugins, namespa
 		case gatewayv1.HTTPRouteFilterRequestRedirect:
 			t.fillPluginFromHTTPRequestRedirectFilter(plugins, filter.RequestRedirect)
 		case gatewayv1.HTTPRouteFilterRequestMirror:
-			t.fillPluginFromHTTPRequestMirrorFilter(namespace, plugins, filter.RequestMirror)
+			t.fillPluginFromHTTPRequestMirrorFilter(plugins, namespace, filter.RequestMirror)
 		case gatewayv1.HTTPRouteFilterURLRewrite:
 			t.fillPluginFromURLRewriteFilter(plugins, filter.URLRewrite, matches)
 		case gatewayv1.HTTPRouteFilterResponseHeaderModifier:
 			t.fillPluginFromHTTPResponseHeaderFilter(plugins, filter.ResponseHeaderModifier)
+		case gatewayv1.HTTPRouteFilterExtensionRef:
+			t.fillPluginFromExtensionRef(plugins, namespace, filter.ExtensionRef, tctx)
 		}
+	}
+}
+
+func (t *Translator) fillPluginFromExtensionRef(plugins v1.Plugins, namespace string, extensionRef *gatewayv1.LocalObjectReference, tctx *TranslateContext) {
+	if extensionRef == nil {
+		return
+	}
+	if extensionRef.Kind == "PluginConfig" {
+		pluginconfig := tctx.PluginConfigs[types.NamespacedName{
+			Namespace: namespace,
+			Name:      string(extensionRef.Name),
+		}]
+		for _, plugin := range pluginconfig.Spec.Plugins {
+			pluginName := plugin.Name
+			plugins[pluginName] = plugin.Config
+			log.Errorw("plugin config", zap.String("namespace", namespace), zap.Any("plugin_config", plugin))
+		}
+		log.Errorw("plugin config", zap.String("namespace", namespace), zap.Any("plugins", plugins))
 	}
 }
 
@@ -125,7 +153,7 @@ func (t *Translator) fillPluginFromHTTPResponseHeaderFilter(plugins v1.Plugins, 
 	plugin.Headers.Remove = append(plugin.Headers.Remove, respHeaderModifier.Remove...)
 }
 
-func (t *Translator) fillPluginFromHTTPRequestMirrorFilter(namespace string, plugins v1.Plugins, reqMirror *gatewayv1.HTTPRequestMirrorFilter) {
+func (t *Translator) fillPluginFromHTTPRequestMirrorFilter(plugins v1.Plugins, namespace string, reqMirror *gatewayv1.HTTPRequestMirrorFilter) {
 	pluginName := v1.PluginProxyMirror
 	obj := plugins[pluginName]
 
@@ -224,7 +252,7 @@ func (t *Translator) translateBackendRef(tctx *TranslateContext, ref gatewayv1.B
 	return upstream
 }
 
-func (t *Translator) TranslateGatewayHTTPRoute(tctx *TranslateContext, httpRoute *gatewayv1.HTTPRoute) (*TranslateResult, error) {
+func (t *Translator) TranslateHTTPRoute(tctx *TranslateContext, httpRoute *gatewayv1.HTTPRoute) (*TranslateResult, error) {
 	result := &TranslateResult{}
 
 	hosts := make([]string, 0, len(httpRoute.Spec.Hostnames))
@@ -296,7 +324,7 @@ func (t *Translator) TranslateGatewayHTTPRoute(tctx *TranslateContext, httpRoute
 		service.ID = id.GenID(service.Name)
 		service.Labels = label.GenLabel(httpRoute)
 		service.Hosts = hosts
-		t.fillPluginsFromHTTPRouteFilters(service.Plugins, httpRoute.GetNamespace(), rule.Filters, rule.Matches)
+		t.fillPluginsFromHTTPRouteFilters(service.Plugins, httpRoute.GetNamespace(), rule.Filters, rule.Matches, tctx)
 
 		result.Services = append(result.Services, service)
 

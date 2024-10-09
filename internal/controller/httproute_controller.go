@@ -9,12 +9,14 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
 	"github.com/api7/api7-ingress-controller/internal/controlplane"
 	"github.com/api7/api7-ingress-controller/internal/controlplane/translator"
@@ -34,18 +36,16 @@ type HTTPRouteReconciler struct { //nolint:revive
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if err := mgr.GetFieldIndexer().IndexField(
-		context.TODO(),
-		&gatewayv1.HTTPRoute{},
-		indexer.ServiceIndexRef,
-		indexer.HTTPRouteServiceIndexFunc,
-	); err != nil {
+	if err := r.setupIndexer(mgr); err != nil {
 		return err
 	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.HTTPRoute{}).
 		Watches(&discoveryv1.EndpointSlice{},
 			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesByServiceBef),
+		).
+		Watches(&v1alpha1.PluginConfig{},
+			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesByExtensionRef),
 		).
 		Complete(r)
 }
@@ -89,9 +89,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, nil
 	}
 
-	tctx := &translator.TranslateContext{
-		EndpointSlices: make(map[client.ObjectKey][]discoveryv1.EndpointSlice),
-	}
+	tctx := translator.NewDefaultTranslateContext()
 	if err := r.processHTTPRoute(tctx, hr); err != nil {
 		acceptStatus.status = false
 		acceptStatus.msg = err.Error()
@@ -132,6 +130,27 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return ctrl.Result{}, nil
 }
 
+// SetupWithManager sets up the controller with the Manager.
+func (r *HTTPRouteReconciler) setupIndexer(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.TODO(),
+		&gatewayv1.HTTPRoute{},
+		indexer.ExtensionRef,
+		indexer.HTTPRouteExtensionIndexFunc,
+	); err != nil {
+		return err
+	}
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.TODO(),
+		&gatewayv1.HTTPRoute{},
+		indexer.ServiceIndexRef,
+		indexer.HTTPRouteServiceIndexFunc,
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (r *HTTPRouteReconciler) listHTTPRoutesByServiceBef(ctx context.Context, obj client.Object) []reconcile.Request {
 	endpointSlice, ok := obj.(*discoveryv1.EndpointSlice)
 	if !ok {
@@ -146,6 +165,34 @@ func (r *HTTPRouteReconciler) listHTTPRoutesByServiceBef(ctx context.Context, ob
 		indexer.ServiceIndexRef: indexer.GenIndexKey(namespace, serviceName),
 	}); err != nil {
 		r.Log.Error(err, "failed to list httproutes by service", "service", serviceName)
+		return nil
+	}
+	requests := make([]reconcile.Request, 0, len(hrList.Items))
+	for _, hr := range hrList.Items {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: client.ObjectKey{
+				Namespace: hr.Namespace,
+				Name:      hr.Name,
+			},
+		})
+	}
+	return requests
+}
+
+func (r *HTTPRouteReconciler) listHTTPRoutesByExtensionRef(ctx context.Context, obj client.Object) []reconcile.Request {
+	pluginconfig, ok := obj.(*v1alpha1.PluginConfig)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to EndpointSlice")
+		return nil
+	}
+	namespace := pluginconfig.GetNamespace()
+	name := pluginconfig.GetName()
+
+	hrList := &gatewayv1.HTTPRouteList{}
+	if err := r.List(ctx, hrList, client.MatchingFields{
+		indexer.ExtensionRef: indexer.GenIndexKey(namespace, name),
+	}); err != nil {
+		r.Log.Error(err, "failed to list httproutes by extension reference", "extension", name)
 		return nil
 	}
 	requests := make([]reconcile.Request, 0, len(hrList.Items))
@@ -221,6 +268,25 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *translator.Trans
 func (t *HTTPRouteReconciler) processHTTPRoute(tctx *translator.TranslateContext, httpRoute *gatewayv1.HTTPRoute) error {
 	var terror error
 	for _, rule := range httpRoute.Spec.Rules {
+		for _, filter := range rule.Filters {
+			if filter.Type != gatewayv1.HTTPRouteFilterExtensionRef || filter.ExtensionRef == nil {
+				continue
+			}
+			if filter.ExtensionRef.Kind == "PluginConfig" {
+				pluginconfig := new(v1alpha1.PluginConfig)
+				if err := t.Get(context.Background(), client.ObjectKey{
+					Namespace: httpRoute.GetNamespace(),
+					Name:      string(filter.ExtensionRef.Name),
+				}, pluginconfig); err != nil {
+					terror = err
+					continue
+				}
+				tctx.PluginConfigs[types.NamespacedName{
+					Namespace: httpRoute.GetNamespace(),
+					Name:      string(filter.ExtensionRef.Name),
+				}] = pluginconfig
+			}
+		}
 		for _, backend := range rule.BackendRefs {
 			var kind string
 			if backend.Kind == nil {

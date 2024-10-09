@@ -68,9 +68,9 @@ jobs:
         run: |
           make kind-up
 
-      - name: Install Gateway API
+      - name: Install Gateway API And CRDs
         run: |
-          make install-gateway-api
+          make install
 
       - name: Loading Docker Image to Kind Cluster
         run: |

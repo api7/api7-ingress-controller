@@ -2,7 +2,7 @@
 # since it depends on service name and namespace that are out of this kustomize package.
 # It should be run by config/default
 resources:
-- bases/gateway.apisix.io.github.com_guestbooks.yaml
+- bases/gateway.apisix.io_pluginconfigs.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:
