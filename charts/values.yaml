@@ -1,0 +1,37 @@
+nameOverride: ""
+labelsOverride: {}
+annotations: {}
+podAnnotations: {}
+controllerName: gateway.api7.io/api7-ingress-controller
+replicas: 1
+admin:
+  key: '' # Pass the admin key generated for the ingress gateway group
+  tlsVerify: false
+  endpoint: '' #Dashboard endpoint 
+statusAddress: ''
+logLevel: info
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+# -- See https://kubernetes.io/docs/tasks/run-application/configure-pdb/ for more details
+podDisruptionBudget:
+  # -- Enable or disable podDisruptionBudget
+  enabled: false
+  # -- Set the `minAvailable` of podDisruptionBudget. You can specify only one of `maxUnavailable` and `minAvailable` in a single PodDisruptionBudget.
+  # See [Specifying a Disruption Budget for your Application](https://kubernetes.io/docs/tasks/run-application/configure-pdb/#specifying-a-poddisruptionbudget)
+  # for more details
+  minAvailable: 90%
+  # -- Set the maxUnavailable of podDisruptionBudget
+  maxUnavailable: 1
+# -- Topology Spread Constraints for pod assignment spread across your cluster among failure-domains
+# ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/#spread-constraints-for-pods
+topologySpreadConstraints: []
+image:
+  repository: api7/api7-ingress-controller
+  pullPolicy: IfNotPresent
+  tag: "dev"
