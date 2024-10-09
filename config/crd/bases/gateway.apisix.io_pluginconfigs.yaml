@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.15.0
-  name: guestbooks.gateway.apisix.io.github.com
+  name: pluginconfigs.gateway.apisix.io
 spec:
-  group: gateway.apisix.io.github.com
+  group: gateway.apisix.io
   names:
-    kind: Guestbook
-    listKind: GuestbookList
-    plural: guestbooks
-    singular: guestbook
+    kind: PluginConfig
+    listKind: PluginConfigList
+    plural: pluginconfigs
+    singular: pluginconfig
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Guestbook is the Schema for the guestbooks API
+        description: PluginConfig is the Schema for the PluginConfigs API
         properties:
           apiVersion:
             description: |-
@@ -37,18 +37,25 @@ spec:
           metadata:
             type: object
           spec:
-            description: GuestbookSpec defines the desired state of Guestbook
+            description: PluginConfigSpec defines the desired state of PluginConfig
             properties:
-              foo:
-                description: Foo is an example field of Guestbook. Edit guestbook_types.go
-                  to remove/update
-                type: string
-            type: object
-          status:
-            description: GuestbookStatus defines the observed state of Guestbook
+              plugins:
+                items:
+                  properties:
+                    config:
+                      description: Plugin configuration.
+                      x-kubernetes-preserve-unknown-fields: true
+                    name:
+                      description: The plugin name.
+                      type: string
+                  required:
+                  - config
+                  - name
+                  type: object
+                type: array
+            required:
+            - plugins
             type: object
         type: object
     served: true
     storage: true
-    subresources:
-      status: {}

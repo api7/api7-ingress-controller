@@ -7,6 +7,7 @@ import (
 
 const (
 	ServiceIndexRef = "serviceRef"
+	ExtensionRef    = "extensionRef"
 )
 
 func GenIndexKey(namespace, name string) string {
@@ -29,6 +30,22 @@ func HTTPRouteServiceIndexFunc(rawObj client.Object) []string {
 				namespace = string(*backend.Namespace)
 			}
 			keys = append(keys, GenIndexKey(namespace, string(backend.Name)))
+		}
+	}
+	return keys
+}
+
+func HTTPRouteExtensionIndexFunc(rawObj client.Object) []string {
+	hr := rawObj.(*gatewayv1.HTTPRoute)
+	var keys []string
+	for _, rule := range hr.Spec.Rules {
+		for _, filter := range rule.Filters {
+			if filter.Type != gatewayv1.HTTPRouteFilterExtensionRef || filter.ExtensionRef == nil {
+				continue
+			}
+			if filter.ExtensionRef.Kind == "PluginConfig" {
+				keys = append(keys, GenIndexKey(hr.GetNamespace(), string(filter.ExtensionRef.Name)))
+			}
 		}
 	}
 	return keys

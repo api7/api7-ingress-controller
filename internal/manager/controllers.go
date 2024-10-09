@@ -15,6 +15,7 @@ import (
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
+// +kubebuilder:rbac:groups=gateway.apisix.io,resources=pluginconfigs,verbs=get;list;watch
 
 type Controller interface {
 	SetupWithManager(mgr manager.Manager) error

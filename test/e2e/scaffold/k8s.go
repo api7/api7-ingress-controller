@@ -84,6 +84,10 @@ func (s *Scaffold) GetOutputFromString(shell ...string) (string, error) {
 	return output, err
 }
 
+func (s *Scaffold) GetResourceYamlFromNamespace(resourceType, resourceName, namespace string) (string, error) {
+	return s.GetOutputFromString(resourceType, resourceName, "-n", namespace, "-o", "yaml")
+}
+
 func (s *Scaffold) GetResourceYaml(resourceType, resourceName string) (string, error) {
 	return s.GetOutputFromString(resourceType, resourceName, "-o", "yaml")
 }
@@ -144,8 +148,11 @@ func (s *Scaffold) ClusterClient() (apisix.Cluster, error) {
 		return nil, err
 	}
 	err = cli.AddCluster(context.Background(), &apisix.ClusterOptions{
-		BaseURL:  u.String(),
-		AdminKey: s.opts.APISIXAdminAPIKey,
+		BaseURL:        u.String(),
+		ControllerName: s.opts.ControllerName,
+		Labels:         map[string]string{"controller_name": s.opts.ControllerName},
+		AdminKey:       s.opts.APISIXAdminAPIKey,
+		SyncCache:      true,
 	})
 	if err != nil {
 		return nil, err

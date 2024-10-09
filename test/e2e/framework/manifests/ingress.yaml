@@ -157,31 +157,13 @@ rules:
   - list
   - watch
 - apiGroups:
-  - gateway.apisix.io.github.com
+  - gateway.apisix.io
   resources:
-  - guestbooks
+  - pluginconfigs
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
-- apiGroups:
-  - gateway.apisix.io.github.com
-  resources:
-  - guestbooks/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - gateway.apisix.io.github.com
-  resources:
-  - guestbooks/status
-  verbs:
-  - get
-  - patch
-  - update
 - apiGroups:
   - gateway.networking.k8s.io
   resources:

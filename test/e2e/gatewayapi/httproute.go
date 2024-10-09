@@ -458,6 +458,107 @@ spec:
         statusCode: 301
 `
 
+		var replacePrefixMatch = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin.example
+  rules:
+  - matches: 
+    - path:
+        type: PathPrefix
+        value: /replace
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /status
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
+
+		var replaceFullPathAndHost = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin.example
+  rules:
+  - matches: 
+    - path:
+        type: PathPrefix
+        value: /replace
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        hostname: replace.example.org
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /headers
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
+
+		var echoPlugin = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: PluginConfig
+metadata:
+  name: example-plugin-config
+spec:
+  plugins:
+  - name: echo
+    config:
+      body: "Hello, World!!"
+`
+		var echoPluginUpdated = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: PluginConfig
+metadata:
+  name: example-plugin-config
+spec:
+  plugins:
+  - name: echo
+    config:
+      body: "Updated"
+`
+		var extensionRefEchoPlugin = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin.example
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /get
+    filters:
+    - type: ExtensionRef
+      extensionRef:
+        group: gateway.api7.io
+        kind: PluginConfig
+        name: example-plugin-config
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
+
 		BeforeEach(beforeEachHTTP)
 
 		It("HTTPRoute RequestHeaderModifier", func() {
@@ -591,6 +692,67 @@ spec:
 
 			echoLogs := s.GetDeploymentLogs("echo")
 			Expect(echoLogs).To(ContainSubstring("GET /headers"))
+		})
+
+		It("HTTPRoute URLRewrite with ReplaceFullPath And Hostname", func() {
+			By("create HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", replaceFullPathAndHost, 1)
+
+			By("/replace/201 should be rewritten to /headers")
+			s.NewAPISIXClient().GET("/replace/201").
+				WithHeader("Host", "httpbin.example").
+				Expect().
+				Status(http.StatusOK).
+				Body().
+				Contains("replace.example.org")
+
+			By("/replace/500 should be rewritten to /headers")
+			s.NewAPISIXClient().GET("/replace/500").
+				WithHeader("Host", "httpbin.example").
+				Expect().
+				Status(http.StatusOK).
+				Body().
+				Contains("replace.example.org")
+		})
+
+		It("HTTPRoute URLRewrite with ReplacePrefixMatch", func() {
+			By("create HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", replacePrefixMatch, 1)
+
+			By("/replace/201 should be rewritten to /status/201")
+			s.NewAPISIXClient().GET("/replace/201").
+				WithHeader("Host", "httpbin.example").
+				Expect().
+				Status(http.StatusCreated)
+
+			By("/replace/500 should be rewritten to /status/500")
+			s.NewAPISIXClient().GET("/replace/500").
+				WithHeader("Host", "httpbin.example").
+				Expect().
+				Status(http.StatusInternalServerError)
+		})
+
+		It("HTTPRoute ExtensionRef", func() {
+			By("create HTTPRoute")
+			err := s.CreateResourceFromString(echoPlugin)
+			Expect(err).NotTo(HaveOccurred(), "creating PluginConfig")
+			ResourceApplied("HTTPRoute", "httpbin", extensionRefEchoPlugin, 1)
+
+			s.NewAPISIXClient().GET("/get").
+				WithHeader("Host", "httpbin.example").
+				Expect().
+				Body().
+				Contains("Hello, World!!")
+
+			err = s.CreateResourceFromString(echoPluginUpdated)
+			Expect(err).NotTo(HaveOccurred(), "updating PluginConfig")
+			time.Sleep(5 * time.Second)
+
+			s.NewAPISIXClient().GET("/get").
+				WithHeader("Host", "httpbin.example").
+				Expect().
+				Body().
+				Contains("Updated")
 		})
 	})
 
