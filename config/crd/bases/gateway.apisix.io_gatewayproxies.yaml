@@ -40,7 +40,7 @@ spec:
             description: GatewayProxySpec defines the desired state of GatewayProxy
             properties:
               pluginMetadata:
-                items:
+                additionalProperties:
                   properties:
                     config:
                       description: Plugin configuration.
@@ -52,19 +52,16 @@ spec:
                   - config
                   - name
                   type: object
-                type: array
+                type: object
               plugins:
                 items:
                   properties:
                     config:
-                      description: Plugin configuration.
                       x-kubernetes-preserve-unknown-fields: true
+                    enabled:
+                      type: boolean
                     name:
-                      description: The plugin name.
                       type: string
-                  required:
-                  - config
-                  - name
                   type: object
                 type: array
             type: object

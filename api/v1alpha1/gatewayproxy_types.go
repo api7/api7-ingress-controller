@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -28,8 +29,8 @@ type GatewayProxySpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	Plugins        []Plugin `json:"plugins,omitempty"`
-	PluginMetadata []Plugin `json:"pluginMetadata,omitempty"`
+	Plugins        []GatewayProxyPlugin `json:"plugins,omitempty"`
+	PluginMetadata map[string]Plugin    `json:"pluginMetadata,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -49,6 +50,12 @@ type GatewayProxyList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []GatewayProxy `json:"items"`
+}
+
+type GatewayProxyPlugin struct {
+	Name    string               `json:"name,omitempty"`
+	Enabled bool                 `json:"enabled,omitempty"`
+	Config  apiextensionsv1.JSON `json:"config,omitempty"`
 }
 
 func init() {
