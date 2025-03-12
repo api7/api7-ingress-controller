@@ -41,17 +41,7 @@ spec:
             properties:
               pluginMetadata:
                 additionalProperties:
-                  properties:
-                    config:
-                      description: Plugin configuration.
-                      x-kubernetes-preserve-unknown-fields: true
-                    name:
-                      description: The plugin name.
-                      type: string
-                  required:
-                  - config
-                  - name
-                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
                 type: object
               plugins:
                 items:

@@ -29,8 +29,8 @@ type GatewayProxySpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	Plugins        []GatewayProxyPlugin `json:"plugins,omitempty"`
-	PluginMetadata map[string]Plugin    `json:"pluginMetadata,omitempty"`
+	Plugins        []GatewayProxyPlugin            `json:"plugins,omitempty"`
+	PluginMetadata map[string]apiextensionsv1.JSON `json:"pluginMetadata,omitempty"`
 }
 
 //+kubebuilder:object:root=true

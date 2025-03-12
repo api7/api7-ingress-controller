@@ -21,6 +21,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -110,7 +111,7 @@ func (in *GatewayProxySpec) DeepCopyInto(out *GatewayProxySpec) {
 	}
 	if in.PluginMetadata != nil {
 		in, out := &in.PluginMetadata, &out.PluginMetadata
-		*out = make(map[string]Plugin, len(*in))
+		*out = make(map[string]v1.JSON, len(*in))
 		for key, val := range *in {
 			(*out)[key] = *val.DeepCopy()
 		}
