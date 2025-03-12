@@ -15,6 +15,8 @@ GATEAY_API_VERSION ?= v1.1.0
 DASHBOARD_VERSION ?= v3.2.14.6
 TEST_TIMEOUT ?= 30m
 
+export KUBECONFIG = /tmp/$(KIND_NAME).kubeconfig
+
 # go 
 VERSYM="github.com/api7/api7-ingress-controller/internal/version._buildVersion"
 GITSHASYM="github.com/api7/api7-ingress-controller/internal/version._buildGitRevision"
@@ -87,6 +89,7 @@ kind-e2e-test: kind-up build-image kind-load-images e2e-test
 # Utilize Kind or modify the e2e tests to load the image locally, enabling compatibility with other vendors.
 .PHONY: e2e-test
 e2e-test:
+	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
 	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test ./test/e2e/ -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v
 
 .PHONY: conformance-test
@@ -106,6 +109,7 @@ kind-up:
 	@kind get clusters 2>&1 | grep -v $(KIND_NAME) \
 		&& kind create cluster --name $(KIND_NAME) \
 		|| echo "kind cluster already exists"
+	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
 	kubectl wait --for=condition=Ready nodes --all
 
 .PHONY: kind-down
