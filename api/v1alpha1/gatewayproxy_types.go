@@ -28,26 +28,18 @@ type GatewayProxySpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of GatewayProxy. Edit gatewayproxy_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
-}
-
-// GatewayProxyStatus defines the observed state of GatewayProxy
-type GatewayProxyStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Plugins        []Plugin `json:"plugins,omitempty"`
+	PluginMetadata []Plugin `json:"pluginMetadata,omitempty"`
 }
 
 //+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
 
 // GatewayProxy is the Schema for the gatewayproxies API
 type GatewayProxy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   GatewayProxySpec   `json:"spec,omitempty"`
-	Status GatewayProxyStatus `json:"status,omitempty"`
+	Spec GatewayProxySpec `json:"spec,omitempty"`
 }
 
 //+kubebuilder:object:root=true
