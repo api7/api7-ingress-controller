@@ -3,7 +3,7 @@
 # It should be run by config/default
 resources:
 - bases/gateway.apisix.io_pluginconfigs.yaml
-- bases/gateway.apisix.io.github.com_gatewayproxies.yaml
+- bases/gateway.apisix.io._gatewayproxies.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:
