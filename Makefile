@@ -256,10 +256,6 @@ $(GOLANGCI_LINT): $(LOCALBIN)
 
 gofmt: ## Apply go fmt
 	@gofmt -w -r 'interface{} -> any' .
-	@gofmt -w -r 'ginkgo.FIt -> ginkgo.It' test
-	@gofmt -w -r 'ginkgo.FContext -> ginkgo.Context' test
-	@gofmt -w -r 'ginkgo.FDescribe -> ginkgo.Describe' test
-	@gofmt -w -r 'ginkgo.FDescribeTable -> ginkgo.DescribeTable' test
 	@go fmt ./...
 .PHONY: gofmt
 
