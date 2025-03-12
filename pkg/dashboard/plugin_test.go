@@ -51,7 +51,7 @@ func (srv *fakeAPISIXPluginSrv) ServeHTTP(w http.ResponseWriter, r *http.Request
 		_, _ = w.Write(byt)
 		return
 	}
-	fakePluginsResp := make(map[string]interface{}, len(srv.plugins))
+	fakePluginsResp := make(map[string]any, len(srv.plugins))
 	for _, fp := range srv.plugins {
 		fakePluginsResp[fp] = struct{}{}
 	}

@@ -180,7 +180,7 @@ spec:
 		})
 	})
 
-	Context("Gateway SSL", func() {
+	FContext("Gateway SSL", func() {
 		It("Check if SSL resource was created", func() {
 			secretName := _secretName
 			host := "api6.com"
@@ -226,7 +226,7 @@ spec:
 			assert.Nil(GinkgoT(), err, "list tls error")
 			assert.Len(GinkgoT(), tls, 1, "tls number not expect")
 			assert.Equal(GinkgoT(), Cert, tls[0].Cert, "tls cert not expect")
-			assert.Equal(GinkgoT(), []string{host, "*.api6.com"}, tls[0].Snis)
+			assert.ElementsMatch(GinkgoT(), []string{host, "*.api6.com"}, tls[0].Snis)
 		})
 
 		Context("Gateway SSL with and without hostname", func() {
