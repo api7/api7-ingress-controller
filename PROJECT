@@ -5,8 +5,8 @@
 domain: github.com
 layout:
 - go.kubebuilder.io/v4
-projectName: api7-ingress
-repo: github.com/api7/api7-ingress
+projectName: api7-ingress-controller
+repo: github.com/api7/api7-ingress-controller
 resources:
 - api:
     crdVersion: v1
@@ -15,6 +15,15 @@ resources:
   domain: github.com
   group: gateway.apisix.io
   kind: Guestbook
+  path: github.com/api7/api7-ingress-controller/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: github.com
+  group: gateway.apisix.io
+  kind: GatewayProxy
   path: github.com/api7/api7-ingress-controller/api/v1alpha1
   version: v1alpha1
 version: "3"
