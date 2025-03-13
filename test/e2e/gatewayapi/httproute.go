@@ -772,12 +772,6 @@ spec:
     - path:
         type: Exact
         value: /get
-    filters:
-    - type: RequestMirror
-      requestMirror:
-        backendRef:
-          name: echo-service
-          port: 80
     backendRefs:
     - name: httpbin-service-e2e-test
       port: 80
@@ -801,12 +795,6 @@ spec:
     - path:
         type: Exact
         value: /get
-    filters:
-    - type: RequestMirror
-      requestMirror:
-        backendRef:
-          name: echo-service
-          port: 80
     backendRefs:
     - name: httpbin-service-e2e-test
       port: 80

@@ -261,9 +261,9 @@ func (p Plugins) DeepCopy() Plugins {
 
 // UpstreamNode is the node in upstream
 type UpstreamNode struct {
-	Host     string `json:"host,omitempty" yaml:"host,omitempty"`
-	Port     int    `json:"port,omitempty" yaml:"port,omitempty"`
-	Weight   int    `json:"weight,omitempty" yaml:"weight,omitempty"`
+	Host     string `json:"host" yaml:"host"`
+	Port     int    `json:"port" yaml:"port"`
+	Weight   int    `json:"weight" yaml:"weight"`
 	Priority int    `json:"priority,omitempty" yaml:"priority,omitempty"`
 }
 
