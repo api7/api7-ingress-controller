@@ -464,6 +464,7 @@ func (s *Scaffold) afterEach() {
 			}
 		}
 	}
+
 	// if the test case is successful, just delete namespace
 	err := k8s.DeleteNamespaceE(s.t, s.kubectlOptions, s.namespace)
 	Expect(err).NotTo(HaveOccurred(), "deleting namespace "+s.namespace)

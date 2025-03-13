@@ -129,7 +129,7 @@ spec:
 			routes, err := s1.DefaultDataplaneResource().Route().List(s1.Context)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(routes).To(HaveLen(1))
-			assert.Equal(GinkgoT(), routes[0].Labels["controller_name"], "gateway.api7.io/api7-ingress-controller-1")
+			assert.Equal(GinkgoT(), routes[0].Labels["k8s/controller-name"], "gateway.api7.io/api7-ingress-controller-1")
 		})
 	})
 	Context("Create resource with second controller", func() {
@@ -175,7 +175,7 @@ spec:
 			routes, err := s2.DefaultDataplaneResource().Route().List(s2.Context)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(routes).To(HaveLen(1))
-			assert.Equal(GinkgoT(), routes[0].Labels["controller_name"], "gateway.api7.io/api7-ingress-controller-2")
+			assert.Equal(GinkgoT(), routes[0].Labels["k8s/controller-name"], "gateway.api7.io/api7-ingress-controller-2")
 		})
 	})
 })

@@ -67,7 +67,7 @@ func TestMain(m *testing.M) {
 		AdminKey:       adminKey,
 		AdminTLSVerify: false,
 		Namespace:      namespace,
-		AdminEnpoint:   framework.DashboardTLSEndpoint + "/apisix/admin",
+		AdminEnpoint:   framework.DashboardTLSEndpoint,
 		StatusAddress:  address,
 	})
 

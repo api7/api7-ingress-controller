@@ -212,6 +212,28 @@ postgresql:
       enabled: false
 developer_portal_configuration:
   enable: false
+dashboard_service:
+  type: ClusterIP
+  annotations: {}
+  port: 7080
+  tlsPort: 7443
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+      # kubernetes.io/ingress.class: nginx
+      # kubernetes.io/tls-acme: "true"
+    hosts:
+      - host: dashboard.local
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            # backend:
+            #   service:
+            #     name: api7ee3-dashboard
+            #     port:
+            #       number: 7943
+    tls: []
 `)
 	if err != nil {
 		panic(err)

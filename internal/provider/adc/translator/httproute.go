@@ -1,6 +1,7 @@
 package translator
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -11,17 +12,18 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
-	"github.com/api7/api7-ingress-controller/internal/controlplane/label"
+	adctypes "github.com/api7/api7-ingress-controller/api/adc"
+	"github.com/api7/api7-ingress-controller/internal/controller/label"
 	"github.com/api7/api7-ingress-controller/internal/id"
+	"github.com/api7/api7-ingress-controller/internal/provider"
 )
 
 func (t *Translator) fillPluginsFromHTTPRouteFilters(
-	plugins v1.Plugins,
+	plugins adctypes.Plugins,
 	namespace string,
 	filters []gatewayv1.HTTPRouteFilter,
 	matches []gatewayv1.HTTPRouteMatch,
-	tctx *TranslateContext,
+	tctx *provider.TranslateContext,
 ) {
 	for _, filter := range filters {
 		switch filter.Type {
@@ -41,7 +43,7 @@ func (t *Translator) fillPluginsFromHTTPRouteFilters(
 	}
 }
 
-func (t *Translator) fillPluginFromExtensionRef(plugins v1.Plugins, namespace string, extensionRef *gatewayv1.LocalObjectReference, tctx *TranslateContext) {
+func (t *Translator) fillPluginFromExtensionRef(plugins adctypes.Plugins, namespace string, extensionRef *gatewayv1.LocalObjectReference, tctx *provider.TranslateContext) {
 	if extensionRef == nil {
 		return
 	}
@@ -52,22 +54,26 @@ func (t *Translator) fillPluginFromExtensionRef(plugins v1.Plugins, namespace st
 		}]
 		for _, plugin := range pluginconfig.Spec.Plugins {
 			pluginName := plugin.Name
-			plugins[pluginName] = plugin.Config
-			log.Errorw("plugin config", zap.String("namespace", namespace), zap.Any("plugin_config", plugin))
+			var pluginconfig map[string]any
+			if err := json.Unmarshal(plugin.Config.Raw, &pluginconfig); err != nil {
+				log.Errorw("plugin config unmarshal failed", zap.Error(err))
+				continue
+			}
+			plugins[pluginName] = pluginconfig
 		}
-		log.Errorw("plugin config", zap.String("namespace", namespace), zap.Any("plugins", plugins))
+		log.Debugw("fill plugin from extension ref", zap.Any("plugins", plugins))
 	}
 }
 
-func (t *Translator) fillPluginFromURLRewriteFilter(plugins v1.Plugins, urlRewrite *gatewayv1.HTTPURLRewriteFilter, matches []gatewayv1.HTTPRouteMatch) {
-	pluginName := v1.PluginProxyRewrite
+func (t *Translator) fillPluginFromURLRewriteFilter(plugins adctypes.Plugins, urlRewrite *gatewayv1.HTTPURLRewriteFilter, matches []gatewayv1.HTTPRouteMatch) {
+	pluginName := adctypes.PluginProxyRewrite
 	obj := plugins[pluginName]
-	var plugin *v1.RewriteConfig
+	var plugin *adctypes.RewriteConfig
 	if obj == nil {
-		plugin = &v1.RewriteConfig{}
+		plugin = &adctypes.RewriteConfig{}
 		plugins[pluginName] = plugin
 	} else {
-		plugin = obj.(*v1.RewriteConfig)
+		plugin = obj.(*adctypes.RewriteConfig)
 	}
 	if urlRewrite.Hostname != nil {
 		plugin.Host = string(*urlRewrite.Hostname)
@@ -97,13 +103,13 @@ func (t *Translator) fillPluginFromURLRewriteFilter(plugins v1.Plugins, urlRewri
 	}
 }
 
-func (t *Translator) fillPluginFromHTTPRequestHeaderFilter(plugins v1.Plugins, reqHeaderModifier *gatewayv1.HTTPHeaderFilter) {
-	pluginName := v1.PluginProxyRewrite
+func (t *Translator) fillPluginFromHTTPRequestHeaderFilter(plugins adctypes.Plugins, reqHeaderModifier *gatewayv1.HTTPHeaderFilter) {
+	pluginName := adctypes.PluginProxyRewrite
 	obj := plugins[pluginName]
-	var plugin *v1.RewriteConfig
+	var plugin *adctypes.RewriteConfig
 	if obj == nil {
-		plugin = &v1.RewriteConfig{
-			Headers: &v1.Headers{
+		plugin = &adctypes.RewriteConfig{
+			Headers: &adctypes.Headers{
 				Add:    make(map[string]string, len(reqHeaderModifier.Add)),
 				Set:    make(map[string]string, len(reqHeaderModifier.Set)),
 				Remove: make([]string, 0, len(reqHeaderModifier.Remove)),
@@ -111,7 +117,7 @@ func (t *Translator) fillPluginFromHTTPRequestHeaderFilter(plugins v1.Plugins, r
 		}
 		plugins[pluginName] = plugin
 	} else {
-		plugin = obj.(*v1.RewriteConfig)
+		plugin = obj.(*adctypes.RewriteConfig)
 	}
 	for _, header := range reqHeaderModifier.Add {
 		val := plugin.Headers.Add[string(header.Name)]
@@ -128,13 +134,13 @@ func (t *Translator) fillPluginFromHTTPRequestHeaderFilter(plugins v1.Plugins, r
 	plugin.Headers.Remove = append(plugin.Headers.Remove, reqHeaderModifier.Remove...)
 }
 
-func (t *Translator) fillPluginFromHTTPResponseHeaderFilter(plugins v1.Plugins, respHeaderModifier *gatewayv1.HTTPHeaderFilter) {
-	pluginName := v1.PluginResponseRewrite
+func (t *Translator) fillPluginFromHTTPResponseHeaderFilter(plugins adctypes.Plugins, respHeaderModifier *gatewayv1.HTTPHeaderFilter) {
+	pluginName := adctypes.PluginResponseRewrite
 	obj := plugins[pluginName]
-	var plugin *v1.ResponseRewriteConfig
+	var plugin *adctypes.ResponseRewriteConfig
 	if obj == nil {
-		plugin = &v1.ResponseRewriteConfig{
-			Headers: &v1.ResponseHeaders{
+		plugin = &adctypes.ResponseRewriteConfig{
+			Headers: &adctypes.ResponseHeaders{
 				Add:    make([]string, 0, len(respHeaderModifier.Add)),
 				Set:    make(map[string]string, len(respHeaderModifier.Set)),
 				Remove: make([]string, 0, len(respHeaderModifier.Remove)),
@@ -142,7 +148,7 @@ func (t *Translator) fillPluginFromHTTPResponseHeaderFilter(plugins v1.Plugins, 
 		}
 		plugins[pluginName] = plugin
 	} else {
-		plugin = obj.(*v1.ResponseRewriteConfig)
+		plugin = obj.(*adctypes.ResponseRewriteConfig)
 	}
 	for _, header := range respHeaderModifier.Add {
 		plugin.Headers.Add = append(plugin.Headers.Add, fmt.Sprintf("%s: %s", header.Name, header.Value))
@@ -153,16 +159,16 @@ func (t *Translator) fillPluginFromHTTPResponseHeaderFilter(plugins v1.Plugins, 
 	plugin.Headers.Remove = append(plugin.Headers.Remove, respHeaderModifier.Remove...)
 }
 
-func (t *Translator) fillPluginFromHTTPRequestMirrorFilter(plugins v1.Plugins, namespace string, reqMirror *gatewayv1.HTTPRequestMirrorFilter) {
-	pluginName := v1.PluginProxyMirror
+func (t *Translator) fillPluginFromHTTPRequestMirrorFilter(plugins adctypes.Plugins, namespace string, reqMirror *gatewayv1.HTTPRequestMirrorFilter) {
+	pluginName := adctypes.PluginProxyMirror
 	obj := plugins[pluginName]
 
-	var plugin *v1.RequestMirror
+	var plugin *adctypes.RequestMirror
 	if obj == nil {
-		plugin = &v1.RequestMirror{}
+		plugin = &adctypes.RequestMirror{}
 		plugins[pluginName] = plugin
 	} else {
-		plugin = obj.(*v1.RequestMirror)
+		plugin = obj.(*adctypes.RequestMirror)
 	}
 
 	var (
@@ -181,16 +187,16 @@ func (t *Translator) fillPluginFromHTTPRequestMirrorFilter(plugins v1.Plugins, n
 	plugin.Host = host
 }
 
-func (t *Translator) fillPluginFromHTTPRequestRedirectFilter(plugins v1.Plugins, reqRedirect *gatewayv1.HTTPRequestRedirectFilter) {
-	pluginName := v1.PluginRedirect
+func (t *Translator) fillPluginFromHTTPRequestRedirectFilter(plugins adctypes.Plugins, reqRedirect *gatewayv1.HTTPRequestRedirectFilter) {
+	pluginName := adctypes.PluginRedirect
 	obj := plugins[pluginName]
 
-	var plugin *v1.RedirectConfig
+	var plugin *adctypes.RedirectConfig
 	if obj == nil {
-		plugin = &v1.RedirectConfig{}
+		plugin = &adctypes.RedirectConfig{}
 		plugins[pluginName] = plugin
 	} else {
-		plugin = obj.(*v1.RedirectConfig)
+		plugin = obj.(*adctypes.RedirectConfig)
 	}
 	var uri string
 
@@ -218,8 +224,8 @@ func (t *Translator) fillPluginFromHTTPRequestRedirectFilter(plugins v1.Plugins,
 	plugin.URI = uri
 }
 
-func (t *Translator) translateEndpointSlice(endpointSlices []discoveryv1.EndpointSlice) v1.UpstreamNodes {
-	var nodes v1.UpstreamNodes
+func (t *Translator) translateEndpointSlice(weight int, endpointSlices []discoveryv1.EndpointSlice) adctypes.UpstreamNodes {
+	var nodes adctypes.UpstreamNodes
 	if len(endpointSlices) == 0 {
 		return nodes
 	}
@@ -227,10 +233,10 @@ func (t *Translator) translateEndpointSlice(endpointSlices []discoveryv1.Endpoin
 		for _, port := range endpointSlice.Ports {
 			for _, endpoint := range endpointSlice.Endpoints {
 				for _, addr := range endpoint.Addresses {
-					node := v1.UpstreamNode{
+					node := adctypes.UpstreamNode{
 						Host:   addr,
 						Port:   int(*port.Port),
-						Weight: 1,
+						Weight: weight,
 					}
 					nodes = append(nodes, node)
 				}
@@ -241,18 +247,21 @@ func (t *Translator) translateEndpointSlice(endpointSlices []discoveryv1.Endpoin
 	return nodes
 }
 
-func (t *Translator) translateBackendRef(tctx *TranslateContext, ref gatewayv1.BackendRef) *v1.Upstream {
-	upstream := v1.NewDefaultUpstream()
+func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref gatewayv1.BackendRef) adctypes.UpstreamNodes {
 	endpointSlices := tctx.EndpointSlices[types.NamespacedName{
 		Namespace: string(*ref.Namespace),
 		Name:      string(ref.Name),
 	}]
 
-	upstream.Nodes = t.translateEndpointSlice(endpointSlices)
-	return upstream
+	weight := 1
+	if ref.Weight != nil {
+		weight = int(*ref.Weight)
+	}
+
+	return t.translateEndpointSlice(weight, endpointSlices)
 }
 
-func (t *Translator) TranslateHTTPRoute(tctx *TranslateContext, httpRoute *gatewayv1.HTTPRoute) (*TranslateResult, error) {
+func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRoute *gatewayv1.HTTPRoute) (*TranslateResult, error) {
 	result := &TranslateResult{}
 
 	hosts := make([]string, 0, len(httpRoute.Spec.Hostnames))
@@ -262,71 +271,37 @@ func (t *Translator) TranslateHTTPRoute(tctx *TranslateContext, httpRoute *gatew
 
 	rules := httpRoute.Spec.Rules
 
-	for i, rule := range rules {
+	labels := label.GenLabel(httpRoute)
 
-		var weightedUpstreams []v1.TrafficSplitConfigRuleWeightedUpstream
-		upstreams := []*v1.Upstream{}
+	for i, rule := range rules {
+		upstream := adctypes.NewDefaultUpstream()
 		for _, backend := range rule.BackendRefs {
 			if backend.Namespace == nil {
 				namespace := gatewayv1.Namespace(httpRoute.Namespace)
 				backend.Namespace = &namespace
 			}
-			upstream := t.translateBackendRef(tctx, backend.BackendRef)
-			upstream.Labels["name"] = string(backend.BackendRef.Name)
-			upstream.Labels["namespace"] = string(*backend.BackendRef.Namespace)
-			upstreams = append(upstreams, upstream)
-			if len(upstream.Nodes) == 0 {
-				upstream.Nodes = v1.UpstreamNodes{
-					{
-						Host:   "0.0.0.0",
-						Port:   80,
-						Weight: 100,
-					},
-				}
-			}
-
-			weight := 100
-			if backend.Weight != nil {
-				weight = int(*backend.Weight)
-			}
-			weightedUpstreams = append(weightedUpstreams, v1.TrafficSplitConfigRuleWeightedUpstream{
-				Upstream: upstream,
-				Weight:   weight,
-			})
+			upNodes := t.translateBackendRef(tctx, backend.BackendRef)
+			upstream.Nodes = append(upstream.Nodes, upNodes...)
 		}
-
-		if len(upstreams) == 0 {
-			upstream := v1.NewDefaultUpstream()
-			upstream.Nodes = v1.UpstreamNodes{
+		if len(upstream.Nodes) == 0 {
+			upstream.Nodes = adctypes.UpstreamNodes{
 				{
 					Host:   "0.0.0.0",
 					Port:   80,
-					Weight: 100,
-				},
-			}
-			upstreams = append(upstreams, upstream)
-		}
-
-		service := v1.NewDefaultService()
-		service.Upstream = upstreams[0]
-		if len(weightedUpstreams) > 1 {
-			weightedUpstreams[0].Upstream = nil
-			service.Plugins["traffic-split"] = &v1.TrafficSplitConfig{
-				Rules: []v1.TrafficSplitConfigRule{
-					{
-						WeightedUpstreams: weightedUpstreams,
-					},
+					Weight: 1,
 				},
 			}
 		}
 
-		service.Name = v1.ComposeServiceNameWithRule(httpRoute.Namespace, httpRoute.Name, fmt.Sprintf("%d", i))
+		// todo: support multiple backends
+		service := adctypes.NewDefaultService()
+		service.Labels = labels
+
+		service.Name = adctypes.ComposeServiceNameWithRule(httpRoute.Namespace, httpRoute.Name, fmt.Sprintf("%d", i))
 		service.ID = id.GenID(service.Name)
-		service.Labels = label.GenLabel(httpRoute)
 		service.Hosts = hosts
+		service.Upstream = upstream
 		t.fillPluginsFromHTTPRouteFilters(service.Plugins, httpRoute.GetNamespace(), rule.Filters, rule.Matches, tctx)
-
-		result.Services = append(result.Services, service)
 
 		matches := rule.Matches
 		if len(matches) == 0 {
@@ -342,43 +317,46 @@ func (t *Translator) TranslateHTTPRoute(tctx *TranslateContext, httpRoute *gatew
 			}
 		}
 
+		routes := []*adctypes.Route{}
 		for j, match := range matches {
 			route, err := t.translateGatewayHTTPRouteMatch(&match)
 			if err != nil {
 				return nil, err
 			}
 
-			name := v1.ComposeRouteName(httpRoute.Namespace, httpRoute.Name, fmt.Sprintf("%d-%d", i, j))
+			name := adctypes.ComposeRouteName(httpRoute.Namespace, httpRoute.Name, fmt.Sprintf("%d-%d", i, j))
 			route.Name = name
 			route.ID = id.GenID(name)
-			route.Labels = label.GenLabel(httpRoute)
-			route.ServiceID = service.ID
-			result.Routes = append(result.Routes, route)
+			route.Labels = labels
+			routes = append(routes, route)
 		}
+		service.Routes = routes
+
+		result.Services = append(result.Services, service)
 	}
 
 	return result, nil
 }
 
 // NOTE: Dashboard not support Vars, matches only support Path, not support Headers, QueryParams
-func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMatch) (*v1.Route, error) {
-	route := v1.NewDefaultRoute()
+func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMatch) (*adctypes.Route, error) {
+	route := &adctypes.Route{}
 
 	if match.Path != nil {
 		switch *match.Path.Type {
 		case gatewayv1.PathMatchExact:
-			route.Paths = []string{*match.Path.Value}
+			route.Uris = []string{*match.Path.Value}
 		case gatewayv1.PathMatchPathPrefix:
-			route.Paths = []string{*match.Path.Value + "*"}
+			route.Uris = []string{*match.Path.Value + "*"}
 		case gatewayv1.PathMatchRegularExpression:
-			var this []v1.StringOrSlice
-			this = append(this, v1.StringOrSlice{
+			var this []adctypes.StringOrSlice
+			this = append(this, adctypes.StringOrSlice{
 				StrVal: "uri",
 			})
-			this = append(this, v1.StringOrSlice{
+			this = append(this, adctypes.StringOrSlice{
 				StrVal: "~~",
 			})
-			this = append(this, v1.StringOrSlice{
+			this = append(this, adctypes.StringOrSlice{
 				StrVal: *match.Path.Value,
 			})
 
@@ -388,30 +366,30 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 		}
 	}
 
-	if match.Headers != nil && len(match.Headers) > 0 {
+	if len(match.Headers) > 0 {
 		for _, header := range match.Headers {
 			name := strings.ToLower(string(header.Name))
 			name = strings.ReplaceAll(name, "-", "_")
 
-			var this []v1.StringOrSlice
-			this = append(this, v1.StringOrSlice{
+			var this []adctypes.StringOrSlice
+			this = append(this, adctypes.StringOrSlice{
 				StrVal: "http_" + name,
 			})
 
 			switch *header.Type {
 			case gatewayv1.HeaderMatchExact:
-				this = append(this, v1.StringOrSlice{
+				this = append(this, adctypes.StringOrSlice{
 					StrVal: "==",
 				})
 			case gatewayv1.HeaderMatchRegularExpression:
-				this = append(this, v1.StringOrSlice{
+				this = append(this, adctypes.StringOrSlice{
 					StrVal: "~~",
 				})
 			default:
 				return nil, errors.New("unknown header match type " + string(*header.Type))
 			}
 
-			this = append(this, v1.StringOrSlice{
+			this = append(this, adctypes.StringOrSlice{
 				StrVal: header.Value,
 			})
 
@@ -419,27 +397,27 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 		}
 	}
 
-	if match.QueryParams != nil && len(match.QueryParams) > 0 {
+	if len(match.QueryParams) > 0 {
 		for _, query := range match.QueryParams {
-			var this []v1.StringOrSlice
-			this = append(this, v1.StringOrSlice{
+			var this []adctypes.StringOrSlice
+			this = append(this, adctypes.StringOrSlice{
 				StrVal: "arg_" + strings.ToLower(fmt.Sprintf("%v", query.Name)),
 			})
 
 			switch *query.Type {
 			case gatewayv1.QueryParamMatchExact:
-				this = append(this, v1.StringOrSlice{
+				this = append(this, adctypes.StringOrSlice{
 					StrVal: "==",
 				})
 			case gatewayv1.QueryParamMatchRegularExpression:
-				this = append(this, v1.StringOrSlice{
+				this = append(this, adctypes.StringOrSlice{
 					StrVal: "~~",
 				})
 			default:
 				return nil, errors.New("unknown query match type " + string(*query.Type))
 			}
 
-			this = append(this, v1.StringOrSlice{
+			this = append(this, adctypes.StringOrSlice{
 				StrVal: query.Value,
 			})
 

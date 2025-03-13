@@ -8,6 +8,7 @@ import (
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -18,8 +19,7 @@ import (
 
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
-	"github.com/api7/api7-ingress-controller/internal/controlplane"
-	"github.com/api7/api7-ingress-controller/internal/controlplane/translator"
+	"github.com/api7/api7-ingress-controller/internal/provider"
 )
 
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch
@@ -30,8 +30,9 @@ type HTTPRouteReconciler struct { //nolint:revive
 	client.Client
 	Scheme *runtime.Scheme
 
-	Log                logr.Logger
-	ControlPalneClient controlplane.Controlplane
+	Log logr.Logger
+
+	Provider provider.Provider
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -57,7 +58,12 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			hr.Namespace = req.Namespace
 			hr.Name = req.Name
 
-			if err := r.ControlPalneClient.Delete(ctx, hr); err != nil {
+			hr.TypeMeta = metav1.TypeMeta{
+				Kind:       KindHTTPRoute,
+				APIVersion: gatewayv1.GroupVersion.String(),
+			}
+
+			if err := r.Provider.Delete(ctx, hr); err != nil {
 				r.Log.Error(err, "failed to delete httproute", "httproute", hr)
 				return ctrl.Result{}, err
 			}
@@ -89,7 +95,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, nil
 	}
 
-	tctx := translator.NewDefaultTranslateContext()
+	tctx := provider.NewDefaultTranslateContext()
 	if err := r.processHTTPRoute(tctx, hr); err != nil {
 		acceptStatus.status = false
 		acceptStatus.msg = err.Error()
@@ -102,7 +108,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	if err := r.ControlPalneClient.Update(ctx, tctx, hr); err != nil {
+	if err := r.Provider.Update(ctx, tctx, hr); err != nil {
 		acceptStatus.status = false
 		acceptStatus.msg = err.Error()
 	}
@@ -207,7 +213,7 @@ func (r *HTTPRouteReconciler) listHTTPRoutesByExtensionRef(ctx context.Context, 
 	return requests
 }
 
-func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *translator.TranslateContext) error {
+func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.TranslateContext) error {
 	var terr error
 	for _, backend := range tctx.BackendRefs {
 		namespace := string(*backend.Namespace)
@@ -265,7 +271,7 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *translator.Trans
 	return terr
 }
 
-func (t *HTTPRouteReconciler) processHTTPRoute(tctx *translator.TranslateContext, httpRoute *gatewayv1.HTTPRoute) error {
+func (t *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, httpRoute *gatewayv1.HTTPRoute) error {
 	var terror error
 	for _, rule := range httpRoute.Spec.Rules {
 		for _, filter := range rule.Filters {

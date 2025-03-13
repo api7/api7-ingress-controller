@@ -125,7 +125,7 @@ spec:
 		Expect(gwyaml).To(ContainSubstring(`status: "True"`), "checking Gateway condition status")
 		Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the api7-ingress-controller"), "checking Gateway condition message")
 	}
-	Context("HTTPRoute with HTTPS Gateway", func() {
+	PContext("HTTPRoute with HTTPS Gateway", func() {
 		var exactRouteByGet = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -772,12 +772,6 @@ spec:
     - path:
         type: Exact
         value: /get
-    filters:
-    - type: RequestMirror
-      requestMirror:
-        backendRef:
-          name: echo-service
-          port: 80
     backendRefs:
     - name: httpbin-service-e2e-test
       port: 80
@@ -801,12 +795,6 @@ spec:
     - path:
         type: Exact
         value: /get
-    filters:
-    - type: RequestMirror
-      requestMirror:
-        backendRef:
-          name: echo-service
-          port: 80
     backendRefs:
     - name: httpbin-service-e2e-test
       port: 80

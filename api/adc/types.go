@@ -1,0 +1,502 @@
+package adc
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/incubator4/go-resty-expr/expr"
+)
+
+const (
+	// HashOnVars means the hash scope is variable.
+	HashOnVars = "vars"
+	// HashOnVarsCombination means the hash scope is the
+	// variable combination.
+	HashOnVarsCombination = "vars_combinations"
+	// HashOnHeader means the hash scope is HTTP request
+	// headers.
+	HashOnHeader = "header"
+	// HashOnCookie means the hash scope is HTTP Cookie.
+	HashOnCookie = "cookie"
+	// HashOnConsumer means the hash scope is APISIX consumer.
+	HashOnConsumer = "consumer"
+
+	// LbRoundRobin is the round robin load balancer.
+	LBRoundRobin = "roundrobin"
+	// LbConsistentHash is the consistent hash load balancer.
+	LbConsistentHash = "chash"
+	// LbEwma is the ewma load balancer.
+	LbEwma = "ewma"
+	// LbLeaseConn is the least connection load balancer.
+	LbLeastConn = "least_conn"
+
+	// SchemeHTTP represents the HTTP protocol.
+	SchemeHTTP = "http"
+	// SchemeGRPC represents the GRPC protocol.
+	SchemeGRPC = "grpc"
+	// SchemeHTTPS represents the HTTPS protocol.
+	SchemeHTTPS = "https"
+	// SchemeGRPCS represents the GRPCS protocol.
+	SchemeGRPCS = "grpcs"
+	// SchemeTCP represents the TCP protocol.
+	SchemeTCP = "tcp"
+	// SchemeUDP represents the UDP protocol.
+	SchemeUDP = "udp"
+
+	// DefaultUpstreamTimeout represents the default connect,
+	// read and send timeout (in seconds) with upstreams.
+	DefaultUpstreamTimeout = 60
+
+	// PassHostPass represents pass option for pass_host Upstream settings.
+	PassHostPass = "pass"
+	// PassHostPass represents node option for pass_host Upstream settings.
+	PassHostNode = "node"
+	// PassHostPass represents rewrite option for pass_host Upstream settings.
+	PassHostRewrite = "rewrite"
+)
+
+type Metadata struct {
+	ID     string            `json:"id,omitempty" yaml:"id,omitempty"`
+	Name   string            `json:"name,omitempty" yaml:"name,omitempty"`
+	Desc   string            `json:"description,omitempty" yaml:"description,omitempty"`
+	Labels map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+}
+
+type Resources struct {
+	ConsumerGroups []*ConsumerGroup   `json:"consumer_groups,omitempty" yaml:"consumer_groups,omitempty"`
+	Consumers      []*ConsumerElement `json:"consumers,omitempty" yaml:"consumers,omitempty"`
+	GlobalRules    Plugins            `json:"global_rules,omitempty" yaml:"global_rules,omitempty"`
+	PluginMetadata Plugins            `json:"plugin_metadata,omitempty" yaml:"plugin_metadata,omitempty"`
+	Services       []*Service         `json:"services,omitempty" yaml:"services,omitempty"`
+	Ssls           []*SSL             `json:"ssls,omitempty" yaml:"ssls,omitempty"`
+}
+
+type ConsumerGroup struct {
+	Metadata  `json:",inline" yaml:",inline"`
+	Consumers []ConsumerElement `json:"consumers,omitempty" yaml:"consumers,omitempty"`
+	Name      string            `json:"name" yaml:"name"`
+	Plugins   Plugins           `json:"plugins" yaml:"plugins"`
+}
+
+type ConsumerElement struct {
+	Credentials []Credential      `json:"credentials,omitempty" yaml:"credentials,omitempty"`
+	Description string            `json:"description,omitempty" yaml:"description,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Plugins     Plugins           `json:"plugins,omitempty" yaml:"plugins,omitempty"`
+	Username    string            `json:"username" yaml:"username"`
+}
+
+type Credential struct {
+	Metadata `json:",inline" yaml:",inline"`
+
+	Config map[string]interface{} `json:"config" yaml:"config"`
+	Type   string                 `json:"type" yaml:"type"`
+}
+
+type Service struct {
+	Metadata `json:",inline" yaml:",inline"`
+
+	Hosts           []string       `json:"hosts,omitempty" yaml:"hosts,omitempty"`
+	PathPrefix      string         `json:"path_prefix,omitempty" yaml:"path_prefix,omitempty"`
+	Plugins         Plugins        `json:"plugins,omitempty" yaml:"plugins,omitempty"`
+	Routes          []*Route       `json:"routes,omitempty" yaml:"routes,omitempty"`
+	StreamRoutes    []*StreamRoute `json:"stream_routes,omitempty" yaml:"stream_routes,omitempty"`
+	StripPathPrefix *bool          `json:"strip_path_prefix,omitempty" yaml:"strip_path_prefix,omitempty"`
+	Upstream        *Upstream      `json:"upstream,omitempty" yaml:"upstream,omitempty"`
+}
+
+type Route struct {
+	Metadata `json:",inline" yaml:",inline"`
+
+	EnableWebsocket *bool    `json:"enable_websocket,omitempty" yaml:"enable_websocket,omitempty"`
+	FilterFunc      string   `json:"filter_func,omitempty" yaml:"filter_func,omitempty"`
+	Hosts           []string `json:"hosts,omitempty" yaml:"hosts,omitempty"`
+	Methods         []string `json:"methods,omitempty" yaml:"methods,omitempty"`
+	Plugins         Plugins  `json:"plugins,omitempty" yaml:"plugins,omitempty"`
+	Priority        *int64   `json:"priority,omitempty" yaml:"priority,omitempty"`
+	RemoteAddrs     []string `json:"remote_addrs,omitempty" yaml:"remote_addrs,omitempty"`
+	Timeout         *Timeout `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	Uris            []string `json:"uris" yaml:"uris"`
+	Vars            Vars     `json:"vars,omitempty" yaml:"vars,omitempty"`
+}
+
+type Timeout struct {
+	Connect float64 `json:"connect"`
+	Read    float64 `json:"read"`
+	Send    float64 `json:"send"`
+}
+
+type StreamRoute struct {
+	Description string            `json:"description,omitempty"`
+	ID          string            `json:"id,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	Name        string            `json:"name"`
+	Plugins     Plugins           `json:"plugins,omitempty"`
+	RemoteAddr  string            `json:"remote_addr,omitempty"`
+	ServerAddr  string            `json:"server_addr,omitempty"`
+	ServerPort  *int64            `json:"server_port,omitempty"`
+	Sni         string            `json:"sni,omitempty"`
+}
+
+type Upstream struct {
+	Metadata `json:",inline" yaml:",inline"`
+
+	HashOn       string        `json:"hash_on,omitempty" yaml:"hash_on,omitempty"`
+	Key          string        `json:"key,omitempty" yaml:"key,omitempty"`
+	Nodes        UpstreamNodes `json:"nodes,omitempty" yaml:"nodes,omitempty"`
+	PassHost     *PassHost     `json:"pass_host,omitempty" yaml:"pass_host,omitempty"`
+	Retries      *int64        `json:"retries,omitempty" yaml:"retries,omitempty"`
+	RetryTimeout *float64      `json:"retry_timeout,omitempty" yaml:"retry_timeout,omitempty"`
+	Scheme       string        `json:"scheme,omitempty" yaml:"scheme,omitempty"`
+	ServiceName  string        `json:"service_name,omitempty" yaml:"service_name,omitempty"`
+	Timeout      *Timeout      `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	Type         UpstreamType  `json:"type,omitempty" yaml:"type,omitempty"`
+	UpstreamHost string        `json:"upstream_host,omitempty" yaml:"upstream_host,omitempty"`
+}
+
+type TLSClass struct {
+	ClientCERT   string `json:"client_cert,omitempty"`
+	ClientCERTID string `json:"client_cert_id,omitempty"`
+	ClientKey    string `json:"client_key,omitempty"`
+	Verify       *bool  `json:"verify,omitempty"`
+}
+
+type SSL struct {
+	Metadata `json:",inline" yaml:",inline"`
+
+	Certificates []Certificate `json:"certificates"`
+	Client       *ClientClass  `json:"client,omitempty"`
+	Snis         []string      `json:"snis"`
+	SSLProtocols []SSLProtocol `json:"ssl_protocols,omitempty"`
+	Type         *SSLType      `json:"type,omitempty"`
+}
+
+type Certificate struct {
+	Certificate string `json:"certificate"`
+	Key         string `json:"key"`
+}
+
+type ClientClass struct {
+	CA               string   `json:"ca"`
+	Depth            *int64   `json:"depth,omitempty"`
+	SkipMtlsURIRegex []string `json:"skip_mtls_uri_regex,omitempty"`
+}
+
+type Method string
+
+const (
+	Connect Method = "CONNECT"
+	Delete  Method = "DELETE"
+	Get     Method = "GET"
+	Head    Method = "HEAD"
+	Options Method = "OPTIONS"
+	Patch   Method = "PATCH"
+	Post    Method = "POST"
+	Purge   Method = "PURGE"
+	Put     Method = "PUT"
+	Trace   Method = "TRACE"
+)
+
+type PassHost string
+
+const (
+	Node    PassHost = "node"
+	Pass    PassHost = "pass"
+	Rewrite PassHost = "rewrite"
+)
+
+type Scheme string
+
+const (
+	Grpc  Scheme = "grpc"
+	Grpcs Scheme = "grpcs"
+	Kafka Scheme = "kafka"
+	TLS   Scheme = "tls"
+	UDP   Scheme = "udp"
+)
+
+type UpstreamType string
+
+const (
+	Chash      UpstreamType = "chash"
+	Ewma       UpstreamType = "ewma"
+	LeastConn  UpstreamType = "least_conn"
+	Roundrobin UpstreamType = "roundrobin"
+)
+
+type SSLProtocol string
+
+const (
+	TLSv11 SSLProtocol = "TLSv1.1"
+	TLSv12 SSLProtocol = "TLSv1.2"
+	TLSv13 SSLProtocol = "TLSv1.3"
+)
+
+type SSLType string
+
+const (
+	Client SSLType = "client"
+	Server SSLType = "server"
+)
+
+type Plugins map[string]interface{}
+
+func (p *Plugins) DeepCopyInto(out *Plugins) {
+	b, _ := json.Marshal(&p)
+	_ = json.Unmarshal(b, out)
+}
+
+func (p Plugins) DeepCopy() Plugins {
+	if p == nil {
+		return nil
+	}
+	out := make(Plugins)
+	p.DeepCopyInto(&out)
+	return out
+}
+
+// UpstreamNode is the node in upstream
+type UpstreamNode struct {
+	Host     string `json:"host" yaml:"host"`
+	Port     int    `json:"port" yaml:"port"`
+	Weight   int    `json:"weight" yaml:"weight"`
+	Priority int    `json:"priority,omitempty" yaml:"priority,omitempty"`
+}
+
+// UpstreamNodes is the upstream node list.
+type UpstreamNodes []UpstreamNode
+
+func mapKV2Node(key string, val float64) (*UpstreamNode, error) {
+	hp := strings.Split(key, ":")
+	host := hp[0]
+	//  according to APISIX upstream nodes policy, port is required
+	port := "80"
+
+	if len(hp) > 2 {
+		return nil, errors.New("invalid upstream node")
+	} else if len(hp) == 2 {
+		port = hp[1]
+	}
+
+	portInt, err := strconv.Atoi(port)
+	if err != nil {
+		return nil, fmt.Errorf("parse port to int fail: %s", err.Error())
+	}
+
+	node := &UpstreamNode{
+		Host:   host,
+		Port:   portInt,
+		Weight: int(val),
+	}
+
+	return node, nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler interface.
+// lua-cjson doesn't distinguish empty array and table,
+// and by default empty array will be encoded as '{}'.
+// We have to maintain the compatibility.
+func (n *UpstreamNodes) UnmarshalJSON(p []byte) error {
+	var data []UpstreamNode
+	if p[0] == '{' {
+		value := map[string]float64{}
+		if err := json.Unmarshal(p, &value); err != nil {
+			return err
+		}
+		for k, v := range value {
+			node, err := mapKV2Node(k, v)
+			if err != nil {
+				return err
+			}
+			data = append(data, *node)
+		}
+		*n = data
+		return nil
+	}
+	if err := json.Unmarshal(p, &data); err != nil {
+		return err
+	}
+	*n = data
+	return nil
+}
+
+// Vars represents the route match expressions of APISIX.
+type Vars [][]StringOrSlice
+
+// UnmarshalJSON implements json.Unmarshaler interface.
+// lua-cjson doesn't distinguish empty array and table,
+// and by default empty array will be encoded as '{}'.
+// We have to maintain the compatibility.
+func (vars *Vars) UnmarshalJSON(p []byte) error {
+	if p[0] == '{' {
+		if len(p) != 2 {
+			return errors.New("unexpected non-empty object")
+		}
+		return nil
+	}
+	var data [][]StringOrSlice
+	if err := json.Unmarshal(p, &data); err != nil {
+		return err
+	}
+	*vars = data
+	return nil
+}
+
+// StringOrSlice represents a string or a string slice.
+// TODO Do not use interface{} to avoid the reflection overheads.
+type StringOrSlice struct {
+	StrVal   string   `json:"-"`
+	SliceVal []string `json:"-"`
+}
+
+func (s *StringOrSlice) MarshalJSON() ([]byte, error) {
+	var (
+		p   []byte
+		err error
+	)
+	if s.SliceVal != nil {
+		p, err = json.Marshal(s.SliceVal)
+	} else {
+		p, err = json.Marshal(s.StrVal)
+	}
+	return p, err
+}
+
+func (s *StringOrSlice) UnmarshalJSON(p []byte) error {
+	var err error
+
+	if len(p) == 0 {
+		return errors.New("empty object")
+	}
+	if p[0] == '[' {
+		err = json.Unmarshal(p, &s.SliceVal)
+	} else {
+		err = json.Unmarshal(p, &s.StrVal)
+	}
+	return err
+}
+
+// ComposeRouteName uses namespace, name and rule name to compose
+// the route name.
+func ComposeRouteName(namespace, name string, rule string) string {
+	// FIXME Use sync.Pool to reuse this buffer if the upstream
+	// name composing code path is hot.
+	p := make([]byte, 0, len(namespace)+len(name)+len(rule)+2)
+	buf := bytes.NewBuffer(p)
+
+	buf.WriteString(namespace)
+	buf.WriteByte('_')
+	buf.WriteString(name)
+	buf.WriteByte('_')
+	buf.WriteString(rule)
+
+	return buf.String()
+}
+
+func ComposeServiceNameWithRule(namespace, name string, rule string) string {
+	// FIXME Use sync.Pool to reuse this buffer if the upstream
+	// name composing code path is hot.
+	var p []byte
+	plen := len(namespace) + len(name) + 2
+
+	p = make([]byte, 0, plen)
+	buf := bytes.NewBuffer(p)
+	buf.WriteString(namespace)
+	buf.WriteByte('_')
+	buf.WriteString(name)
+	buf.WriteByte('_')
+	buf.WriteString(rule)
+
+	return buf.String()
+}
+
+// NewDefaultUpstream returns an empty Upstream with default values.
+func NewDefaultService() *Service {
+	return &Service{
+		Metadata: Metadata{
+			Labels: map[string]string{
+				"managed-by": "api7-ingress-controller",
+			},
+		},
+		Plugins: make(Plugins),
+	}
+}
+
+func NewDefaultUpstream() *Upstream {
+	return &Upstream{
+		Type:   Roundrobin,
+		Nodes:  make(UpstreamNodes, 0),
+		Scheme: SchemeHTTP,
+		Metadata: Metadata{
+			Desc: "Created by apisix-ingress-controller, DO NOT modify it manually",
+			Labels: map[string]string{
+				"managed-by": "apisix-ingress-controller",
+			},
+		},
+	}
+}
+
+// NewDefaultRoute returns an empty Route with default values.
+func NewDefaultRoute() *Route {
+	return &Route{
+		Metadata: Metadata{
+			Desc: "Created by api7-ingress-controller, DO NOT modify it manually",
+			Labels: map[string]string{
+				"managed-by": "api7-ingress-controller",
+			},
+		},
+	}
+}
+
+const (
+	PluginProxyRewrite    string = "proxy-rewrite"
+	PluginRedirect        string = "redirect"
+	PluginResponseRewrite string = "response-rewrite"
+	PluginProxyMirror     string = "proxy-mirror"
+)
+
+// RewriteConfig is the rule config for proxy-rewrite plugin.
+type RewriteConfig struct {
+	RewriteTarget      string   `json:"uri,omitempty" yaml:"uri,omitempty"`
+	RewriteTargetRegex []string `json:"regex_uri,omitempty" yaml:"regex_uri,omitempty"`
+	Headers            *Headers `json:"headers,omitempty" yaml:"headers,omitempty"`
+	Host               string   `json:"host,omitempty" yaml:"host,omitempty"`
+}
+
+type Headers struct {
+	Set    map[string]string `json:"set" yaml:"set"`
+	Add    map[string]string `json:"add" yaml:"add"`
+	Remove []string          `json:"remove" yaml:"remove"`
+}
+
+// ResponseRewriteConfig is the rule config for response-rewrite plugin.
+type ResponseRewriteConfig struct {
+	StatusCode   int                 `json:"status_code,omitempty" yaml:"status_code,omitempty"`
+	Body         string              `json:"body,omitempty" yaml:"body,omitempty"`
+	BodyBase64   bool                `json:"body_base64,omitempty" yaml:"body_base64,omitempty"`
+	Headers      *ResponseHeaders    `json:"headers,omitempty" yaml:"headers,omitempty"`
+	LuaRestyExpr []expr.Expr         `json:"vars,omitempty" yaml:"vars,omitempty"`
+	Filters      []map[string]string `json:"filters,omitempty" yaml:"filters,omitempty"`
+}
+
+type ResponseHeaders struct {
+	Set    map[string]string `json:"set" yaml:"set"`
+	Add    []string          `json:"add" yaml:"add"`
+	Remove []string          `json:"remove" yaml:"remove"`
+}
+
+// RequestMirror is the rule config for proxy-mirror plugin.
+type RequestMirror struct {
+	Host string `json:"host" yaml:"host"`
+}
+
+// RedirectConfig is the rule config for redirect plugin.
+type RedirectConfig struct {
+	HttpToHttps bool   `json:"http_to_https,omitempty" yaml:"http_to_https,omitempty"`
+	URI         string `json:"uri,omitempty" yaml:"uri,omitempty"`
+	RetCode     int    `json:"ret_code,omitempty" yaml:"ret_code,omitempty"`
+}
