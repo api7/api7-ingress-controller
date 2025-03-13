@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
+	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
 	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
@@ -33,8 +35,23 @@ type GatewayReconciler struct { //nolint:revive
 	Provider provider.Provider
 }
 
+func (r *GatewayReconciler) setupIndexer(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.TODO(),
+		&gatewayv1.Gateway{},
+		indexer.ParametersRef,
+		indexer.GatewayParametersRefIndexFunc,
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if err := r.setupIndexer(mgr); err != nil {
+		return err
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.Gateway{}).
 		Watches(
@@ -45,6 +62,10 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&gatewayv1.HTTPRoute{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewaysForHTTPRoute),
+		).
+		Watches(
+			&v1alpha1.GatewayProxy{},
+			handler.EnqueueRequestsFromMapFunc(r.listGatewaysForGatewayProxy),
 		).
 		Complete(r)
 }
@@ -179,6 +200,35 @@ func (r *GatewayReconciler) checkGatewayClass(gateway *gatewayv1.Gateway) bool {
 	}
 
 	return matchesController(string(gatewayClass.Spec.ControllerName))
+}
+
+func (r *GatewayReconciler) listGatewaysForGatewayProxy(ctx context.Context, obj client.Object) []reconcile.Request {
+	gatewayProxy, ok := obj.(*v1alpha1.GatewayProxy)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to GatewayProxy")
+		return nil
+	}
+	namespace := gatewayProxy.GetNamespace()
+	name := gatewayProxy.GetName()
+
+	gatewayList := &gatewayv1.GatewayList{}
+	if err := r.List(ctx, gatewayList, client.MatchingFields{
+		indexer.ParametersRef: indexer.GenIndexKey(namespace, name),
+	}); err != nil {
+		r.Log.Error(err, "failed to list gateways for gateway proxy", "gatewayproxy", gatewayProxy.GetName())
+		return nil
+	}
+
+	recs := make([]reconcile.Request, 0, len(gatewayList.Items))
+	for _, gateway := range gatewayList.Items {
+		recs = append(recs, reconcile.Request{
+			NamespacedName: client.ObjectKey{
+				Namespace: gateway.GetNamespace(),
+				Name:      gateway.GetName(),
+			},
+		})
+	}
+	return recs
 }
 
 func (r *GatewayReconciler) listGatewaysForHTTPRoute(_ context.Context, obj client.Object) []reconcile.Request {

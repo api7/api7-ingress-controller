@@ -8,6 +8,7 @@ import (
 const (
 	ServiceIndexRef = "serviceRef"
 	ExtensionRef    = "extensionRef"
+	ParametersRef   = "parametersRef"
 )
 
 func GenIndexKey(namespace, name string) string {
@@ -46,6 +47,18 @@ func HTTPRouteExtensionIndexFunc(rawObj client.Object) []string {
 			if filter.ExtensionRef.Kind == "PluginConfig" {
 				keys = append(keys, GenIndexKey(hr.GetNamespace(), string(filter.ExtensionRef.Name)))
 			}
+		}
+	}
+	return keys
+}
+
+func GatewayParametersRefIndexFunc(rawObj client.Object) []string {
+	gw := rawObj.(*gatewayv1.Gateway)
+	var keys []string
+	if gw.Spec.Infrastructure != nil && gw.Spec.Infrastructure.ParametersRef != nil {
+		// now we only case kind: GatewayProxy
+		if gw.Spec.Infrastructure.ParametersRef.Kind == "GatewayProxy" {
+			keys = append(keys, GenIndexKey(gw.GetNamespace(), string(gw.Spec.Infrastructure.ParametersRef.Name)))
 		}
 	}
 	return keys
