@@ -56,7 +56,7 @@ func GatewayParametersRefIndexFunc(rawObj client.Object) []string {
 	gw := rawObj.(*gatewayv1.Gateway)
 	var keys []string
 	if gw.Spec.Infrastructure != nil && gw.Spec.Infrastructure.ParametersRef != nil {
-		// now we only case kind: GatewayProxy
+		// now we only care about kind: GatewayProxy
 		if gw.Spec.Infrastructure.ParametersRef.Kind == "GatewayProxy" {
 			keys = append(keys, GenIndexKey(gw.GetNamespace(), string(gw.Spec.Infrastructure.ParametersRef.Name)))
 		}
