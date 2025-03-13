@@ -31,10 +31,10 @@ import (
 )
 
 type fakeAPISIXConsumerSrv struct {
-	consumer map[string]map[string]interface{}
+	consumer map[string]map[string]any
 }
 
-type Value map[string]interface{}
+type Value map[string]any
 
 type fakeListResp struct {
 	Total string         `json:"total"`
@@ -110,7 +110,7 @@ func (srv *fakeAPISIXConsumerSrv) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		key := fmt.Sprintf("/apisix/admin/consumers/%s", paths[len(paths)-1])
 		data, _ := io.ReadAll(r.Body)
 		w.WriteHeader(http.StatusCreated)
-		consumer := make(map[string]interface{}, 0)
+		consumer := make(map[string]any, 0)
 		_ = json.Unmarshal(data, &consumer)
 		srv.consumer[key] = consumer
 		var val Value
@@ -137,7 +137,7 @@ func (srv *fakeAPISIXConsumerSrv) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		data, _ := io.ReadAll(r.Body)
 		var val Value
 		_ = json.Unmarshal(data, &val)
-		consumer := make(map[string]interface{}, 0)
+		consumer := make(map[string]any, 0)
 		_ = json.Unmarshal(data, &consumer)
 		srv.consumer[id] = consumer
 		w.WriteHeader(http.StatusOK)
@@ -155,7 +155,7 @@ func (srv *fakeAPISIXConsumerSrv) ServeHTTP(w http.ResponseWriter, r *http.Reque
 
 func runFakeConsumerSrv(t *testing.T) *http.Server {
 	srv := &fakeAPISIXConsumerSrv{
-		consumer: make(map[string]map[string]interface{}),
+		consumer: make(map[string]map[string]any),
 	}
 
 	ln, _ := nettest.NewLocalListener("tcp")
@@ -227,7 +227,7 @@ func TestConsumerClient(t *testing.T) {
 	// Patch then List
 	_, err = cli.Update(context.Background(), &v1.Consumer{
 		Username: "2",
-		Plugins: map[string]interface{}{
+		Plugins: map[string]any{
 			"prometheus": struct{}{},
 		},
 	})

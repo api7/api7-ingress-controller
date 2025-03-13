@@ -793,7 +793,7 @@ func (c *cluster) getList(ctx context.Context, url, resource string) ([]string, 
 		}
 		return listResponse, nil
 	}
-	var listResponse map[string]interface{}
+	var listResponse map[string]any
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&listResponse); err != nil {
 		return nil, err

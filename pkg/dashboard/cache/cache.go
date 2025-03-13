@@ -57,13 +57,13 @@ type Cache interface {
 	GetPluginConfig(string) (*v1.PluginConfig, error)
 
 	// ListRoutes lists all routes in cache.
-	ListRoutes(...interface{}) ([]*v1.Route, error)
+	ListRoutes(...any) ([]*v1.Route, error)
 	// ListStreamRoutes lists all stream_route objects in cache.
 	ListStreamRoutes() ([]*v1.StreamRoute, error)
 	// ListSSL lists all ssl objects in cache.
-	ListSSL(...interface{}) ([]*v1.Ssl, error)
+	ListSSL(...any) ([]*v1.Ssl, error)
 	// ListUpstreams lists all upstreams in cache.
-	ListServices(...interface{}) ([]*v1.Service, error)
+	ListServices(...any) ([]*v1.Service, error)
 	// ListGlobalRules lists all global_rule objects in cache.
 	ListGlobalRules() ([]*v1.GlobalRule, error)
 	// ListConsumers lists all consumer objects in cache.

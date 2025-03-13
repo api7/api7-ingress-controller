@@ -76,15 +76,15 @@ func (c *noopCache) GetPluginConfig(name string) (*v1.PluginConfig, error) {
 	return nil, nil
 }
 
-func (c *noopCache) ListRoutes(...interface{}) ([]*v1.Route, error) {
+func (c *noopCache) ListRoutes(...any) ([]*v1.Route, error) {
 	return nil, nil
 }
 
-func (c *noopCache) ListSSL(...interface{}) ([]*v1.Ssl, error) {
+func (c *noopCache) ListSSL(...any) ([]*v1.Ssl, error) {
 	return nil, nil
 }
 
-func (c *noopCache) ListServices(...interface{}) ([]*v1.Service, error) {
+func (c *noopCache) ListServices(...any) ([]*v1.Service, error) {
 	return nil, nil
 }
 

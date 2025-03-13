@@ -72,7 +72,7 @@ type Cluster interface {
 // list and delete for APISIX Route resource.
 type Route interface {
 	Get(ctx context.Context, name string) (*v1.Route, error)
-	List(ctx context.Context, args ...interface{}) ([]*v1.Route, error)
+	List(ctx context.Context, args ...any) ([]*v1.Route, error)
 	Create(ctx context.Context, route *v1.Route) (*v1.Route, error)
 	Delete(ctx context.Context, route *v1.Route) error
 	Update(ctx context.Context, route *v1.Route) (*v1.Route, error)
@@ -83,7 +83,7 @@ type Route interface {
 type SSL interface {
 	// name is namespace_sslname
 	Get(ctx context.Context, name string) (*v1.Ssl, error)
-	List(ctx context.Context, args ...interface{}) ([]*v1.Ssl, error)
+	List(ctx context.Context, args ...any) ([]*v1.Ssl, error)
 	Create(ctx context.Context, ssl *v1.Ssl) (*v1.Ssl, error)
 	Delete(ctx context.Context, ssl *v1.Ssl) error
 	Update(ctx context.Context, ssl *v1.Ssl) (*v1.Ssl, error)
@@ -93,7 +93,7 @@ type SSL interface {
 // list and delete for APISIX Upstream resource.
 type Service interface {
 	Get(ctx context.Context, name string) (*v1.Service, error)
-	List(ctx context.Context, args ...interface{}) ([]*v1.Service, error)
+	List(ctx context.Context, args ...any) ([]*v1.Service, error)
 	Create(ctx context.Context, svc *v1.Service) (*v1.Service, error)
 	Delete(ctx context.Context, svc *v1.Service) error
 	Update(ctx context.Context, svc *v1.Service) (*v1.Service, error)

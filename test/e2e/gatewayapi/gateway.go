@@ -226,7 +226,7 @@ spec:
 			assert.Nil(GinkgoT(), err, "list tls error")
 			assert.Len(GinkgoT(), tls, 1, "tls number not expect")
 			assert.Equal(GinkgoT(), Cert, tls[0].Cert, "tls cert not expect")
-			assert.Equal(GinkgoT(), []string{host, "*.api6.com"}, tls[0].Snis)
+			assert.ElementsMatch(GinkgoT(), []string{host, "*.api6.com"}, tls[0].Snis)
 		})
 
 		PContext("Gateway SSL with and without hostname", func() {

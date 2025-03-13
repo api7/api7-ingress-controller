@@ -88,9 +88,9 @@ var _ = PDescribe("Test Dashboard admin-api sdk", func() {
 			By("enable plugin in route")
 			route2 := routeDefault.DeepCopy()
 			route2.Plugins = v1.Plugins{
-				"proxy-rewrite": map[string]interface{}{
-					"headers": map[string]interface{}{
-						"add": map[string]interface{}{
+				"proxy-rewrite": map[string]any{
+					"headers": map[string]any{
+						"add": map[string]any{
 							"X-Header-1": "v1",
 						},
 					},
@@ -122,9 +122,9 @@ var _ = PDescribe("Test Dashboard admin-api sdk", func() {
 			By("enable plugin in service")
 			service2 := serviceDefault.DeepCopy()
 			service2.Plugins = v1.Plugins{
-				"proxy-rewrite": map[string]interface{}{
-					"headers": map[string]interface{}{
-						"add": map[string]interface{}{
+				"proxy-rewrite": map[string]any{
+					"headers": map[string]any{
+						"add": map[string]any{
 							"X-Header-2": "v2",
 						},
 					},
@@ -196,10 +196,10 @@ var _ = PDescribe("Test Dashboard admin-api sdk", func() {
 			// update plugin metadata
 			datadog := &v1.PluginMetadata{
 				Name: "datadog",
-				Metadata: map[string]interface{}{
+				Metadata: map[string]any{
 					"host": "172.168.45.29",
 					"port": float64(8126),
-					"constant_tags": []interface{}{
+					"constant_tags": []any{
 						"source:apisix",
 						"service:custom",
 					},
@@ -216,10 +216,10 @@ var _ = PDescribe("Test Dashboard admin-api sdk", func() {
 			// update plugin metadata
 			updated := &v1.PluginMetadata{
 				Name: "datadog",
-				Metadata: map[string]interface{}{
+				Metadata: map[string]any{
 					"host": "127.0.0.1",
 					"port": float64(8126),
-					"constant_tags": []interface{}{
+					"constant_tags": []any{
 						"source:ingress",
 						"service:custom",
 					},

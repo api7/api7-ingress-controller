@@ -237,7 +237,7 @@ func (s *StringOrSlice) UnmarshalJSON(p []byte) error {
 	return err
 }
 
-type Plugins map[string]interface{}
+type Plugins map[string]any
 
 func (p *Plugins) DeepCopyInto(out *Plugins) {
 	b, _ := json.Marshal(&p)
