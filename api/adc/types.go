@@ -84,7 +84,7 @@ type ConsumerGroup struct {
 
 type ConsumerElement struct {
 	Credentials []Credential      `json:"credentials,omitempty" yaml:"credentials,omitempty"`
-	Description *string           `json:"description,omitempty" yaml:"description,omitempty"`
+	Description string            `json:"description,omitempty" yaml:"description,omitempty"`
 	Labels      map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
 	Plugins     Plugins           `json:"plugins,omitempty" yaml:"plugins,omitempty"`
 	Username    string            `json:"username" yaml:"username"`
@@ -101,7 +101,7 @@ type Service struct {
 	Metadata `json:",inline" yaml:",inline"`
 
 	Hosts           []string       `json:"hosts,omitempty" yaml:"hosts,omitempty"`
-	PathPrefix      *string        `json:"path_prefix,omitempty" yaml:"path_prefix,omitempty"`
+	PathPrefix      string         `json:"path_prefix,omitempty" yaml:"path_prefix,omitempty"`
 	Plugins         Plugins        `json:"plugins,omitempty" yaml:"plugins,omitempty"`
 	Routes          []*Route       `json:"routes,omitempty" yaml:"routes,omitempty"`
 	StreamRoutes    []*StreamRoute `json:"stream_routes,omitempty" yaml:"stream_routes,omitempty"`
@@ -113,7 +113,7 @@ type Route struct {
 	Metadata `json:",inline" yaml:",inline"`
 
 	EnableWebsocket *bool    `json:"enable_websocket,omitempty" yaml:"enable_websocket,omitempty"`
-	FilterFunc      *string  `json:"filter_func,omitempty" yaml:"filter_func,omitempty"`
+	FilterFunc      string   `json:"filter_func,omitempty" yaml:"filter_func,omitempty"`
 	Hosts           []string `json:"hosts,omitempty" yaml:"hosts,omitempty"`
 	Methods         []string `json:"methods,omitempty" yaml:"methods,omitempty"`
 	Plugins         Plugins  `json:"plugins,omitempty" yaml:"plugins,omitempty"`
@@ -131,38 +131,38 @@ type Timeout struct {
 }
 
 type StreamRoute struct {
-	Description *string           `json:"description,omitempty"`
-	ID          *string           `json:"id,omitempty"`
+	Description string            `json:"description,omitempty"`
+	ID          string            `json:"id,omitempty"`
 	Labels      map[string]string `json:"labels,omitempty"`
 	Name        string            `json:"name"`
 	Plugins     Plugins           `json:"plugins,omitempty"`
-	RemoteAddr  *string           `json:"remote_addr,omitempty"`
-	ServerAddr  *string           `json:"server_addr,omitempty"`
+	RemoteAddr  string            `json:"remote_addr,omitempty"`
+	ServerAddr  string            `json:"server_addr,omitempty"`
 	ServerPort  *int64            `json:"server_port,omitempty"`
-	Sni         *string           `json:"sni,omitempty"`
+	Sni         string            `json:"sni,omitempty"`
 }
 
 type Upstream struct {
 	Metadata `json:",inline" yaml:",inline"`
 
-	HashOn       *string       `json:"hash_on,omitempty" yaml:"hash_on,omitempty"`
-	Key          *string       `json:"key,omitempty" yaml:"key,omitempty"`
+	HashOn       string        `json:"hash_on,omitempty" yaml:"hash_on,omitempty"`
+	Key          string        `json:"key,omitempty" yaml:"key,omitempty"`
 	Nodes        UpstreamNodes `json:"nodes,omitempty" yaml:"nodes,omitempty"`
 	PassHost     *PassHost     `json:"pass_host,omitempty" yaml:"pass_host,omitempty"`
 	Retries      *int64        `json:"retries,omitempty" yaml:"retries,omitempty"`
 	RetryTimeout *float64      `json:"retry_timeout,omitempty" yaml:"retry_timeout,omitempty"`
 	Scheme       string        `json:"scheme,omitempty" yaml:"scheme,omitempty"`
-	ServiceName  *string       `json:"service_name,omitempty" yaml:"service_name,omitempty"`
+	ServiceName  string        `json:"service_name,omitempty" yaml:"service_name,omitempty"`
 	Timeout      *Timeout      `json:"timeout,omitempty" yaml:"timeout,omitempty"`
 	Type         UpstreamType  `json:"type,omitempty" yaml:"type,omitempty"`
-	UpstreamHost *string       `json:"upstream_host,omitempty" yaml:"upstream_host,omitempty"`
+	UpstreamHost string        `json:"upstream_host,omitempty" yaml:"upstream_host,omitempty"`
 }
 
 type TLSClass struct {
-	ClientCERT   *string `json:"client_cert,omitempty"`
-	ClientCERTID *string `json:"client_cert_id,omitempty"`
-	ClientKey    *string `json:"client_key,omitempty"`
-	Verify       *bool   `json:"verify,omitempty"`
+	ClientCERT   string `json:"client_cert,omitempty"`
+	ClientCERTID string `json:"client_cert_id,omitempty"`
+	ClientKey    string `json:"client_key,omitempty"`
+	Verify       *bool  `json:"verify,omitempty"`
 }
 
 type SSL struct {

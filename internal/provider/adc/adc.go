@@ -98,7 +98,6 @@ func (d *adcClient) sync(task Task) error {
 		return err
 	}
 	args := []string{
-		"/app/adc/dist/apps/cli/main.js",
 		"sync",
 		"-f", tmpFile.Name(),
 		"--include-resource-type", "service",
@@ -110,7 +109,7 @@ func (d *adcClient) sync(task Task) error {
 	}
 
 	var stdout, stderr bytes.Buffer
-	cmd := exec.Command("node", args...)
+	cmd := exec.Command("adc", args...)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	cmd.Env = append(cmd.Env, os.Environ()...)
