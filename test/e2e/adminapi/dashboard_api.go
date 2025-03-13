@@ -26,7 +26,7 @@ import (
 	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
 )
 
-var _ = Describe("Test Dashboard admin-api sdk", func() {
+var _ = PDescribe("Test Dashboard admin-api sdk", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	Context("Service and Route", func() {

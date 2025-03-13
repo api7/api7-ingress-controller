@@ -12,7 +12,7 @@ ENVTEST_K8S_VERSION = 1.30.0
 KIND_NAME ?= api7-ingress-cluster
 GATEAY_API_VERSION ?= v1.1.0
 
-DASHBOARD_VERSION ?= v3.2.14.6
+DASHBOARD_VERSION ?= dev
 TEST_TIMEOUT ?= 30m
 
 # go 
@@ -87,7 +87,7 @@ kind-e2e-test: kind-up build-image kind-load-images e2e-test
 # Utilize Kind or modify the e2e tests to load the image locally, enabling compatibility with other vendors.
 .PHONY: e2e-test
 e2e-test:
-	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test ./test/e2e/ -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v
+	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test ./test/e2e/ -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)"
 
 .PHONY: conformance-test
 conformance-test:
@@ -131,6 +131,11 @@ pull-infra-images:
 	@docker pull kennethreitz/httpbin:latest
 	@docker pull jmalloc/echo-server:latest
 
+
+.PHONY: kind-load-image
+kind-load-image:
+	@kind load docker-image $(IMG) --name $(KIND_NAME)
+
 ##@ Build
 
 .PHONY: build
@@ -150,7 +155,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	$(CONTAINER_TOOL) build -t ${IMG} .
+	$(CONTAINER_TOOL) build -t ${IMG} -f Dockerfile.dev .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.

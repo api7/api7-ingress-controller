@@ -3,10 +3,11 @@ package manager
 import (
 	"context"
 
-	"github.com/api7/api7-ingress-controller/internal/controller"
-	"github.com/api7/api7-ingress-controller/internal/controlplane"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+
+	"github.com/api7/api7-ingress-controller/internal/controller"
+	"github.com/api7/api7-ingress-controller/internal/provider"
 )
 
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -21,8 +22,7 @@ type Controller interface {
 	SetupWithManager(mgr manager.Manager) error
 }
 
-func setupControllers(ctx context.Context, mgr manager.Manager, cpclient controlplane.Controlplane) []Controller {
-
+func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Provider) []Controller {
 	return []Controller{
 		&controller.GatewayClassReconciler{
 			Client: mgr.GetClient(),
@@ -30,16 +30,16 @@ func setupControllers(ctx context.Context, mgr manager.Manager, cpclient control
 			Log:    ctrl.LoggerFrom(ctx).WithName("controllers").WithName("GatewayClass"),
 		},
 		&controller.GatewayReconciler{
-			Client:             mgr.GetClient(),
-			ControlPlaneClient: cpclient,
-			Scheme:             mgr.GetScheme(),
-			Log:                ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Gateway"),
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Gateway"),
+			Provider: pro,
 		},
 		&controller.HTTPRouteReconciler{
-			Client:             mgr.GetClient(),
-			Scheme:             mgr.GetScheme(),
-			Log:                ctrl.LoggerFrom(ctx).WithName("controllers").WithName("HTTPRoute"),
-			ControlPalneClient: cpclient,
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("HTTPRoute"),
+			Provider: pro,
 		},
 	}
 }

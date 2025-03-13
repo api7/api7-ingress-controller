@@ -18,7 +18,7 @@ import (
 
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
-	"github.com/api7/api7-ingress-controller/internal/controlplane"
+	"github.com/api7/api7-ingress-controller/internal/provider/adc"
 )
 
 var (
@@ -117,14 +117,14 @@ func Run(ctx context.Context, logger logr.Logger) error {
 		return err
 	}
 
-	cpClient, err := controlplane.NewDashboard()
+	pro, err := adc.New()
 	if err != nil {
-		setupLog.Error(err, "unable to create controlplane client")
+		setupLog.Error(err, "unable to create provider")
 		return err
 	}
 
 	setupLog.Info("setting up controllers")
-	controllers := setupControllers(ctx, mgr, cpClient)
+	controllers := setupControllers(ctx, mgr, pro)
 	for _, c := range controllers {
 		if err := c.SetupWithManager(mgr); err != nil {
 			return err

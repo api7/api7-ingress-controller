@@ -383,7 +383,5 @@ spec:
       - name: ingress-config
         configMap:
           name: ingress-config
-      securityContext:
-        runAsNonRoot: true
       serviceAccountName: api7-ingress-controller-manager
       terminationGracePeriodSeconds: 10

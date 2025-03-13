@@ -212,6 +212,28 @@ postgresql:
       enabled: false
 developer_portal_configuration:
   enable: false
+dashboard_service:
+  type: ClusterIP
+  annotations: {}
+  port: 7080
+  tlsPort: 7443
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+      # kubernetes.io/ingress.class: nginx
+      # kubernetes.io/tls-acme: "true"
+    hosts:
+      - host: dashboard.local
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            # backend:
+            #   service:
+            #     name: api7ee3-dashboard
+            #     port:
+            #       number: 7943
+    tls: []
 `)
 	if err != nil {
 		panic(err)
@@ -357,6 +379,22 @@ func (f *Framework) GetDataplaneCertificates(gatewayGroupID string) *v1.Dataplan
 }
 
 func (s *Framework) GetAdminKey(gatewayGroupID string) string {
+	respExp := s.DashboardHTTPClient().PUT("/api/gateway_groups/"+gatewayGroupID+"/admin_key").
+		WithHeader("Content-Type", "application/json").
+		WithBasicAuth("admin", "admin").
+		Expect()
+
+	respExp.Status(200).Body().Contains("key")
+
+	body := respExp.Body().Raw()
+
+	var response responseCreateGateway
+	err := json.Unmarshal([]byte(body), &response)
+	Expect(err).ToNot(HaveOccurred(), "unmarshal response")
+	return response.Value.Key
+}
+
+func (s *Framework) GetToken(gatewayGroupID string) string {
 	respExp := s.DashboardHTTPClient().PUT("/api/gateway_groups/"+gatewayGroupID+"/admin_key").
 		WithHeader("Content-Type", "application/json").
 		WithBasicAuth("admin", "admin").

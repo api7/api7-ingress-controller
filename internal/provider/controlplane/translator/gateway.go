@@ -6,8 +6,9 @@ import (
 	"fmt"
 
 	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
-	"github.com/api7/api7-ingress-controller/internal/controlplane/label"
+	"github.com/api7/api7-ingress-controller/internal/controller/label"
 	"github.com/api7/api7-ingress-controller/internal/id"
+	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -15,7 +16,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
-func (t *Translator) TranslateGateway(tctx *TranslateContext, obj *gatewayv1.Gateway) (*TranslateResult, error) {
+func (t *Translator) TranslateGateway(tctx *provider.TranslateContext, obj *gatewayv1.Gateway) (*TranslateResult, error) {
 	result := &TranslateResult{}
 	for _, listener := range obj.Spec.Listeners {
 		if listener.TLS != nil {
@@ -30,7 +31,7 @@ func (t *Translator) TranslateGateway(tctx *TranslateContext, obj *gatewayv1.Gat
 	return result, nil
 }
 
-func (t *Translator) translateSecret(tctx *TranslateContext, listener gatewayv1.Listener, obj *gatewayv1.Gateway) ([]*v1.Ssl, error) {
+func (t *Translator) translateSecret(tctx *provider.TranslateContext, listener gatewayv1.Listener, obj *gatewayv1.Gateway) ([]*v1.Ssl, error) {
 	if tctx.Secrets == nil {
 		return nil, nil
 	}

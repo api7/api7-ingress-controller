@@ -6,8 +6,7 @@ import (
 	"reflect"
 
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
-	"github.com/api7/api7-ingress-controller/internal/controlplane"
-	"github.com/api7/api7-ingress-controller/internal/controlplane/translator"
+	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -28,9 +27,10 @@ import (
 // GatewayReconciler reconciles a Gateway object.
 type GatewayReconciler struct { //nolint:revive
 	client.Client
-	Scheme             *runtime.Scheme
-	ControlPlaneClient controlplane.Controlplane
-	Log                logr.Logger
+	Scheme *runtime.Scheme
+	Log    logr.Logger
+
+	Provider provider.Provider
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -56,7 +56,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			gateway.Namespace = req.Namespace
 			gateway.Name = req.Name
 
-			if err := r.ControlPlaneClient.Delete(ctx, gateway); err != nil {
+			if err := r.Provider.Delete(ctx, gateway); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -95,11 +95,11 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		status: true,
 		msg:    acceptedMessage("gateway"),
 	}
-	tctx := &translator.TranslateContext{
+	tctx := &provider.TranslateContext{
 		Secrets: make(map[types.NamespacedName]*corev1.Secret),
 	}
 	r.processListenerConfig(tctx, gateway, ns)
-	if err := r.ControlPlaneClient.Update(ctx, tctx, gateway); err != nil {
+	if err := r.Provider.Update(ctx, tctx, gateway); err != nil {
 		acceptStatus = status{
 			status: false,
 			msg:    err.Error(),
@@ -215,7 +215,7 @@ func (r *GatewayReconciler) listGatewaysForHTTPRoute(_ context.Context, obj clie
 	return recs
 }
 
-func (r *GatewayReconciler) processListenerConfig(tctx *translator.TranslateContext, gateway *gatewayv1.Gateway, ns string) {
+func (r *GatewayReconciler) processListenerConfig(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway, ns string) {
 	listeners := gateway.Spec.Listeners
 	for _, listener := range listeners {
 		if listener.TLS == nil || listener.TLS.CertificateRefs == nil {

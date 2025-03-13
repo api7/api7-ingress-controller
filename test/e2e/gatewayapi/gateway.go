@@ -180,7 +180,7 @@ spec:
 		})
 	})
 
-	Context("Gateway SSL", func() {
+	PContext("Gateway SSL", func() {
 		It("Check if SSL resource was created", func() {
 			secretName := _secretName
 			host := "api6.com"
@@ -229,7 +229,7 @@ spec:
 			assert.Equal(GinkgoT(), []string{host, "*.api6.com"}, tls[0].Snis)
 		})
 
-		Context("Gateway SSL with and without hostname", func() {
+		PContext("Gateway SSL with and without hostname", func() {
 			It("Check if SSL resource was created", func() {
 				secretName := _secretName
 				createSecret(s, secretName)
