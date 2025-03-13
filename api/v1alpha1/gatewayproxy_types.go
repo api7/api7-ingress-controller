@@ -33,8 +33,7 @@ type GatewayProxySpec struct {
 	PluginMetadata map[string]apiextensionsv1.JSON `json:"pluginMetadata,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-
+// +kubebuilder:object:root=true
 // GatewayProxy is the Schema for the gatewayproxies API
 type GatewayProxy struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -43,8 +42,7 @@ type GatewayProxy struct {
 	Spec GatewayProxySpec `json:"spec,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-
+// +kubebuilder:object:root=true
 // GatewayProxyList contains a list of GatewayProxy
 type GatewayProxyList struct {
 	metav1.TypeMeta `json:",inline"`
