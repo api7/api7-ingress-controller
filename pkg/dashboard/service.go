@@ -69,7 +69,7 @@ type ListByKindLabelOptions struct {
 
 // List is only used in cache warming up. So here just pass through
 // to APISIX.
-func (u *serviceClient) List(ctx context.Context, listOptions ...interface{}) ([]*v1.Service, error) {
+func (u *serviceClient) List(ctx context.Context, listOptions ...any) ([]*v1.Service, error) {
 	var options ListOptions
 	if len(listOptions) > 0 {
 		options = listOptions[0].(ListOptions)

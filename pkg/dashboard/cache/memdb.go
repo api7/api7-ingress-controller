@@ -77,7 +77,7 @@ func (c *dbCache) InsertPluginConfig(pc *v1.PluginConfig) error {
 	return c.insert("plugin_config", pc.DeepCopy())
 }
 
-func (c *dbCache) insert(table string, obj interface{}) error {
+func (c *dbCache) insert(table string, obj any) error {
 	txn := c.db.Txn(true)
 	defer txn.Abort()
 	if err := txn.Insert(table, obj); err != nil {
@@ -151,7 +151,7 @@ func (c *dbCache) GetPluginConfig(name string) (*v1.PluginConfig, error) {
 	return obj.(*v1.PluginConfig).DeepCopy(), nil
 }
 
-func (c *dbCache) get(table, id string) (interface{}, error) {
+func (c *dbCache) get(table, id string) (any, error) {
 	txn := c.db.Txn(false)
 	defer txn.Abort()
 	obj, err := txn.First(table, "id", id)
@@ -167,7 +167,7 @@ func (c *dbCache) get(table, id string) (interface{}, error) {
 	return obj, nil
 }
 
-func (c *dbCache) ListRoutes(args ...interface{}) ([]*v1.Route, error) {
+func (c *dbCache) ListRoutes(args ...any) ([]*v1.Route, error) {
 	raws, err := c.list("route", args...)
 	if err != nil {
 		return nil, err
@@ -179,7 +179,7 @@ func (c *dbCache) ListRoutes(args ...interface{}) ([]*v1.Route, error) {
 	return routes, nil
 }
 
-func (c *dbCache) ListSSL(args ...interface{}) ([]*v1.Ssl, error) {
+func (c *dbCache) ListSSL(args ...any) ([]*v1.Ssl, error) {
 	raws, err := c.list("ssl", args...)
 	if err != nil {
 		return nil, err
@@ -191,7 +191,7 @@ func (c *dbCache) ListSSL(args ...interface{}) ([]*v1.Ssl, error) {
 	return ssl, nil
 }
 
-func (c *dbCache) ListServices(args ...interface{}) ([]*v1.Service, error) {
+func (c *dbCache) ListServices(args ...any) ([]*v1.Service, error) {
 	raws, err := c.list("service", args...)
 	if err != nil {
 		return nil, err
@@ -263,7 +263,7 @@ func (c *dbCache) ListPluginConfigs() ([]*v1.PluginConfig, error) {
 	return pluginConfigs, nil
 }
 
-func (c *dbCache) list(table string, args ...interface{}) ([]interface{}, error) {
+func (c *dbCache) list(table string, args ...any) ([]any, error) {
 	txn := c.db.Txn(false)
 	defer txn.Abort()
 	index := "id"
@@ -279,7 +279,7 @@ func (c *dbCache) list(table string, args ...interface{}) ([]interface{}, error)
 	if err != nil {
 		return nil, err
 	}
-	var objs []interface{}
+	var objs []any
 	for obj := iter.Next(); obj != nil; obj = iter.Next() {
 		objs = append(objs, obj)
 	}
@@ -324,7 +324,7 @@ func (c *dbCache) DeletePluginConfig(pc *v1.PluginConfig) error {
 	return c.delete("plugin_config", pc)
 }
 
-func (c *dbCache) delete(table string, obj interface{}) error {
+func (c *dbCache) delete(table string, obj any) error {
 	txn := c.db.Txn(true)
 	defer txn.Abort()
 	if err := txn.Delete(table, obj); err != nil {
