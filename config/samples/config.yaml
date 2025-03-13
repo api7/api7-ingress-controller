@@ -13,7 +13,7 @@ gateway_configs:                  # The configuration of the API7 Gateway.
   control_plane:
     admin_key: "${ADMIN_KEY}"     # The admin key of the control plane.
     endpoints:         
-      - ${ENDPOINT}/apisix/admin        # The endpoint of the control plane.                    
+      - ${ENDPOINT}               # The endpoint of the control plane.                    
     tls_verify: false
   addresses:                      # record the status address of the gateway-api gateway
   - "172.18.0.4"                  # The LB IP of the gateway service.
