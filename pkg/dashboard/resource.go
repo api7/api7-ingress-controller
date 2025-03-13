@@ -23,8 +23,8 @@ import (
 )
 
 type getResponse struct {
-	Key   string                 `json:"key"`
-	Value map[string]interface{} `json:"value"`
+	Key   string         `json:"key"`
+	Value map[string]any `json:"value"`
 }
 
 type listResponse struct {
@@ -34,7 +34,7 @@ type listResponse struct {
 
 type listItems []listItem
 
-type listItem map[string]interface{}
+type listItem map[string]any
 
 // IntOrString processing number and string types, after json deserialization will output int
 type IntOrString struct {

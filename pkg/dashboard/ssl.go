@@ -53,7 +53,7 @@ func (s *sslClient) Get(ctx context.Context, name string) (*v1.Ssl, error) {
 
 // List is only used in cache warming up. So here just pass through
 // to APISIX.
-func (s *sslClient) List(ctx context.Context, listOptions ...interface{}) ([]*v1.Ssl, error) {
+func (s *sslClient) List(ctx context.Context, listOptions ...any) ([]*v1.Ssl, error) {
 	var options ListOptions
 	if len(listOptions) > 0 {
 		options = listOptions[0].(ListOptions)

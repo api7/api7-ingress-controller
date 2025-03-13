@@ -58,7 +58,7 @@ var (
 						AllowMissing: true,
 						Indexer: &LabelIndexer{
 							LabelKeys: []string{"kind", "namespace", "name"},
-							GetLabels: func(obj interface{}) map[string]string {
+							GetLabels: func(obj any) map[string]string {
 								service, ok := obj.(*v1.Route)
 								if !ok {
 									return nil
@@ -89,7 +89,7 @@ var (
 						AllowMissing: true,
 						Indexer: &LabelIndexer{
 							LabelKeys: []string{"kind", "namespace", "name"},
-							GetLabels: func(obj interface{}) map[string]string {
+							GetLabels: func(obj any) map[string]string {
 								service, ok := obj.(*v1.Service)
 								if !ok {
 									return nil
@@ -189,10 +189,10 @@ var (
 // LabelIndexer is a custom indexer for exact match indexing
 type LabelIndexer struct {
 	LabelKeys []string
-	GetLabels func(interface{}) map[string]string
+	GetLabels func(any) map[string]string
 }
 
-func (emi *LabelIndexer) FromObject(obj interface{}) (bool, []byte, error) {
+func (emi *LabelIndexer) FromObject(obj any) (bool, []byte, error) {
 	labels := emi.GetLabels(obj)
 	var labelValues []string
 	for _, key := range emi.LabelKeys {
@@ -208,7 +208,7 @@ func (emi *LabelIndexer) FromObject(obj interface{}) (bool, []byte, error) {
 	return true, []byte(strings.Join(labelValues, "/")), nil
 }
 
-func (emi *LabelIndexer) FromArgs(args ...interface{}) ([]byte, error) {
+func (emi *LabelIndexer) FromArgs(args ...any) ([]byte, error) {
 	if len(args) != len(emi.LabelKeys) {
 		return nil, fmt.Errorf("expected %d arguments, got %d", len(emi.LabelKeys), len(args))
 	}

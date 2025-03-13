@@ -63,7 +63,7 @@ func (f *dummyRoute) Get(_ context.Context, _ string) (*v1.Route, error) {
 	return nil, ErrClusterNotExist
 }
 
-func (f *dummyRoute) List(_ context.Context, _ ...interface{}) ([]*v1.Route, error) {
+func (f *dummyRoute) List(_ context.Context, _ ...any) ([]*v1.Route, error) {
 	return nil, ErrClusterNotExist
 }
 
@@ -85,7 +85,7 @@ func (f *dummySSL) Get(_ context.Context, _ string) (*v1.Ssl, error) {
 	return nil, ErrClusterNotExist
 }
 
-func (f *dummySSL) List(_ context.Context, _ ...interface{}) ([]*v1.Ssl, error) {
+func (f *dummySSL) List(_ context.Context, _ ...any) ([]*v1.Ssl, error) {
 	return nil, ErrClusterNotExist
 }
 
@@ -107,7 +107,7 @@ func (f *dummyService) Get(_ context.Context, _ string) (*v1.Service, error) {
 	return nil, ErrClusterNotExist
 }
 
-func (f *dummyService) List(_ context.Context, _ ...interface{}) ([]*v1.Service, error) {
+func (f *dummyService) List(_ context.Context, _ ...any) ([]*v1.Service, error) {
 	return nil, ErrClusterNotExist
 }
 
@@ -355,14 +355,14 @@ func (c *dummyCache) GetPluginConfig(_ string) (*v1.PluginConfig, error) {
 	return nil, cache.ErrNotFound
 }
 
-func (c *dummyCache) ListRoutes(...interface{}) ([]*v1.Route, error)     { return nil, nil }
-func (c *dummyCache) ListSSL(_ ...interface{}) ([]*v1.Ssl, error)        { return nil, nil }
-func (c *dummyCache) ListServices(...interface{}) ([]*v1.Service, error) { return nil, nil }
-func (c *dummyCache) ListStreamRoutes() ([]*v1.StreamRoute, error)       { return nil, nil }
-func (c *dummyCache) ListGlobalRules() ([]*v1.GlobalRule, error)         { return nil, nil }
-func (c *dummyCache) ListConsumers() ([]*v1.Consumer, error)             { return nil, nil }
-func (c *dummyCache) ListSchema() ([]*v1.Schema, error)                  { return nil, nil }
-func (c *dummyCache) ListPluginConfigs() ([]*v1.PluginConfig, error)     { return nil, nil }
+func (c *dummyCache) ListRoutes(...any) ([]*v1.Route, error)         { return nil, nil }
+func (c *dummyCache) ListSSL(_ ...any) ([]*v1.Ssl, error)            { return nil, nil }
+func (c *dummyCache) ListServices(...any) ([]*v1.Service, error)     { return nil, nil }
+func (c *dummyCache) ListStreamRoutes() ([]*v1.StreamRoute, error)   { return nil, nil }
+func (c *dummyCache) ListGlobalRules() ([]*v1.GlobalRule, error)     { return nil, nil }
+func (c *dummyCache) ListConsumers() ([]*v1.Consumer, error)         { return nil, nil }
+func (c *dummyCache) ListSchema() ([]*v1.Schema, error)              { return nil, nil }
+func (c *dummyCache) ListPluginConfigs() ([]*v1.PluginConfig, error) { return nil, nil }
 
 func (c *dummyCache) DeleteRoute(_ *v1.Route) error                       { return nil }
 func (c *dummyCache) DeleteSSL(_ *v1.Ssl) error                           { return nil }
