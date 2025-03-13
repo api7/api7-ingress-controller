@@ -98,7 +98,7 @@ func (d *adcClient) sync(task Task) error {
 		return err
 	}
 	args := []string{
-		"/workspace/api7/adc/dist/apps/cli/main.js",
+		"/app/adc/dist/apps/cli/main.js",
 		"sync",
 		"-f", tmpFile.Name(),
 		"--include-resource-type", "service",
