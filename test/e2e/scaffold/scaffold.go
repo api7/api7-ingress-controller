@@ -465,11 +465,9 @@ func (s *Scaffold) afterEach() {
 		}
 	}
 
-	if os.Getenv("TSET_KEEP") != "true" {
-		// if the test case is successful, just delete namespace
-		err := k8s.DeleteNamespaceE(s.t, s.kubectlOptions, s.namespace)
-		Expect(err).NotTo(HaveOccurred(), "deleting namespace "+s.namespace)
-	}
+	// if the test case is successful, just delete namespace
+	err := k8s.DeleteNamespaceE(s.t, s.kubectlOptions, s.namespace)
+	Expect(err).NotTo(HaveOccurred(), "deleting namespace "+s.namespace)
 
 	for _, f := range s.finalizers {
 		runWithRecover(f)

@@ -394,22 +394,6 @@ func (s *Framework) GetAdminKey(gatewayGroupID string) string {
 	return response.Value.Key
 }
 
-func (s *Framework) GetToken(gatewayGroupID string) string {
-	respExp := s.DashboardHTTPClient().PUT("/api/gateway_groups/"+gatewayGroupID+"/admin_key").
-		WithHeader("Content-Type", "application/json").
-		WithBasicAuth("admin", "admin").
-		Expect()
-
-	respExp.Status(200).Body().Contains("key")
-
-	body := respExp.Body().Raw()
-
-	var response responseCreateGateway
-	err := json.Unmarshal([]byte(body), &response)
-	Expect(err).ToNot(HaveOccurred(), "unmarshal response")
-	return response.Value.Key
-}
-
 func (f *Framework) DeleteGatewayGroup(gatewayGroupID string) {
 	respExp := f.DashboardHTTPClient().
 		DELETE("/api/gateway_groups/"+gatewayGroupID).
