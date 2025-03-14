@@ -72,7 +72,7 @@ type Resources struct {
 	GlobalRules    Plugins            `json:"global_rules,omitempty" yaml:"global_rules,omitempty"`
 	PluginMetadata Plugins            `json:"plugin_metadata,omitempty" yaml:"plugin_metadata,omitempty"`
 	Services       []*Service         `json:"services,omitempty" yaml:"services,omitempty"`
-	Ssls           []*SSL             `json:"ssls,omitempty" yaml:"ssls,omitempty"`
+	SSLs           []*SSL             `json:"ssls,omitempty" yaml:"ssls,omitempty"`
 }
 
 type ConsumerGroup struct {

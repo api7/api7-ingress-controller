@@ -59,6 +59,7 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 
 	resources := types.Resources{
 		Services: result.Services,
+		SSLs:     result.SSL,
 	}
 
 	return d.sync(Task{
