@@ -120,7 +120,12 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		Secrets: make(map[types.NamespacedName]*corev1.Secret),
 	}
 	r.processListenerConfig(tctx, gateway, ns)
-	r.processGatewayProxy(tctx, gateway, ns)
+	if err := r.processGatewayProxy(tctx, gateway, ns); err != nil {
+		acceptStatus = status{
+			status: false,
+			msg:    err.Error(),
+		}
+	}
 
 	if err := r.Provider.Update(ctx, tctx, gateway); err != nil {
 		acceptStatus = status{
@@ -267,7 +272,7 @@ func (r *GatewayReconciler) listGatewaysForHTTPRoute(_ context.Context, obj clie
 	return recs
 }
 
-func (r *GatewayReconciler) processGatewayProxy(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway, ns string) {
+func (r *GatewayReconciler) processGatewayProxy(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway, ns string) error {
 	infra := gateway.Spec.Infrastructure
 	if infra != nil && infra.ParametersRef != nil {
 		paramRef := infra.ParametersRef
@@ -278,12 +283,15 @@ func (r *GatewayReconciler) processGatewayProxy(tctx *provider.TranslateContext,
 				Name:      paramRef.Name,
 			}, gatewayProxy); err != nil {
 				log.Error(err, "failed to get GatewayProxy", "namespace", ns, "name", paramRef.Name)
+				return err
 			} else {
 				log.Info("found GatewayProxy for Gateway", "gateway", gateway.Name, "gatewayproxy", gatewayProxy.Name)
 				tctx.GatewayProxy = gatewayProxy
 			}
 		}
 	}
+
+	return nil
 }
 
 func (r *GatewayReconciler) processListenerConfig(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway, ns string) {
