@@ -533,6 +533,12 @@ func addQueryParam(urlStr string, labels map[string]string) string {
 }
 
 func (c *cluster) listResource(ctx context.Context, url, resource string) (listResponse, error) {
+	var list listResponse
+	err := c.listResourceToResponse(ctx, url, resource, &list)
+	return list, err
+}
+
+func (c *cluster) listResourceToResponse(ctx context.Context, url, resource string, listResponse any) error {
 	log.Debugw("list resource in cluster",
 		zap.String("cluster_name", c.name),
 		zap.String("name", resource),
@@ -544,29 +550,25 @@ func (c *cluster) listResource(ctx context.Context, url, resource string) (listR
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return listResponse{}, err
+		return err
 	}
 	resp, err := c.do(req)
 	if err != nil {
-		return listResponse{}, err
+		return err
 	}
 
 	defer drainBody(resp.Body, url)
 	if resp.StatusCode != http.StatusOK {
 		body := readBody(resp.Body, url)
 		if c.isFunctionDisabled(body) {
-			return listResponse{}, ErrFunctionDisabled
+			return ErrFunctionDisabled
 		}
 		err = multierr.Append(err, fmt.Errorf("unexpected status code %d", resp.StatusCode))
 		err = multierr.Append(err, fmt.Errorf("error message: %s", body))
-		return listResponse{}, err
+		return err
 	}
-	var list listResponse
-	byt, _ := io.ReadAll(resp.Body)
-	if err := json.Unmarshal(byt, &list); err != nil {
-		return listResponse{}, err
-	}
-	return list, nil
+
+	return json.NewDecoder(resp.Body).Decode(listResponse)
 }
 
 func (c *cluster) createResource(ctx context.Context, url, resource string, body []byte) (*getResponse, error) {
