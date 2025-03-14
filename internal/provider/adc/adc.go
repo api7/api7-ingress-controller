@@ -49,6 +49,8 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 	switch obj := obj.(type) {
 	case *gatewayv1.HTTPRoute:
 		result, err = d.translator.TranslateHTTPRoute(tctx, obj.DeepCopy())
+	case *gatewayv1.Gateway:
+		result, err = d.translator.TranslateGateway(tctx, obj.DeepCopy())
 	}
 	if err != nil {
 		return err
@@ -101,7 +103,6 @@ func (d *adcClient) sync(task Task) error {
 	args := []string{
 		"sync",
 		"-f", tmpFile.Name(),
-		"--include-resource-type", "service",
 		"--tls-skip-verify",
 	}
 
