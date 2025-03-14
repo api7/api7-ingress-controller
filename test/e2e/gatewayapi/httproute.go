@@ -74,6 +74,7 @@ spec:
 			)
 		time.Sleep(1 * time.Second)
 	}
+
 	var beforeEachHTTP = func() {
 		By("create GatewayClass")
 		gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
