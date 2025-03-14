@@ -275,9 +275,9 @@ func (r *GatewayReconciler) processGatewayProxy(tctx *provider.TranslateContext,
 			gatewayProxy := &v1alpha1.GatewayProxy{}
 			if err := r.Get(context.Background(), client.ObjectKey{
 				Namespace: ns,
-				Name:      string(paramRef.Name),
+				Name:      paramRef.Name,
 			}, gatewayProxy); err != nil {
-				log.Error(err, "failed to get GatewayProxy", "namespace", ns, "name", string(paramRef.Name))
+				log.Error(err, "failed to get GatewayProxy", "namespace", ns, "name", paramRef.Name)
 			} else {
 				log.Info("found GatewayProxy for Gateway", "gateway", gateway.Name, "gatewayproxy", gatewayProxy.Name)
 				tctx.GatewayProxy = gatewayProxy
