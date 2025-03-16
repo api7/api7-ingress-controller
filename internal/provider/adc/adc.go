@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"os"
-	"os/exec"
 
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
@@ -97,30 +96,21 @@ func (d *adcClient) sync(task Task) error {
 	if _, err := tmpFile.Write(yaml); err != nil {
 		return err
 	}
-	args := []string{
-		"sync",
-		"-f", tmpFile.Name(),
-		"--include-resource-type", "service",
-		"--tls-skip-verify",
-	}
-
-	for k, v := range task.Labels {
-		args = append(args, "--label-selector", k+"="+v)
-	}
 
 	var stdout, stderr bytes.Buffer
-	cmd := exec.Command("adc", args...)
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	cmd.Env = append(cmd.Env, os.Environ()...)
-	cmd.Env = append(cmd.Env,
-		"ADC_EXPERIMENTAL_FEATURE_FLAGS=remote-state-file,parallel-backend-request",
-		"ADC_BACKEND=api7ee",
-		"ADC_SERVER="+d.ServerAddr,
-		"ADC_TOKEN="+d.Token,
-	)
-
-	if err := cmd.Run(); err != nil {
+	if err = Sync().Stdout(&stdout).Stderr(&stderr).
+		Envs(os.Environ()...).
+		Envs(
+			"ADC_EXPERIMENTAL_FEATURE_FLAGS=remote-state-file,parallel-backend-request",
+			"ADC_BACKEND=api7ee",
+			"ADC_SERVER="+d.ServerAddr,
+			"ADC_TOKEN="+d.Token,
+		).
+		F(tmpFile.Name()).
+		IncludeResourceTypes("service").
+		TLSSkipVerify().
+		LabelSelectors(task.Labels).
+		Run(); err != nil {
 		log.Errorw("failed to run adc",
 			zap.Error(err),
 			zap.String("output", stdout.String()),
