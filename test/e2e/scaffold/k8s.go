@@ -150,7 +150,7 @@ func (s *Scaffold) ClusterClient() (apisix.Cluster, error) {
 	err = cli.AddCluster(context.Background(), &apisix.ClusterOptions{
 		BaseURL:        u.String(),
 		ControllerName: s.opts.ControllerName,
-		Labels:         map[string]string{"controller_name": s.opts.ControllerName},
+		Labels:         map[string]string{"k8s/controller-name": s.opts.ControllerName},
 		AdminKey:       s.opts.APISIXAdminAPIKey,
 		SyncCache:      true,
 	})
