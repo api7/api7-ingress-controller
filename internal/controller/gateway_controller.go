@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
+	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
 	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
@@ -33,8 +35,23 @@ type GatewayReconciler struct { //nolint:revive
 	Provider provider.Provider
 }
 
+func (r *GatewayReconciler) setupIndexer(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&gatewayv1.Gateway{},
+		indexer.ParametersRef,
+		indexer.GatewayParametersRefIndexFunc,
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if err := r.setupIndexer(mgr); err != nil {
+		return err
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.Gateway{}).
 		Watches(
@@ -45,6 +62,10 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&gatewayv1.HTTPRoute{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewaysForHTTPRoute),
+		).
+		Watches(
+			&v1alpha1.GatewayProxy{},
+			handler.EnqueueRequestsFromMapFunc(r.listGatewaysForGatewayProxy),
 		).
 		Complete(r)
 }
@@ -99,6 +120,13 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		Secrets: make(map[types.NamespacedName]*corev1.Secret),
 	}
 	r.processListenerConfig(tctx, gateway, ns)
+	if err := r.processGatewayProxy(tctx, gateway, ns); err != nil {
+		acceptStatus = status{
+			status: false,
+			msg:    err.Error(),
+		}
+	}
+
 	if err := r.Provider.Update(ctx, tctx, gateway); err != nil {
 		acceptStatus = status{
 			status: false,
@@ -181,6 +209,35 @@ func (r *GatewayReconciler) checkGatewayClass(gateway *gatewayv1.Gateway) bool {
 	return matchesController(string(gatewayClass.Spec.ControllerName))
 }
 
+func (r *GatewayReconciler) listGatewaysForGatewayProxy(ctx context.Context, obj client.Object) []reconcile.Request {
+	gatewayProxy, ok := obj.(*v1alpha1.GatewayProxy)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to GatewayProxy")
+		return nil
+	}
+	namespace := gatewayProxy.GetNamespace()
+	name := gatewayProxy.GetName()
+
+	gatewayList := &gatewayv1.GatewayList{}
+	if err := r.List(ctx, gatewayList, client.MatchingFields{
+		indexer.ParametersRef: indexer.GenIndexKey(namespace, name),
+	}); err != nil {
+		r.Log.Error(err, "failed to list gateways for gateway proxy", "gatewayproxy", gatewayProxy.GetName())
+		return nil
+	}
+
+	recs := make([]reconcile.Request, 0, len(gatewayList.Items))
+	for _, gateway := range gatewayList.Items {
+		recs = append(recs, reconcile.Request{
+			NamespacedName: client.ObjectKey{
+				Namespace: gateway.GetNamespace(),
+				Name:      gateway.GetName(),
+			},
+		})
+	}
+	return recs
+}
+
 func (r *GatewayReconciler) listGatewaysForHTTPRoute(_ context.Context, obj client.Object) []reconcile.Request {
 	httpRoute, ok := obj.(*gatewayv1.HTTPRoute)
 	if !ok {
@@ -213,6 +270,28 @@ func (r *GatewayReconciler) listGatewaysForHTTPRoute(_ context.Context, obj clie
 		})
 	}
 	return recs
+}
+
+func (r *GatewayReconciler) processGatewayProxy(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway, ns string) error {
+	infra := gateway.Spec.Infrastructure
+	if infra != nil && infra.ParametersRef != nil {
+		paramRef := infra.ParametersRef
+		if string(paramRef.Group) == v1alpha1.GroupVersion.Group && string(paramRef.Kind) == "GatewayProxy" {
+			gatewayProxy := &v1alpha1.GatewayProxy{}
+			if err := r.Get(context.Background(), client.ObjectKey{
+				Namespace: ns,
+				Name:      paramRef.Name,
+			}, gatewayProxy); err != nil {
+				log.Error(err, "failed to get GatewayProxy", "namespace", ns, "name", paramRef.Name)
+				return err
+			} else {
+				log.Info("found GatewayProxy for Gateway", "gateway", gateway.Name, "gatewayproxy", gatewayProxy.Name)
+				tctx.GatewayProxy = gatewayProxy
+			}
+		}
+	}
+
+	return nil
 }
 
 func (r *GatewayReconciler) processListenerConfig(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway, ns string) {
