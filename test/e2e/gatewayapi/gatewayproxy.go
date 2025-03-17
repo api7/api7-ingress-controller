@@ -181,7 +181,7 @@ spec:
 	})
 
 	Context("Test Gateway with enabled GatewayProxy plugin", func() {
-		It("Should apply plugin configuration when enabled", func() {
+		FIt("Should apply plugin configuration when enabled", func() {
 			By("Create HTTPRoute for Gateway with GatewayProxy")
 			ResourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
 
@@ -243,7 +243,7 @@ spec:
 			err error
 		)
 
-		FIt("Should work OK with error_page", func() {
+		FIt("Should work OK with error-page", func() {
 			By("Update GatewayProxy with PluginMetadata")
 			err = s.CreateResourceFromString(gatewayProxyWithPluginMetadata)
 			Ω(err).ShouldNot(HaveOccurred())

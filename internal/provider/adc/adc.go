@@ -152,6 +152,7 @@ func (d *adcClient) sync(task Task, extraArgs ...string) error {
 		"ADC_TOKEN="+d.Token,
 	)
 
+	log.Debugf("exec: %s\n", cmd.String())
 	if err := cmd.Run(); err != nil {
 		log.Errorw("failed to run adc",
 			zap.Error(err),
