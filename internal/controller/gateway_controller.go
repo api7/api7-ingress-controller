@@ -54,6 +54,7 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.Gateway{}).
+		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Watches(
 			&gatewayv1.GatewayClass{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewayForGatewayClass),
@@ -120,7 +121,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		Secrets: make(map[types.NamespacedName]*corev1.Secret),
 	}
 	r.processListenerConfig(tctx, gateway, ns)
-	if err := r.processGatewayProxy(tctx, gateway, ns); err != nil {
+	if err := r.processInfrastructure(tctx, gateway, ns); err != nil {
 		acceptStatus = status{
 			status: false,
 			msg:    err.Error(),
@@ -136,6 +137,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	ListenerStatuses, err := getListenerStatus(ctx, r.Client, gateway)
 	if err != nil {
+		log.Error(err, "failed to get listener status", "gateway", gateway.GetName())
 		return ctrl.Result{}, err
 	}
 
@@ -151,6 +153,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		return ctrl.Result{}, r.Status().Update(ctx, gateway)
 	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -272,7 +275,7 @@ func (r *GatewayReconciler) listGatewaysForHTTPRoute(_ context.Context, obj clie
 	return recs
 }
 
-func (r *GatewayReconciler) processGatewayProxy(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway, ns string) error {
+func (r *GatewayReconciler) processInfrastructure(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway, ns string) error {
 	infra := gateway.Spec.Infrastructure
 	if infra != nil && infra.ParametersRef != nil {
 		paramRef := infra.ParametersRef

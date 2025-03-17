@@ -56,7 +56,7 @@ var skippedTestsForTraditionalRoutes = []string{
 	tests.HTTPRouteInvalidReferenceGrant.ShortName,
 }
 
-var gatewaySupportedFeatures = []features.SupportedFeature{
+var gatewaySupportedFeatures = []features.FeatureName{
 	features.SupportGateway,
 	features.SupportHTTPRoute,
 	// features.SupportHTTPRouteMethodMatching,

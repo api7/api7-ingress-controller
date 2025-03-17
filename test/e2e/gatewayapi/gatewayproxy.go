@@ -137,7 +137,6 @@ spec:
 				),
 				fmt.Sprintf("checking %s condition status", resourceType),
 			)
-		time.Sleep(1 * time.Second)
 	}
 
 	var (
@@ -177,7 +176,6 @@ spec:
 	AfterEach(func() {
 		By("Clean up resources")
 		_ = s.DeleteResourceFromString(gatewayProxyWithEnabledPlugin)
-		_ = s.DeleteResourceFromString(gatewayProxyWithDisabledPlugin)
 		_ = s.DeleteResourceFromString(fmt.Sprintf(httpRouteForTest, "api7"))
 		_ = s.DeleteResourceFromString(fmt.Sprintf(gatewayWithProxy, gatewayClassName))
 	})
