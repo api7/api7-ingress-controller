@@ -10,7 +10,7 @@ IMG ?= api7/api7-ingress-controller:$(IMAGE_TAG)
 ENVTEST_K8S_VERSION = 1.30.0
 
 KIND_NAME ?= api7-ingress-cluster
-GATEAY_API_VERSION ?= v1.1.0
+GATEAY_API_VERSION ?= v1.2.0
 
 DASHBOARD_VERSION ?= dev
 TEST_TIMEOUT ?= 30m

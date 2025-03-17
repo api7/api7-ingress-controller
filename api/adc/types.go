@@ -93,8 +93,8 @@ type ConsumerElement struct {
 type Credential struct {
 	Metadata `json:",inline" yaml:",inline"`
 
-	Config map[string]interface{} `json:"config" yaml:"config"`
-	Type   string                 `json:"type" yaml:"type"`
+	Config map[string]any `json:"config" yaml:"config"`
+	Type   string         `json:"type" yaml:"type"`
 }
 
 type Service struct {
@@ -243,7 +243,7 @@ const (
 	Server SSLType = "server"
 )
 
-type Plugins map[string]interface{}
+type Plugins map[string]any
 
 func (p *Plugins) DeepCopyInto(out *Plugins) {
 	b, _ := json.Marshal(&p)

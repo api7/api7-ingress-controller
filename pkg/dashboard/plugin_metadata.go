@@ -67,32 +67,27 @@ func (r *pluginMetadataClient) Get(ctx context.Context, name string) (*v1.Plugin
 	return pluginMetadata, nil
 }
 
-func (r *pluginMetadataClient) List(ctx context.Context) ([]*v1.PluginMetadata, error) {
+func (r *pluginMetadataClient) List(ctx context.Context) (list []*v1.PluginMetadata, err error) {
 	log.Debugw("try to list pluginMetadatas in APISIX",
 		zap.String("cluster", r.cluster.name),
 		zap.String("url", r.url),
 	)
-	pluginMetadataItems, err := r.cluster.listResource(ctx, r.url, "pluginMetadata")
+	var resp = struct {
+		Value map[string]map[string]any
+	}{}
+	err = r.cluster.listResourceToResponse(ctx, r.url, "plugin_metadata", &resp)
 	if err != nil {
 		log.Errorf("failed to list pluginMetadatas: %s", err)
 		return nil, err
 	}
-
-	items := make([]*v1.PluginMetadata, 0, len(pluginMetadataItems.List))
-	for _, item := range pluginMetadataItems.List {
-		pluginMetadata, err := item.pluginMetadata()
-		if err != nil {
-			log.Errorw("failed to convert pluginMetadata item",
-				zap.String("url", r.url),
-				zap.Error(err),
-			)
-			return nil, err
-		}
-
-		items = append(items, pluginMetadata)
+	for name, metadata := range resp.Value {
+		list = append(list, &v1.PluginMetadata{
+			Name:     name,
+			Metadata: metadata,
+		})
 	}
 
-	return items, nil
+	return
 }
 
 func (r *pluginMetadataClient) Delete(ctx context.Context, obj *v1.PluginMetadata) error {
