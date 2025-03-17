@@ -46,7 +46,7 @@ func (t *Translator) fillPluginMetadataFromGatewayProxy(pluginMetadata adctypes.
 			continue
 		}
 		log.Debugw("fill plugin_metadata for gateway proxy", zap.String("plugin", pluginName), zap.Any("config", pluginConfig))
-		pluginMetadata[pluginName] = plugin
+		pluginMetadata[pluginName] = pluginConfig
 	}
 }
 
