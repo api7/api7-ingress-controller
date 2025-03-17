@@ -10,6 +10,7 @@ import (
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -55,6 +56,11 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if client.IgnoreNotFound(err) == nil {
 			gateway.Namespace = req.Namespace
 			gateway.Name = req.Name
+
+			gateway.TypeMeta = metav1.TypeMeta{
+				Kind:       KindGateway,
+				APIVersion: gatewayv1.GroupVersion.String(),
+			}
 
 			if err := r.Provider.Delete(ctx, gateway); err != nil {
 				return ctrl.Result{}, err
