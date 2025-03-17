@@ -11,6 +11,7 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -75,6 +76,10 @@ func (t *Translator) translateSecret(tctx *provider.TranslateContext, listener g
 				if err != nil {
 					return nil, err
 				}
+				if len(hosts) == 0 {
+					log.Warnw("no valid hostname found in certificate", zap.String("secret", secret.Namespace+"/"+secret.Name))
+					continue
+				}
 				sslObj.Snis = append(sslObj.Snis, hosts...)
 				// Note: Dashboard doesn't allow duplicate certificate across ssl objects
 				sslObj.ID = id.GenID(string(cert))
@@ -102,7 +107,13 @@ func extractHost(cert []byte) ([]string, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "parse certificate")
 	}
-	return der.DNSNames, nil
+	hosts := make([]string, 0, len(der.DNSNames))
+	for _, dnsName := range der.DNSNames {
+		if dnsName != "*" {
+			hosts = append(hosts, dnsName)
+		}
+	}
+	return hosts, nil
 }
 
 func extractKeyPair(s *corev1.Secret, hasPrivateKey bool) ([]byte, []byte, error) {
