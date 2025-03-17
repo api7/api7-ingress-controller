@@ -44,7 +44,6 @@ type adcSyncer struct {
 	envs   []string
 	stdout io.Writer
 	stderr io.Writer
-	cmd    *exec.Cmd
 }
 
 func (adc *adcSyncer) Run() error {
@@ -52,7 +51,7 @@ func (adc *adcSyncer) Run() error {
 	cmd.Env = adc.envs
 	cmd.Stdout = adc.stdout
 	cmd.Stderr = adc.stderr
-	return adc.cmd.Run()
+	return cmd.Run()
 }
 
 func (adc *adcSyncer) Stdout(stdout io.Writer) Syncer {
@@ -86,8 +85,10 @@ func (adc *adcSyncer) GatewayGroup(gatewayGroup string) Syncer {
 }
 
 func (adc *adcSyncer) LabelSelectors(values map[string]string) Syncer {
-	for key, value := range values {
-		adc.LabelSelector(key, value)
+	if len(values) > 0 {
+		for key, value := range values {
+			adc.LabelSelector(key, value)
+		}
 	}
 	return adc
 }

@@ -16,10 +16,12 @@
 package scaffold
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -456,18 +458,25 @@ func (s *Scaffold) afterEach() {
 
 	if CurrentSpecReport().Failed() {
 		if os.Getenv("TSET_ENV") == "CI" {
+			var buf = bytes.NewBuffer(nil)
 			_, _ = fmt.Fprintln(GinkgoWriter, "Dumping namespace contents")
 			output, _ := k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "get", "deploy,sts,svc,pods")
 			if output != "" {
-				_, _ = fmt.Fprintln(GinkgoWriter, output)
+				_, _ = fmt.Fprintln(io.MultiWriter(GinkgoWriter, buf), output)
 			}
 			output, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "describe", "pods")
 			if output != "" {
-				_, _ = fmt.Fprintln(GinkgoWriter, output)
+				_, _ = buf.WriteString("/n")
+				_, _ = fmt.Fprintln(io.MultiWriter(GinkgoWriter, buf), output)
 			}
-			output, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "logs", "-l", "control-plane=controller-manager")
+			output, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "logs", "-l",
+				"control-plane=controller-manager")
 			if output != "" {
-				require.NoError(GinkgoT(), os.WriteFile("../../"+s.namespace+"-controller-manager.log", []byte(output), 0644))
+				_, _ = buf.WriteString("/n")
+				_, _ = buf.WriteString("controller-manager log\n")
+				_, _ = buf.WriteString(output)
+				_, _ = buf.WriteString("/n")
+				require.NoError(GinkgoT(), os.WriteFile("../../"+s.namespace+"-controller-manager.log", buf.Bytes(), 0644))
 			}
 		}
 	}

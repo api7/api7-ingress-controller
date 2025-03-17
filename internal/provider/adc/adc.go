@@ -77,7 +77,7 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 func (d *adcClient) sync(task Task) error {
 	log.Debugw("syncing task", zap.Any("task", task))
 
-	yaml, err := yaml.Marshal(task.Resources)
+	data, err := yaml.Marshal(task.Resources)
 	if err != nil {
 		return err
 	}
@@ -91,9 +91,9 @@ func (d *adcClient) sync(task Task) error {
 		_ = os.Remove(tmpFile.Name())
 	}()
 
-	log.Debugw("syncing resources", zap.String("file", tmpFile.Name()), zap.String("yaml", string(yaml)))
+	log.Debugw("syncing resources", zap.String("file", tmpFile.Name()), zap.String("yaml", string(data)))
 
-	if _, err := tmpFile.Write(yaml); err != nil {
+	if _, err := tmpFile.Write(data); err != nil {
 		return err
 	}
 
@@ -118,5 +118,6 @@ func (d *adcClient) sync(task Task) error {
 		)
 		return err
 	}
+
 	return nil
 }

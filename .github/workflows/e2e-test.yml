@@ -89,7 +89,7 @@ jobs:
         run: |
           ls *.log
           for log_file in $(find . -type f -name "*.log"); do
-              echo "================= $log_file =======================>>"
+              echo "\n================= $log_file =======================>>"
               cat "$log_file"
-              echo "<<================= $log_file ======================="
+              echo "<<================= $log_file =======================\n"
           done
