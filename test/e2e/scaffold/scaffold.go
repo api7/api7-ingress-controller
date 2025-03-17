@@ -31,6 +31,7 @@ import (
 
 	"github.com/gavv/httpexpect/v2"
 	"github.com/gruntwork-io/terratest/modules/k8s"
+	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/gruntwork-io/terratest/modules/testing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -354,6 +355,7 @@ func (s *Scaffold) beforeEach() {
 	s.kubectlOptions = &k8s.KubectlOptions{
 		ConfigPath: s.opts.Kubeconfig,
 		Namespace:  s.namespace,
+		Logger:     logger.Discard,
 	}
 	if s.opts.ControllerName == "" {
 		s.opts.ControllerName = fmt.Sprintf("%s/%d", DefaultControllerName, time.Now().Nanosecond())

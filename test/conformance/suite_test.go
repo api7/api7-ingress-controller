@@ -7,6 +7,7 @@ import (
 
 	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 	"github.com/gruntwork-io/terratest/modules/k8s"
+	"github.com/gruntwork-io/terratest/modules/logger"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -33,6 +34,7 @@ func TestMain(m *testing.M) {
 	namespace := "api7ee-conformance-test"
 
 	kubectl := k8s.NewKubectlOptions("", "", "default")
+	kubectl.Logger = logger.Discard
 
 	k8s.KubectlApplyFromString(GinkgoT(), kubectl, gatewayClass)
 	defer k8s.KubectlDeleteFromString(GinkgoT(), kubectl, gatewayClass)
