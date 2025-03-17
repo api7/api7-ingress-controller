@@ -88,11 +88,11 @@ metadata:
   name: api7-proxy-config
 spec:
   plugins:
-  - name: error_page
+  - name: error-page
     enabled: true
     config: {}
   pluginMetadata:
-    error_page: {
+    error-page: {
       "enable": true,
       "error_404": {
           "body": "404 from plugin metadata",
