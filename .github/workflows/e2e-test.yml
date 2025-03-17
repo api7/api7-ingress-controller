@@ -82,3 +82,8 @@ jobs:
           API7_EE_LICENSE: ${{ secrets.API7_EE_LICENSE }}
         run: |
           make e2e-test
+
+      - name: Pint Ingress Controller Logs
+        if: failure()
+        run: |
+          make print-api7-ingress-system-logs
