@@ -34,6 +34,7 @@ import (
 	"github.com/gruntwork-io/terratest/modules/testing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -461,6 +462,11 @@ func (s *Scaffold) afterEach() {
 			output, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "describe", "pods")
 			if output != "" {
 				_, _ = fmt.Fprintln(GinkgoWriter, output)
+			}
+
+			output, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "logs", "--all-containers")
+			if output != "" {
+				require.NoError(GinkgoT(), os.WriteFile("../../ingress-controller-logs.log", []byte(output), 0644))
 			}
 		}
 	}

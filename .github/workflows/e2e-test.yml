@@ -86,4 +86,4 @@ jobs:
       - name: Pint Ingress Controller Logs
         if: failure()
         run: |
-          make print-api7-ingress-system-logs
+          cat ingress-controller-logs.log
