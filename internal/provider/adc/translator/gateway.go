@@ -1,13 +1,9 @@
 package translator
 
 import (
-	"encoding/json"
-
 	adctypes "github.com/api7/api7-ingress-controller/api/adc"
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/provider"
-	"github.com/api7/gopkg/pkg/log"
-	"go.uber.org/zap"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
@@ -19,19 +15,9 @@ func (t *Translator) FillPluginsFromGatewayProxy(plugins adctypes.Plugins, gatew
 
 	for _, plugin := range gatewayProxy.Spec.Plugins {
 		// only apply enabled plugins
-		if !plugin.Enabled {
-			continue
+		if plugin.Enabled {
+			plugins[plugin.Name] = plugin.Config
 		}
-
-		pluginName := plugin.Name
-		var pluginConfig map[string]any
-		if err := json.Unmarshal(plugin.Config.Raw, &pluginConfig); err != nil {
-			log.Errorw("gateway proxy plugin config unmarshal failed", zap.Error(err), zap.String("plugin", pluginName))
-			continue
-		}
-
-		log.Debugw("fill plugin from gateway proxy", zap.String("plugin", pluginName), zap.Any("config", pluginConfig))
-		plugins[pluginName] = pluginConfig
 	}
 }
 
@@ -58,6 +44,7 @@ func (t *Translator) TranslateGateway(tctx *provider.TranslateContext, gateway *
 		t.FillPluginsFromGatewayProxy(globalRules, tctx.GatewayProxy)
 		t.FillPluginMetadataFromGatewayProxy(pluginMetadata, tctx.GatewayProxy)
 		result.GlobalRules = globalRules
+		result.PluginMetadata = pluginMetadata
 	}
 
 	return result, nil
