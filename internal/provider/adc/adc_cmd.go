@@ -47,11 +47,7 @@ type adcSyncer struct {
 }
 
 func (adc *adcSyncer) Run() error {
-	name, err := exec.LookPath("adc")
-	if err != nil {
-		name = "/bin/adc"
-	}
-	cmd := exec.Command(name, adc.args...)
+	cmd := exec.Command("/bin/adc", adc.args...)
 	cmd.Env = adc.envs
 	cmd.Stdout = adc.stdout
 	cmd.Stderr = adc.stderr
