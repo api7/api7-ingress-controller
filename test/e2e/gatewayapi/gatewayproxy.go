@@ -243,7 +243,7 @@ spec:
 			err error
 		)
 
-		It("Should work OK with error_page", func() {
+		FIt("Should work OK with error_page", func() {
 			By("Update GatewayProxy with PluginMetadata")
 			err = s.CreateResourceFromString(gatewayProxyWithPluginMetadata)
 			Ω(err).ShouldNot(HaveOccurred())
