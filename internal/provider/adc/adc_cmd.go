@@ -33,7 +33,7 @@ type Syncer interface {
 
 func Sync() Syncer {
 	return &adcSyncer{
-		args:   []string{"adc"},
+		args:   []string{"sync"},
 		stdout: os.Stdout,
 		stderr: os.Stderr,
 	}
@@ -47,7 +47,7 @@ type adcSyncer struct {
 }
 
 func (adc *adcSyncer) Run() error {
-	cmd := exec.Command("/bin/adc", adc.args...)
+	cmd := exec.Command("adc", adc.args...)
 	cmd.Env = adc.envs
 	cmd.Stdout = adc.stdout
 	cmd.Stderr = adc.stderr
