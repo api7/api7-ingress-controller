@@ -450,6 +450,8 @@ func (s *Scaffold) DeployTestService() {
 func (s *Scaffold) afterEach() {
 	defer GinkgoRecover()
 	s.DeleteGatewayGroup(s.gatewaygroupid)
+	_, _ = fmt.Fprintf(GinkgoWriter, "s.namespace: %s\n", s.namespace)
+	_, _ = fmt.Fprintf(GinkgoWriter, "s.kubectlOptions: %+v\n", s.kubectlOptions)
 
 	if CurrentSpecReport().Failed() {
 		if os.Getenv("TSET_ENV") == "CI" {
@@ -462,15 +464,12 @@ func (s *Scaffold) afterEach() {
 			if output != "" {
 				_, _ = fmt.Fprintln(GinkgoWriter, output)
 			}
-			_, _ = fmt.Fprintf(GinkgoWriter, "s.namespace: %s\n", s.namespace)
 		}
 	}
 
 	// if the test case is successful, just delete namespace
-	if !CurrentSpecReport().Failed() {
-		err := k8s.DeleteNamespaceE(s.t, s.kubectlOptions, s.namespace)
-		Expect(err).NotTo(HaveOccurred(), "deleting namespace "+s.namespace)
-	}
+	err := k8s.DeleteNamespaceE(s.t, s.kubectlOptions, s.namespace)
+	Expect(err).NotTo(HaveOccurred(), "deleting namespace "+s.namespace)
 
 	for _, f := range s.finalizers {
 		runWithRecover(f)

@@ -264,6 +264,10 @@ gofmt: ## Apply go fmt
 	@go fmt ./...
 .PHONY: gofmt
 
+print-api7-ingress-system-logs:
+	@kubectl get pods --all-namespaces
+	@kubectl get pods -o=name -n api7-ingress-system | xargs -I{} bash -c "echo ================= {} ==================== &&  kubectl logs --all-containers -n api7-ingress-system {} && echo ================= {} ===================="
+
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
 # $1 - target path with name of binary
 # $2 - package url which can be installed
