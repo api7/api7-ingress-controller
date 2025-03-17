@@ -3,6 +3,7 @@ package adc
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 
@@ -123,12 +124,18 @@ func (d *adcClient) sync(task Task) error {
 	)
 
 	if err := cmd.Run(); err != nil {
+		stderrStr := stderr.String()
+		stdoutStr := stdout.String()
+		errMsg := stderrStr
+		if errMsg == "" {
+			errMsg = stdoutStr
+		}
 		log.Errorw("failed to run adc",
 			zap.Error(err),
-			zap.String("output", stdout.String()),
-			zap.String("stderr", stderr.String()),
+			zap.String("output", stdoutStr),
+			zap.String("stderr", stderrStr),
 		)
-		return err
+		return errors.New("failed to sync resources: " + errMsg + ", exit err: " + err.Error())
 	}
 	return nil
 }

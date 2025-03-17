@@ -333,6 +333,7 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: api7-ingress
+    app: api7-ingress-controller
     control-plane: controller-manager
   name: api7-ingress-controller-manager
   namespace: {{ .Namespace }}
@@ -340,12 +341,14 @@ spec:
   replicas: 1
   selector:
     matchLabels:
+      app: api7-ingress-controller
       control-plane: controller-manager
   template:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: manager
       labels:
+        app: api7-ingress-controller
         control-plane: controller-manager
     spec:
       containers:

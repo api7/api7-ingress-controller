@@ -463,6 +463,11 @@ func (s *Scaffold) afterEach() {
 				_, _ = fmt.Fprintln(GinkgoWriter, output)
 			}
 		}
+
+		output := s.GetDeploymentLogs("api7-ingress-controller")
+		if output != "" {
+			_, _ = fmt.Fprintln(GinkgoWriter, output)
+		}
 	}
 
 	// if the test case is successful, just delete namespace

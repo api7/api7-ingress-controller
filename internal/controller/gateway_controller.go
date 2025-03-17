@@ -38,6 +38,7 @@ type GatewayReconciler struct { //nolint:revive
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.Gateway{}).
+		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Watches(
 			&gatewayv1.GatewayClass{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewayForGatewayClass),
