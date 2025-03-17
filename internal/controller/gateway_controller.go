@@ -54,6 +54,7 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.Gateway{}).
+		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Watches(
 			&gatewayv1.GatewayClass{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewayForGatewayClass),
@@ -136,6 +137,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	ListenerStatuses, err := getListenerStatus(ctx, r.Client, gateway)
 	if err != nil {
+		log.Error(err, "failed to get listener status", "gateway", gateway.GetName())
 		return ctrl.Result{}, err
 	}
 
@@ -151,6 +153,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		return ctrl.Result{}, r.Status().Update(ctx, gateway)
 	}
+
 	return ctrl.Result{}, nil
 }
 

@@ -10,7 +10,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = FDescribe("Test GatewayProxy", func() {
+var _ = Describe("Test GatewayProxy", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	var defaultGatewayClass = `
@@ -157,7 +157,6 @@ spec:
 	AfterEach(func() {
 		By("Clean up resources")
 		_ = s.DeleteResourceFromString(gatewayProxyWithEnabledPlugin)
-		_ = s.DeleteResourceFromString(gatewayProxyWithDisabledPlugin)
 		_ = s.DeleteResourceFromString(fmt.Sprintf(httpRouteForTest, "api7"))
 		_ = s.DeleteResourceFromString(fmt.Sprintf(gatewayWithProxy, gatewayClassName))
 	})

@@ -46,15 +46,26 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 	var result *translator.TranslateResult
 	var err error
 
+	var task Task = Task{
+		Name:   obj.GetName(),
+		Labels: label.GenLabel(obj),
+	}
+	var extraArgs []string
+
 	switch obj := obj.(type) {
 	case *gatewayv1.HTTPRoute:
+		extraArgs = append(extraArgs, "--include-resource-type", "service")
+		log.Debugw("translating http route", zap.Any("http route", obj))
 		result, err = d.translator.TranslateHTTPRoute(tctx, obj.DeepCopy())
 	case *gatewayv1.Gateway:
+		extraArgs = append(extraArgs, "--include-resource-type", "global_rule")
+		log.Debugw("translating gateway", zap.Any("gateway", obj))
 		result, err = d.translator.TranslateGateway(tctx, obj.DeepCopy())
 	}
 	if err != nil {
 		return err
 	}
+	log.Debugw("translated result", zap.Any("result", result))
 	if result == nil {
 		return nil
 	}
@@ -63,22 +74,32 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		Services:    result.Services,
 		GlobalRules: result.GlobalRules,
 	}
+	log.Debugw("adc resources", zap.Any("resources", resources))
 
-	return d.sync(Task{
-		Name:      obj.GetName(),
-		Resources: resources,
-		Labels:    label.GenLabel(obj),
-	})
+	task.Resources = resources
+
+	return d.sync(task, extraArgs...)
 }
 
 func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
-	return d.sync(Task{
+	task := Task{
 		Name:   obj.GetName(),
 		Labels: label.GenLabel(obj),
-	})
+	}
+
+	var extraArgs []string
+
+	switch obj.(type) {
+	case *gatewayv1.HTTPRoute:
+		extraArgs = append(extraArgs, "--include-resource-type", "service")
+	case *gatewayv1.Gateway:
+		extraArgs = append(extraArgs, "--include-resource-type", "global_rule")
+	}
+
+	return d.sync(task, extraArgs...)
 }
 
-func (d *adcClient) sync(task Task) error {
+func (d *adcClient) sync(task Task, extraArgs ...string) error {
 	log.Debugw("syncing task", zap.Any("task", task))
 
 	yaml, err := yaml.Marshal(task.Resources)
@@ -103,9 +124,11 @@ func (d *adcClient) sync(task Task) error {
 	args := []string{
 		"sync",
 		"-f", tmpFile.Name(),
-		"--include-resource-type", "service",
-		"--include-resource-type", "global_rule",
 		"--tls-skip-verify",
+	}
+
+	if len(extraArgs) > 0 {
+		args = append(args, extraArgs...)
 	}
 
 	for k, v := range task.Labels {
@@ -132,5 +155,8 @@ func (d *adcClient) sync(task Task) error {
 		)
 		return err
 	}
+
+	log.Debugw("adc sync success", zap.String("taskname", task.Name))
+
 	return nil
 }

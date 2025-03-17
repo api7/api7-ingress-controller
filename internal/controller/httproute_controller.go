@@ -14,6 +14,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -42,6 +43,7 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.HTTPRoute{}).
+		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Watches(&discoveryv1.EndpointSlice{},
 			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesByServiceBef),
 		).
@@ -96,6 +98,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	tctx := provider.NewDefaultTranslateContext()
+
 	if err := r.processHTTPRoute(tctx, hr); err != nil {
 		acceptStatus.status = false
 		acceptStatus.msg = err.Error()
@@ -112,8 +115,6 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		acceptStatus.status = false
 		acceptStatus.msg = err.Error()
 	}
-
-	// process the HTTPRoute
 
 	// TODO: diff the old and new status
 	hr.Status.Parents = make([]gatewayv1.RouteParentStatus, 0, len(gateways))
