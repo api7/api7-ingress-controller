@@ -85,12 +85,13 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 }
 
 func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
-	task := Task{
-		Name:   obj.GetName(),
-		Labels: label.GenLabel(obj),
-	}
-
-	var extraArgs []string
+	var (
+		task = Task{
+			Name:   obj.GetName(),
+			Labels: label.GenLabel(obj),
+		}
+		extraArgs []string
+	)
 
 	switch obj.(type) {
 	case *gatewayv1.HTTPRoute:

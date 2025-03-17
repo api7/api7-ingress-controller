@@ -10,7 +10,7 @@ IMG ?= api7/api7-ingress-controller:$(IMAGE_TAG)
 ENVTEST_K8S_VERSION = 1.30.0
 
 KIND_NAME ?= api7-ingress-cluster
-GATEAY_API_VERSION ?= v1.1.0
+GATEAY_API_VERSION ?= v1.2.0
 
 DASHBOARD_VERSION ?= dev
 TEST_TIMEOUT ?= 30m
@@ -127,6 +127,10 @@ kind-load-images: pull-infra-images
 	@kind load docker-image $(IMG) --name $(KIND_NAME)
 	@kind load docker-image jmalloc/echo-server:latest --name $(KIND_NAME)
 
+.PHONY: kind-load-ingress-image
+kind-load-ingress-image:
+	@kind load docker-image $(IMG) --name $(KIND_NAME)
+
 .PHONY: pull-infra-images
 pull-infra-images:
 	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev
@@ -146,6 +150,8 @@ kind-load-image:
 build: manifests generate fmt vet ## Build manager binary.
 	CGO_ENABLED=0 go build -o bin/api7-ingress-controller -ldflags $(GO_LDFLAGS) cmd/main.go
 
+linux-build:
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o bin/api7-ingress-controller -ldflags $(GO_LDFLAGS) cmd/main.go
 
 .PHONY: build-image
 build-image: docker-build
@@ -158,7 +164,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
-docker-build: ## Build docker image with the manager.
+docker-build: build ## Build docker image with the manager.
 	$(CONTAINER_TOOL) build -t ${IMG} -f Dockerfile.dev .
 
 .PHONY: docker-push
@@ -196,11 +202,11 @@ endif
 
 .PHONY: install-gateway-api
 install-gateway-api: ## Install Gateway API CRDs into the K8s cluster specified in ~/.kube/config.
-	kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/$(GATEAY_API_VERSION)/experimental-install.yaml
+	kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/$(GATEAY_API_VERSION)/standard-install.yaml
 
 .PHONY: uninstall-gateway-api
 uninstall-gateway-api: ## Uninstall Gateway API CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	kubectl delete -f https://github.com/kubernetes-sigs/gateway-api/releases/download/$(GATEAY_API_VERSION)/experimental-install.yaml
+	kubectl delete -f https://github.com/kubernetes-sigs/gateway-api/releases/download/$(GATEAY_API_VERSION)/standard-install.yaml
 
 .PHONY: install
 install: manifests kustomize install-gateway-api ## Install CRDs into the K8s cluster specified in ~/.kube/config.
