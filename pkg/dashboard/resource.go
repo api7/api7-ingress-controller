@@ -348,18 +348,6 @@ func (i *getResponse) pluginMetadata() (*v1.PluginMetadata, error) {
 	return &pluginMetadata, nil
 }
 
-func (i *listItem) pluginMetadata() (*v1.PluginMetadata, error) {
-	byt, err := json.Marshal(i)
-	if err != nil {
-		return nil, err
-	}
-	var pluginMetadata v1.PluginMetadata
-	if err := json.Unmarshal(byt, &pluginMetadata.Metadata); err != nil {
-		return nil, err
-	}
-	return &pluginMetadata, nil
-}
-
 // // pluginConfig decodes item.Value and converts it to v1.PluginConfig.
 // func (i *item) pluginConfig() (*v1.PluginConfig, error) {
 // 	log.Debugf("got pluginConfig: %s", string(i.Value))

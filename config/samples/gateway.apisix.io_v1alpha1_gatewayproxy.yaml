@@ -1,4 +1,4 @@
-apiVersion: gateway.apisix.io.github.com/v1alpha1
+apiVersion: gateway.apisix.io/v1alpha1
 kind: GatewayProxy
 metadata:
   labels:
@@ -9,4 +9,5 @@ metadata:
     app.kubernetes.io/created-by: api7-ingress-controller
   name: gatewayproxy-sample
 spec:
-  # TODO(user): Add fields here
+  pluginMetadata:
+    "error-page": {"enable":false}
