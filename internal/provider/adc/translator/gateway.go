@@ -1,9 +1,13 @@
 package translator
 
 import (
+	"encoding/json"
+
 	adctypes "github.com/api7/api7-ingress-controller/api/adc"
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/provider"
+	"github.com/api7/gopkg/pkg/log"
+	"go.uber.org/zap"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
@@ -15,9 +19,19 @@ func (t *Translator) fillPluginsFromGatewayProxy(plugins adctypes.Plugins, gatew
 
 	for _, plugin := range gatewayProxy.Spec.Plugins {
 		// only apply enabled plugins
-		if plugin.Enabled {
-			plugins[plugin.Name] = plugin.Config
+		if !plugin.Enabled {
+			continue
 		}
+
+		pluginName := plugin.Name
+		var pluginConfig map[string]any
+		if err := json.Unmarshal(plugin.Config.Raw, &pluginConfig); err != nil {
+			log.Errorw("gateway proxy plugin config unmarshal failed", zap.Error(err), zap.String("plugin", pluginName))
+			continue
+		}
+
+		log.Debugw("fill plugin from gateway proxy", zap.String("plugin", pluginName), zap.Any("config", pluginConfig))
+		plugins[pluginName] = pluginConfig
 	}
 }
 
