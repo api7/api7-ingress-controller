@@ -101,13 +101,13 @@ spec:
       port: 80
 `
 
-	var ResourceApplied = func(resourType, resourceName, resourceRaw string, observedGeneration int) {
+	var ResourceApplied = func(resourceType, resourceName, resourceRaw string, observedGeneration int) {
 		Expect(s.CreateResourceFromString(resourceRaw)).
-			NotTo(HaveOccurred(), fmt.Sprintf("creating %s", resourType))
+			NotTo(HaveOccurred(), fmt.Sprintf("creating %s", resourceType))
 
 		Eventually(func() string {
-			hryaml, err := s.GetResourceYaml(resourType, resourceName)
-			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("getting %s yaml", resourType))
+			hryaml, err := s.GetResourceYaml(resourceType, resourceName)
+			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("getting %s yaml", resourceType))
 			return hryaml
 		}, "8s", "2s").
 			Should(
@@ -115,9 +115,8 @@ spec:
 					ContainSubstring(`status: "True"`),
 					ContainSubstring(fmt.Sprintf("observedGeneration: %d", observedGeneration)),
 				),
-				fmt.Sprintf("checking %s condition status", resourType),
+				fmt.Sprintf("checking %s condition status", resourceType),
 			)
-		time.Sleep(1 * time.Second)
 	}
 
 	var (

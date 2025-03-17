@@ -54,12 +54,12 @@ func HTTPRouteExtensionIndexFunc(rawObj client.Object) []string {
 
 func GatewayParametersRefIndexFunc(rawObj client.Object) []string {
 	gw := rawObj.(*gatewayv1.Gateway)
-	var keys []string
 	if gw.Spec.Infrastructure != nil && gw.Spec.Infrastructure.ParametersRef != nil {
 		// now we only care about kind: GatewayProxy
 		if gw.Spec.Infrastructure.ParametersRef.Kind == "GatewayProxy" {
-			keys = append(keys, GenIndexKey(gw.GetNamespace(), gw.Spec.Infrastructure.ParametersRef.Name))
+			name := gw.Spec.Infrastructure.ParametersRef.Name
+			return []string{GenIndexKey(gw.GetNamespace(), name)}
 		}
 	}
-	return keys
+	return nil
 }

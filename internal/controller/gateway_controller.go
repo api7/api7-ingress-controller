@@ -37,7 +37,7 @@ type GatewayReconciler struct { //nolint:revive
 
 func (r *GatewayReconciler) setupIndexer(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(
-		context.TODO(),
+		context.Background(),
 		&gatewayv1.Gateway{},
 		indexer.ParametersRef,
 		indexer.GatewayParametersRefIndexFunc,
@@ -121,7 +121,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		Secrets: make(map[types.NamespacedName]*corev1.Secret),
 	}
 	r.processListenerConfig(tctx, gateway, ns)
-	if err := r.processGatewayProxy(tctx, gateway, ns); err != nil {
+	if err := r.processInfrastructure(tctx, gateway, ns); err != nil {
 		acceptStatus = status{
 			status: false,
 			msg:    err.Error(),
@@ -275,7 +275,7 @@ func (r *GatewayReconciler) listGatewaysForHTTPRoute(_ context.Context, obj clie
 	return recs
 }
 
-func (r *GatewayReconciler) processGatewayProxy(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway, ns string) error {
+func (r *GatewayReconciler) processInfrastructure(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway, ns string) error {
 	infra := gateway.Spec.Infrastructure
 	if infra != nil && infra.ParametersRef != nil {
 		paramRef := infra.ParametersRef

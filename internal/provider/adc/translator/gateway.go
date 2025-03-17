@@ -11,8 +11,8 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
-// FillPluginsFromGatewayProxy fill plugins from GatewayProxy to given plugins
-func (t *Translator) FillPluginsFromGatewayProxy(plugins adctypes.Plugins, gatewayProxy *v1alpha1.GatewayProxy) {
+// fillPluginsFromGatewayProxy fill plugins from GatewayProxy to given plugins
+func (t *Translator) fillPluginsFromGatewayProxy(plugins adctypes.Plugins, gatewayProxy *v1alpha1.GatewayProxy) {
 	if gatewayProxy == nil {
 		return
 	}
@@ -43,7 +43,7 @@ func (t *Translator) TranslateGateway(tctx *provider.TranslateContext, gateway *
 	if tctx.GatewayProxy != nil {
 		globalRules := adctypes.Plugins{}
 		// apply plugins from GatewayProxy to global rules
-		t.FillPluginsFromGatewayProxy(globalRules, tctx.GatewayProxy)
+		t.fillPluginsFromGatewayProxy(globalRules, tctx.GatewayProxy)
 		result.GlobalRules = globalRules
 	}
 
