@@ -256,7 +256,7 @@ spec:
 
 			By("Check PluginMetadata working")
 			s.NewAPISIXClient().
-				GET("/get").
+				GET("/not-found").
 				WithHost("example.com").
 				Expect().
 				Status(http.StatusNotFound).
