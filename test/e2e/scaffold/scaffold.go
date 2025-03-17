@@ -16,12 +16,10 @@
 package scaffold
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -36,7 +34,6 @@ import (
 	"github.com/gruntwork-io/terratest/modules/testing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -453,31 +450,13 @@ func (s *Scaffold) DeployTestService() {
 func (s *Scaffold) afterEach() {
 	defer GinkgoRecover()
 	s.DeleteGatewayGroup(s.gatewaygroupid)
-	_, _ = fmt.Fprintf(GinkgoWriter, "s.namespace: %s\n", s.namespace)
-	_, _ = fmt.Fprintf(GinkgoWriter, "s.kubectlOptions: %+v\n", s.kubectlOptions)
 
 	if CurrentSpecReport().Failed() {
 		if os.Getenv("TSET_ENV") == "CI" {
-			var buf = bytes.NewBuffer(nil)
 			_, _ = fmt.Fprintln(GinkgoWriter, "Dumping namespace contents")
-			output, _ := k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "get", "deploy,sts,svc,pods")
-			if output != "" {
-				_, _ = fmt.Fprintln(io.MultiWriter(GinkgoWriter, buf), output)
-			}
-			output, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "describe", "pods")
-			if output != "" {
-				_, _ = buf.WriteString("/n")
-				_, _ = fmt.Fprintln(io.MultiWriter(GinkgoWriter, buf), output)
-			}
-			output, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "logs", "-l",
-				"control-plane=controller-manager")
-			if output != "" {
-				_, _ = buf.WriteString("/n")
-				_, _ = buf.WriteString("controller-manager log\n")
-				_, _ = buf.WriteString(output)
-				_, _ = buf.WriteString("/n")
-				require.NoError(GinkgoT(), os.WriteFile("../../"+s.namespace+"-controller-manager.log", buf.Bytes(), 0644))
-			}
+			_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "get", "deploy,sts,svc,pods")
+			_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "describe", "pods")
+			_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "logs", "-l", "control-plane=controller-manager")
 		}
 	}
 

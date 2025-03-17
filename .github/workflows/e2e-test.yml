@@ -83,13 +83,3 @@ jobs:
           TSET_ENV: CI
         run: |
           make e2e-test
-
-      - name: Pint Ingress Controller Logs
-        if: failure()
-        run: |
-          ls *.log
-          for log_file in $(find . -type f -name "*.log"); do
-              echo "\n================= $log_file =======================>>"
-              cat "$log_file"
-              echo "<<================= $log_file =======================\n"
-          done
