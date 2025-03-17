@@ -454,7 +454,7 @@ func (s *Scaffold) afterEach() {
 	if CurrentSpecReport().Failed() {
 		if os.Getenv("TSET_ENV") == "CI" {
 			_, _ = fmt.Fprintln(GinkgoWriter, "Dumping namespace contents")
-			_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "get", "deploy,sts,svc,pods")
+			_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "get", "deploy,sts,svc,pods,gatewayproxy")
 			_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "describe", "pods")
 			_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "logs", "-l", "control-plane=controller-manager")
 		}
