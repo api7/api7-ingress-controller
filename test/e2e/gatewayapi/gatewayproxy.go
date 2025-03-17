@@ -11,7 +11,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = Describe("Test GatewayProxy", func() {
+var _ = FDescribe("Test GatewayProxy", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	var defaultGatewayClass = `
@@ -240,7 +240,7 @@ spec:
 		})
 	})
 
-	FContext("Test Gateway with PluginMetadata", func() {
+	Context("Test Gateway with PluginMetadata", func() {
 		var (
 			err error
 		)
