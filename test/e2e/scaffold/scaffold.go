@@ -452,7 +452,7 @@ func (s *Scaffold) afterEach() {
 	s.DeleteGatewayGroup(s.gatewaygroupid)
 
 	if CurrentSpecReport().Failed() {
-		if os.Getenv("TSET_ENV") == "CI" {
+		if os.Getenv("TEST_ENV") == "CI" {
 			_, _ = fmt.Fprintln(GinkgoWriter, "Dumping namespace contents")
 			_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "get", "deploy,sts,svc,pods,gatewayproxy")
 			_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "describe", "pods")
@@ -463,6 +463,7 @@ func (s *Scaffold) afterEach() {
 		if output != "" {
 			_, _ = fmt.Fprintln(GinkgoWriter, output)
 		}
+		return
 	}
 
 	// if the test case is successful, just delete namespace
