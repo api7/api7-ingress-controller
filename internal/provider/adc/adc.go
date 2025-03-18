@@ -29,9 +29,10 @@ type adcClient struct {
 }
 
 type Task struct {
-	Name      string
-	Resources types.Resources
-	Labels    map[string]string
+	Name          string
+	Resources     types.Resources
+	Labels        map[string]string
+	ResourceTypes []string
 }
 
 func New() (provider.Provider, error) {
@@ -44,14 +45,19 @@ func New() (provider.Provider, error) {
 }
 
 func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext, obj client.Object) error {
+	log.Debugw("updating object", zap.Any("object", obj))
+
 	var result *translator.TranslateResult
+	var resourceTypes []string
 	var err error
 
 	switch obj := obj.(type) {
 	case *gatewayv1.HTTPRoute:
 		result, err = d.translator.TranslateHTTPRoute(tctx, obj.DeepCopy())
+		resourceTypes = append(resourceTypes, "service")
 	case *gatewayv1.Gateway:
 		result, err = d.translator.TranslateGateway(tctx, obj.DeepCopy())
+		resourceTypes = append(resourceTypes, "global_rule", "ssl")
 	}
 	if err != nil {
 		return err
@@ -60,29 +66,40 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		return nil
 	}
 
-	resources := types.Resources{
-		Services: result.Services,
-		SSLs:     result.SSL,
-	}
-
 	return d.sync(Task{
-		Name:      obj.GetName(),
-		Resources: resources,
-		Labels:    label.GenLabel(obj),
+		Name:   obj.GetName(),
+		Labels: label.GenLabel(obj),
+		Resources: types.Resources{
+			Services:    result.Services,
+			SSLs:        result.SSL,
+			GlobalRules: result.GlobalRules,
+		},
+		ResourceTypes: resourceTypes,
 	})
 }
 
 func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
+	log.Debugw("deleting object", zap.Any("object", obj))
+
+	resourceTypes := []string{}
+	switch obj.(type) {
+	case *gatewayv1.HTTPRoute:
+		resourceTypes = append(resourceTypes, "service")
+	case *gatewayv1.Gateway:
+		resourceTypes = append(resourceTypes, "global_rule", "ssl")
+	}
+
 	return d.sync(Task{
-		Name:   obj.GetName(),
-		Labels: label.GenLabel(obj),
+		Name:          obj.GetName(),
+		Labels:        label.GenLabel(obj),
+		ResourceTypes: resourceTypes,
 	})
 }
 
 func (d *adcClient) sync(task Task) error {
-	log.Debugw("syncing task", zap.Any("task", task))
+	log.Debugw("syncing resources", zap.Any("task", task))
 
-	yaml, err := yaml.Marshal(task.Resources)
+	data, err := yaml.Marshal(task.Resources)
 	if err != nil {
 		return err
 	}
@@ -96,9 +113,9 @@ func (d *adcClient) sync(task Task) error {
 		_ = os.Remove(tmpFile.Name())
 	}()
 
-	log.Debugw("syncing resources", zap.String("file", tmpFile.Name()), zap.String("yaml", string(yaml)))
+	log.Debugw("generated adc yaml", zap.String("file", tmpFile.Name()), zap.String("yaml", string(data)))
 
-	if _, err := tmpFile.Write(yaml); err != nil {
+	if _, err := tmpFile.Write(data); err != nil {
 		return err
 	}
 	args := []string{
@@ -109,6 +126,9 @@ func (d *adcClient) sync(task Task) error {
 
 	for k, v := range task.Labels {
 		args = append(args, "--label-selector", k+"="+v)
+	}
+	for _, t := range task.ResourceTypes {
+		args = append(args, "--include-resource-type", t)
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -137,5 +157,7 @@ func (d *adcClient) sync(task Task) error {
 		)
 		return errors.New("failed to sync resources: " + errMsg + ", exit err: " + err.Error())
 	}
+
+	log.Debugw("adc sync success", zap.String("taskname", task.Name))
 	return nil
 }

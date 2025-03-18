@@ -98,6 +98,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	tctx := provider.NewDefaultTranslateContext()
+
 	if err := r.processHTTPRoute(tctx, hr); err != nil {
 		acceptStatus.status = false
 		acceptStatus.msg = err.Error()
@@ -114,8 +115,6 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		acceptStatus.status = false
 		acceptStatus.msg = err.Error()
 	}
-
-	// process the HTTPRoute
 
 	// TODO: diff the old and new status
 	hr.Status.Parents = make([]gatewayv1.RouteParentStatus, 0, len(gateways))
@@ -141,7 +140,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 // SetupWithManager sets up the controller with the Manager.
 func (r *HTTPRouteReconciler) setupIndexer(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(
-		context.TODO(),
+		context.Background(),
 		&gatewayv1.HTTPRoute{},
 		indexer.ExtensionRef,
 		indexer.HTTPRouteExtensionIndexFunc,
@@ -149,7 +148,7 @@ func (r *HTTPRouteReconciler) setupIndexer(mgr ctrl.Manager) error {
 		return err
 	}
 	if err := mgr.GetFieldIndexer().IndexField(
-		context.TODO(),
+		context.Background(),
 		&gatewayv1.HTTPRoute{},
 		indexer.ServiceIndexRef,
 		indexer.HTTPRouteServiceIndexFunc,

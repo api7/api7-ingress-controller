@@ -2,19 +2,22 @@ package translator
 
 import (
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 
-	adctypes "github.com/api7/api7-ingress-controller/api/adc"
-	"github.com/api7/api7-ingress-controller/internal/controller/label"
-	"github.com/api7/api7-ingress-controller/internal/id"
-	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
+	adctypes "github.com/api7/api7-ingress-controller/api/adc"
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
+	"github.com/api7/api7-ingress-controller/internal/controller/label"
+	"github.com/api7/api7-ingress-controller/internal/id"
+	"github.com/api7/api7-ingress-controller/internal/provider"
 )
 
 func (t *Translator) TranslateGateway(tctx *provider.TranslateContext, obj *gatewayv1.Gateway) (*TranslateResult, error) {
@@ -28,6 +31,12 @@ func (t *Translator) TranslateGateway(tctx *provider.TranslateContext, obj *gate
 			}
 			result.SSL = append(result.SSL, ssl...)
 		}
+	}
+	if tctx.GatewayProxy != nil {
+		globalRules := adctypes.Plugins{}
+		// apply plugins from GatewayProxy to global rules
+		t.fillPluginsFromGatewayProxy(globalRules, tctx.GatewayProxy)
+		result.GlobalRules = globalRules
 	}
 	return result, nil
 }
@@ -158,4 +167,28 @@ func extractKubeSecretKeyPair(s *corev1.Secret, hasPrivateKey bool) (cert []byte
 		}
 	}
 	return
+}
+
+// fillPluginsFromGatewayProxy fill plugins from GatewayProxy to given plugins
+func (t *Translator) fillPluginsFromGatewayProxy(plugins adctypes.Plugins, gatewayProxy *v1alpha1.GatewayProxy) {
+	if gatewayProxy == nil {
+		return
+	}
+
+	for _, plugin := range gatewayProxy.Spec.Plugins {
+		// only apply enabled plugins
+		if !plugin.Enabled {
+			continue
+		}
+
+		pluginName := plugin.Name
+		var pluginConfig map[string]any
+		if err := json.Unmarshal(plugin.Config.Raw, &pluginConfig); err != nil {
+			log.Errorw("gateway proxy plugin config unmarshal failed", zap.Error(err), zap.String("plugin", pluginName))
+			continue
+		}
+
+		log.Debugw("fill plugin from gateway proxy", zap.String("plugin", pluginName), zap.Any("config", pluginConfig))
+		plugins[pluginName] = pluginConfig
+	}
 }
