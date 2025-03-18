@@ -10,7 +10,8 @@ type Translator struct {
 	Log logr.Logger
 }
 type TranslateResult struct {
-	Routes   []*adctypes.Route
-	Services []*adctypes.Service
-	SSL      []*adctypes.SSL
+	Routes      []*adctypes.Route
+	Services    []*adctypes.Service
+	SSL         []*adctypes.SSL
+	GlobalRules adctypes.Plugins
 }

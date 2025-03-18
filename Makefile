@@ -127,6 +127,10 @@ kind-load-images: pull-infra-images
 	@kind load docker-image $(IMG) --name $(KIND_NAME)
 	@kind load docker-image jmalloc/echo-server:latest --name $(KIND_NAME)
 
+.PHONY: kind-load-ingress-image
+kind-load-ingress-image:
+	@kind load docker-image $(IMG) --name $(KIND_NAME)
+
 .PHONY: pull-infra-images
 pull-infra-images:
 	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev
@@ -146,6 +150,8 @@ kind-load-image:
 build: manifests generate fmt vet ## Build manager binary.
 	CGO_ENABLED=0 go build -o bin/api7-ingress-controller -ldflags $(GO_LDFLAGS) cmd/main.go
 
+linux-build:
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o bin/api7-ingress-controller -ldflags $(GO_LDFLAGS) cmd/main.go
 
 .PHONY: build-image
 build-image: docker-build
@@ -158,7 +164,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
-docker-build: ## Build docker image with the manager.
+docker-build: build ## Build docker image with the manager.
 	$(CONTAINER_TOOL) build -t ${IMG} -f Dockerfile.dev .
 
 .PHONY: docker-push

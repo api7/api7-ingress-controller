@@ -160,6 +160,7 @@ rules:
   - gateway.apisix.io
   resources:
   - pluginconfigs
+  - gatewayproxies
   verbs:
   - get
   - list
