@@ -81,7 +81,8 @@ spec:
       headers:
         X-Proxy-Test: "disabled"
 `
-	var gatewayProxyWithPluginMetadata = `
+	var (
+		gatewayProxyWithPluginMetadata0 = `
 apiVersion: gateway.apisix.io/v1alpha1
 kind: GatewayProxy
 metadata:
@@ -100,6 +101,26 @@ spec:
       }
     }
 `
+		gatewayProxyWithPluginMetadata1 = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+spec:
+  plugins:
+  - name: error-page
+    enabled: true
+    config: {}
+  pluginMetadata:
+    error-page: {
+      "enable": false,
+      "error_404": {
+          "body": "404 from plugin metadata",
+          "content-type": "text/plain"
+      }
+    }
+`
+	)
 
 	var httpRouteForTest = `
 apiVersion: gateway.networking.k8s.io/v1
@@ -249,9 +270,9 @@ spec:
 			err error
 		)
 
-		It("Should work OK with error-page", func() {
+		FIt("Should work OK with error-page", func() {
 			By("Update GatewayProxy with PluginMetadata")
-			err = s.CreateResourceFromString(gatewayProxyWithPluginMetadata)
+			err = s.CreateResourceFromString(gatewayProxyWithPluginMetadata0)
 			Expect(err).ShouldNot(HaveOccurred())
 			time.Sleep(5 * time.Second)
 
@@ -265,6 +286,32 @@ spec:
 				Expect().
 				Status(http.StatusNotFound).
 				Body().Contains("404 from plugin metadata")
+
+			By("Update GatewayProxy with PluginMetadata")
+			err = s.CreateResourceFromString(gatewayProxyWithPluginMetadata1)
+			Expect(err).ShouldNot(HaveOccurred())
+			time.Sleep(5 * time.Second)
+
+			By("Check PluginMetadata working")
+			s.NewAPISIXClient().
+				GET("/not-found").
+				WithHost("example.com").
+				Expect().
+				Status(http.StatusNotFound).
+				Body().Contains(`{"error_msg":"404 Route Not Found"}`)
+
+			By("Delete GatewayProxy")
+			err = s.DeleteResourceFromString(gatewayProxyWithPluginMetadata0)
+			Expect(err).ShouldNot(HaveOccurred())
+			time.Sleep(5 * time.Second)
+
+			By("Check PluginMetadata is not working")
+			s.NewAPISIXClient().
+				GET("/not-found").
+				WithHost("example.com").
+				Expect().
+				Status(http.StatusNotFound).
+				Body().Contains(`{"error_msg":"404 Route Not Found"}`)
 		})
 	})
 })

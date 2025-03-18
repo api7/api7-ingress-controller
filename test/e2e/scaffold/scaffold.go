@@ -456,14 +456,12 @@ func (s *Scaffold) afterEach() {
 			_, _ = fmt.Fprintln(GinkgoWriter, "Dumping namespace contents")
 			_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "get", "deploy,sts,svc,pods,gatewayproxy")
 			_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "describe", "pods")
-			_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "logs", "-l", "control-plane=controller-manager")
 		}
 
 		output := s.GetDeploymentLogs("api7-ingress-controller")
 		if output != "" {
 			_, _ = fmt.Fprintln(GinkgoWriter, output)
 		}
-		return
 	}
 
 	// if the test case is successful, just delete namespace
