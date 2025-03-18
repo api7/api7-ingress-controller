@@ -131,10 +131,7 @@ func (d *adcClient) sync(task Task, extraArgs ...string) error {
 		"-f", tmpFile.Name(),
 		"--tls-skip-verify",
 	}
-
-	if len(extraArgs) > 0 {
-		args = append(args, extraArgs...)
-	}
+	args = append(args, extraArgs...)
 
 	for k, v := range task.Labels {
 		args = append(args, "--label-selector", k+"="+v)
