@@ -88,7 +88,7 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 	case *gatewayv1.HTTPRoute:
 		resourceTypes = append(resourceTypes, "service")
 	case *gatewayv1.Gateway:
-		resourceTypes = append(resourceTypes, "global_rule", "ssl")
+		resourceTypes = append(resourceTypes, "global_rule", "ssl", "plugin_metadata")
 	}
 
 	return d.sync(Task{
@@ -145,7 +145,6 @@ func (d *adcClient) sync(task Task) error {
 		"ADC_TOKEN="+d.Token,
 	)
 
-	log.Debugf("exec: %s\n", cmd.String())
 	if err := cmd.Run(); err != nil {
 		stderrStr := stderr.String()
 		stdoutStr := stdout.String()
