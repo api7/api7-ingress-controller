@@ -277,20 +277,22 @@ func (r *GatewayReconciler) listGatewaysForHTTPRoute(_ context.Context, obj clie
 
 func (r *GatewayReconciler) processInfrastructure(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway, ns string) error {
 	infra := gateway.Spec.Infrastructure
-	if infra != nil && infra.ParametersRef != nil {
-		paramRef := infra.ParametersRef
-		if string(paramRef.Group) == v1alpha1.GroupVersion.Group && string(paramRef.Kind) == "GatewayProxy" {
-			gatewayProxy := &v1alpha1.GatewayProxy{}
-			if err := r.Get(context.Background(), client.ObjectKey{
-				Namespace: ns,
-				Name:      paramRef.Name,
-			}, gatewayProxy); err != nil {
-				log.Error(err, "failed to get GatewayProxy", "namespace", ns, "name", paramRef.Name)
-				return err
-			} else {
-				log.Info("found GatewayProxy for Gateway", "gateway", gateway.Name, "gatewayproxy", gatewayProxy.Name)
-				tctx.GatewayProxy = gatewayProxy
-			}
+	if infra == nil || infra.ParametersRef == nil {
+		return nil
+	}
+
+	paramRef := infra.ParametersRef
+	if string(paramRef.Group) == v1alpha1.GroupVersion.Group && string(paramRef.Kind) == "GatewayProxy" {
+		gatewayProxy := &v1alpha1.GatewayProxy{}
+		if err := r.Get(context.Background(), client.ObjectKey{
+			Namespace: ns,
+			Name:      paramRef.Name,
+		}, gatewayProxy); err != nil {
+			log.Error(err, "failed to get GatewayProxy", "namespace", ns, "name", paramRef.Name)
+			return err
+		} else {
+			log.Info("found GatewayProxy for Gateway", "gateway", gateway.Name, "gatewayproxy", gatewayProxy.Name)
+			tctx.GatewayProxy = gatewayProxy
 		}
 	}
 

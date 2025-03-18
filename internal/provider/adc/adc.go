@@ -46,7 +46,7 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 	var result *translator.TranslateResult
 	var err error
 
-	var task Task = Task{
+	var task = Task{
 		Name:   obj.GetName(),
 		Labels: label.GenLabel(obj),
 	}
@@ -102,7 +102,7 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 func (d *adcClient) sync(task Task, extraArgs ...string) error {
 	log.Debugw("syncing task", zap.Any("task", task))
 
-	yaml, err := yaml.Marshal(task.Resources)
+	data, err := yaml.Marshal(task.Resources)
 	if err != nil {
 		return err
 	}
@@ -116,9 +116,9 @@ func (d *adcClient) sync(task Task, extraArgs ...string) error {
 		_ = os.Remove(tmpFile.Name())
 	}()
 
-	log.Debugw("syncing resources", zap.String("file", tmpFile.Name()), zap.String("yaml", string(yaml)))
+	log.Debugw("syncing resources", zap.String("file", tmpFile.Name()), zap.String("yaml", string(data)))
 
-	if _, err := tmpFile.Write(yaml); err != nil {
+	if _, err := tmpFile.Write(data); err != nil {
 		return err
 	}
 	args := []string{
@@ -126,10 +126,7 @@ func (d *adcClient) sync(task Task, extraArgs ...string) error {
 		"-f", tmpFile.Name(),
 		"--tls-skip-verify",
 	}
-
-	if len(extraArgs) > 0 {
-		args = append(args, extraArgs...)
-	}
+	args = append(args, extraArgs...)
 
 	for k, v := range task.Labels {
 		args = append(args, "--label-selector", k+"="+v)

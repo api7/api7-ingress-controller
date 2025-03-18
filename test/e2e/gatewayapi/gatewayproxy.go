@@ -173,11 +173,7 @@ spec:
 				Status(200)
 
 			resp.Header("X-Proxy-Test").IsEqual("enabled")
-		})
-	})
 
-	Context("Test Gateway with disabled GatewayProxy plugin", func() {
-		It("Should not apply plugin configuration when disabled", func() {
 			By("Update GatewayProxy with disabled plugin")
 			err := s.CreateResourceFromString(gatewayProxyWithDisabledPlugin)
 			Expect(err).NotTo(HaveOccurred(), "updating GatewayProxy with disabled plugin")
@@ -187,7 +183,7 @@ spec:
 			ResourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
 
 			By("Check if the plugin is not applied")
-			resp := s.NewAPISIXClient().
+			resp = s.NewAPISIXClient().
 				GET("/get").
 				WithHost("example.com").
 				Expect().
@@ -195,10 +191,20 @@ spec:
 
 			resp.Header("X-Proxy-Test").IsEmpty()
 		})
-	})
 
-	Context("Test Gateway without GatewayProxy", func() {
 		It("Should work normally without GatewayProxy", func() {
+			By("Create HTTPRoute for Gateway with GatewayProxy")
+			ResourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
+
+			By("Check if the plugin is applied")
+			resp := s.NewAPISIXClient().
+				GET("/get").
+				WithHost("example.com").
+				Expect().
+				Status(200)
+
+			resp.Header("X-Proxy-Test").IsEqual("enabled")
+
 			By("Update Gateway without GatewayProxy")
 			err := s.CreateResourceFromString(fmt.Sprintf(gatewayWithoutProxy, gatewayClassName))
 			Expect(err).NotTo(HaveOccurred(), "updating Gateway without GatewayProxy")
@@ -208,7 +214,7 @@ spec:
 			ResourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
 
 			By("Check if the route works without plugin")
-			resp := s.NewAPISIXClient().
+			resp = s.NewAPISIXClient().
 				GET("/get").
 				WithHost("example.com").
 				Expect().
