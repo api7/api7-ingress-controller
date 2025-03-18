@@ -11,7 +11,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = FDescribe("Test GatewayProxy", func() {
+var _ = Describe("Test GatewayProxy", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	var defaultGatewayClass = `
@@ -252,7 +252,7 @@ spec:
 		It("Should work OK with error-page", func() {
 			By("Update GatewayProxy with PluginMetadata")
 			err = s.CreateResourceFromString(gatewayProxyWithPluginMetadata)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ShouldNot(HaveOccurred())
 			time.Sleep(5 * time.Second)
 
 			By("Create HTTPRoute for Gateway with GatewayProxy")
