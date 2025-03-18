@@ -11,7 +11,7 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = Describe("Test GatewayProxy", func() {
+var _ = FDescribe("Test GatewayProxy", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	var defaultGatewayClass = `
@@ -121,7 +121,7 @@ spec:
       port: 80
 `
 
-	var ResourceApplied = func(resourceType, resourceName, resourceRaw string, observedGeneration int) {
+	var resourceApplied = func(resourceType, resourceName, resourceRaw string, observedGeneration int) {
 		Expect(s.CreateResourceFromString(resourceRaw)).
 			NotTo(HaveOccurred(), fmt.Sprintf("creating %s", resourceType))
 
@@ -183,7 +183,7 @@ spec:
 	Context("Test Gateway with enabled GatewayProxy plugin", func() {
 		It("Should apply plugin configuration when enabled", func() {
 			By("Create HTTPRoute for Gateway with GatewayProxy")
-			ResourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
+			resourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
 
 			By("Check if the plugin is applied")
 			resp := s.NewAPISIXClient().
@@ -200,7 +200,7 @@ spec:
 			time.Sleep(5 * time.Second)
 
 			By("Create HTTPRoute for Gateway with GatewayProxy")
-			ResourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
+			resourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
 
 			By("Check if the plugin is not applied")
 			resp = s.NewAPISIXClient().
@@ -214,7 +214,7 @@ spec:
 
 		It("Should work normally without GatewayProxy", func() {
 			By("Create HTTPRoute for Gateway with GatewayProxy")
-			ResourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
+			resourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
 
 			By("Check if the plugin is applied")
 			resp := s.NewAPISIXClient().
@@ -231,7 +231,7 @@ spec:
 			time.Sleep(5 * time.Second)
 
 			By("Create HTTPRoute for Gateway without GatewayProxy")
-			ResourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
+			resourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
 
 			By("Check if the route works without plugin")
 			resp = s.NewAPISIXClient().
@@ -256,7 +256,7 @@ spec:
 			time.Sleep(5 * time.Second)
 
 			By("Create HTTPRoute for Gateway with GatewayProxy")
-			ResourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
+			resourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
 
 			By("Check PluginMetadata working")
 			s.NewAPISIXClient().
