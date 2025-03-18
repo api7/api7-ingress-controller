@@ -261,6 +261,10 @@ $(GOLANGCI_LINT): $(LOCALBIN)
 
 gofmt: ## Apply go fmt
 	@gofmt -w -r 'interface{} -> any' .
+	@gofmt -w -r 'FIt -> It' test
+	@gofmt -w -r 'FContext -> Context' test
+	@gofmt -w -r 'FDescribe -> Describe' test
+	@gofmt -w -r 'FDescribeTable -> DescribeTable' test
 	@go fmt ./...
 .PHONY: gofmt
 
