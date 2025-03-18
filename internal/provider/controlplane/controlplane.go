@@ -29,7 +29,7 @@ func NewDashboard() (provider.Provider, error) {
 	if err := control.AddCluster(context.TODO(), &dashboard.ClusterOptions{
 		Name: "default",
 		Labels: map[string]string{
-			"controller_name": config.ControllerConfig.ControllerName,
+			"k8s/controller-name": config.ControllerConfig.ControllerName,
 		},
 		ControllerName: config.ControllerConfig.ControllerName,
 		BaseURL:        gc.ControlPlane.Endpoints[0],

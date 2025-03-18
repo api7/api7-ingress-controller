@@ -119,12 +119,11 @@ kind-down:
 		|| echo "kind cluster does not exist"
 
 .PHONY: kind-load-images
-kind-load-images: pull-infra-images
+kind-load-images: pull-infra-images kind-load-ingress-image
 	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev --name $(KIND_NAME) 
 	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION)  --name $(KIND_NAME) 
 	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)  --name $(KIND_NAME) 
 	@kind load docker-image kennethreitz/httpbin:latest --name $(KIND_NAME) 
-	@kind load docker-image $(IMG) --name $(KIND_NAME)
 	@kind load docker-image jmalloc/echo-server:latest --name $(KIND_NAME)
 
 .PHONY: kind-load-ingress-image
@@ -138,11 +137,6 @@ pull-infra-images:
 	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION) 
 	@docker pull kennethreitz/httpbin:latest
 	@docker pull jmalloc/echo-server:latest
-
-
-.PHONY: kind-load-image
-kind-load-image:
-	@kind load docker-image $(IMG) --name $(KIND_NAME)
 
 ##@ Build
 
