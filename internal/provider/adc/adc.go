@@ -52,13 +52,13 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		err           error
 	)
 
-	switch obj := obj.(type) {
+	switch t := obj.(type) {
 	case *gatewayv1.HTTPRoute:
-		result, err = d.translator.TranslateHTTPRoute(tctx, obj.DeepCopy())
+		result, err = d.translator.TranslateHTTPRoute(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "service")
 	case *gatewayv1.Gateway:
-		result, err = d.translator.TranslateGateway(tctx, obj.DeepCopy())
-		resourceTypes = append(resourceTypes, "global_rule", "ssl")
+		result, err = d.translator.TranslateGateway(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, "global_rule", "ssl", "plugin_metadata")
 	}
 	if err != nil {
 		return err
