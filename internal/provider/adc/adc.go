@@ -3,6 +3,7 @@ package adc
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 
@@ -28,9 +29,10 @@ type adcClient struct {
 }
 
 type Task struct {
-	Name      string
-	Resources types.Resources
-	Labels    map[string]string
+	Name          string
+	Resources     types.Resources
+	Labels        map[string]string
+	ResourceTypes []string
 }
 
 func New() (provider.Provider, error) {
@@ -43,69 +45,61 @@ func New() (provider.Provider, error) {
 }
 
 func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext, obj client.Object) error {
+	log.Debugw("updating object", zap.Any("object", obj))
 	var (
-		task = Task{
-			Name:   obj.GetName(),
-			Labels: label.GenLabel(obj),
-		}
-		extraArgs []string
-		result    *translator.TranslateResult
-		err       error
+		result        *translator.TranslateResult
+		resourceTypes []string
+		err           error
 	)
 
 	switch obj := obj.(type) {
 	case *gatewayv1.HTTPRoute:
-		extraArgs = append(extraArgs, "--include-resource-type", "service")
-		log.Debugw("translating http route", zap.Any("http route", obj))
 		result, err = d.translator.TranslateHTTPRoute(tctx, obj.DeepCopy())
+		resourceTypes = append(resourceTypes, "service")
 	case *gatewayv1.Gateway:
-		extraArgs = append(extraArgs, "--include-resource-type", "global_rule",
-			"--include-resource-type", "plugin_metadata")
-		log.Debugw("translating gateway", zap.Any("gateway", obj))
 		result, err = d.translator.TranslateGateway(tctx, obj.DeepCopy())
+		resourceTypes = append(resourceTypes, "global_rule", "ssl")
 	}
 	if err != nil {
 		return err
 	}
-	log.Debugw("translated result", zap.Any("result", result))
 	if result == nil {
 		return nil
 	}
 
-	resources := types.Resources{
-		GlobalRules:    result.GlobalRules,
-		PluginMetadata: result.PluginMetadata,
-		Services:       result.Services,
-	}
-	log.Debugw("adc resources", zap.Any("resources", resources))
-
-	task.Resources = resources
-
-	return d.sync(task, extraArgs...)
+	return d.sync(Task{
+		Name:   obj.GetName(),
+		Labels: label.GenLabel(obj),
+		Resources: types.Resources{
+			GlobalRules:    result.GlobalRules,
+			PluginMetadata: result.PluginMetadata,
+			Services:       result.Services,
+			SSLs:           result.SSL,
+		},
+		ResourceTypes: resourceTypes,
+	})
 }
 
 func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
-	var (
-		task = Task{
-			Name:   obj.GetName(),
-			Labels: label.GenLabel(obj),
-		}
-		extraArgs []string
-	)
+	log.Debugw("deleting object", zap.Any("object", obj))
 
+	var resourceTypes []string
 	switch obj.(type) {
 	case *gatewayv1.HTTPRoute:
-		extraArgs = append(extraArgs, "--include-resource-type", "service")
+		resourceTypes = append(resourceTypes, "service")
 	case *gatewayv1.Gateway:
-		extraArgs = append(extraArgs, "--include-resource-type", "global_rule",
-			"--include-resource-type", "plugin_metadata")
+		resourceTypes = append(resourceTypes, "global_rule", "ssl")
 	}
 
-	return d.sync(task, extraArgs...)
+	return d.sync(Task{
+		Name:          obj.GetName(),
+		Labels:        label.GenLabel(obj),
+		ResourceTypes: resourceTypes,
+	})
 }
 
-func (d *adcClient) sync(task Task, extraArgs ...string) error {
-	log.Debugw("syncing task", zap.Any("task", task))
+func (d *adcClient) sync(task Task) error {
+	log.Debugw("syncing resources", zap.Any("task", task))
 
 	data, err := yaml.Marshal(task.Resources)
 	if err != nil {
@@ -121,7 +115,7 @@ func (d *adcClient) sync(task Task, extraArgs ...string) error {
 		_ = os.Remove(tmpFile.Name())
 	}()
 
-	log.Debugw("syncing resources", zap.String("file", tmpFile.Name()), zap.String("yaml", string(data)))
+	log.Debugw("generated adc yaml", zap.String("file", tmpFile.Name()), zap.String("yaml", string(data)))
 
 	if _, err := tmpFile.Write(data); err != nil {
 		return err
@@ -131,10 +125,12 @@ func (d *adcClient) sync(task Task, extraArgs ...string) error {
 		"-f", tmpFile.Name(),
 		"--tls-skip-verify",
 	}
-	args = append(args, extraArgs...)
 
 	for k, v := range task.Labels {
 		args = append(args, "--label-selector", k+"="+v)
+	}
+	for _, t := range task.ResourceTypes {
+		args = append(args, "--include-resource-type", t)
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -151,15 +147,20 @@ func (d *adcClient) sync(task Task, extraArgs ...string) error {
 
 	log.Debugf("exec: %s\n", cmd.String())
 	if err := cmd.Run(); err != nil {
+		stderrStr := stderr.String()
+		stdoutStr := stdout.String()
+		errMsg := stderrStr
+		if errMsg == "" {
+			errMsg = stdoutStr
+		}
 		log.Errorw("failed to run adc",
 			zap.Error(err),
-			zap.String("output", stdout.String()),
-			zap.String("stderr", stderr.String()),
+			zap.String("output", stdoutStr),
+			zap.String("stderr", stderrStr),
 		)
-		return err
+		return errors.New("failed to sync resources: " + errMsg + ", exit err: " + err.Error())
 	}
 
 	log.Debugw("adc sync success", zap.String("taskname", task.Name))
-
 	return nil
 }

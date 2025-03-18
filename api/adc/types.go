@@ -72,7 +72,7 @@ type Resources struct {
 	GlobalRules    Plugins            `json:"global_rules,omitempty" yaml:"global_rules,omitempty"`
 	PluginMetadata Plugins            `json:"plugin_metadata,omitempty" yaml:"plugin_metadata,omitempty"`
 	Services       []*Service         `json:"services,omitempty" yaml:"services,omitempty"`
-	Ssls           []*SSL             `json:"ssls,omitempty" yaml:"ssls,omitempty"`
+	SSLs           []*SSL             `json:"ssls,omitempty" yaml:"ssls,omitempty"`
 }
 
 type ConsumerGroup struct {
@@ -168,22 +168,22 @@ type TLSClass struct {
 type SSL struct {
 	Metadata `json:",inline" yaml:",inline"`
 
-	Certificates []Certificate `json:"certificates"`
-	Client       *ClientClass  `json:"client,omitempty"`
-	Snis         []string      `json:"snis"`
-	SSLProtocols []SSLProtocol `json:"ssl_protocols,omitempty"`
-	Type         *SSLType      `json:"type,omitempty"`
+	Certificates []Certificate `json:"certificates" yaml:"certificates"`
+	Client       *ClientClass  `json:"client,omitempty" yaml:"client,omitempty"`
+	Snis         []string      `json:"snis" yaml:"snis"`
+	SSLProtocols []SSLProtocol `json:"ssl_protocols,omitempty" yaml:"ssl_protocols,omitempty"`
+	Type         *SSLType      `json:"type,omitempty" yaml:"type,omitempty"`
 }
 
 type Certificate struct {
-	Certificate string `json:"certificate"`
-	Key         string `json:"key"`
+	Certificate string `json:"certificate" yaml:"certificate"`
+	Key         string `json:"key" yaml:"key"`
 }
 
 type ClientClass struct {
-	CA               string   `json:"ca"`
-	Depth            *int64   `json:"depth,omitempty"`
-	SkipMtlsURIRegex []string `json:"skip_mtls_uri_regex,omitempty"`
+	CA               string   `json:"ca" yaml:"ca"`
+	Depth            *int64   `json:"depth,omitempty" yaml:"depth,omitempty"`
+	SkipMtlsURIRegex []string `json:"skip_mtls_uri_regex,omitempty" yaml:"skip_mtls_uri_regex,omitempty"`
 }
 
 type Method string

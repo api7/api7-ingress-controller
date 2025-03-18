@@ -411,7 +411,7 @@ func (s *Scaffold) initDataPlaneClient() {
 	err = s.apisixCli.AddCluster(context.Background(), &dashboard.ClusterOptions{
 		Name:           "default",
 		ControllerName: s.opts.ControllerName,
-		Labels:         map[string]string{"controller_name": s.opts.ControllerName},
+		Labels:         map[string]string{"k8s/controller-name": s.opts.ControllerName},
 		BaseURL:        url,
 		AdminKey:       s.AdminKey(),
 	})
@@ -457,6 +457,11 @@ func (s *Scaffold) afterEach() {
 			_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "get", "deploy,sts,svc,pods,gatewayproxy")
 			_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "describe", "pods")
 			_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "logs", "-l", "control-plane=controller-manager")
+		}
+
+		output := s.GetDeploymentLogs("api7-ingress-controller")
+		if output != "" {
+			_, _ = fmt.Fprintln(GinkgoWriter, output)
 		}
 	}
 
