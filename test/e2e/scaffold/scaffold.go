@@ -452,16 +452,10 @@ func (s *Scaffold) afterEach() {
 	s.DeleteGatewayGroup(s.gatewaygroupid)
 
 	if CurrentSpecReport().Failed() {
-		if os.Getenv("TSET_ENV") == "CI" {
+		if os.Getenv("TEST_ENV") == "CI" {
 			_, _ = fmt.Fprintln(GinkgoWriter, "Dumping namespace contents")
-			output, _ := k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "get", "deploy,sts,svc,pods")
-			if output != "" {
-				_, _ = fmt.Fprintln(GinkgoWriter, output)
-			}
-			output, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "describe", "pods")
-			if output != "" {
-				_, _ = fmt.Fprintln(GinkgoWriter, output)
-			}
+			_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "get", "deploy,sts,svc,pods,gatewayproxy")
+			_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "describe", "pods")
 		}
 
 		output := s.GetDeploymentLogs("api7-ingress-controller")

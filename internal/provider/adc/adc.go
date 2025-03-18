@@ -46,18 +46,19 @@ func New() (provider.Provider, error) {
 
 func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext, obj client.Object) error {
 	log.Debugw("updating object", zap.Any("object", obj))
+	var (
+		result        *translator.TranslateResult
+		resourceTypes []string
+		err           error
+	)
 
-	var result *translator.TranslateResult
-	var resourceTypes []string
-	var err error
-
-	switch obj := obj.(type) {
+	switch t := obj.(type) {
 	case *gatewayv1.HTTPRoute:
-		result, err = d.translator.TranslateHTTPRoute(tctx, obj.DeepCopy())
+		result, err = d.translator.TranslateHTTPRoute(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "service")
 	case *gatewayv1.Gateway:
-		result, err = d.translator.TranslateGateway(tctx, obj.DeepCopy())
-		resourceTypes = append(resourceTypes, "global_rule", "ssl")
+		result, err = d.translator.TranslateGateway(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, "global_rule", "ssl", "plugin_metadata")
 	}
 	if err != nil {
 		return err
@@ -70,9 +71,10 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		Name:   obj.GetName(),
 		Labels: label.GenLabel(obj),
 		Resources: types.Resources{
-			Services:    result.Services,
-			SSLs:        result.SSL,
-			GlobalRules: result.GlobalRules,
+			GlobalRules:    result.GlobalRules,
+			PluginMetadata: result.PluginMetadata,
+			Services:       result.Services,
+			SSLs:           result.SSL,
 		},
 		ResourceTypes: resourceTypes,
 	})
@@ -81,12 +83,12 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 	log.Debugw("deleting object", zap.Any("object", obj))
 
-	resourceTypes := []string{}
+	var resourceTypes []string
 	switch obj.(type) {
 	case *gatewayv1.HTTPRoute:
 		resourceTypes = append(resourceTypes, "service")
 	case *gatewayv1.Gateway:
-		resourceTypes = append(resourceTypes, "global_rule", "ssl")
+		resourceTypes = append(resourceTypes, "global_rule", "ssl", "plugin_metadata")
 	}
 
 	return d.sync(Task{

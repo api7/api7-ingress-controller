@@ -95,6 +95,7 @@ dashboard_configuration:
       host: "0.0.0.0"
     cron_spec: "@every 1s"
   plugins:
+    - error-page
     - real-ip
     #- ai
     - error-page

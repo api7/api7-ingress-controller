@@ -2,6 +2,7 @@ package gatewayapi
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -80,6 +81,46 @@ spec:
       headers:
         X-Proxy-Test: "disabled"
 `
+	var (
+		gatewayProxyWithPluginMetadata0 = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+spec:
+  plugins:
+  - name: error-page
+    enabled: true
+    config: {}
+  pluginMetadata:
+    error-page: {
+      "enable": true,
+      "error_404": {
+          "body": "404 from plugin metadata",
+          "content-type": "text/plain"
+      }
+    }
+`
+		gatewayProxyWithPluginMetadata1 = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+spec:
+  plugins:
+  - name: error-page
+    enabled: true
+    config: {}
+  pluginMetadata:
+    error-page: {
+      "enable": false,
+      "error_404": {
+          "body": "404 from plugin metadata",
+          "content-type": "text/plain"
+      }
+    }
+`
+	)
 
 	var httpRouteForTest = `
 apiVersion: gateway.networking.k8s.io/v1
@@ -101,7 +142,7 @@ spec:
       port: 80
 `
 
-	var ResourceApplied = func(resourceType, resourceName, resourceRaw string, observedGeneration int) {
+	var resourceApplied = func(resourceType, resourceName, resourceRaw string, observedGeneration int) {
 		Expect(s.CreateResourceFromString(resourceRaw)).
 			NotTo(HaveOccurred(), fmt.Sprintf("creating %s", resourceType))
 
@@ -109,7 +150,7 @@ spec:
 			hryaml, err := s.GetResourceYaml(resourceType, resourceName)
 			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("getting %s yaml", resourceType))
 			return hryaml
-		}, "8s", "2s").
+		}).WithTimeout(8*time.Second).ProbeEvery(2*time.Second).
 			Should(
 				SatisfyAll(
 					ContainSubstring(`status: "True"`),
@@ -163,7 +204,7 @@ spec:
 	Context("Test Gateway with enabled GatewayProxy plugin", func() {
 		It("Should apply plugin configuration when enabled", func() {
 			By("Create HTTPRoute for Gateway with GatewayProxy")
-			ResourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
+			resourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
 
 			By("Check if the plugin is applied")
 			resp := s.NewAPISIXClient().
@@ -180,7 +221,7 @@ spec:
 			time.Sleep(5 * time.Second)
 
 			By("Create HTTPRoute for Gateway with GatewayProxy")
-			ResourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
+			resourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
 
 			By("Check if the plugin is not applied")
 			resp = s.NewAPISIXClient().
@@ -194,7 +235,7 @@ spec:
 
 		It("Should work normally without GatewayProxy", func() {
 			By("Create HTTPRoute for Gateway with GatewayProxy")
-			ResourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
+			resourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
 
 			By("Check if the plugin is applied")
 			resp := s.NewAPISIXClient().
@@ -211,7 +252,7 @@ spec:
 			time.Sleep(5 * time.Second)
 
 			By("Create HTTPRoute for Gateway without GatewayProxy")
-			ResourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
+			resourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
 
 			By("Check if the route works without plugin")
 			resp = s.NewAPISIXClient().
@@ -224,4 +265,53 @@ spec:
 		})
 	})
 
+	Context("Test Gateway with PluginMetadata", func() {
+		var (
+			err error
+		)
+
+		It("Should work OK with error-page", func() {
+			By("Update GatewayProxy with PluginMetadata")
+			err = s.CreateResourceFromString(gatewayProxyWithPluginMetadata0)
+			Expect(err).ShouldNot(HaveOccurred())
+			time.Sleep(5 * time.Second)
+
+			By("Create HTTPRoute for Gateway with GatewayProxy")
+			resourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
+
+			By("Check PluginMetadata working")
+			s.NewAPISIXClient().
+				GET("/not-found").
+				WithHost("example.com").
+				Expect().
+				Status(http.StatusNotFound).
+				Body().Contains("404 from plugin metadata")
+
+			By("Update GatewayProxy with PluginMetadata")
+			err = s.CreateResourceFromString(gatewayProxyWithPluginMetadata1)
+			Expect(err).ShouldNot(HaveOccurred())
+			time.Sleep(5 * time.Second)
+
+			By("Check PluginMetadata working")
+			s.NewAPISIXClient().
+				GET("/not-found").
+				WithHost("example.com").
+				Expect().
+				Status(http.StatusNotFound).
+				Body().Contains(`{"error_msg":"404 Route Not Found"}`)
+
+			By("Delete GatewayProxy")
+			err = s.DeleteResourceFromString(gatewayProxyWithPluginMetadata0)
+			Expect(err).ShouldNot(HaveOccurred())
+			time.Sleep(5 * time.Second)
+
+			By("Check PluginMetadata is not working")
+			s.NewAPISIXClient().
+				GET("/not-found").
+				WithHost("example.com").
+				Expect().
+				Status(http.StatusNotFound).
+				Body().Contains(`{"error_msg":"404 Route Not Found"}`)
+		})
+	})
 })

@@ -33,10 +33,15 @@ func (t *Translator) TranslateGateway(tctx *provider.TranslateContext, obj *gate
 		}
 	}
 	if tctx.GatewayProxy != nil {
-		globalRules := adctypes.Plugins{}
+		var (
+			globalRules    = adctypes.Plugins{}
+			pluginMetadata = adctypes.Plugins{}
+		)
 		// apply plugins from GatewayProxy to global rules
 		t.fillPluginsFromGatewayProxy(globalRules, tctx.GatewayProxy)
+		t.fillPluginMetadataFromGatewayProxy(pluginMetadata, tctx.GatewayProxy)
 		result.GlobalRules = globalRules
+		result.PluginMetadata = pluginMetadata
 	}
 	return result, nil
 }
@@ -190,5 +195,20 @@ func (t *Translator) fillPluginsFromGatewayProxy(plugins adctypes.Plugins, gatew
 
 		log.Debugw("fill plugin from gateway proxy", zap.String("plugin", pluginName), zap.Any("config", pluginConfig))
 		plugins[pluginName] = pluginConfig
+	}
+}
+
+func (t *Translator) fillPluginMetadataFromGatewayProxy(pluginMetadata adctypes.Plugins, gatewayProxy *v1alpha1.GatewayProxy) {
+	if gatewayProxy == nil {
+		return
+	}
+	for pluginName, plugin := range gatewayProxy.Spec.PluginMetadata {
+		var pluginConfig map[string]any
+		if err := json.Unmarshal(plugin.Raw, &pluginConfig); err != nil {
+			log.Errorw("gateway proxy plugin_metadata unmarshal failed", zap.Error(err), zap.Any("plugin", pluginName), zap.String("config", string(plugin.Raw)))
+			continue
+		}
+		log.Debugw("fill plugin_metadata for gateway proxy", zap.String("plugin", pluginName), zap.Any("config", pluginConfig))
+		pluginMetadata[pluginName] = pluginConfig
 	}
 }

@@ -39,6 +39,7 @@ data:
         allow_admin:
           - all
     plugins:
+      - error-page
       - real-ip
       - ai
       - client-control
