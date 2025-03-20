@@ -3,6 +3,7 @@ package adc
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -140,11 +141,13 @@ func (d *adcClient) sync(task Task) error {
 	cmd.Env = append(cmd.Env, os.Environ()...)
 	cmd.Env = append(cmd.Env,
 		"ADC_EXPERIMENTAL_FEATURE_FLAGS=remote-state-file,parallel-backend-request",
+		"ADC_RUNNING_MODE=ingress",
 		"ADC_BACKEND=api7ee",
 		"ADC_SERVER="+d.ServerAddr,
 		"ADC_TOKEN="+d.Token,
 	)
 
+	var result types.SyncResult
 	if err := cmd.Run(); err != nil {
 		stderrStr := stderr.String()
 		stdoutStr := stdout.String()
@@ -160,6 +163,21 @@ func (d *adcClient) sync(task Task) error {
 		return errors.New("failed to sync resources: " + errMsg + ", exit err: " + err.Error())
 	}
 
-	log.Debugw("adc sync success", zap.String("taskname", task.Name))
+	output := stdout.Bytes()
+	if err := json.Unmarshal(output, &result); err != nil {
+		log.Errorw("failed to unmarshal adc output",
+			zap.Error(err),
+			zap.String("stdout", string(output)),
+		)
+		return errors.New("failed to unmarshal adc result: " + err.Error())
+	}
+
+	if result.FailedCount > 0 {
+		log.Errorw("adc sync failed", zap.Any("result", result))
+		failed := result.Failed
+		return errors.New(failed[0].Reason)
+	}
+
+	log.Debugw("adc sync success", zap.Any("result", result))
 	return nil
 }
