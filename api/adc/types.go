@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/incubator4/go-resty-expr/expr"
 )
@@ -499,4 +500,46 @@ type RedirectConfig struct {
 	HttpToHttps bool   `json:"http_to_https,omitempty" yaml:"http_to_https,omitempty"`
 	URI         string `json:"uri,omitempty" yaml:"uri,omitempty"`
 	RetCode     int    `json:"ret_code,omitempty" yaml:"ret_code,omitempty"`
+}
+
+const (
+	StatusSuccess       = "success"
+	StatusFailed        = "failed"
+	StatusPartialFailed = "partial_failed"
+)
+
+type SyncResult struct {
+	Status         string       `json:"status"`
+	TotalResources int          `json:"total_resources"`
+	SuccessCount   int          `json:"success_count"`
+	FailedCount    int          `json:"failed_count"`
+	Success        []SyncStatus `json:"success"`
+	Failed         []SyncStatus `json:"failed"`
+}
+
+type SyncStatus struct {
+	Event    StatusEvent     `json:"event"`
+	FailedAt time.Time       `json:"failed_at,omitempty"`
+	SyncedAt time.Time       `json:"synced_at,omitempty"`
+	Reason   string          `json:"reason,omitempty"`
+	Response ResponseDetails `json:"response,omitempty"`
+}
+
+type StatusEvent struct {
+	ResourceType string `json:"resourceType"`
+	Type         string `json:"type"`
+	ResourceID   string `json:"resourceId"`
+	ResourceName string `json:"resourceName"`
+	ParentID     string `json:"parentId,omitempty"`
+}
+
+type ResponseDetails struct {
+	Status  int               `json:"status"`
+	Headers map[string]string `json:"headers"`
+	Data    ResponseData      `json:"data"`
+}
+
+type ResponseData struct {
+	Value    map[string]interface{} `json:"value"`
+	ErrorMsg string                 `json:"error_msg"`
 }
