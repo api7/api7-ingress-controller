@@ -38,9 +38,6 @@ type HTTPRouteReconciler struct { //nolint:revive
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if err := r.setupIndexer(mgr); err != nil {
-		return err
-	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.HTTPRoute{}).
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
@@ -135,27 +132,6 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *HTTPRouteReconciler) setupIndexer(mgr ctrl.Manager) error {
-	if err := mgr.GetFieldIndexer().IndexField(
-		context.Background(),
-		&gatewayv1.HTTPRoute{},
-		indexer.ExtensionRef,
-		indexer.HTTPRouteExtensionIndexFunc,
-	); err != nil {
-		return err
-	}
-	if err := mgr.GetFieldIndexer().IndexField(
-		context.Background(),
-		&gatewayv1.HTTPRoute{},
-		indexer.ServiceIndexRef,
-		indexer.HTTPRouteServiceIndexFunc,
-	); err != nil {
-		return err
-	}
-	return nil
 }
 
 func (r *HTTPRouteReconciler) listHTTPRoutesByServiceBef(ctx context.Context, obj client.Object) []reconcile.Request {

@@ -7,6 +7,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/api7/api7-ingress-controller/internal/controller"
+	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
 	"github.com/api7/api7-ingress-controller/internal/provider"
 )
 
@@ -23,7 +24,10 @@ type Controller interface {
 	SetupWithManager(mgr manager.Manager) error
 }
 
-func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Provider) []Controller {
+func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Provider) ([]Controller, error) {
+	if err := indexer.SetupIndexer(mgr); err != nil {
+		return nil, err
+	}
 	return []Controller{
 		&controller.GatewayClassReconciler{
 			Client: mgr.GetClient(),
@@ -42,5 +46,5 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("HTTPRoute"),
 			Provider: pro,
 		},
-	}
+	}, nil
 }

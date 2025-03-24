@@ -36,30 +36,22 @@ type GatewayReconciler struct { //nolint:revive
 	Provider provider.Provider
 }
 
-func (r *GatewayReconciler) setupIndexer(mgr ctrl.Manager) error {
-	if err := mgr.GetFieldIndexer().IndexField(
-		context.Background(),
-		&gatewayv1.Gateway{},
-		indexer.ParametersRef,
-		indexer.GatewayParametersRefIndexFunc,
-	); err != nil {
-		return err
-	}
-	return nil
-}
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if err := r.setupIndexer(mgr); err != nil {
-		return err
-	}
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gatewayv1.Gateway{}).
+		For(
+			&gatewayv1.Gateway{},
+			builder.WithPredicates(
+				predicate.NewPredicateFuncs(r.checkGatewayClass),
+			),
+		).
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Watches(
 			&gatewayv1.GatewayClass{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewayForGatewayClass),
-			builder.WithPredicates(predicate.NewPredicateFuncs(r.matchesGatewayClass)),
+			builder.WithPredicates(
+				predicate.NewPredicateFuncs(r.matchesGatewayClass),
+			),
 		).
 		Watches(
 			&gatewayv1.HTTPRoute{},
@@ -90,11 +82,6 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 		return ctrl.Result{}, err
 	}
-	ns := gateway.GetNamespace()
-	if !r.checkGatewayClass(gateway) {
-		return ctrl.Result{}, nil
-	}
-
 	conditionProgrammedStatus, conditionProgrammedMsg := true, "Programmed"
 
 	cfg := config.GetFirstGatewayConfig()
@@ -126,8 +113,8 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	tctx := &provider.TranslateContext{
 		Secrets: make(map[types.NamespacedName]*corev1.Secret),
 	}
-	r.processListenerConfig(tctx, gateway, ns)
-	if err := r.processInfrastructure(tctx, gateway, ns); err != nil {
+	r.processListenerConfig(tctx, gateway)
+	if err := r.processInfrastructure(tctx, gateway); err != nil {
 		acceptStatus = status{
 			status: false,
 			msg:    err.Error(),
@@ -208,7 +195,8 @@ func (r *GatewayReconciler) listGatewayForGatewayClass(ctx context.Context, gate
 	return reconcileGatewaysMatchGatewayClass(gatewayClass, gatewayList.Items)
 }
 
-func (r *GatewayReconciler) checkGatewayClass(gateway *gatewayv1.Gateway) bool {
+func (r *GatewayReconciler) checkGatewayClass(obj client.Object) bool {
+	gateway := obj.(*gatewayv1.Gateway)
 	gatewayClass := &gatewayv1.GatewayClass{}
 	if err := r.Client.Get(context.Background(), client.ObjectKey{Name: string(gateway.Spec.GatewayClassName)}, gatewayClass); err != nil {
 		r.Log.Error(err, "failed to get gateway class", "gateway", gateway.GetName(), "gatewayclass", gateway.Spec.GatewayClassName)
@@ -281,12 +269,13 @@ func (r *GatewayReconciler) listGatewaysForHTTPRoute(_ context.Context, obj clie
 	return recs
 }
 
-func (r *GatewayReconciler) processInfrastructure(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway, ns string) error {
+func (r *GatewayReconciler) processInfrastructure(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway) error {
 	infra := gateway.Spec.Infrastructure
 	if infra == nil || infra.ParametersRef == nil {
 		return nil
 	}
 
+	ns := gateway.GetNamespace()
 	paramRef := infra.ParametersRef
 	if string(paramRef.Group) == v1alpha1.GroupVersion.Group && string(paramRef.Kind) == "GatewayProxy" {
 		gatewayProxy := &v1alpha1.GatewayProxy{}
@@ -305,7 +294,7 @@ func (r *GatewayReconciler) processInfrastructure(tctx *provider.TranslateContex
 	return nil
 }
 
-func (r *GatewayReconciler) processListenerConfig(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway, ns string) {
+func (r *GatewayReconciler) processListenerConfig(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway) {
 	listeners := gateway.Spec.Listeners
 	for _, listener := range listeners {
 		if listener.TLS == nil || listener.TLS.CertificateRefs == nil {
@@ -313,6 +302,7 @@ func (r *GatewayReconciler) processListenerConfig(tctx *provider.TranslateContex
 		}
 		secret := corev1.Secret{}
 		for _, ref := range listener.TLS.CertificateRefs {
+			ns := gateway.GetNamespace()
 			if ref.Namespace != nil {
 				ns = string(*ref.Namespace)
 			}
