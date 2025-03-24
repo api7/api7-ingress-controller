@@ -173,7 +173,6 @@ spec:
 	})
 
 	Context("HTTPRoute Base", func() {
-
 		var exactRouteByGet = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -228,10 +227,10 @@ spec:
 			By("create HTTPRoute")
 			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 1)
 
-			By("access dataplane to check the HTTPRoute")
-			s.NewAPISIXHttpsClient("api6.com").
+			By("access daataplane to check the HTTPRoute")
+			s.NewAPISIXClient().
 				GET("/get").
-				WithHost("api6.com").
+				WithHost("httpbin.example").
 				Expect().
 				Status(200)
 
@@ -240,9 +239,9 @@ spec:
 			Expect(err).NotTo(HaveOccurred(), "deleting Gateway")
 			time.Sleep(5 * time.Second)
 
-			s.NewAPISIXHttpsClient("api6.com").
+			s.NewAPISIXClient().
 				GET("/get").
-				WithHost("api6.com").
+				WithHost("httpbin.example").
 				Expect().
 				Status(404)
 		})
