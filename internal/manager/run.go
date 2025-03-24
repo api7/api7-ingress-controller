@@ -124,7 +124,11 @@ func Run(ctx context.Context, logger logr.Logger) error {
 	}
 
 	setupLog.Info("setting up controllers")
-	controllers := setupControllers(ctx, mgr, pro)
+	controllers, err := setupControllers(ctx, mgr, pro)
+	if err != nil {
+		setupLog.Error(err, "unable to set up controllers")
+		return err
+	}
 	for _, c := range controllers {
 		if err := c.SetupWithManager(mgr); err != nil {
 			return err

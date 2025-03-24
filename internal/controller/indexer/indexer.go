@@ -1,15 +1,71 @@
 package indexer
 
 import (
+	"context"
+
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 const (
-	ServiceIndexRef = "serviceRef"
+	ServiceIndexRef = "serviceRefs"
 	ExtensionRef    = "extensionRef"
 	ParametersRef   = "parametersRef"
+	ParentRefs      = "parentRefs"
 )
+
+func SetupIndexer(mgr ctrl.Manager) error {
+	if err := setupGatewayIndexer(mgr); err != nil {
+		return err
+	}
+	if err := setupHTTPRouteIndexer(mgr); err != nil {
+		return err
+	}
+	return nil
+}
+
+func setupGatewayIndexer(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&gatewayv1.Gateway{},
+		ParametersRef,
+		GatewayParametersRefIndexFunc,
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
+func setupHTTPRouteIndexer(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&gatewayv1.HTTPRoute{},
+		ParentRefs,
+		HTTPRouteParentRefsIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&gatewayv1.HTTPRoute{},
+		ExtensionRef,
+		HTTPRouteExtensionIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&gatewayv1.HTTPRoute{},
+		ServiceIndexRef,
+		HTTPRouteServiceIndexFunc,
+	); err != nil {
+		return err
+	}
+	return nil
+}
 
 func GenIndexKey(namespace, name string) string {
 	return client.ObjectKey{
@@ -18,9 +74,22 @@ func GenIndexKey(namespace, name string) string {
 	}.String()
 }
 
+func HTTPRouteParentRefsIndexFunc(rawObj client.Object) []string {
+	hr := rawObj.(*gatewayv1.HTTPRoute)
+	keys := make([]string, 0, len(hr.Spec.ParentRefs))
+	for _, ref := range hr.Spec.ParentRefs {
+		ns := hr.GetNamespace()
+		if ref.Namespace != nil {
+			ns = string(*ref.Namespace)
+		}
+		keys = append(keys, GenIndexKey(ns, string(ref.Name)))
+	}
+	return keys
+}
+
 func HTTPRouteServiceIndexFunc(rawObj client.Object) []string {
 	hr := rawObj.(*gatewayv1.HTTPRoute)
-	var keys []string
+	keys := make([]string, 0, len(hr.Spec.Rules))
 	for _, rule := range hr.Spec.Rules {
 		for _, backend := range rule.BackendRefs {
 			namespace := hr.GetNamespace()
@@ -38,7 +107,7 @@ func HTTPRouteServiceIndexFunc(rawObj client.Object) []string {
 
 func HTTPRouteExtensionIndexFunc(rawObj client.Object) []string {
 	hr := rawObj.(*gatewayv1.HTTPRoute)
-	var keys []string
+	keys := make([]string, 0, len(hr.Spec.Rules))
 	for _, rule := range hr.Spec.Rules {
 		for _, filter := range rule.Filters {
 			if filter.Type != gatewayv1.HTTPRouteFilterExtensionRef || filter.ExtensionRef == nil {
