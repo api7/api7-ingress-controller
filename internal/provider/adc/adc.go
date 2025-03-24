@@ -89,7 +89,7 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 	case *gatewayv1.HTTPRoute:
 		resourceTypes = append(resourceTypes, "service")
 	case *gatewayv1.Gateway:
-		resourceTypes = append(resourceTypes, "global_rule", "ssl", "plugin_metadata")
+		// delete all resources
 	}
 
 	return d.sync(Task{
