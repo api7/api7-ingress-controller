@@ -223,6 +223,29 @@ spec:
 				Expect().
 				Status(404)
 		})
+
+		It("Delete Gateway after apply HTTPRoute", func() {
+			By("create HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 1)
+
+			By("access dataplane to check the HTTPRoute")
+			s.NewAPISIXHttpsClient("api6.com").
+				GET("/get").
+				WithHost("api6.com").
+				Expect().
+				Status(200)
+
+			By("delete Gateway")
+			err := s.DeleteResourceFromString(defautlGateway)
+			Expect(err).NotTo(HaveOccurred(), "deleting Gateway")
+			time.Sleep(5 * time.Second)
+
+			s.NewAPISIXHttpsClient("api6.com").
+				GET("/get").
+				WithHost("api6.com").
+				Expect().
+				Status(404)
+		})
 	})
 	Context("HTTPRoute Rule Match", func() {
 		var exactRouteByGet = `
