@@ -15,7 +15,7 @@ RUN apt update \
     && rm -rf adc.tar.gz \
     && apt autoremove -y wget
 
-FROM gcr.io/distroless/static-debian12:${BASE_IMAGE_TAG}
+FROM gcr.io/distroless/cc-debian12:${BASE_IMAGE_TAG}
 WORKDIR /app
 
 COPY --from=deps /bin/adc /bin/adc
