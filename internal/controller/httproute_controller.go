@@ -12,7 +12,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -46,6 +48,25 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Watches(&v1alpha1.PluginConfig{},
 			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesByExtensionRef),
+		).
+		Watches(&gatewayv1.Gateway{},
+			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesForGateway),
+			builder.WithPredicates(
+				predicate.Funcs{
+					GenericFunc: func(e event.GenericEvent) bool {
+						return false
+					},
+					DeleteFunc: func(e event.DeleteEvent) bool {
+						return false
+					},
+					CreateFunc: func(e event.CreateEvent) bool {
+						return true
+					},
+					UpdateFunc: func(e event.UpdateEvent) bool {
+						return true
+					},
+				},
+			),
 		).
 		Complete(r)
 }
@@ -176,6 +197,30 @@ func (r *HTTPRouteReconciler) listHTTPRoutesByExtensionRef(ctx context.Context, 
 		indexer.ExtensionRef: indexer.GenIndexKey(namespace, name),
 	}); err != nil {
 		r.Log.Error(err, "failed to list httproutes by extension reference", "extension", name)
+		return nil
+	}
+	requests := make([]reconcile.Request, 0, len(hrList.Items))
+	for _, hr := range hrList.Items {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: client.ObjectKey{
+				Namespace: hr.Namespace,
+				Name:      hr.Name,
+			},
+		})
+	}
+	return requests
+}
+
+func (r *HTTPRouteReconciler) listHTTPRoutesForGateway(ctx context.Context, obj client.Object) []reconcile.Request {
+	gateway, ok := obj.(*gatewayv1.Gateway)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to Gateway")
+	}
+	hrList := &gatewayv1.HTTPRouteList{}
+	if err := r.List(ctx, hrList, client.MatchingFields{
+		indexer.ParentRefs: indexer.GenIndexKey(gateway.Namespace, gateway.Name),
+	}); err != nil {
+		r.Log.Error(err, "failed to list httproutes by gateway", "gateway", gateway.Name)
 		return nil
 	}
 	requests := make([]reconcile.Request, 0, len(hrList.Items))

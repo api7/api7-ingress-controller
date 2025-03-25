@@ -85,16 +85,18 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 	log.Debugw("deleting object", zap.Any("object", obj))
 
 	var resourceTypes []string
+	var labels map[string]string
 	switch obj.(type) {
 	case *gatewayv1.HTTPRoute:
 		resourceTypes = append(resourceTypes, "service")
+		labels = label.GenLabel(obj)
 	case *gatewayv1.Gateway:
-		resourceTypes = append(resourceTypes, "global_rule", "ssl", "plugin_metadata")
+		// delete all resources
 	}
 
 	return d.sync(Task{
 		Name:          obj.GetName(),
-		Labels:        label.GenLabel(obj),
+		Labels:        labels,
 		ResourceTypes: resourceTypes,
 	})
 }

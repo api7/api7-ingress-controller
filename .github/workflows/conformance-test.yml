@@ -32,7 +32,7 @@ jobs:
         run: |
           go install sigs.k8s.io/kind@v0.23.0
 
-  e2e-test:
+  conformance-test:
     needs: 
       - prepare
     runs-on: buildjet-2vcpu-ubuntu-2204
@@ -85,11 +85,29 @@ jobs:
         shell: bash
         env:
           API7_EE_LICENSE: ${{ secrets.API7_EE_LICENSE }}
+        continue-on-error: true
         run: |
           make conformance-test
-      
+
       - name: Upload Gateway API Conformance Report
+        if: ${{ github.event_name == 'push' }}
         uses: actions/upload-artifact@v4
         with:
           name: api7-ingress-controller-conformance-report.yaml
           path: api7-ingress-controller-conformance-report.yaml
+
+      - name: Format Conformance Test Report
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          echo '# conformance test report' > report.md
+          echo '```yaml' >> report.md
+          cat api7-ingress-controller-conformance-report.yaml >> report.md
+          echo '```' >> report.md
+
+      - name: Report Conformance Test Result to PR Comment
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: mshick/add-pr-comment@v2
+        with:
+          message-id: '${{ matrix.target }}'
+          message-path: |
+            report.md
