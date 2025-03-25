@@ -235,7 +235,7 @@ spec:
 				Status(200)
 
 			By("delete Gateway")
-			err := s.DeleteResourceFromString(defautlGateway)
+			err := s.DeleteResource("Gateway", "api7ee")
 			Expect(err).NotTo(HaveOccurred(), "deleting Gateway")
 			time.Sleep(5 * time.Second)
 
