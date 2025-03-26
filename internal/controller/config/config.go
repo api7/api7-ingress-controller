@@ -28,6 +28,7 @@ func NewDefaultConfig() *Config {
 		LeaderElectionID: DefaultLeaderElectionID,
 		ProbeAddr:        DefaultProbeAddr,
 		MetricsAddr:      DefaultMetricsAddr,
+		IngressClass:     DefaultIngressClass,
 	}
 }
 
@@ -160,4 +161,19 @@ func GatewayNameList() []string {
 		}
 	}
 	return gatewayNameList
+}
+
+// GetIngressClass 获取 Ingress 类名
+func GetIngressClass() string {
+	return ControllerConfig.IngressClass
+}
+
+// GetIngressPublishService 获取 Ingress 发布服务
+func GetIngressPublishService() string {
+	return ControllerConfig.IngressPublishService
+}
+
+// GetIngressStatusAddress 获取 Ingress 状态地址
+func GetIngressStatusAddress() []string {
+	return ControllerConfig.IngressStatusAddress
 }

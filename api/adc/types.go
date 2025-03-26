@@ -540,6 +540,6 @@ type ResponseDetails struct {
 }
 
 type ResponseData struct {
-	Value    map[string]interface{} `json:"value"`
-	ErrorMsg string                 `json:"error_msg"`
+	Value    map[string]any `json:"value"`
+	ErrorMsg string         `json:"error_msg"`
 }
