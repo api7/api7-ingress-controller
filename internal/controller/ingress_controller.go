@@ -75,7 +75,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			ingress.Name = req.Name
 
 			ingress.TypeMeta = metav1.TypeMeta{
-				Kind:       "Ingress",
+				Kind:       KindIngress,
 				APIVersion: networkingv1.SchemeGroupVersion.String(),
 			}
 
@@ -84,8 +84,9 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				return ctrl.Result{}, err
 			}
 			r.Log.Info("deleted ingress resources", "ingress", ingress.Name)
+			return ctrl.Result{}, nil
 		}
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		return ctrl.Result{}, err
 	}
 
 	r.Log.Info("reconciling ingress", "ingress", ingress.Name)
@@ -128,11 +129,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 // checkIngressClass check if the ingress uses the ingress class that we control
 func (r *IngressReconciler) checkIngressClass(obj client.Object) bool {
-	ingress, ok := obj.(*networkingv1.Ingress)
-	if !ok {
-		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to Ingress")
-		return false
-	}
+	ingress := obj.(*networkingv1.Ingress)
 
 	if ingress.Spec.IngressClassName == nil {
 		// handle the case where IngressClassName is not specified
@@ -145,10 +142,8 @@ func (r *IngressReconciler) checkIngressClass(obj client.Object) bool {
 
 		// find the ingress class that is marked as default
 		for _, ic := range ingressClassList.Items {
-			if ic.Annotations["ingressclass.kubernetes.io/is-default-class"] == "true" {
-				if matchesController(ic.Spec.Controller) {
-					return true
-				}
+			if IsDefaultIngressClass(&ic) && matchesController(ic.Spec.Controller) {
+				return true
 			}
 		}
 
@@ -162,8 +157,8 @@ func (r *IngressReconciler) checkIngressClass(obj client.Object) bool {
 	}
 
 	// if it does not match, check if the ingress class is controlled by us
-	ingressClass := &networkingv1.IngressClass{}
-	if err := r.Client.Get(context.Background(), client.ObjectKey{Name: *ingress.Spec.IngressClassName}, ingressClass); err != nil {
+	ingressClass := networkingv1.IngressClass{}
+	if err := r.Client.Get(context.Background(), client.ObjectKey{Name: *ingress.Spec.IngressClassName}, &ingressClass); err != nil {
 		r.Log.Error(err, "failed to get ingress class", "ingress", ingress.GetName(), "ingressclass", *ingress.Spec.IngressClassName)
 		return false
 	}
@@ -279,7 +274,6 @@ func (r *IngressReconciler) processTLS(ctx context.Context, tctx *provider.Trans
 			Name:      tls.SecretName,
 		}, &secret); err != nil {
 			log.Error(err, "failed to get secret", "namespace", ingress.Namespace, "name", tls.SecretName)
-			// todo: set the ingress condition to false
 			return err
 		}
 
