@@ -25,9 +25,6 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/provider"
 )
 
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes/status,verbs=get;update
-
 // HTTPRouteReconciler reconciles a GatewayClass object.
 type HTTPRouteReconciler struct { //nolint:revive
 	client.Client

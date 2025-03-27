@@ -11,14 +11,27 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/provider"
 )
 
+// K8s
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="discovery.k8s.io",resources=endpointslices,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
+
+// CustomResourceDefinition
 // +kubebuilder:rbac:groups=gateway.apisix.io,resources=pluginconfigs,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gateway.apisix.io,resources=gatewayproxies,verbs=get;list;watch
+// +kubebuilder:rbac:groups=gateway.apisix.io,resources=consumers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=gateway.apisix.io,resources=consumers/status,verbs=get;update
+
+// GatewayAPI
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses/status,verbs=get;update
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;update
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes/status,verbs=get;update
 
 type Controller interface {
 	SetupWithManager(mgr manager.Manager) error
@@ -44,6 +57,12 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("HTTPRoute"),
+			Provider: pro,
+		},
+		&controller.ConsumerReconciler{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Consumer"),
 			Provider: pro,
 		},
 	}, nil

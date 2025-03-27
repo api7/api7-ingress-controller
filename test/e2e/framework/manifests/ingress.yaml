@@ -53,56 +53,6 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: api7-ingress
-  name: api7-ingress-guestbook-editor-role
-rules:
-- apiGroups:
-  - gateway.apisix.io.github.com
-  resources:
-  - guestbooks
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - gateway.apisix.io.github.com
-  resources:
-  - guestbooks/status
-  verbs:
-  - get
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: api7-ingress
-  name: api7-ingress-guestbook-viewer-role
-rules:
-- apiGroups:
-  - gateway.apisix.io.github.com
-  resources:
-  - guestbooks
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - gateway.apisix.io.github.com
-  resources:
-  - guestbooks/status
-  verbs:
-  - get
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
   name: api7-ingress-manager-role
 rules:
 - apiGroups:
@@ -115,7 +65,7 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - services
+  - namespaces
   verbs:
   - get
   - list
@@ -131,7 +81,7 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - namespaces
+  - services
   verbs:
   - get
   - list
@@ -159,8 +109,30 @@ rules:
 - apiGroups:
   - gateway.apisix.io
   resources:
-  - pluginconfigs
+  - consumers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gateway.apisix.io
+  resources:
+  - consumers/status
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - gateway.apisix.io
+  resources:
   - gatewayproxies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gateway.apisix.io
+  resources:
+  - pluginconfigs
   verbs:
   - get
   - list
