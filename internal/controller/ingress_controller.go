@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"strings"
 
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
@@ -380,29 +379,36 @@ func (r *IngressReconciler) updateStatus(ctx context.Context, ingress *networkin
 		publishService := config.GetIngressPublishService()
 		if publishService != "" {
 			// parse the namespace/name format
-			parts := strings.Split(publishService, "/")
-			if len(parts) != 2 {
+			namespace, name, err := SplitMetaNamespaceKey(publishService)
+			if err != nil {
 				return fmt.Errorf("invalid ingress-publish-service format: %s, expected format: namespace/name", publishService)
+			}
+			if namespace == "" {
+				namespace = ingress.Namespace
 			}
 
 			svc := &corev1.Service{}
-			if err := r.Get(ctx, client.ObjectKey{Namespace: parts[0], Name: parts[1]}, svc); err != nil {
+			if err := r.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, svc); err != nil {
 				return fmt.Errorf("failed to get publish service %s: %w", publishService, err)
 			}
 
-			// get the LoadBalancer IP and Hostname of the service
-			for _, ip := range svc.Status.LoadBalancer.Ingress {
-				if ip.IP != "" {
-					loadBalancerStatus.Ingress = append(loadBalancerStatus.Ingress, networkingv1.IngressLoadBalancerIngress{
-						IP: ip.IP,
-					})
-				}
-				if ip.Hostname != "" {
-					loadBalancerStatus.Ingress = append(loadBalancerStatus.Ingress, networkingv1.IngressLoadBalancerIngress{
-						Hostname: ip.Hostname,
-					})
+			if svc.Spec.Type != corev1.ServiceTypeLoadBalancer {
+				r.Log.Error(fmt.Errorf("publish service %s is not a load balancer service", publishService), "publish service is not a load balancer service")
+				// get the LoadBalancer IP and Hostname of the service
+				for _, ip := range svc.Status.LoadBalancer.Ingress {
+					if ip.IP != "" {
+						loadBalancerStatus.Ingress = append(loadBalancerStatus.Ingress, networkingv1.IngressLoadBalancerIngress{
+							IP: ip.IP,
+						})
+					}
+					if ip.Hostname != "" {
+						loadBalancerStatus.Ingress = append(loadBalancerStatus.Ingress, networkingv1.IngressLoadBalancerIngress{
+							Hostname: ip.Hostname,
+						})
+					}
 				}
 			}
+
 		} else {
 			// 3. if the PublishService is not configured, try to use the Gateway's Addresses
 			cfg := config.GetFirstGatewayConfig()
