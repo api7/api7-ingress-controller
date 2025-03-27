@@ -116,7 +116,6 @@ func IngressClassIndexFunc(rawObj client.Object) []string {
 }
 
 func IngressServiceIndexFunc(rawObj client.Object) []string {
-
 	ingress := rawObj.(*networkingv1.Ingress)
 	var services []string
 
@@ -129,18 +128,15 @@ func IngressServiceIndexFunc(rawObj client.Object) []string {
 			if path.Backend.Service == nil {
 				continue
 			}
-
 			key := GenIndexKey(ingress.Namespace, path.Backend.Service.Name)
 			services = append(services, key)
 		}
 	}
-
 	return services
 }
 
 func IngressSecretIndexFunc(rawObj client.Object) []string {
 	ingress := rawObj.(*networkingv1.Ingress)
-
 	secrets := make([]string, 0)
 
 	for _, tls := range ingress.Spec.TLS {
@@ -151,7 +147,6 @@ func IngressSecretIndexFunc(rawObj client.Object) []string {
 		key := GenIndexKey(ingress.Namespace, tls.SecretName)
 		secrets = append(secrets, key)
 	}
-
 	return secrets
 }
 

@@ -17,32 +17,19 @@ type Provider interface {
 	Delete(context.Context, client.Object) error
 }
 
-// BackendRef represents the backend reference of the ingress
-type BackendRef struct {
-	Namespace string
-	Name      string
-	Port      int32
-	Host      string
-	Path      string
-	PathType  string
-	IsDefault bool
-}
-
 type TranslateContext struct {
-	BackendRefs        []gatewayv1.BackendRef
-	GatewayTLSConfig   []gatewayv1.GatewayTLSConfig
-	GatewayProxy       *v1alpha1.GatewayProxy
-	EndpointSlices     map[types.NamespacedName][]discoveryv1.EndpointSlice
-	Secrets            map[types.NamespacedName]*corev1.Secret
-	PluginConfigs      map[types.NamespacedName]*v1alpha1.PluginConfig
-	IngressBackendRefs []*BackendRef
+	BackendRefs      []gatewayv1.BackendRef
+	GatewayTLSConfig []gatewayv1.GatewayTLSConfig
+	GatewayProxy     *v1alpha1.GatewayProxy
+	EndpointSlices   map[types.NamespacedName][]discoveryv1.EndpointSlice
+	Secrets          map[types.NamespacedName]*corev1.Secret
+	PluginConfigs    map[types.NamespacedName]*v1alpha1.PluginConfig
 }
 
 func NewDefaultTranslateContext() *TranslateContext {
 	return &TranslateContext{
-		EndpointSlices:     make(map[types.NamespacedName][]discoveryv1.EndpointSlice),
-		Secrets:            make(map[types.NamespacedName]*corev1.Secret),
-		PluginConfigs:      make(map[types.NamespacedName]*v1alpha1.PluginConfig),
-		IngressBackendRefs: make([]*BackendRef, 0),
+		EndpointSlices: make(map[types.NamespacedName][]discoveryv1.EndpointSlice),
+		Secrets:        make(map[types.NamespacedName]*corev1.Secret),
+		PluginConfigs:  make(map[types.NamespacedName]*v1alpha1.PluginConfig),
 	}
 }

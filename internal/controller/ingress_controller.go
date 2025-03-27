@@ -106,12 +106,6 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	// process routing rules
-	if err := r.processRules(tctx, ingress); err != nil {
-		r.Log.Error(err, "failed to process ingress rules", "ingress", ingress.Name)
-		return ctrl.Result{}, err
-	}
-
 	// update the ingress resources
 	if err := r.Provider.Update(ctx, tctx, ingress); err != nil {
 		r.Log.Error(err, "failed to update ingress resources", "ingress", ingress.Name)
@@ -288,14 +282,6 @@ func (r *IngressReconciler) processTLS(ctx context.Context, tctx *provider.Trans
 func (r *IngressReconciler) processBackends(ctx context.Context, tctx *provider.TranslateContext, ingress *networkingv1.Ingress) error {
 	var terr error
 
-	// process the default backend
-	if ingress.Spec.DefaultBackend != nil && ingress.Spec.DefaultBackend.Service != nil {
-		service := ingress.Spec.DefaultBackend.Service
-		if err := r.processBackendService(ctx, tctx, ingress.Namespace, service.Name, service.Port.Number); err != nil {
-			terr = err
-		}
-	}
-
 	// process all the backend services in the rules
 	for _, rule := range ingress.Spec.Rules {
 		if rule.HTTP == nil {
@@ -308,7 +294,7 @@ func (r *IngressReconciler) processBackends(ctx context.Context, tctx *provider.
 			}
 
 			service := path.Backend.Service
-			if err := r.processBackendService(ctx, tctx, ingress.Namespace, service.Name, service.Port.Number); err != nil {
+			if err := r.processBackendService(ctx, tctx, ingress.Namespace, service); err != nil {
 				terr = err
 			}
 		}
@@ -318,28 +304,37 @@ func (r *IngressReconciler) processBackends(ctx context.Context, tctx *provider.
 }
 
 // processBackendService process a single backend service
-func (r *IngressReconciler) processBackendService(ctx context.Context, tctx *provider.TranslateContext, namespace, name string, port int32) error {
+func (r *IngressReconciler) processBackendService(ctx context.Context, tctx *provider.TranslateContext, namespace string, backendService *networkingv1.IngressServiceBackend) error {
 	// get the service
 	var service corev1.Service
 	if err := r.Get(ctx, client.ObjectKey{
 		Namespace: namespace,
-		Name:      name,
+		Name:      backendService.Name,
 	}, &service); err != nil {
-		r.Log.Error(err, "failed to get service", "namespace", namespace, "name", name)
+		r.Log.Error(err, "failed to get service", "namespace", namespace, "name", backendService.Name)
 		return err
 	}
 
 	// verify if the port exists
-	portExists := false
-	for _, servicePort := range service.Spec.Ports {
-		if servicePort.Port == port {
-			portExists = true
-			break
+	var portExists bool
+	if backendService.Port.Number != 0 {
+		for _, servicePort := range service.Spec.Ports {
+			if servicePort.Port == backendService.Port.Number {
+				portExists = true
+				break
+			}
+		}
+	} else if backendService.Port.Name != "" {
+		for _, servicePort := range service.Spec.Ports {
+			if servicePort.Name == backendService.Port.Name {
+				portExists = true
+				break
+			}
 		}
 	}
 
 	if !portExists {
-		err := fmt.Errorf("port %d not found in service %s/%s", port, namespace, name)
+		err := fmt.Errorf("port(name: %s, number: %d) not found in service %s/%s", backendService.Port.Name, backendService.Port.Number, namespace, backendService.Name)
 		r.Log.Error(err, "service port not found")
 		return err
 	}
@@ -349,84 +344,20 @@ func (r *IngressReconciler) processBackendService(ctx context.Context, tctx *pro
 	if err := r.List(ctx, endpointSliceList,
 		client.InNamespace(namespace),
 		client.MatchingLabels{
-			discoveryv1.LabelServiceName: name,
+			discoveryv1.LabelServiceName: backendService.Name,
 		},
 	); err != nil {
-		r.Log.Error(err, "failed to list endpoint slices", "namespace", namespace, "name", name)
+		r.Log.Error(err, "failed to list endpoint slices", "namespace", namespace, "name", backendService.Name)
 		return err
 	}
 
 	// save the endpoint slices to the translate context
 	tctx.EndpointSlices[client.ObjectKey{
 		Namespace: namespace,
-		Name:      name,
+		Name:      backendService.Name,
 	}] = endpointSliceList.Items
 
 	return nil
-}
-
-// processRules process the rules of the ingress
-func (r *IngressReconciler) processRules(tctx *provider.TranslateContext, ingress *networkingv1.Ingress) error {
-	var terr error
-	// convert the IngressRule to the routing rules
-	for _, rule := range ingress.Spec.Rules {
-		host := rule.Host
-		if rule.HTTP == nil {
-			terr = fmt.Errorf("rule %s has no HTTP section", rule.Host)
-			continue
-		}
-
-		for _, path := range rule.HTTP.Paths {
-			// process the path type
-			pathType := networkingv1.PathTypeImplementationSpecific
-			if path.PathType != nil {
-				pathType = *path.PathType
-			}
-
-			// process the path
-			urlPath := "/"
-			if path.Path != "" {
-				urlPath = path.Path
-			}
-
-			// process the backend service
-			if path.Backend.Service == nil {
-				terr = fmt.Errorf("rule %s has no backend service", rule.Host)
-				continue
-			}
-
-			// add the backend service to the translate context
-			backendRef := &provider.BackendRef{
-				Namespace: ingress.Namespace,
-				Name:      path.Backend.Service.Name,
-				Port:      path.Backend.Service.Port.Number,
-				Host:      host,
-				Path:      urlPath,
-				PathType:  string(pathType),
-			}
-
-			tctx.IngressBackendRefs = append(tctx.IngressBackendRefs, backendRef)
-		}
-	}
-
-	// process the default backend
-	if ingress.Spec.DefaultBackend != nil && ingress.Spec.DefaultBackend.Service != nil {
-		service := ingress.Spec.DefaultBackend.Service
-
-		backendRef := &provider.BackendRef{
-			Namespace: ingress.Namespace,
-			Name:      service.Name,
-			Port:      service.Port.Number,
-			Host:      "",  // the default backend has no host
-			Path:      "/", // the default path
-			PathType:  string(networkingv1.PathTypePrefix),
-			IsDefault: true,
-		}
-
-		tctx.IngressBackendRefs = append(tctx.IngressBackendRefs, backendRef)
-	}
-
-	return terr
 }
 
 // updateStatus update the status of the ingress

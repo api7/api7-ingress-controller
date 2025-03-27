@@ -10,6 +10,7 @@ import (
 
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
+	networkingv1 "k8s.io/api/networking/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -60,6 +61,9 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 	case *gatewayv1.Gateway:
 		result, err = d.translator.TranslateGateway(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "global_rule", "ssl", "plugin_metadata")
+	case *networkingv1.Ingress:
+		result, err = d.translator.TranslateIngress(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, "service", "ssl")
 	}
 	if err != nil {
 		return err
