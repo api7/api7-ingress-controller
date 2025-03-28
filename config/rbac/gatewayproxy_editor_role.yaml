@@ -12,7 +12,7 @@ metadata:
   name: gatewayproxy-editor-role
 rules:
 - apiGroups:
-  - gateway.apisix.io.github.com
+  - gateway.apisix.io
   resources:
   - gatewayproxies
   verbs:
@@ -24,7 +24,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - gateway.apisix.io.github.com
+  - gateway.apisix.io
   resources:
   - gatewayproxies/status
   verbs:
