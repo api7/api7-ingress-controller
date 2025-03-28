@@ -16,6 +16,7 @@ const (
 	ParentRefs      = "parentRefs"
 	IngressClass    = "ingressClass"
 	SecretIndexRef  = "secretRefs"
+	IngressClassRef = "ingressClassRef"
 )
 
 func SetupIndexer(mgr ctrl.Manager) error {
@@ -78,8 +79,8 @@ func setupIngressIndexer(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
 		&networkingv1.Ingress{},
-		IngressClass,
-		IngressClassIndexFunc,
+		IngressClassRef,
+		IngressClassRefIndexFunc,
 	); err != nil {
 		return err
 	}
@@ -104,10 +105,29 @@ func setupIngressIndexer(mgr ctrl.Manager) error {
 		return err
 	}
 
+	// create IngressClass index
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&networkingv1.IngressClass{},
+		IngressClass,
+		IngressClassIndexFunc,
+	); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func IngressClassIndexFunc(rawObj client.Object) []string {
+	ingressClass := rawObj.(*networkingv1.IngressClass)
+	if ingressClass.Spec.Controller == "" {
+		return nil
+	}
+	controllerName := ingressClass.Spec.Controller
+	return []string{controllerName}
+}
+
+func IngressClassRefIndexFunc(rawObj client.Object) []string {
 	ingress := rawObj.(*networkingv1.Ingress)
 	if ingress.Spec.IngressClassName == nil {
 		return nil

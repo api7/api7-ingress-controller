@@ -33,6 +33,11 @@ import (
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes/status,verbs=get;update
 
+// Networking
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses/status,verbs=get;update
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingressclasses,verbs=get;list;watch
+
 type Controller interface {
 	SetupWithManager(mgr manager.Manager) error
 }

@@ -24,10 +24,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;update
-// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses/status,verbs=get;update
-// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingressclasses,verbs=get;list;watch
-
 // IngressReconciler reconciles a Ingress object.
 type IngressReconciler struct { //nolint:revive
 	client.Client
@@ -128,7 +124,9 @@ func (r *IngressReconciler) checkIngressClass(obj client.Object) bool {
 		// handle the case where IngressClassName is not specified
 		// find all ingress classes and check if any of them is marked as default
 		ingressClassList := &networkingv1.IngressClassList{}
-		if err := r.List(context.Background(), ingressClassList); err != nil {
+		if err := r.List(context.Background(), ingressClassList, client.MatchingFields{
+			indexer.IngressClass: config.GetControllerName(),
+		}); err != nil {
 			r.Log.Error(err, "failed to list ingress classes")
 			return false
 		}
@@ -310,7 +308,10 @@ func (r *IngressReconciler) processBackendService(ctx context.Context, tctx *pro
 		Namespace: namespace,
 		Name:      backendService.Name,
 	}, &service); err != nil {
-		r.Log.Error(err, "failed to get service", "namespace", namespace, "name", backendService.Name)
+		if client.IgnoreNotFound(err) == nil {
+			r.Log.Info("service not found", "namespace", namespace, "name", backendService.Name)
+			return nil
+		}
 		return err
 	}
 
@@ -392,8 +393,7 @@ func (r *IngressReconciler) updateStatus(ctx context.Context, ingress *networkin
 				return fmt.Errorf("failed to get publish service %s: %w", publishService, err)
 			}
 
-			if svc.Spec.Type != corev1.ServiceTypeLoadBalancer {
-				r.Log.Error(fmt.Errorf("publish service %s is not a load balancer service", publishService), "publish service is not a load balancer service")
+			if svc.Spec.Type == corev1.ServiceTypeLoadBalancer {
 				// get the LoadBalancer IP and Hostname of the service
 				for _, ip := range svc.Status.LoadBalancer.Ingress {
 					if ip.IP != "" {
@@ -406,20 +406,6 @@ func (r *IngressReconciler) updateStatus(ctx context.Context, ingress *networkin
 							Hostname: ip.Hostname,
 						})
 					}
-				}
-			}
-
-		} else {
-			// 3. if the PublishService is not configured, try to use the Gateway's Addresses
-			cfg := config.GetFirstGatewayConfig()
-			if cfg != nil {
-				for _, addr := range cfg.Addresses {
-					if addr == "" {
-						continue
-					}
-					loadBalancerStatus.Ingress = append(loadBalancerStatus.Ingress, networkingv1.IngressLoadBalancerIngress{
-						IP: addr,
-					})
 				}
 			}
 		}

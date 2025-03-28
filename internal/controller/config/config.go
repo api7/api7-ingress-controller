@@ -174,3 +174,7 @@ func GetIngressPublishService() string {
 func GetIngressStatusAddress() []string {
 	return ControllerConfig.IngressStatusAddress
 }
+
+func GetControllerName() string {
+	return ControllerConfig.ControllerName
+}

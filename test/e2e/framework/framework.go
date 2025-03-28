@@ -20,7 +20,7 @@ import (
 )
 
 var (
-	_namespace = "api7-ee-e2e"
+	_namespace = "api7-ee-e2e-test"
 	_framework *Framework
 )
 
