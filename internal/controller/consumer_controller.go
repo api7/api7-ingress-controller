@@ -12,9 +12,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;update
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;update
-
 // ConsumerReconciler  reconciles a Gateway object.
 type ConsumerReconciler struct { //nolint:revive
 	client.Client
