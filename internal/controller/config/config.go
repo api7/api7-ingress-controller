@@ -28,6 +28,7 @@ func NewDefaultConfig() *Config {
 		LeaderElectionID: DefaultLeaderElectionID,
 		ProbeAddr:        DefaultProbeAddr,
 		MetricsAddr:      DefaultMetricsAddr,
+		IngressClass:     DefaultIngressClass,
 	}
 }
 
@@ -160,4 +161,20 @@ func GatewayNameList() []string {
 		}
 	}
 	return gatewayNameList
+}
+
+func GetIngressClass() string {
+	return ControllerConfig.IngressClass
+}
+
+func GetIngressPublishService() string {
+	return ControllerConfig.IngressPublishService
+}
+
+func GetIngressStatusAddress() []string {
+	return ControllerConfig.IngressStatusAddress
+}
+
+func GetControllerName() string {
+	return ControllerConfig.ControllerName
 }

@@ -33,6 +33,11 @@ import (
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes/status,verbs=get;update
 
+// Networking
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses/status,verbs=get;update
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingressclasses,verbs=get;list;watch
+
 type Controller interface {
 	SetupWithManager(mgr manager.Manager) error
 }
@@ -57,6 +62,12 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("HTTPRoute"),
+			Provider: pro,
+		},
+		&controller.IngressReconciler{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Ingress"),
 			Provider: pro,
 		},
 		&controller.ConsumerReconciler{

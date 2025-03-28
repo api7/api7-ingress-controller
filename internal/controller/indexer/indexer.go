@@ -3,6 +3,7 @@ package indexer
 import (
 	"context"
 
+	networkingv1 "k8s.io/api/networking/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -13,6 +14,9 @@ const (
 	ExtensionRef    = "extensionRef"
 	ParametersRef   = "parametersRef"
 	ParentRefs      = "parentRefs"
+	IngressClass    = "ingressClass"
+	SecretIndexRef  = "secretRefs"
+	IngressClassRef = "ingressClassRef"
 )
 
 func SetupIndexer(mgr ctrl.Manager) error {
@@ -20,6 +24,9 @@ func SetupIndexer(mgr ctrl.Manager) error {
 		return err
 	}
 	if err := setupHTTPRouteIndexer(mgr); err != nil {
+		return err
+	}
+	if err := setupIngressIndexer(mgr); err != nil {
 		return err
 	}
 	return nil
@@ -65,6 +72,102 @@ func setupHTTPRouteIndexer(mgr ctrl.Manager) error {
 		return err
 	}
 	return nil
+}
+
+func setupIngressIndexer(mgr ctrl.Manager) error {
+	// create IngressClass index
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&networkingv1.Ingress{},
+		IngressClassRef,
+		IngressClassRefIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	// create Service index for quick lookup of Ingresses using specific services
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&networkingv1.Ingress{},
+		ServiceIndexRef,
+		IngressServiceIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	// create secret index for TLS
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&networkingv1.Ingress{},
+		SecretIndexRef,
+		IngressSecretIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	// create IngressClass index
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&networkingv1.IngressClass{},
+		IngressClass,
+		IngressClassIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func IngressClassIndexFunc(rawObj client.Object) []string {
+	ingressClass := rawObj.(*networkingv1.IngressClass)
+	if ingressClass.Spec.Controller == "" {
+		return nil
+	}
+	controllerName := ingressClass.Spec.Controller
+	return []string{controllerName}
+}
+
+func IngressClassRefIndexFunc(rawObj client.Object) []string {
+	ingress := rawObj.(*networkingv1.Ingress)
+	if ingress.Spec.IngressClassName == nil {
+		return nil
+	}
+	return []string{*ingress.Spec.IngressClassName}
+}
+
+func IngressServiceIndexFunc(rawObj client.Object) []string {
+	ingress := rawObj.(*networkingv1.Ingress)
+	var services []string
+
+	for _, rule := range ingress.Spec.Rules {
+		if rule.HTTP == nil {
+			continue
+		}
+
+		for _, path := range rule.HTTP.Paths {
+			if path.Backend.Service == nil {
+				continue
+			}
+			key := GenIndexKey(ingress.Namespace, path.Backend.Service.Name)
+			services = append(services, key)
+		}
+	}
+	return services
+}
+
+func IngressSecretIndexFunc(rawObj client.Object) []string {
+	ingress := rawObj.(*networkingv1.Ingress)
+	secrets := make([]string, 0)
+
+	for _, tls := range ingress.Spec.TLS {
+		if tls.SecretName == "" {
+			continue
+		}
+
+		key := GenIndexKey(ingress.Namespace, tls.SecretName)
+		secrets = append(secrets, key)
+	}
+	return secrets
 }
 
 func GenIndexKey(namespace, name string) string {

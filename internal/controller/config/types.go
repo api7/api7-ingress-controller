@@ -13,6 +13,9 @@ const (
 	// DefaultLogLevel is the default log level for apisix-ingress-controller.
 	DefaultLogLevel = "info"
 
+	// DefaultIngressClass is the default ingress class name for Ingress resources
+	DefaultIngressClass = "api7"
+
 	DefaultMetricsAddr = ":8080"
 	DefaultProbeAddr   = ":8081"
 )
@@ -20,16 +23,19 @@ const (
 // Config contains all config items which are necessary for
 // apisix-ingress-controller's running.
 type Config struct {
-	CertFilePath     string           `json:"cert_file" yaml:"cert_file"`
-	KeyFilePath      string           `json:"key_file" yaml:"key_file"`
-	LogLevel         string           `json:"log_level" yaml:"log_level"`
-	ControllerName   string           `json:"controller_name" yaml:"controller_name"`
-	LeaderElectionID string           `json:"leader_election_id" yaml:"leader_election_id"`
-	GatewayConfigs   []*GatewayConfig `json:"gateway_configs" yaml:"gateway_configs"`
-	MetricsAddr      string           `json:"metrics_addr" yaml:"metrics_addr"`
-	EnableHTTP2      bool             `json:"enable_http2" yaml:"enable_http2"`
-	ProbeAddr        string           `json:"probe_addr" yaml:"probe_addr"`
-	SecureMetrics    bool             `json:"secure_metrics" yaml:"secure_metrics"`
+	CertFilePath          string           `json:"cert_file" yaml:"cert_file"`
+	KeyFilePath           string           `json:"key_file" yaml:"key_file"`
+	LogLevel              string           `json:"log_level" yaml:"log_level"`
+	ControllerName        string           `json:"controller_name" yaml:"controller_name"`
+	LeaderElectionID      string           `json:"leader_election_id" yaml:"leader_election_id"`
+	GatewayConfigs        []*GatewayConfig `json:"gateway_configs" yaml:"gateway_configs"`
+	MetricsAddr           string           `json:"metrics_addr" yaml:"metrics_addr"`
+	EnableHTTP2           bool             `json:"enable_http2" yaml:"enable_http2"`
+	ProbeAddr             string           `json:"probe_addr" yaml:"probe_addr"`
+	SecureMetrics         bool             `json:"secure_metrics" yaml:"secure_metrics"`
+	IngressClass          string           `json:"ingress_class" yaml:"ingress_class"`
+	IngressPublishService string           `json:"ingress_publish_service" yaml:"ingress_publish_service"`
+	IngressStatusAddress  []string         `json:"ingress_status_address" yaml:"ingress_status_address"`
 }
 
 type GatewayConfig struct {

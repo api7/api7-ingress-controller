@@ -8,6 +8,7 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -19,7 +20,18 @@ const (
 	KindGateway      = "Gateway"
 	KindHTTPRoute    = "HTTPRoute"
 	KindGatewayClass = "GatewayClass"
+	KindIngress      = "Ingress"
 )
+
+const defaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
+
+// IsDefaultIngressClass returns whether an IngressClass is the default IngressClass.
+func IsDefaultIngressClass(obj client.Object) bool {
+	if ingressClass, ok := obj.(*networkingv1.IngressClass); ok {
+		return ingressClass.Annotations[defaultIngressClassAnnotation] == "true"
+	}
+	return false
+}
 
 func acceptedMessage(kind string) string {
 	return fmt.Sprintf("the %s has been accepted by the api7-ingress-controller", kind)
@@ -730,4 +742,20 @@ func getListenerStatus(
 	}
 
 	return statusArray, nil
+}
+
+// SplitMetaNamespaceKey returns the namespace and name that
+// MetaNamespaceKeyFunc encoded into key.
+func SplitMetaNamespaceKey(key string) (namespace, name string, err error) {
+	parts := strings.Split(key, "/")
+	switch len(parts) {
+	case 1:
+		// name only, no namespace
+		return "", parts[0], nil
+	case 2:
+		// namespace and name
+		return parts[0], parts[1], nil
+	}
+
+	return "", "", fmt.Errorf("unexpected key format: %q", key)
 }
