@@ -150,7 +150,6 @@ func (r *IngressReconciler) checkIngressClass(obj client.Object) bool {
 	// if it does not match, check if the ingress class is controlled by us
 	ingressClass := networkingv1.IngressClass{}
 	if err := r.Client.Get(context.Background(), client.ObjectKey{Name: *ingress.Spec.IngressClassName}, &ingressClass); err != nil {
-		r.Log.Error(err, "failed to get ingress class", "ingress", ingress.GetName(), "ingressclass", *ingress.Spec.IngressClassName)
 		return false
 	}
 
@@ -172,7 +171,7 @@ func (r *IngressReconciler) matchesIngressController(obj client.Object) bool {
 func (r *IngressReconciler) listIngressForIngressClass(ctx context.Context, ingressClass client.Object) []reconcile.Request {
 	ingressList := &networkingv1.IngressList{}
 	if err := r.List(ctx, ingressList, client.MatchingFields{
-		indexer.IngressClass: ingressClass.GetName(),
+		indexer.IngressClassRef: ingressClass.GetName(),
 	}); err != nil {
 		r.Log.Error(err, "failed to list ingresses for ingress class", "ingressclass", ingressClass.GetName())
 		return nil
