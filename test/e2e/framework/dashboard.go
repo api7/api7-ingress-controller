@@ -235,6 +235,10 @@ dashboard_service:
             #     port:
             #       number: 7943
     tls: []
+api_usage:
+  service:
+    ingress:
+      enabled: false
 `)
 	if err != nil {
 		panic(err)

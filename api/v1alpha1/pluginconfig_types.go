@@ -8,11 +8,6 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// PluginConfigSpec defines the desired state of PluginConfig
-type PluginConfigSpec struct {
-	Plugins []Plugin `json:"plugins"`
-}
-
 // +kubebuilder:object:root=true
 
 // PluginConfig is the Schema for the PluginConfigs API
@@ -21,6 +16,11 @@ type PluginConfig struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec PluginConfigSpec `json:"spec,omitempty"`
+}
+
+// PluginConfigSpec defines the desired state of PluginConfig
+type PluginConfigSpec struct {
+	Plugins []Plugin `json:"plugins"`
 }
 
 // +kubebuilder:object:root=true
