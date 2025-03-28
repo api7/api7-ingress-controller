@@ -6,8 +6,8 @@ import (
 )
 
 const (
-	DashboardEndpoint           = "http://api7ee3-dashboard.api7-ee-e2e-test:7080"
-	DashboardTLSEndpoint        = "https://api7ee3-dashboard.api7-ee-e2e-test:7443"
+	DashboardEndpoint           = "http://api7ee3-dashboard.api7-ee-e2e:7080"
+	DashboardTLSEndpoint        = "https://api7ee3-dashboard.api7-ee-e2e:7443"
 	DataPlaneEndpoint           = "http://api7ee3-apisix-gateway:80"         // has two instances
 	DataPlaneForIngressEndpoint = "http://api7ee3-apisix-gateway-ingress:80" // only one instances
 	DataPlaneForIngressHost     = "api7ee3-apisix-gateway-ingress"
@@ -15,8 +15,8 @@ const (
 	MTLSDataPlaneHost           = "api7ee3-apisix-gateway-mtls"
 	MTLSDataPlaneEndpoint       = "http://api7ee3-apisix-gateway-mtls:80" // only one instance
 	PrometheusEndpoint          = "http://api7-prometheus-server:9090"
-	DPManagerEndpoint           = "http://api7ee3-dp-manager.api7-ee-e2e-test:7900"
-	DPManagerTLSEndpoint        = "https://api7ee3-dp-manager.api7-ee-e2e-test:7943"
+	DPManagerEndpoint           = "http://api7ee3-dp-manager.api7-ee-e2e:7900"
+	DPManagerTLSEndpoint        = "https://api7ee3-dp-manager.api7-ee-e2e:7943"
 	VaultEndpoint               = "http://api7ee3-vault:8200"
 	KeycloakEndpoint            = "http://api7ee3-keycloak:80"
 )
