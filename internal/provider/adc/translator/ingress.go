@@ -2,13 +2,12 @@ package translator
 
 import (
 	"fmt"
+	"strings"
 
 	adctypes "github.com/api7/api7-ingress-controller/api/adc"
 	"github.com/api7/api7-ingress-controller/internal/controller/label"
 	"github.com/api7/api7-ingress-controller/internal/id"
 	"github.com/api7/api7-ingress-controller/internal/provider"
-	"github.com/api7/gopkg/pkg/log"
-	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -23,11 +22,13 @@ func (t *Translator) translateIngressTLS(ingressTLS *networkingv1.IngressTLS, se
 	}
 
 	hosts := ingressTLS.Hosts
-	certHosts, err := extractHost(cert)
-	if err != nil {
-		return nil, err
+	if len(hosts) == 0 {
+		certHosts, err := extractHost(cert)
+		if err != nil {
+			return nil, err
+		}
+		hosts = append(hosts, certHosts...)
 	}
-	hosts = append(hosts, certHosts...)
 	if len(hosts) == 0 {
 		return nil, fmt.Errorf("no hosts found in ingress TLS")
 	}
@@ -64,10 +65,6 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 			Name:      tls.SecretName,
 		}]
 		if secret == nil {
-			continue
-		}
-		if secret.Data == nil {
-			log.Warnw("secret data is nil", zap.String("secret", secret.Namespace+"/"+secret.Name))
 			continue
 		}
 		ssl, err := t.translateIngressTLS(&tls, secret, labels)
@@ -120,21 +117,16 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 			} else if backendService.Port.Name != "" {
 				servicePortName = backendService.Port.Name
 			}
+			_ = servicePort
 
 			// convert the EndpointSlice to upstream nodes
 			if len(endpointSlices) > 0 {
-				upstream.Nodes = t.translateEndpointSliceForIngress(1, endpointSlices, servicePort, servicePortName)
+				upstream.Nodes = t.translateEndpointSliceForIngress(1, endpointSlices, servicePortName)
 			}
 
 			// if there is no upstream node, create a placeholder node
 			if len(upstream.Nodes) == 0 {
-				upstream.Nodes = adctypes.UpstreamNodes{
-					{
-						Host:   "0.0.0.0",
-						Port:   int(servicePort),
-						Weight: 1,
-					},
-				}
+				upstream.Nodes = adctypes.UpstreamNodes{}
 			}
 
 			service.Upstream = upstream
@@ -145,15 +137,30 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 			route.ID = id.GenID(route.Name)
 			route.Labels = labels
 
-			// set the path matching rule
-			switch *path.PathType {
-			case networkingv1.PathTypeExact:
-				route.Uris = []string{path.Path}
-			case networkingv1.PathTypePrefix:
-				route.Uris = []string{path.Path + "*"}
-			case networkingv1.PathTypeImplementationSpecific:
-				route.Uris = []string{path.Path + "*"}
+			uris := []string{path.Path}
+			if path.PathType != nil {
+				if *path.PathType == networkingv1.PathTypePrefix {
+					// As per the specification of Ingress path matching rule:
+					// if the last element of the path is a substring of the
+					// last element in request path, it is not a match, e.g. /foo/bar
+					// matches /foo/bar/baz, but does not match /foo/barbaz.
+					// While in APISIX, /foo/bar matches both /foo/bar/baz and
+					// /foo/barbaz.
+					// In order to be conformant with Ingress specification, here
+					// we create two paths here, the first is the path itself
+					// (exact match), the other is path + "/*" (prefix match).
+					prefix := path.Path
+					if strings.HasSuffix(prefix, "/") {
+						prefix += "*"
+					} else {
+						prefix += "/*"
+					}
+					uris = append(uris, prefix)
+				} else if *path.PathType == networkingv1.PathTypeImplementationSpecific {
+					uris = []string{"/*"}
+				}
 			}
+			route.Uris = uris
 
 			service.Routes = []*adctypes.Route{route}
 			result.Services = append(result.Services, service)
@@ -164,7 +171,7 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 }
 
 // translateEndpointSliceForIngress create upstream nodes from EndpointSlice
-func (t *Translator) translateEndpointSliceForIngress(weight int, endpointSlices []discoveryv1.EndpointSlice, portNumber int32, portName string) adctypes.UpstreamNodes {
+func (t *Translator) translateEndpointSliceForIngress(weight int, endpointSlices []discoveryv1.EndpointSlice, portName string) adctypes.UpstreamNodes {
 	var nodes adctypes.UpstreamNodes
 	if len(endpointSlices) == 0 {
 		return nodes
@@ -172,8 +179,8 @@ func (t *Translator) translateEndpointSliceForIngress(weight int, endpointSlices
 
 	for _, endpointSlice := range endpointSlices {
 		for _, port := range endpointSlice.Ports {
-			// if the port number or port name is specified, only use the matching port
-			if (portNumber != 0 && *port.Port != portNumber) || (portName != "" && *port.Name != portName) {
+			// if the port name is specified, only use the matching port
+			if portName != "" && *port.Name != portName {
 				continue
 			}
 			for _, endpoint := range endpointSlice.Endpoints {

@@ -10,6 +10,7 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
+	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -265,6 +266,11 @@ func (r *IngressReconciler) processTLS(ctx context.Context, tctx *provider.Trans
 		}, &secret); err != nil {
 			log.Error(err, "failed to get secret", "namespace", ingress.Namespace, "name", tls.SecretName)
 			return err
+		}
+
+		if secret.Data == nil {
+			log.Warnw("secret data is nil", zap.String("secret", secret.Namespace+"/"+secret.Name))
+			continue
 		}
 
 		// add the secret to the translate context

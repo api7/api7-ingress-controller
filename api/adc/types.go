@@ -148,7 +148,7 @@ type Upstream struct {
 
 	HashOn       string        `json:"hash_on,omitempty" yaml:"hash_on,omitempty"`
 	Key          string        `json:"key,omitempty" yaml:"key,omitempty"`
-	Nodes        UpstreamNodes `json:"nodes,omitempty" yaml:"nodes,omitempty"`
+	Nodes        UpstreamNodes `json:"nodes" yaml:"nodes"`
 	PassHost     *PassHost     `json:"pass_host,omitempty" yaml:"pass_host,omitempty"`
 	Retries      *int64        `json:"retries,omitempty" yaml:"retries,omitempty"`
 	RetryTimeout *float64      `json:"retry_timeout,omitempty" yaml:"retry_timeout,omitempty"`
