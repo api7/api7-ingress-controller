@@ -283,19 +283,16 @@ func (r *IngressReconciler) processBackends(ctx context.Context, tctx *provider.
 		if rule.HTTP == nil {
 			continue
 		}
-
 		for _, path := range rule.HTTP.Paths {
 			if path.Backend.Service == nil {
 				continue
 			}
-
 			service := path.Backend.Service
 			if err := r.processBackendService(ctx, tctx, ingress.Namespace, service); err != nil {
 				terr = err
 			}
 		}
 	}
-
 	return terr
 }
 
@@ -383,6 +380,7 @@ func (r *IngressReconciler) updateStatus(ctx context.Context, ingress *networkin
 			if err != nil {
 				return fmt.Errorf("invalid ingress-publish-service format: %s, expected format: namespace/name", publishService)
 			}
+			// if the namespace is not specified, use the ingress namespace
 			if namespace == "" {
 				namespace = ingress.Namespace
 			}

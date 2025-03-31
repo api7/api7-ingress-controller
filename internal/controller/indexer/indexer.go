@@ -14,8 +14,8 @@ const (
 	ExtensionRef    = "extensionRef"
 	ParametersRef   = "parametersRef"
 	ParentRefs      = "parentRefs"
-	IngressClass    = "ingressClass"
 	SecretIndexRef  = "secretRefs"
+	IngressClass    = "ingressClass"
 	IngressClassRef = "ingressClassRef"
 )
 
