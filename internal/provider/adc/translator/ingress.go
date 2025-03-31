@@ -117,11 +117,31 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 			} else if backendService.Port.Name != "" {
 				servicePortName = backendService.Port.Name
 			}
-			_ = servicePort
+
+			getService := tctx.Services[types.NamespacedName{
+				Namespace: obj.Namespace,
+				Name:      backendService.Name,
+			}]
+			if getService == nil {
+				continue
+			}
+
+			var getServicePort *corev1.ServicePort
+			for _, port := range getService.Spec.Ports {
+				port := port
+				if servicePort > 0 && port.Port == servicePort {
+					getServicePort = &port
+					break
+				}
+				if servicePortName != "" && port.Name == servicePortName {
+					getServicePort = &port
+					break
+				}
+			}
 
 			// convert the EndpointSlice to upstream nodes
 			if len(endpointSlices) > 0 {
-				upstream.Nodes = t.translateEndpointSliceForIngress(1, endpointSlices, servicePortName)
+				upstream.Nodes = t.translateEndpointSliceForIngress(1, endpointSlices, getServicePort)
 			}
 
 			// if there is no upstream node, create a placeholder node
@@ -171,7 +191,7 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 }
 
 // translateEndpointSliceForIngress create upstream nodes from EndpointSlice
-func (t *Translator) translateEndpointSliceForIngress(weight int, endpointSlices []discoveryv1.EndpointSlice, portName string) adctypes.UpstreamNodes {
+func (t *Translator) translateEndpointSliceForIngress(weight int, endpointSlices []discoveryv1.EndpointSlice, servciePort *corev1.ServicePort) adctypes.UpstreamNodes {
 	var nodes adctypes.UpstreamNodes
 	if len(endpointSlices) == 0 {
 		return nodes
@@ -179,8 +199,8 @@ func (t *Translator) translateEndpointSliceForIngress(weight int, endpointSlices
 
 	for _, endpointSlice := range endpointSlices {
 		for _, port := range endpointSlice.Ports {
-			// if the port name is specified, only use the matching port
-			if portName != "" && *port.Name != portName {
+			// if the port number is specified, only use the matching port
+			if servciePort != nil && *port.Name != servciePort.Name {
 				continue
 			}
 			for _, endpoint := range endpointSlice.Endpoints {

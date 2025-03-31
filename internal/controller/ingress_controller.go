@@ -359,6 +359,11 @@ func (r *IngressReconciler) processBackendService(ctx context.Context, tctx *pro
 		Name:      backendService.Name,
 	}] = endpointSliceList.Items
 
+	tctx.Services[client.ObjectKey{
+		Namespace: namespace,
+		Name:      backendService.Name,
+	}] = &service
+
 	return nil
 }
 
