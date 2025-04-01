@@ -85,17 +85,16 @@ func (t *Translator) translateSecret(tctx *provider.TranslateContext, listener g
 				// Dashboard doesn't allow wildcard hostname
 				if listener.Hostname != nil && *listener.Hostname != "" {
 					sslObj.Snis = append(sslObj.Snis, string(*listener.Hostname))
-				} else {
-					hosts, err := extractHost(cert)
-					if err != nil {
-						return nil, err
-					}
-					sslObj.Snis = append(sslObj.Snis, hosts...)
 				}
-				if len(sslObj.Snis) == 0 {
+				hosts, err := extractHost(cert)
+				if err != nil {
+					return nil, err
+				}
+				if len(hosts) == 0 {
 					log.Warnw("no valid hostname found in certificate", zap.String("secret", secret.Namespace+"/"+secret.Name))
 					continue
 				}
+				sslObj.Snis = append(sslObj.Snis, hosts...)
 				// Note: Dashboard doesn't allow duplicate certificate across ssl objects
 				sslObj.ID = id.GenID(string(cert))
 				sslObj.Labels = label.GenLabel(obj)
