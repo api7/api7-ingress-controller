@@ -16,8 +16,9 @@ type Consumer struct {
 }
 
 type ConsumerSpec struct {
-	GatewayRef  GatewayRef       `json:"gatewayRef,omitempty"`
-	Credentials []CredentialSpec `json:"credentials,omitempty"`
+	GatewayRef  GatewayRef   `json:"gatewayRef,omitempty"`
+	Credentials []Credential `json:"credentials,omitempty"`
+	Plugins     []Plugin     `json:"plugins,omitempty"`
 }
 
 type GatewayRef struct {
@@ -27,8 +28,8 @@ type GatewayRef struct {
 	Namespace *string `json:"namespace,omitempty"`
 }
 
-// +kubebuilder:validation:XValidation:rule="has(self.config) != has(self.secretRef)"
-type CredentialSpec struct {
+type Credential struct {
+	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum=jwt-auth;basic-auth;key-auth;hmac-auth;
 	Type      string               `json:"type"`
 	Config    apiextensionsv1.JSON `json:"config,omitempty"`
@@ -37,8 +38,8 @@ type CredentialSpec struct {
 }
 
 type SecretReference struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace,omitempty"`
+	Name      string  `json:"name"`
+	Namespace *string `json:"namespace,omitempty"`
 }
 
 type Status struct {
