@@ -3,6 +3,7 @@ package gatewayapi
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -15,9 +16,9 @@ import (
 
 const _secretName = "test-apisix-tls"
 
-var Cert = framework.TestServerCert
+var Cert = strings.TrimSpace(framework.TestServerCert)
 
-var Key = framework.TestServerKey
+var Key = strings.TrimSpace(framework.TestServerKey)
 
 func createSecret(s *scaffold.Scaffold, secretName string) {
 	err := s.NewKubeTlsSecret(secretName, Cert, Key)
