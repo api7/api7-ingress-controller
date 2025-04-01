@@ -16,7 +16,7 @@ import (
 var _ = Describe("Test HTTPRoute", func() {
 	s := scaffold.NewDefaultScaffold()
 
-	var defautlGatewayClass = `
+	var defaultGatewayClass = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
@@ -25,7 +25,7 @@ spec:
   controllerName: %s
 `
 
-	var defautlGateway = `
+	var defaultGateway = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -37,7 +37,7 @@ spec:
       protocol: HTTP
       port: 80
 `
-	var defautlGatewayHTTPS = `
+	var defaultGatewayHTTPS = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -78,7 +78,7 @@ spec:
 	var beforeEachHTTP = func() {
 		By("create GatewayClass")
 		gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
-		err := s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defautlGatewayClass, gatewayClassName, s.GetControllerName()), "")
+		err := s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defaultGatewayClass, gatewayClassName, s.GetControllerName()), "")
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 		time.Sleep(5 * time.Second)
 
@@ -89,7 +89,7 @@ spec:
 		Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"), "checking GatewayClass condition message")
 
 		By("create Gateway")
-		err = s.CreateResourceFromString(fmt.Sprintf(defautlGateway, gatewayClassName))
+		err = s.CreateResourceFromString(fmt.Sprintf(defaultGateway, gatewayClassName))
 		Expect(err).NotTo(HaveOccurred(), "creating Gateway")
 		time.Sleep(5 * time.Second)
 
@@ -105,7 +105,7 @@ spec:
 		createSecret(s, secretName)
 		By("create GatewayClass")
 		gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
-		err := s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defautlGatewayClass, gatewayClassName, s.GetControllerName()), "")
+		err := s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defaultGatewayClass, gatewayClassName, s.GetControllerName()), "")
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 		time.Sleep(5 * time.Second)
 
@@ -116,7 +116,7 @@ spec:
 		Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"), "checking GatewayClass condition message")
 
 		By("create Gateway")
-		err = s.CreateResourceFromString(fmt.Sprintf(defautlGatewayHTTPS, gatewayClassName))
+		err = s.CreateResourceFromString(fmt.Sprintf(defaultGatewayHTTPS, gatewayClassName))
 		Expect(err).NotTo(HaveOccurred(), "creating Gateway")
 		time.Sleep(5 * time.Second)
 

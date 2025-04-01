@@ -92,6 +92,15 @@ e2e-test:
 	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
 	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test ./test/e2e/ -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)"
 
+.PHONY: kind-lts-test
+kind-lts-test: kind-up build-image kind-load-images lts-test
+
+# lts-test is long-term-stability test
+.PHONY: lts-test
+lts-test:
+	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
+	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test ./test/long_term_stability/ -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)"
+
 .PHONY: conformance-test
 conformance-test:
 	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test -v ./test/conformance -tags=conformance

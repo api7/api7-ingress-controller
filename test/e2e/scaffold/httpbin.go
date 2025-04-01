@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terratest/modules/k8s"
-	ginkgo "github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -70,6 +70,10 @@ spec:
             - containerPort: 80
               name: "http"
               protocol: "TCP"
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]              
 `
 	_httpService = `
 apiVersion: v1
@@ -112,7 +116,7 @@ func (s *Scaffold) NewHTTPBINWithNamespace(namespace string) (*corev1.Service, e
 	return s.newHTTPBIN()
 }
 
-// ScaleHTTPBIN scales the number of HTTPBIN pods to desired.
+// ScaleHTTPBIN scales the number of HTTPBIN pods to desire.
 func (s *Scaffold) ScaleHTTPBIN(desired int) error {
 	httpbinDeployment := fmt.Sprintf(s.FormatRegistry(_httpbinDeploymentTemplate), desired)
 	if err := s.CreateResourceFromString(httpbinDeployment); err != nil {
