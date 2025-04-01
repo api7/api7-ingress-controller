@@ -4,9 +4,17 @@
 resources:
 - bases/gateway.apisix.io_pluginconfigs.yaml
 - bases/gateway.apisix.io_gatewayproxies.yaml
+- bases/gateway.apisix.io_consumers.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:
+- path: patches/consumer_credential_oneof.yaml
+  target:
+    kind: CustomResourceDefinition
+    name: consumers.gateway.apisix.io
+    group: apiextensions.k8s.io
+    version: v1
+
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix.
 # patches here are for enabling the conversion webhook for each CRD
 #- path: patches/webhook_in_gatewayproxies.yaml

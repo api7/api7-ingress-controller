@@ -63,8 +63,6 @@ spec:
                   required:
                   - type
                   type: object
-                  x-kubernetes-validations:
-                  - rule: has(self.config) != has(self.secretRef)
                 type: array
               gatewayRef:
                 properties:
@@ -77,6 +75,20 @@ spec:
                   namespace:
                     type: string
                 type: object
+              plugins:
+                items:
+                  properties:
+                    config:
+                      description: Plugin configuration.
+                      x-kubernetes-preserve-unknown-fields: true
+                    name:
+                      description: The plugin name.
+                      type: string
+                  required:
+                  - config
+                  - name
+                  type: object
+                type: array
             type: object
           status:
             properties:
