@@ -32,5 +32,6 @@ func NewDefaultTranslateContext() *TranslateContext {
 		EndpointSlices: make(map[types.NamespacedName][]discoveryv1.EndpointSlice),
 		Secrets:        make(map[types.NamespacedName]*corev1.Secret),
 		PluginConfigs:  make(map[types.NamespacedName]*v1alpha1.PluginConfig),
+		Services:       make(map[types.NamespacedName]*corev1.Service),
 	}
 }
