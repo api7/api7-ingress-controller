@@ -25,8 +25,21 @@ data:
 
     class HttpbinRequester(HttpUser):
         @task 
-        def request_headers(self): 
+        def headers(self): 
             self.client.get("/headers", headers={"Host": "httpbin.example"})
+
+        @task
+        def get(self):
+            self.client.get("/get", headers={"Host": "httpbin.example"})
+
+        @task
+        def post(self):
+            self.client.post("/post", headers={"Host": "httpbin.example"})
+
+        @task
+        def image(self):
+            self.client.image("/image", headers={"Host": "httpbin.example"})
+
   LOCUST_HOST: http://api7ee3-apisix-gateway-mtls:9080
   LOCUST_SPAWN_RATE: "50"
   LOCUST_USERS: "500"
@@ -116,25 +129,6 @@ func (s *Scaffold) DeployLocust() *corev1.Service {
 	return service
 }
 
-// func (s *Scaffold) LocustClient() *httpexpect.Expect {
-// 	u := url.URL{
-// 		Scheme: "http",
-// 		Host: s.locustTunnel.Endpoint(),
-// 	}
-// 	return httpexpect.WithConfig(httpexpect.Config{
-// 		BaseURL: u.String(),
-// 		Client: &http.Client{
-// 			Transport: &http.Transport{},
-// 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-// 				return http.ErrUseLastResponse
-// 			},
-// 		},
-// 		Reporter: httpexpect.NewAssertReporter(
-// 			httpexpect.NewAssertReporter(s.GinkgoT),
-// 		),
-// 	})
-// }
-
 func (s *Scaffold) ResetLocust() error {
 	if s.locustTunnel == nil {
 		return errors.New("locust is not deployed")
@@ -143,7 +137,9 @@ func (s *Scaffold) ResetLocust() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to request reset locust")
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	if resp.StatusCode != http.StatusOK {
 		return errors.Errorf("request reset locust not OK, status: %s", resp.Status)
 	}
@@ -162,7 +158,9 @@ func (s *Scaffold) DownloadLocustReport(filename string) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to request download report")
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	if resp.StatusCode != http.StatusOK {
 		return errors.Errorf("request download report not OK, status: %s", resp.Status)
 	}

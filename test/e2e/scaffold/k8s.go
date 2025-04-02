@@ -110,6 +110,14 @@ func (s *Scaffold) ListPodsByLabels(labels string) ([]corev1.Pod, error) {
 	})
 }
 
+func (s *Scaffold) DeleteResourcesByLabels(resourceType, label string) error {
+	return k8s.RunKubectlE(s.t, s.kubectlOptions, "delete", resourceType, "-l", label)
+}
+
+func (s *Scaffold) GetResourcesByLabelsOutput(resourceType, label string) (string, error) {
+	return k8s.RunKubectlAndGetOutputE(s.t, s.kubectlOptions, "get", resourceType, "-l", label)
+}
+
 // CreateResourceFromStringWithNamespace creates resource from a loaded yaml string
 // and sets its namespace to the specified one.
 func (s *Scaffold) CreateResourceFromStringWithNamespace(yaml, namespace string) error {
