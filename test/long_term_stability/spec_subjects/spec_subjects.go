@@ -267,7 +267,13 @@ spec:
 
 	PContext("Ingress Controller is crashing", func() {
 		It("it 0", func() {
-			Ω(true).Should(BeTrue())
+			for i := 0; i < 5; i++ {
+				go s.RestartAPISIXDeploy()
+				time.Sleep(2 * time.Minute)
+			}
+
+			err := s.DownloadLocustReport(fmt.Sprintf("%02d_ingress_controller_is_creshing", it))
+			Expect(err).NotTo(HaveOccurred(), "getting locust report")
 		})
 	})
 
