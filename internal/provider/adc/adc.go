@@ -15,6 +15,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	types "github.com/api7/api7-ingress-controller/api/adc"
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/api7/api7-ingress-controller/internal/controller/label"
 	"github.com/api7/api7-ingress-controller/internal/provider"
@@ -64,6 +65,9 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 	case *networkingv1.Ingress:
 		result, err = d.translator.TranslateIngress(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "service", "ssl")
+	case *v1alpha1.Consumer:
+		result, err = d.translator.TranslateConsumerV1alpha1(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, "consumer")
 	}
 	if err != nil {
 		return err
@@ -80,6 +84,7 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 			PluginMetadata: result.PluginMetadata,
 			Services:       result.Services,
 			SSLs:           result.SSL,
+			Consumers:      result.Consumers,
 		},
 		ResourceTypes: resourceTypes,
 	})
@@ -96,6 +101,9 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 		labels = label.GenLabel(obj)
 	case *gatewayv1.Gateway:
 		// delete all resources
+	case *v1alpha1.Consumer:
+		resourceTypes = append(resourceTypes, "consumer")
+		labels = label.GenLabel(obj)
 	}
 
 	return d.sync(Task{
@@ -140,18 +148,22 @@ func (d *adcClient) sync(task Task) error {
 		args = append(args, "--include-resource-type", t)
 	}
 
+	adcEnv := []string{
+		"ADC_EXPERIMENTAL_FEATURE_FLAGS=remote-state-file,parallel-backend-request",
+		"ADC_RUNNING_MODE=ingress",
+		"ADC_BACKEND=api7ee",
+		"ADC_SERVER=" + d.ServerAddr,
+		"ADC_TOKEN=" + d.Token,
+	}
+
 	var stdout, stderr bytes.Buffer
 	cmd := exec.Command("adc", args...)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	cmd.Env = append(cmd.Env, os.Environ()...)
-	cmd.Env = append(cmd.Env,
-		"ADC_EXPERIMENTAL_FEATURE_FLAGS=remote-state-file,parallel-backend-request",
-		"ADC_RUNNING_MODE=ingress",
-		"ADC_BACKEND=api7ee",
-		"ADC_SERVER="+d.ServerAddr,
-		"ADC_TOKEN="+d.Token,
-	)
+	cmd.Env = append(cmd.Env, adcEnv...)
+
+	log.Debug("running adc command", zap.String("command", cmd.String()), zap.Strings("env", adcEnv))
 
 	var result types.SyncResult
 	if err := cmd.Run(); err != nil {

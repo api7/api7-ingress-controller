@@ -67,13 +67,18 @@ spec:
               gatewayRef:
                 properties:
                   group:
+                    default: gateway.networking.k8s.io
                     type: string
                   kind:
+                    default: Gateway
                     type: string
                   name:
+                    minLength: 1
                     type: string
                   namespace:
                     type: string
+                required:
+                - name
                 type: object
               plugins:
                 items:
@@ -85,7 +90,6 @@ spec:
                       description: The plugin name.
                       type: string
                   required:
-                  - config
                   - name
                   type: object
                 type: array

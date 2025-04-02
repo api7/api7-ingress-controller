@@ -15,4 +15,5 @@ type TranslateResult struct {
 	SSL            []*adctypes.SSL
 	GlobalRules    adctypes.Plugins
 	PluginMetadata adctypes.Plugins
+	Consumers      []*adctypes.Consumer
 }
