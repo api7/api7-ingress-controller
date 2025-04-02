@@ -10,17 +10,20 @@ const (
 	ConditionTypeProgressing string = "Progressing"
 	ConditionTypeDegraded    string = "Degraded"
 
-	ConditionReasonSynced string = "ResourceSynced"
+	ConditionReasonSynced    string = "ResourceSynced"
+	ConditionReasonSyncAbort string = "ResourceSyncAbort"
 )
 
 func NewCondition(observedGeneration int64, status bool, message string) metav1.Condition {
 	condition := metav1.ConditionTrue
+	reason := ConditionReasonSynced
 	if !status {
 		condition = metav1.ConditionFalse
+		reason = ConditionReasonSyncAbort
 	}
 	return metav1.Condition{
 		Type:               ConditionTypeAvailable,
-		Reason:             ConditionReasonSynced,
+		Reason:             reason,
 		Status:             condition,
 		Message:            message,
 		ObservedGeneration: observedGeneration,

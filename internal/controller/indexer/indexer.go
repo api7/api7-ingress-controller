@@ -69,7 +69,7 @@ func ConsumerGatewayRefIndexFunc(rawObj client.Object) []string {
 
 	ns := consumer.GetNamespace()
 	if consumer.Spec.GatewayRef.Namespace != nil {
-		ns = string(*consumer.Spec.GatewayRef.Namespace)
+		ns = *consumer.Spec.GatewayRef.Namespace
 	}
 	return []string{GenIndexKey(ns, consumer.Spec.GatewayRef.Name)}
 }

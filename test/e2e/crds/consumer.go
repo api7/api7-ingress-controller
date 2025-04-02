@@ -78,7 +78,8 @@ spec:
 	var beforeEachHTTP = func() {
 		By("create GatewayClass")
 		gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
-		err := s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defautlGatewayClass, gatewayClassName, s.GetControllerName()), "")
+		gatewayString := fmt.Sprintf(defautlGatewayClass, gatewayClassName, s.GetControllerName())
+		err := s.CreateResourceFromStringWithNamespace(gatewayString, "")
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 		time.Sleep(5 * time.Second)
 
@@ -86,7 +87,10 @@ spec:
 		gcyaml, err := s.GetResourceYaml("GatewayClass", gatewayClassName)
 		Expect(err).NotTo(HaveOccurred(), "getting GatewayClass yaml")
 		Expect(gcyaml).To(ContainSubstring(`status: "True"`), "checking GatewayClass condition status")
-		Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"), "checking GatewayClass condition message")
+		Expect(gcyaml).To(
+			ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"),
+			"checking GatewayClass condition message",
+		)
 
 		By("create Gateway")
 		err = s.CreateResourceFromString(fmt.Sprintf(defautlGateway, gatewayClassName))
@@ -97,7 +101,10 @@ spec:
 		gwyaml, err := s.GetResourceYaml("Gateway", "api7ee")
 		Expect(err).NotTo(HaveOccurred(), "getting Gateway yaml")
 		Expect(gwyaml).To(ContainSubstring(`status: "True"`), "checking Gateway condition status")
-		Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the api7-ingress-controller"), "checking Gateway condition message")
+		Expect(gwyaml).To(
+			ContainSubstring("message: the gateway has been accepted by the api7-ingress-controller"),
+			"checking Gateway condition message",
+		)
 
 		s.ResourceApplied("httproute", "httpbin", defaultHTTPRoute, 1)
 	}

@@ -75,7 +75,7 @@ func (r *ConsumerReconciler) listConsumersForGateway(ctx context.Context, obj cl
 		r.Log.Error(err, "failed to list consumers")
 		return nil
 	}
-	var requests []reconcile.Request
+	requests := make([]reconcile.Request, 0, len(consumerList.Items))
 	for _, consumer := range consumerList.Items {
 		requests = append(requests, reconcile.Request{
 			NamespacedName: client.ObjectKey{
@@ -100,12 +100,10 @@ func (r *ConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			}
 
 			if err := r.Provider.Delete(ctx, consumer); err != nil {
-				r.Log.Error(err, "failed to delete consumer", "consumer", consumer)
 				return ctrl.Result{}, err
 			}
 			return ctrl.Result{}, nil
 		}
-		r.Log.Error(err, "failed to get consumer", "consumer", consumer)
 		return ctrl.Result{}, err
 	}
 
@@ -123,7 +121,6 @@ func (r *ConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	if err := r.updateStatus(ctx, consumer, statusErr); err != nil {
-		r.Log.Error(err, "failed to update consumer status", "consumer", consumer)
 		return ctrl.Result{}, err
 	}
 
@@ -131,15 +128,13 @@ func (r *ConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 }
 
 func (r *ConsumerReconciler) processSepc(ctx context.Context, tctx *provider.TranslateContext, consumer *v1alpha1.Consumer) error {
-	r.Log.Info("Processing consumer", "name", consumer.Name, "namespace", consumer.Namespace)
-
 	for _, credential := range consumer.Spec.Credentials {
 		if credential.SecretRef == nil {
 			continue
 		}
 		ns := consumer.GetNamespace()
 		if credential.SecretRef.Namespace != nil {
-			ns = string(*credential.SecretRef.Namespace)
+			ns = *credential.SecretRef.Namespace
 		}
 		secret := corev1.Secret{}
 		if err := r.Get(ctx, client.ObjectKey{
@@ -194,7 +189,7 @@ func (r *ConsumerReconciler) checkGatewayRef(object client.Object) bool {
 	}
 	ns := consumer.GetNamespace()
 	if consumer.Spec.GatewayRef.Namespace != nil {
-		ns = string(*consumer.Spec.GatewayRef.Namespace)
+		ns = *consumer.Spec.GatewayRef.Namespace
 	}
 	gateway := &gatewayv1.Gateway{}
 	if err := r.Get(context.TODO(), client.ObjectKey{
@@ -204,5 +199,10 @@ func (r *ConsumerReconciler) checkGatewayRef(object client.Object) bool {
 		r.Log.Error(err, "failed to get gateway", "gateway", consumer.Spec.GatewayRef.Name)
 		return false
 	}
-	return true
+	gatewayClass := &gatewayv1.GatewayClass{}
+	if err := r.Client.Get(context.Background(), client.ObjectKey{Name: string(gateway.Spec.GatewayClassName)}, gatewayClass); err != nil {
+		r.Log.Error(err, "failed to get gateway class", "gateway", gateway.GetName(), "gatewayclass", gateway.Spec.GatewayClassName)
+		return false
+	}
+	return matchesController(string(gatewayClass.Spec.ControllerName))
 }
