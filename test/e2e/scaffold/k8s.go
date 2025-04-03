@@ -232,7 +232,7 @@ func (s *Scaffold) ResourceApplied(resourType, resourceName, resourceRaw string,
 		hryaml, err := s.GetResourceYaml(resourType, resourceName)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("getting %s yaml", resourType))
 		return hryaml
-	}, "8s", "2s").
+	}).WithTimeout(8*time.Second).ProbeEvery(2*time.Second).
 		Should(
 			SatisfyAll(
 				ContainSubstring(`status: "True"`),
