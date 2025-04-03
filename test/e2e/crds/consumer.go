@@ -220,7 +220,7 @@ spec:
       config:
         key: sample-key2
 `
-		var updateCrendential = `apiVersion: gateway.apisix.io/v1alpha1
+		var updateCredential = `apiVersion: gateway.apisix.io/v1alpha1
 kind: Consumer
 metadata:
   name: consumer-sample
@@ -265,7 +265,7 @@ spec:
 				Status(200)
 
 			By("update Consumer")
-			s.ResourceApplied("Consumer", "consumer-sample", updateCrendential, 2)
+			s.ResourceApplied("Consumer", "consumer-sample", updateCredential, 2)
 
 			s.NewAPISIXClient().
 				GET("/get").
@@ -296,7 +296,7 @@ spec:
 				Status(200)
 
 			By("delete Consumer")
-			err := s.DeleteResourceFromString(updateCrendential)
+			err := s.DeleteResourceFromString(updateCredential)
 			Expect(err).NotTo(HaveOccurred(), "deleting Consumer")
 			time.Sleep(5 * time.Second)
 
