@@ -512,7 +512,6 @@ func (s *Scaffold) GetDeploymentLogs(name string) string {
 			Resource("pods").
 			Namespace(s.namespace).
 			Name(pod.Name).SubResource("log").
-			Param("container", name).
 			Do(context.TODO()).
 			Raw()
 		if err == nil {
