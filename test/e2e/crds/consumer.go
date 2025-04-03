@@ -13,7 +13,7 @@ import (
 var _ = Describe("Test Consumer", func() {
 	s := scaffold.NewDefaultScaffold()
 
-	var defautlGatewayClass = `
+	var defaultGatewayClass = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
@@ -22,7 +22,7 @@ spec:
   controllerName: %s
 `
 
-	var defautlGateway = `
+	var defaultGateway = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -78,7 +78,7 @@ spec:
 	var beforeEachHTTP = func() {
 		By("create GatewayClass")
 		gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
-		gatewayString := fmt.Sprintf(defautlGatewayClass, gatewayClassName, s.GetControllerName())
+		gatewayString := fmt.Sprintf(defaultGatewayClass, gatewayClassName, s.GetControllerName())
 		err := s.CreateResourceFromStringWithNamespace(gatewayString, "")
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 		time.Sleep(5 * time.Second)
@@ -93,7 +93,7 @@ spec:
 		)
 
 		By("create Gateway")
-		err = s.CreateResourceFromString(fmt.Sprintf(defautlGateway, gatewayClassName))
+		err = s.CreateResourceFromString(fmt.Sprintf(defaultGateway, gatewayClassName))
 		Expect(err).NotTo(HaveOccurred(), "creating Gateway")
 		time.Sleep(5 * time.Second)
 
@@ -310,5 +310,12 @@ spec:
 	})
 
 	PContext("SecretRef", func() {
+		PIT("key-auth", func() {
+		})
+		PIT("basic-auth", func() {
+		})
+		PIT("cross namespace", func() {
+		})
+
 	})
 })

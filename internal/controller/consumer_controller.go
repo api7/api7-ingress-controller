@@ -110,7 +110,7 @@ func (r *ConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	var statusErr error
 	tctx := provider.NewDefaultTranslateContext()
 
-	if err := r.processSepc(ctx, tctx, consumer); err != nil {
+	if err := r.processSpec(ctx, tctx, consumer); err != nil {
 		r.Log.Error(err, "failed to process consumer spec", "consumer", consumer)
 		statusErr = err
 	}
@@ -127,7 +127,7 @@ func (r *ConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	return ctrl.Result{}, nil
 }
 
-func (r *ConsumerReconciler) processSepc(ctx context.Context, tctx *provider.TranslateContext, consumer *v1alpha1.Consumer) error {
+func (r *ConsumerReconciler) processSpec(ctx context.Context, tctx *provider.TranslateContext, consumer *v1alpha1.Consumer) error {
 	for _, credential := range consumer.Spec.Credentials {
 		if credential.SecretRef == nil {
 			continue
