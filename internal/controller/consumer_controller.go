@@ -192,7 +192,7 @@ func (r *ConsumerReconciler) checkGatewayRef(object client.Object) bool {
 		ns = *consumer.Spec.GatewayRef.Namespace
 	}
 	gateway := &gatewayv1.Gateway{}
-	if err := r.Get(context.TODO(), client.ObjectKey{
+	if err := r.Get(context.Background(), client.ObjectKey{
 		Name:      consumer.Spec.GatewayRef.Name,
 		Namespace: ns,
 	}, gateway); err != nil {
