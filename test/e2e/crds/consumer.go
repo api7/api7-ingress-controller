@@ -310,12 +310,5 @@ spec:
 	})
 
 	PContext("SecretRef", func() {
-		PIT("key-auth", func() {
-		})
-		PIT("basic-auth", func() {
-		})
-		PIT("cross namespace", func() {
-		})
-
 	})
 })
