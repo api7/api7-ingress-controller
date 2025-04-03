@@ -52,12 +52,17 @@ func (t *Translator) fillPluginFromExtensionRef(plugins adctypes.Plugins, namesp
 			Namespace: namespace,
 			Name:      string(extensionRef.Name),
 		}]
+		if pluginconfig == nil {
+			return
+		}
 		for _, plugin := range pluginconfig.Spec.Plugins {
 			pluginName := plugin.Name
 			var pluginconfig map[string]any
-			if err := json.Unmarshal(plugin.Config.Raw, &pluginconfig); err != nil {
-				log.Errorw("plugin config unmarshal failed", zap.Error(err))
-				continue
+			if len(plugin.Config.Raw) > 0 {
+				if err := json.Unmarshal(plugin.Config.Raw, &pluginconfig); err != nil {
+					log.Errorw("plugin config unmarshal failed", zap.Error(err))
+					continue
+				}
 			}
 			plugins[pluginName] = pluginconfig
 		}

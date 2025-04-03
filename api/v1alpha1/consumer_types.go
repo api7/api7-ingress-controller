@@ -22,9 +22,13 @@ type ConsumerSpec struct {
 }
 
 type GatewayRef struct {
-	Name      string  `json:"name,omitempty"`
-	Kind      string  `json:"kind,omitempty"`
-	Group     string  `json:"group,omitempty"`
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+	// +kubebuilder:default=Gateway
+	Kind *string `json:"kind,omitempty"`
+	// +kubebuilder:default=gateway.networking.k8s.io
+	Group     *string `json:"group,omitempty"`
 	Namespace *string `json:"namespace,omitempty"`
 }
 
