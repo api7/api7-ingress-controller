@@ -42,10 +42,7 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				predicate.NewPredicateFuncs(r.checkGatewayClass),
 			),
 		).
-		WithEventFilter(predicate.Or(
-			predicate.GenerationChangedPredicate{},
-			predicate.AnnotationChangedPredicate{},
-		)).
+		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Watches(
 			&gatewayv1.GatewayClass{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewayForGatewayClass),
