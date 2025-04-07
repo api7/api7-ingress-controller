@@ -195,11 +195,11 @@ spec:
 
 		BeforeEach(beforeEachHTTP)
 
-		It("Create/Updtea/Delete HTTPRoute", func() {
+		It("Create/Update/Delete HTTPRoute", func() {
 			By("create HTTPRoute")
 			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 1)
 
-			By("access daataplane to check the HTTPRoute")
+			By("access dataplane to check the HTTPRoute")
 			s.NewAPISIXClient().
 				GET("/get").
 				Expect().
@@ -262,6 +262,29 @@ spec:
     - path:
         type: Exact
         value: /get
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
+		var varsRoute = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin.example
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /get
+      headers:
+        - type: Exact
+          name: X-Route-Name
+          value: httpbin
     backendRefs:
     - name: httpbin-service-e2e-test
       port: 80
@@ -371,6 +394,25 @@ spec:
 				WithHost("httpbin.example").
 				Expect().
 				Status(404)
+		})
+
+		It("HTTPRoute Vars Match", func() {
+			By("create HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", varsRoute, 1)
+
+			By("access daataplane to check the HTTPRoute")
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.example").
+				Expect().
+				Status(http.StatusNotFound)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.example").
+				WithHeader("X-Route-Name", "httpbin").
+				Expect().
+				Status(http.StatusOK)
 		})
 	})
 
