@@ -59,7 +59,35 @@ func (r *ConsumerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				},
 			),
 		).
+		Watches(&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.listConsumersForSecret),
+		).
 		Complete(r)
+}
+
+func (r *ConsumerReconciler) listConsumersForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
+	secret, ok := obj.(*corev1.Secret)
+	if !ok {
+		r.Log.Error(nil, "failed to convert to Secret", "object", obj)
+		return nil
+	}
+	consumerList := &v1alpha1.ConsumerList{}
+	if err := r.List(ctx, consumerList, client.MatchingFields{
+		indexer.SecretIndexRef: indexer.GenIndexKey(secret.GetNamespace(), secret.GetName()),
+	}); err != nil {
+		r.Log.Error(err, "failed to list consumers")
+		return nil
+	}
+	requests := make([]reconcile.Request, 0, len(consumerList.Items))
+	for _, consumer := range consumerList.Items {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: client.ObjectKey{
+				Name:      consumer.Name,
+				Namespace: consumer.Namespace,
+			},
+		})
+	}
+	return requests
 }
 
 func (r *ConsumerReconciler) listConsumersForGateway(ctx context.Context, obj client.Object) []reconcile.Request {
@@ -70,7 +98,7 @@ func (r *ConsumerReconciler) listConsumersForGateway(ctx context.Context, obj cl
 	}
 	consumerList := &v1alpha1.ConsumerList{}
 	if err := r.List(ctx, consumerList, client.MatchingFields{
-		indexer.ConsumerGatewayRef: indexer.GenIndexKey(gateway.Name, gateway.GetNamespace()),
+		indexer.ConsumerGatewayRef: indexer.GenIndexKey(gateway.GetNamespace(), gateway.GetName()),
 	}); err != nil {
 		r.Log.Error(err, "failed to list consumers")
 		return nil

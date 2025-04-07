@@ -298,6 +298,87 @@ spec:
 		})
 	})
 
-	PContext("SecretRef", func() {
+	Context("SecretRef", func() {
+		var keyAuthSecret = `
+apiVersion: v1
+kind: Secret
+metadata:
+  name: key-auth-secret
+data:
+  key: c2FtcGxlLWtleQ==
+`
+		var basicAuthSecret = `
+apiVersion: v1
+kind: Secret
+metadata:
+  name: basic-auth-secret
+data:
+  username: c2FtcGxlLXVzZXI=
+  password: c2FtcGxlLXBhc3N3b3Jk
+`
+		var defaultConsumer = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: Consumer
+metadata:
+  name: consumer-sample
+spec:
+  gatewayRef:
+    name: api7ee
+  credentials:
+    - type: basic-auth
+      name: basic-auth-sample
+      secretRef:
+        name: basic-auth-secret
+    - type: key-auth
+      name: key-auth-sample
+      secretRef:
+        name: key-auth-secret
+    - type: key-auth
+      name: key-auth-sample2
+      config:
+        key: sample-key2
+`
+		BeforeEach(beforeEachHTTP)
+
+		It("Create/Update/Delete", func() {
+			err := s.CreateResourceFromString(keyAuthSecret)
+			Expect(err).NotTo(HaveOccurred(), "creating key-auth secret")
+			err = s.CreateResourceFromString(basicAuthSecret)
+			Expect(err).NotTo(HaveOccurred(), "creating basic-auth secret")
+			s.ResourceApplied("Consumer", "consumer-sample", defaultConsumer, 1)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHeader("apikey", "sample-key").
+				WithHost("httpbin.org").
+				Expect().
+				Status(200)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithBasicAuth("sample-user", "sample-password").
+				WithHost("httpbin.org").
+				Expect().
+				Status(200)
+
+			By("delete consumer")
+			err = s.DeleteResourceFromString(defaultConsumer)
+			Expect(err).NotTo(HaveOccurred(), "deleting consumer")
+			time.Sleep(5 * time.Second)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHeader("apikey", "sample-key").
+				WithHost("httpbin.org").
+				Expect().
+				Status(401)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithBasicAuth("sample-user", "sample-password").
+				WithHost("httpbin.org").
+				Expect().
+				Status(401)
+		})
 	})
 })
