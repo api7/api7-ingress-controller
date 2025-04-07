@@ -223,3 +223,22 @@ func (s *Scaffold) RunDigDNSClientFromK8s(args ...string) (string, error) {
 	kubectlArgs = append(kubectlArgs, args...)
 	return s.RunKubectlAndGetOutput(kubectlArgs...)
 }
+
+func (s *Scaffold) ResourceApplied(resourType, resourceName, resourceRaw string, observedGeneration int) {
+	Expect(s.CreateResourceFromString(resourceRaw)).
+		NotTo(HaveOccurred(), fmt.Sprintf("creating %s", resourType))
+
+	Eventually(func() string {
+		hryaml, err := s.GetResourceYaml(resourType, resourceName)
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("getting %s yaml", resourType))
+		return hryaml
+	}).WithTimeout(8*time.Second).ProbeEvery(2*time.Second).
+		Should(
+			SatisfyAll(
+				ContainSubstring(`status: "True"`),
+				ContainSubstring(fmt.Sprintf("observedGeneration: %d", observedGeneration)),
+			),
+			fmt.Sprintf("checking %s condition status", resourType),
+		)
+	time.Sleep(1 * time.Second)
+}

@@ -68,22 +68,22 @@ type Metadata struct {
 }
 
 type Resources struct {
-	ConsumerGroups []*ConsumerGroup   `json:"consumer_groups,omitempty" yaml:"consumer_groups,omitempty"`
-	Consumers      []*ConsumerElement `json:"consumers,omitempty" yaml:"consumers,omitempty"`
-	GlobalRules    Plugins            `json:"global_rules,omitempty" yaml:"global_rules,omitempty"`
-	PluginMetadata Plugins            `json:"plugin_metadata,omitempty" yaml:"plugin_metadata,omitempty"`
-	Services       []*Service         `json:"services,omitempty" yaml:"services,omitempty"`
-	SSLs           []*SSL             `json:"ssls,omitempty" yaml:"ssls,omitempty"`
+	ConsumerGroups []*ConsumerGroup `json:"consumer_groups,omitempty" yaml:"consumer_groups,omitempty"`
+	Consumers      []*Consumer      `json:"consumers,omitempty" yaml:"consumers,omitempty"`
+	GlobalRules    Plugins          `json:"global_rules,omitempty" yaml:"global_rules,omitempty"`
+	PluginMetadata Plugins          `json:"plugin_metadata,omitempty" yaml:"plugin_metadata,omitempty"`
+	Services       []*Service       `json:"services,omitempty" yaml:"services,omitempty"`
+	SSLs           []*SSL           `json:"ssls,omitempty" yaml:"ssls,omitempty"`
 }
 
 type ConsumerGroup struct {
 	Metadata  `json:",inline" yaml:",inline"`
-	Consumers []ConsumerElement `json:"consumers,omitempty" yaml:"consumers,omitempty"`
-	Name      string            `json:"name" yaml:"name"`
-	Plugins   Plugins           `json:"plugins" yaml:"plugins"`
+	Consumers []Consumer `json:"consumers,omitempty" yaml:"consumers,omitempty"`
+	Name      string     `json:"name" yaml:"name"`
+	Plugins   Plugins    `json:"plugins" yaml:"plugins"`
 }
 
-type ConsumerElement struct {
+type Consumer struct {
 	Credentials []Credential      `json:"credentials,omitempty" yaml:"credentials,omitempty"`
 	Description string            `json:"description,omitempty" yaml:"description,omitempty"`
 	Labels      map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
@@ -411,6 +411,19 @@ func ComposeServiceNameWithRule(namespace, name string, rule string) string {
 	buf.WriteString(name)
 	buf.WriteByte('_')
 	buf.WriteString(rule)
+
+	return buf.String()
+}
+
+func ComposeConsumerName(namespace, name string) string {
+	// FIXME Use sync.Pool to reuse this buffer if the upstream
+	// name composing code path is hot.
+	p := make([]byte, 0, len(namespace)+len(name)+1)
+	buf := bytes.NewBuffer(p)
+
+	buf.WriteString(namespace)
+	buf.WriteByte('_')
+	buf.WriteString(name)
 
 	return buf.String()
 }

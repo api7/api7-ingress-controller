@@ -3,6 +3,7 @@ package indexer
 import (
 	"context"
 
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	networkingv1 "k8s.io/api/networking/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -10,13 +11,14 @@ import (
 )
 
 const (
-	ServiceIndexRef = "serviceRefs"
-	ExtensionRef    = "extensionRef"
-	ParametersRef   = "parametersRef"
-	ParentRefs      = "parentRefs"
-	SecretIndexRef  = "secretRefs"
-	IngressClass    = "ingressClass"
-	IngressClassRef = "ingressClassRef"
+	ServiceIndexRef    = "serviceRefs"
+	ExtensionRef       = "extensionRef"
+	ParametersRef      = "parametersRef"
+	ParentRefs         = "parentRefs"
+	IngressClass       = "ingressClass"
+	SecretIndexRef     = "secretRefs"
+	IngressClassRef    = "ingressClassRef"
+	ConsumerGatewayRef = "consumerGatewayRef"
 )
 
 func SetupIndexer(mgr ctrl.Manager) error {
@@ -27,6 +29,9 @@ func SetupIndexer(mgr ctrl.Manager) error {
 		return err
 	}
 	if err := setupIngressIndexer(mgr); err != nil {
+		return err
+	}
+	if err := setupConsumerIndexer(mgr); err != nil {
 		return err
 	}
 	return nil
@@ -42,6 +47,31 @@ func setupGatewayIndexer(mgr ctrl.Manager) error {
 		return err
 	}
 	return nil
+}
+
+func setupConsumerIndexer(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.Consumer{},
+		ConsumerGatewayRef,
+		ConsumerGatewayRefIndexFunc,
+	); err != nil {
+		return err
+	}
+	return nil
+}
+func ConsumerGatewayRefIndexFunc(rawObj client.Object) []string {
+	consumer := rawObj.(*v1alpha1.Consumer)
+
+	if consumer.Spec.GatewayRef.Name == "" {
+		return nil
+	}
+
+	ns := consumer.GetNamespace()
+	if consumer.Spec.GatewayRef.Namespace != nil {
+		ns = *consumer.Spec.GatewayRef.Namespace
+	}
+	return []string{GenIndexKey(ns, consumer.Spec.GatewayRef.Name)}
 }
 
 func setupHTTPRouteIndexer(mgr ctrl.Manager) error {

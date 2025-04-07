@@ -36,7 +36,7 @@ type Plugin struct {
 	// The plugin name.
 	Name string `json:"name" yaml:"name"`
 	// Plugin configuration.
-	Config apiextensionsv1.JSON `json:"config" yaml:"config"`
+	Config apiextensionsv1.JSON `json:"config,omitempty" yaml:"config,omitempty"`
 }
 
 func init() {

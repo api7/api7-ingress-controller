@@ -49,7 +49,6 @@ spec:
                       description: The plugin name.
                       type: string
                   required:
-                  - config
                   - name
                   type: object
                 type: array
