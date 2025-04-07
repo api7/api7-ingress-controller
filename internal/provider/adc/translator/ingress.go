@@ -191,7 +191,7 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 }
 
 // translateEndpointSliceForIngress create upstream nodes from EndpointSlice
-func (t *Translator) translateEndpointSliceForIngress(weight int, endpointSlices []discoveryv1.EndpointSlice, servciePort *corev1.ServicePort) adctypes.UpstreamNodes {
+func (t *Translator) translateEndpointSliceForIngress(weight int, endpointSlices []discoveryv1.EndpointSlice, servicePort *corev1.ServicePort) adctypes.UpstreamNodes {
 	var nodes adctypes.UpstreamNodes
 	if len(endpointSlices) == 0 {
 		return nodes
@@ -200,7 +200,7 @@ func (t *Translator) translateEndpointSliceForIngress(weight int, endpointSlices
 	for _, endpointSlice := range endpointSlices {
 		for _, port := range endpointSlice.Ports {
 			// if the port number is specified, only use the matching port
-			if servciePort != nil && *port.Name != servciePort.Name {
+			if servicePort != nil && *port.Name != servicePort.Name {
 				continue
 			}
 			for _, endpoint := range endpointSlice.Endpoints {
