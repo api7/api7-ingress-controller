@@ -200,7 +200,7 @@ func (t *Translator) translateEndpointSliceForIngress(weight int, endpointSlices
 	for _, endpointSlice := range endpointSlices {
 		for _, port := range endpointSlice.Ports {
 			// if the port number is specified, only use the matching port
-			if servicePort != nil && *port.Name != servicePort.Name {
+			if servicePort != nil && port.Name != nil && *port.Name != servicePort.Name {
 				continue
 			}
 			for _, endpoint := range endpointSlice.Endpoints {
