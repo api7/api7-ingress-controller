@@ -110,42 +110,48 @@ spec:
 	}
 
 	Context("Consumer plugins", func() {
-		var keyAuthConsumer = `apiVersion: gateway.apisix.io/v1alpha1
+		var limitCountConsumer = `
+apiVersion: gateway.apisix.io/v1alpha1
 kind: Consumer
 metadata:
   name: consumer-sample
 spec:
   gatewayRef:
     name: api7ee
-  plugins:
-    - name: key-auth
+  credentials:
+    - type: key-auth
+      name: key-auth-sample
       config:
         key: sample-key
+  plugins:
+    - name: limit-count
+      config:
+        count: 2
+        time_window: 60
+        rejected_code: 503
+        key: remote_addr
 `
-		var basicAuthConsumer = `apiVersion: gateway.apisix.io/v1alpha1
+
+		var unlimitConsumer = `
+apiVersion: gateway.apisix.io/v1alpha1
 kind: Consumer
 metadata:
-  name: consumer-sample
+  name: consumer-sample2
 spec:
   gatewayRef:
     name: api7ee
-  plugins:
-    - name: basic-auth
+  credentials:
+    - type: key-auth
+      name: key-auth-sample
       config:
-        username: sample-user
-        password: sample-password
+        key: sample-key2
 `
 
 		BeforeEach(beforeEachHTTP)
 
-		It("key-auth", func() {
-			s.ResourceApplied("Consumer", "consumer-sample", keyAuthConsumer, 1)
-
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.org").
-				Expect().
-				Status(401)
+		It("limit-count plugin", func() {
+			s.ResourceApplied("Consumer", "consumer-sample", limitCountConsumer, 1)
+			s.ResourceApplied("Consumer", "consumer-sample2", unlimitConsumer, 1)
 
 			s.NewAPISIXClient().
 				GET("/get").
@@ -154,46 +160,29 @@ spec:
 				Expect().
 				Status(200)
 
-			By("delete Consumer")
-			err := s.DeleteResourceFromString(keyAuthConsumer)
-			Expect(err).NotTo(HaveOccurred(), "deleting Consumer")
-			time.Sleep(5 * time.Second)
-
 			s.NewAPISIXClient().
 				GET("/get").
 				WithHeader("apikey", "sample-key").
 				WithHost("httpbin.org").
 				Expect().
-				Status(401)
-		})
-
-		It("basic-auth", func() {
-			s.ResourceApplied("Consumer", "consumer-sample", basicAuthConsumer, 1)
-
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.org").
-				Expect().
-				Status(401)
-
-			s.NewAPISIXClient().
-				GET("/get").
-				WithBasicAuth("sample-user", "sample-password").
-				WithHost("httpbin.org").
-				Expect().
 				Status(200)
 
-			By("delete Consumer")
-			err := s.DeleteResourceFromString(basicAuthConsumer)
-			Expect(err).NotTo(HaveOccurred(), "deleting Consumer")
-			time.Sleep(5 * time.Second)
-
+			By("trigger limit-count")
 			s.NewAPISIXClient().
 				GET("/get").
-				WithBasicAuth("sample-user", "sample-password").
+				WithHeader("apikey", "sample-key").
 				WithHost("httpbin.org").
 				Expect().
-				Status(401)
+				Status(503)
+
+			for i := 0; i < 10; i++ {
+				s.NewAPISIXClient().
+					GET("/get").
+					WithHeader("apikey", "sample-key2").
+					WithHost("httpbin.org").
+					Expect().
+					Status(200)
+			}
 		})
 	})
 
