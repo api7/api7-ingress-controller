@@ -31,6 +31,13 @@ var (
 	DefaultGatewayGroupKeyPrefix = fmt.Sprintf("/gateway_groups/%s", "default")
 )
 
+var (
+	//go:embed manifests/cert.pem
+	TestServerCert string
+	//go:embed manifests/key.pem
+	TestServerKey string
+)
+
 const (
 	TestCACert = `-----BEGIN CERTIFICATE-----
 MIIDdzCCAl+gAwIBAgIUBB5PHXyymeboPDVdYeYihYnm5XIwDQYJKoZIhvcNAQEL

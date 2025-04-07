@@ -10,6 +10,7 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
+	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -41,7 +42,12 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				predicate.NewPredicateFuncs(r.checkIngressClass),
 			),
 		).
-		WithEventFilter(predicate.GenerationChangedPredicate{}).
+		WithEventFilter(
+			predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				predicate.AnnotationChangedPredicate{},
+			),
+		).
 		Watches(
 			&networkingv1.IngressClass{},
 			handler.EnqueueRequestsFromMapFunc(r.listIngressForIngressClass),
@@ -134,16 +140,19 @@ func (r *IngressReconciler) checkIngressClass(obj client.Object) bool {
 		// find the ingress class that is marked as default
 		for _, ic := range ingressClassList.Items {
 			if IsDefaultIngressClass(&ic) && matchesController(ic.Spec.Controller) {
+				log.Debugw("match the default ingress class")
 				return true
 			}
 		}
 
+		log.Debugw("no default ingress class found")
 		return false
 	}
 
 	configuredClass := config.GetIngressClass()
 	// if the ingress class name matches the configured ingress class name, return true
 	if *ingress.Spec.IngressClassName == configuredClass {
+		log.Debugw("match the configured ingress class name")
 		return true
 	}
 
@@ -168,25 +177,55 @@ func (r *IngressReconciler) matchesIngressController(obj client.Object) bool {
 }
 
 // listIngressForIngressClass list all ingresses that use a specific ingress class
-func (r *IngressReconciler) listIngressForIngressClass(ctx context.Context, ingressClass client.Object) []reconcile.Request {
-	ingressList := &networkingv1.IngressList{}
-	if err := r.List(ctx, ingressList, client.MatchingFields{
-		indexer.IngressClassRef: ingressClass.GetName(),
-	}); err != nil {
-		r.Log.Error(err, "failed to list ingresses for ingress class", "ingressclass", ingressClass.GetName())
+func (r *IngressReconciler) listIngressForIngressClass(ctx context.Context, obj client.Object) []reconcile.Request {
+	ingressClass, ok := obj.(*networkingv1.IngressClass)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to IngressClass")
 		return nil
 	}
 
-	requests := make([]reconcile.Request, 0, len(ingressList.Items))
-	for _, ingress := range ingressList.Items {
-		requests = append(requests, reconcile.Request{
-			NamespacedName: client.ObjectKey{
-				Namespace: ingress.Namespace,
-				Name:      ingress.Name,
-			},
-		})
+	// check if the ingress class is the default ingress class
+	if IsDefaultIngressClass(ingressClass) {
+		ingressList := &networkingv1.IngressList{}
+		if err := r.List(ctx, ingressList); err != nil {
+			r.Log.Error(err, "failed to list ingresses for ingress class", "ingressclass", ingressClass.GetName())
+			return nil
+		}
+
+		requests := make([]reconcile.Request, 0, len(ingressList.Items))
+		for _, ingress := range ingressList.Items {
+			if ingress.Spec.IngressClassName == nil || *ingress.Spec.IngressClassName == "" ||
+				*ingress.Spec.IngressClassName == ingressClass.GetName() {
+				requests = append(requests, reconcile.Request{
+					NamespacedName: client.ObjectKey{
+						Namespace: ingress.Namespace,
+						Name:      ingress.Name,
+					},
+				})
+			}
+		}
+		return requests
+	} else {
+		ingressList := &networkingv1.IngressList{}
+		if err := r.List(ctx, ingressList, client.MatchingFields{
+			indexer.IngressClassRef: ingressClass.GetName(),
+		}); err != nil {
+			r.Log.Error(err, "failed to list ingresses for ingress class", "ingressclass", ingressClass.GetName())
+			return nil
+		}
+
+		requests := make([]reconcile.Request, 0, len(ingressList.Items))
+		for _, ingress := range ingressList.Items {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: client.ObjectKey{
+					Namespace: ingress.Namespace,
+					Name:      ingress.Name,
+				},
+			})
+		}
+
+		return requests
 	}
-	return requests
 }
 
 // listIngressesByService list all ingresses that use a specific service
@@ -210,12 +249,14 @@ func (r *IngressReconciler) listIngressesByService(ctx context.Context, obj clie
 
 	requests := make([]reconcile.Request, 0, len(ingressList.Items))
 	for _, ingress := range ingressList.Items {
-		requests = append(requests, reconcile.Request{
-			NamespacedName: client.ObjectKey{
-				Namespace: ingress.Namespace,
-				Name:      ingress.Name,
-			},
-		})
+		if r.checkIngressClass(&ingress) {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: client.ObjectKey{
+					Namespace: ingress.Namespace,
+					Name:      ingress.Name,
+				},
+			})
+		}
 	}
 	return requests
 }
@@ -241,12 +282,14 @@ func (r *IngressReconciler) listIngressesBySecret(ctx context.Context, obj clien
 
 	requests := make([]reconcile.Request, 0, len(ingressList.Items))
 	for _, ingress := range ingressList.Items {
-		requests = append(requests, reconcile.Request{
-			NamespacedName: client.ObjectKey{
-				Namespace: ingress.Namespace,
-				Name:      ingress.Name,
-			},
-		})
+		if r.checkIngressClass(&ingress) {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: client.ObjectKey{
+					Namespace: ingress.Namespace,
+					Name:      ingress.Name,
+				},
+			})
+		}
 	}
 	return requests
 }
@@ -267,6 +310,11 @@ func (r *IngressReconciler) processTLS(ctx context.Context, tctx *provider.Trans
 			return err
 		}
 
+		if secret.Data == nil {
+			log.Warnw("secret data is nil", zap.String("secret", secret.Namespace+"/"+secret.Name))
+			continue
+		}
+
 		// add the secret to the translate context
 		tctx.Secrets[types.NamespacedName{Namespace: ingress.Namespace, Name: tls.SecretName}] = &secret
 	}
@@ -283,19 +331,16 @@ func (r *IngressReconciler) processBackends(ctx context.Context, tctx *provider.
 		if rule.HTTP == nil {
 			continue
 		}
-
 		for _, path := range rule.HTTP.Paths {
 			if path.Backend.Service == nil {
 				continue
 			}
-
 			service := path.Backend.Service
 			if err := r.processBackendService(ctx, tctx, ingress.Namespace, service); err != nil {
 				terr = err
 			}
 		}
 	}
-
 	return terr
 }
 
@@ -356,6 +401,11 @@ func (r *IngressReconciler) processBackendService(ctx context.Context, tctx *pro
 		Name:      backendService.Name,
 	}] = endpointSliceList.Items
 
+	tctx.Services[client.ObjectKey{
+		Namespace: namespace,
+		Name:      backendService.Name,
+	}] = &service
+
 	return nil
 }
 
@@ -383,6 +433,7 @@ func (r *IngressReconciler) updateStatus(ctx context.Context, ingress *networkin
 			if err != nil {
 				return fmt.Errorf("invalid ingress-publish-service format: %s, expected format: namespace/name", publishService)
 			}
+			// if the namespace is not specified, use the ingress namespace
 			if namespace == "" {
 				namespace = ingress.Namespace
 			}

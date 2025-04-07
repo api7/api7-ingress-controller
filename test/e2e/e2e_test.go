@@ -27,6 +27,7 @@ import (
 	_ "github.com/api7/api7-ingress-controller/test/e2e/crds"
 	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 	_ "github.com/api7/api7-ingress-controller/test/e2e/gatewayapi"
+	_ "github.com/api7/api7-ingress-controller/test/e2e/ingress"
 )
 
 // Run e2e tests using the Ginkgo runner.

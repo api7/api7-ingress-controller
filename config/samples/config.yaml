@@ -4,14 +4,11 @@ log_level: "info"                               # The log level of the API7 Ingr
 controller_name: gateway.api7.io/api7-ingress-controller  # The controller name of the API7 Ingress Controller,
                                                           # which is used to identify the controller in the GatewayClass.
                                                           # The default value is "gateway.api7.io/api7-ingress-controller".
-
 leader_election_id: "api7-ingress-controller-leader" # The leader election ID for the API7 Ingress Controller.
                                                         # The default value is "api7-ingress-controller-leader".
-
 ingress_class: api7 # The ingress class name of the API7 Ingress Controller.
 ingress_publish_service: "" # The service name of the ingress publish service.
 ingress_status_address: [] # The status address of the ingress.
-
 gateway_configs:                  # The configuration of the API7 Gateway.
 - name: api7                      # The name of the Gateway in the Gateway API.
   control_plane:

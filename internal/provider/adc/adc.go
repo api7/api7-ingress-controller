@@ -101,6 +101,9 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 		labels = label.GenLabel(obj)
 	case *gatewayv1.Gateway:
 		// delete all resources
+	case *networkingv1.Ingress:
+		resourceTypes = append(resourceTypes, "service", "ssl")
+		labels = label.GenLabel(obj)
 	case *v1alpha1.Consumer:
 		resourceTypes = append(resourceTypes, "consumer")
 		labels = label.GenLabel(obj)

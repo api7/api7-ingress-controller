@@ -30,6 +30,20 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
+GOOS ?= linux
+GOARCH ?= amd64
+
+ifeq ($(shell uname -s),Darwin)
+	GOOS = darwin
+endif
+
+ifeq ($(shell uname -m),arm64)
+	GOARCH = arm64
+endif
+ifeq ($(shell uname -m), aarch64)
+	GOARCH = arm64
+endif
+
 # CONTAINER_TOOL defines the container tool to be used for building images.
 # Be aware that the target commands are only tested with Docker which is
 # scaffolded by default. However, you might want to replace it to use other
@@ -142,7 +156,7 @@ pull-infra-images:
 
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.
-	CGO_ENABLED=0 go build -o bin/api7-ingress-controller -ldflags $(GO_LDFLAGS) cmd/main.go
+	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 go build -o bin/api7-ingress-controller -ldflags $(GO_LDFLAGS) cmd/main.go
 
 linux-build:
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o bin/api7-ingress-controller -ldflags $(GO_LDFLAGS) cmd/main.go
@@ -158,7 +172,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
-docker-build: build ## Build docker image with the manager.
+docker-build: set-e2e-goos build ## Build docker image with the manager.
 	$(CONTAINER_TOOL) build -t ${IMG} -f Dockerfile .
 
 .PHONY: docker-push
@@ -267,6 +281,11 @@ gofmt: ## Apply go fmt
 	@gofmt -w -r 'FDescribeTable -> DescribeTable' test
 	@go fmt ./...
 .PHONY: gofmt
+
+set-e2e-goos:
+	$(eval GOOS=linux)
+	@echo "e2e GOOS: $(GOOS)"
+.PHONY: set-e2e-goos
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
 # $1 - target path with name of binary
