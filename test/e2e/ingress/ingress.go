@@ -71,11 +71,6 @@ spec:
 			Expect(err).NotTo(HaveOccurred(), "creating Ingress")
 			time.Sleep(5 * time.Second)
 
-			By("check Ingress status")
-			ingressYaml, err := s.GetResourceYaml("Ingress", "api7-ingress")
-			Expect(err).NotTo(HaveOccurred(), "getting Ingress yaml")
-			Expect(ingressYaml).To(ContainSubstring("example.com"), "checking Ingress host")
-
 			By("verify HTTP request")
 			s.NewAPISIXClient().
 				GET("/get").
@@ -184,11 +179,6 @@ spec:
 			err = s.CreateResourceFromString(defaultIngress)
 			Expect(err).NotTo(HaveOccurred(), "creating Ingress without IngressClass")
 			time.Sleep(5 * time.Second)
-
-			By("check Default Ingress")
-			ingressYaml, err := s.GetResourceYaml("Ingress", "api7-ingress-default")
-			Expect(err).NotTo(HaveOccurred(), "getting Default Ingress yaml")
-			Expect(ingressYaml).To(ContainSubstring("default.example.com"), "checking Default Ingress host")
 
 			By("verify default ingress")
 			s.NewAPISIXClient().

@@ -42,7 +42,12 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				predicate.NewPredicateFuncs(r.checkIngressClass),
 			),
 		).
-		WithEventFilter(CombinedPredicate{}).
+		WithEventFilter(
+			predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				predicate.AnnotationChangedPredicate{},
+			),
+		).
 		Watches(
 			&networkingv1.IngressClass{},
 			handler.EnqueueRequestsFromMapFunc(r.listIngressForIngressClass),

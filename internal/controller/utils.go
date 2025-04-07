@@ -3,19 +3,15 @@ package controller
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strings"
 
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
-	"github.com/api7/gopkg/pkg/log"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
@@ -762,41 +758,4 @@ func SplitMetaNamespaceKey(key string) (namespace, name string, err error) {
 	}
 
 	return "", "", fmt.Errorf("unexpected key format: %q", key)
-}
-
-type CombinedPredicate struct {
-	predicate.GenerationChangedPredicate
-}
-
-func (c CombinedPredicate) Update(e event.UpdateEvent) bool {
-	if isNil(e.ObjectOld) {
-		log.Debugw("Update event has no old object for update")
-		return false
-	}
-	if isNil(e.ObjectNew) {
-		log.Debugw("Update event has no new object for update")
-		return false
-	}
-
-	_, ok := e.ObjectNew.(*networkingv1.IngressClass)
-	if ok {
-		log.Debugw("IngressClass update event")
-		return true
-	}
-
-	log.Debugw("other update event")
-	// if the object is not IngressClass, return the result of GenerationChangedPredicate.Update
-	return c.GenerationChangedPredicate.Update(e)
-}
-
-func isNil(arg any) bool {
-	if v := reflect.ValueOf(arg); !v.IsValid() || ((v.Kind() == reflect.Ptr ||
-		v.Kind() == reflect.Interface ||
-		v.Kind() == reflect.Slice ||
-		v.Kind() == reflect.Map ||
-		v.Kind() == reflect.Chan ||
-		v.Kind() == reflect.Func) && v.IsNil()) {
-		return true
-	}
-	return false
 }
