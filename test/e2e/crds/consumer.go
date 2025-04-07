@@ -109,6 +109,83 @@ spec:
 		s.ResourceApplied("httproute", "httpbin", defaultHTTPRoute, 1)
 	}
 
+	Context("Consumer plugins", func() {
+		var limitCountConsumer = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: Consumer
+metadata:
+  name: consumer-sample
+spec:
+  gatewayRef:
+    name: api7ee
+  credentials:
+    - type: key-auth
+      name: key-auth-sample
+      config:
+        key: sample-key
+  plugins:
+    - name: limit-count
+      config:
+        count: 2
+        time_window: 60
+        rejected_code: 503
+        key: remote_addr
+`
+
+		var unlimitConsumer = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: Consumer
+metadata:
+  name: consumer-sample2
+spec:
+  gatewayRef:
+    name: api7ee
+  credentials:
+    - type: key-auth
+      name: key-auth-sample
+      config:
+        key: sample-key2
+`
+
+		BeforeEach(beforeEachHTTP)
+
+		It("limit-count plugin", func() {
+			s.ResourceApplied("Consumer", "consumer-sample", limitCountConsumer, 1)
+			s.ResourceApplied("Consumer", "consumer-sample2", unlimitConsumer, 1)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHeader("apikey", "sample-key").
+				WithHost("httpbin.org").
+				Expect().
+				Status(200)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHeader("apikey", "sample-key").
+				WithHost("httpbin.org").
+				Expect().
+				Status(200)
+
+			By("trigger limit-count")
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHeader("apikey", "sample-key").
+				WithHost("httpbin.org").
+				Expect().
+				Status(503)
+
+			for i := 0; i < 10; i++ {
+				s.NewAPISIXClient().
+					GET("/get").
+					WithHeader("apikey", "sample-key2").
+					WithHost("httpbin.org").
+					Expect().
+					Status(200)
+			}
+		})
+	})
+
 	Context("Credential", func() {
 		var defaultCredential = `apiVersion: gateway.apisix.io/v1alpha1
 kind: Consumer
