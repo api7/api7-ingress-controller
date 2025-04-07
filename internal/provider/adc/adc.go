@@ -9,10 +9,10 @@ import (
 	"os/exec"
 
 	"go.uber.org/zap"
-	"gopkg.in/yaml.v3"
 	networkingv1 "k8s.io/api/networking/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	"sigs.k8s.io/yaml"
 
 	types "github.com/api7/api7-ingress-controller/api/adc"
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"

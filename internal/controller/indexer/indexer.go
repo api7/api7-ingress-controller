@@ -58,8 +58,35 @@ func setupConsumerIndexer(mgr ctrl.Manager) error {
 	); err != nil {
 		return err
 	}
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.Consumer{},
+		SecretIndexRef,
+		ConsumerSecretIndexFunc,
+	); err != nil {
+		return err
+	}
 	return nil
 }
+
+func ConsumerSecretIndexFunc(rawObj client.Object) []string {
+	consumer := rawObj.(*v1alpha1.Consumer)
+	secretKeys := make([]string, 0)
+
+	for _, credential := range consumer.Spec.Credentials {
+		if credential.SecretRef == nil {
+			continue
+		}
+		ns := consumer.GetNamespace()
+		if credential.SecretRef.Namespace != nil {
+			ns = *credential.SecretRef.Namespace
+		}
+		key := GenIndexKey(ns, credential.SecretRef.Name)
+		secretKeys = append(secretKeys, key)
+	}
+	return secretKeys
+}
+
 func ConsumerGatewayRefIndexFunc(rawObj client.Object) []string {
 	consumer := rawObj.(*v1alpha1.Consumer)
 

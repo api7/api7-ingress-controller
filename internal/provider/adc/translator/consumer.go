@@ -39,7 +39,7 @@ func (t *Translator) TranslateConsumerV1alpha1(tctx *provider.TranslateContext, 
 			}
 			authConfig := make(map[string]any)
 			for k, v := range secret.Data {
-				authConfig[k] = v
+				authConfig[k] = string(v)
 			}
 			credential.Config = authConfig
 		} else {
