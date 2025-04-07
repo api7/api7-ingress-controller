@@ -400,7 +400,7 @@ spec:
 			By("create HTTPRoute")
 			ResourceApplied("HTTPRoute", "httpbin", varsRoute, 1)
 
-			By("access daataplane to check the HTTPRoute")
+			By("access dataplane to check the HTTPRoute")
 			s.NewAPISIXClient().
 				GET("/get").
 				WithHost("httpbin.example").
