@@ -31,6 +31,7 @@ import (
 
 	"github.com/gavv/httpexpect/v2"
 	"github.com/gruntwork-io/terratest/modules/k8s"
+	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/gruntwork-io/terratest/modules/testing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -71,6 +72,11 @@ type Options struct {
 	NamespaceSelectorLabel   map[string][]string
 	DisableNamespaceSelector bool
 	DisableNamespaceLabel    bool
+
+	GinkgoBeforeCallback func(...any) bool
+	GinkgoAfterCallback  func(...any) bool
+
+	KubectlLogger *logger.Logger
 }
 
 type Scaffold struct {
@@ -96,6 +102,7 @@ type Scaffold struct {
 	apisixTCPTunnel        *k8s.Tunnel
 	apisixTLSOverTCPTunnel *k8s.Tunnel
 	apisixUDPTunnel        *k8s.Tunnel
+	locustTunnel           *k8s.Tunnel
 	// apisixControlTunnel    *k8s.Tunnel
 
 }
@@ -158,8 +165,14 @@ func NewScaffold(o *Options) *Scaffold {
 		t:         GinkgoT(),
 	}
 
-	BeforeEach(s.beforeEach)
-	AfterEach(s.afterEach)
+	if o.GinkgoBeforeCallback == nil {
+		o.GinkgoBeforeCallback = BeforeEach
+	}
+	if o.GinkgoAfterCallback == nil {
+		o.GinkgoAfterCallback = AfterEach
+	}
+	o.GinkgoBeforeCallback(s.beforeEach)
+	o.GinkgoAfterCallback(s.afterEach)
 
 	return s
 }
@@ -354,6 +367,9 @@ func (s *Scaffold) beforeEach() {
 	s.kubectlOptions = &k8s.KubectlOptions{
 		ConfigPath: s.opts.Kubeconfig,
 		Namespace:  s.namespace,
+	}
+	if s.opts.KubectlLogger != nil {
+		s.kubectlOptions.Logger = s.opts.KubectlLogger
 	}
 	if s.opts.ControllerName == "" {
 		s.opts.ControllerName = fmt.Sprintf("%s/%d", DefaultControllerName, time.Now().Nanosecond())
