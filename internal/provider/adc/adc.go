@@ -8,12 +8,6 @@ import (
 	"os"
 	"os/exec"
 
-	"go.uber.org/zap"
-	networkingv1 "k8s.io/api/networking/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	"sigs.k8s.io/yaml"
-
 	types "github.com/api7/api7-ingress-controller/api/adc"
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
@@ -21,6 +15,10 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/api7-ingress-controller/internal/provider/adc/translator"
 	"github.com/api7/gopkg/pkg/log"
+	"go.uber.org/zap"
+	networkingv1 "k8s.io/api/networking/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 type adcClient struct {
@@ -119,12 +117,12 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 func (d *adcClient) sync(task Task) error {
 	log.Debugw("syncing resources", zap.Any("task", task))
 
-	data, err := yaml.Marshal(task.Resources)
+	data, err := json.Marshal(task.Resources)
 	if err != nil {
 		return err
 	}
 
-	tmpFile, err := os.CreateTemp("", "adc-task-*.yaml")
+	tmpFile, err := os.CreateTemp("", "adc-task-*.json")
 	if err != nil {
 		return err
 	}
@@ -133,7 +131,7 @@ func (d *adcClient) sync(task Task) error {
 		_ = os.Remove(tmpFile.Name())
 	}()
 
-	log.Debugw("generated adc yaml", zap.String("file", tmpFile.Name()), zap.String("yaml", string(data)))
+	log.Debugf("generated adc file, filename: %s, json: %s\n", tmpFile.Name(), string(data))
 
 	if _, err := tmpFile.Write(data); err != nil {
 		return err
