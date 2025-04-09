@@ -16,10 +16,13 @@ RUN apt update \
     && apt autoremove -y wget
 
 FROM gcr.io/distroless/cc-debian12:${BASE_IMAGE_TAG}
+
+ARG TARGETARCH
+
 WORKDIR /app
 
 COPY --from=deps /bin/adc /bin/adc
-COPY ./bin/api7-ingress-controller .
+COPY ./bin/api7-ingress-controller_${TARGETARCH} ./api7-ingress-controller
 COPY ./config/samples/config.yaml ./conf/config.yaml
 
 ENTRYPOINT ["/app/api7-ingress-controller"]
