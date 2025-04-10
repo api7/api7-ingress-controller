@@ -54,6 +54,77 @@ spec:
                       type: string
                   type: object
                 type: array
+              provider:
+                description: Provider defines the provider configuration for GatewayProxy
+                properties:
+                  controlPlane:
+                    description: ControlPlane specifies the configuration for control
+                      plane provider
+                    properties:
+                      auth:
+                        description: Auth specifies the authentication configuration
+                        properties:
+                          adminKey:
+                            description: AdminKey specifies the admin key authentication
+                              configuration
+                            properties:
+                              value:
+                                description: Value specifies the admin key value directly
+                                  (not recommended for production)
+                                type: string
+                              valueFrom:
+                                description: ValueFrom specifies the source of the
+                                  admin key
+                                properties:
+                                  secretKeyRef:
+                                    description: SecretKeyRef references a key in
+                                      a Secret
+                                    properties:
+                                      key:
+                                        description: Key is the key in the secret
+                                        type: string
+                                      name:
+                                        description: Name is the name of the secret
+                                        type: string
+                                    required:
+                                    - key
+                                    - name
+                                    type: object
+                                type: object
+                            type: object
+                          type:
+                            description: Type specifies the type of authentication
+                            enum:
+                            - AdminKey
+                            type: string
+                        required:
+                        - type
+                        type: object
+                      endpoints:
+                        description: Endpoints specifies the list of control plane
+                          endpoints
+                        items:
+                          type: string
+                        minItems: 1
+                        type: array
+                    required:
+                    - auth
+                    - endpoints
+                    type: object
+                  type:
+                    description: Type specifies the type of provider
+                    enum:
+                    - ControlPlane
+                    type: string
+                required:
+                - type
+                type: object
+              publishService:
+                type: string
+              statusAddress:
+                items:
+                  type: string
+                type: array
             type: object
         type: object
     served: true
