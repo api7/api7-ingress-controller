@@ -55,7 +55,8 @@ spec:
                   type: object
                 type: array
               provider:
-                description: Provider defines the provider configuration for GatewayProxy
+                description: GatewayProxyProvider defines the provider configuration
+                  for GatewayProxy
                 properties:
                   controlPlane:
                     description: ControlPlane specifies the configuration for control
@@ -119,6 +120,10 @@ spec:
                 required:
                 - type
                 type: object
+                x-kubernetes-validations:
+                - message: controlPlane must be specified when type is ControlPlane
+                  rule: 'self.type == ''ControlPlane'' ? has(self.controlPlane) :
+                    true'
               publishService:
                 type: string
               statusAddress:

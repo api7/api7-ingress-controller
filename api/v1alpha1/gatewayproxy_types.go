@@ -31,7 +31,7 @@ type GatewayProxySpec struct {
 
 	PublishService string                          `json:"publishService,omitempty"`
 	StatusAddress  []string                        `json:"statusAddress,omitempty"`
-	Provider       *Provider                       `json:"provider,omitempty"`
+	Provider       *GatewayProxyProvider           `json:"provider,omitempty"`
 	Plugins        []GatewayProxyPlugin            `json:"plugins,omitempty"`
 	PluginMetadata map[string]apiextensionsv1.JSON `json:"pluginMetadata,omitempty"`
 }
@@ -45,8 +45,9 @@ const (
 	ProviderTypeControlPlane ProviderType = "ControlPlane"
 )
 
-// Provider defines the provider configuration for GatewayProxy
-type Provider struct {
+// GatewayProxyProvider defines the provider configuration for GatewayProxy
+// +kubebuilder:validation:XValidation:rule="self.type == 'ControlPlane' ? has(self.controlPlane) : true",message="controlPlane must be specified when type is ControlPlane"
+type GatewayProxyProvider struct {
 	// Type specifies the type of provider
 	// +kubebuilder:validation:Required
 	Type ProviderType `json:"type"`
