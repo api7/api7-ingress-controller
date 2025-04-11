@@ -29,8 +29,93 @@ type GatewayProxySpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
+	PublishService string                          `json:"publishService,omitempty"`
+	StatusAddress  []string                        `json:"statusAddress,omitempty"`
+	Provider       *GatewayProxyProvider           `json:"provider,omitempty"`
 	Plugins        []GatewayProxyPlugin            `json:"plugins,omitempty"`
 	PluginMetadata map[string]apiextensionsv1.JSON `json:"pluginMetadata,omitempty"`
+}
+
+// ProviderType defines the type of provider
+// +kubebuilder:validation:Enum=ControlPlane
+type ProviderType string
+
+const (
+	// ProviderTypeControlPlane represents the control plane provider type
+	ProviderTypeControlPlane ProviderType = "ControlPlane"
+)
+
+// GatewayProxyProvider defines the provider configuration for GatewayProxy
+// +kubebuilder:validation:XValidation:rule="self.type == 'ControlPlane' ? has(self.controlPlane) : true",message="controlPlane must be specified when type is ControlPlane"
+type GatewayProxyProvider struct {
+	// Type specifies the type of provider
+	// +kubebuilder:validation:Required
+	Type ProviderType `json:"type"`
+
+	// ControlPlane specifies the configuration for control plane provider
+	// +optional
+	ControlPlane *ControlPlaneProvider `json:"controlPlane,omitempty"`
+}
+
+// AuthType defines the type of authentication
+// +kubebuilder:validation:Enum=AdminKey
+type AuthType string
+
+const (
+	// AuthTypeAdminKey represents the admin key authentication type
+	AuthTypeAdminKey AuthType = "AdminKey"
+)
+
+// SecretKeySelector defines a reference to a specific key within a Secret
+type SecretKeySelector struct {
+	// Name is the name of the secret
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
+
+	// Key is the key in the secret
+	// +kubebuilder:validation:Required
+	Key string `json:"key"`
+}
+
+// AdminKeyAuth defines the admin key authentication configuration
+type AdminKeyAuth struct {
+	// Value specifies the admin key value directly (not recommended for production)
+	// +optional
+	Value string `json:"value,omitempty"`
+
+	// ValueFrom specifies the source of the admin key
+	// +optional
+	ValueFrom *AdminKeyValueFrom `json:"valueFrom,omitempty"`
+}
+
+// AdminKeyValueFrom defines the source of the admin key
+type AdminKeyValueFrom struct {
+	// SecretKeyRef references a key in a Secret
+	// +optional
+	SecretKeyRef *SecretKeySelector `json:"secretKeyRef,omitempty"`
+}
+
+// ControlPlaneAuth defines the authentication configuration for control plane
+type ControlPlaneAuth struct {
+	// Type specifies the type of authentication
+	// +kubebuilder:validation:Required
+	Type AuthType `json:"type"`
+
+	// AdminKey specifies the admin key authentication configuration
+	// +optional
+	AdminKey *AdminKeyAuth `json:"adminKey,omitempty"`
+}
+
+// ControlPlaneProvider defines the configuration for control plane provider
+type ControlPlaneProvider struct {
+	// Endpoints specifies the list of control plane endpoints
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinItems=1
+	Endpoints []string `json:"endpoints"`
+
+	// Auth specifies the authentication configuration
+	// +kubebuilder:validation:Required
+	Auth ControlPlaneAuth `json:"auth"`
 }
 
 // +kubebuilder:object:root=true
