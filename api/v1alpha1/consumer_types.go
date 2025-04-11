@@ -46,10 +46,6 @@ type SecretReference struct {
 	Namespace *string `json:"namespace,omitempty"`
 }
 
-type Status struct {
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
-}
-
 // +kubebuilder:object:root=true
 type ConsumerList struct {
 	metav1.TypeMeta `json:",inline"`
