@@ -96,6 +96,14 @@ rules:
 - apiGroups:
   - gateway.apisix.io
   resources:
+  - httproutepolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gateway.apisix.io
+  resources:
   - pluginconfigs
   verbs:
   - get

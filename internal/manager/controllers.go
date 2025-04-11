@@ -26,6 +26,7 @@ import (
 // +kubebuilder:rbac:groups=gateway.apisix.io,resources=consumers/status,verbs=get;update
 // +kubebuilder:rbac:groups=gateway.apisix.io,resources=backendtrafficpolicies,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gateway.apisix.io,resources=backendtrafficpolicies/status,verbs=get;update
+// +kubebuilder:rbac:groups=gateway.apisix.io,resources=httproutepolicies,verbs=get;list;watch
 
 // GatewayAPI
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses,verbs=get;list;watch;update
