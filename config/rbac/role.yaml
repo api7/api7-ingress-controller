@@ -58,6 +58,21 @@ rules:
 - apiGroups:
   - gateway.apisix.io
   resources:
+  - backendtrafficpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gateway.apisix.io
+  resources:
+  - backendtrafficpolicies/status
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - gateway.apisix.io
+  resources:
   - consumers
   verbs:
   - get
