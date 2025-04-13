@@ -39,22 +39,9 @@ spec:
           spec:
             description: HTTPRoutePolicySpec defines the desired state of HTTPRoutePolicy.
             properties:
-              policy:
-                properties:
-                  priority:
-                    format: int64
-                    type: integer
-                  vars:
-                    description: Vars represents the route match expressions of APISIX.
-                    items:
-                      items:
-                        description: |-
-                          StringOrSlice represents a string or a string slice.
-                          TODO Do not use interface{} to avoid the reflection overheads.
-                        type: object
-                      type: array
-                    type: array
-                type: object
+              priority:
+                format: int64
+                type: integer
               targetRefs:
                 description: |-
                   TargetRef identifies an API object (enum: HTTPRoute, Ingress) to apply HTTPRoutePolicy to.
@@ -122,8 +109,17 @@ spec:
                 - kind
                 - name
                 x-kubernetes-list-type: map
+              vars:
+                description: Vars represents the route match expressions of APISIX.
+                items:
+                  items:
+                    description: |-
+                      StringOrSlice represents a string or a string slice.
+                      TODO Do not use interface{} to avoid the reflection overheads.
+                    type: object
+                  type: array
+                type: array
             required:
-            - policy
             - targetRefs
             type: object
           status:
@@ -474,3 +470,5 @@ spec:
         type: object
     served: true
     storage: true
+    subresources:
+      status: {}

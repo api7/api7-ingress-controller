@@ -36,10 +36,12 @@ type HTTPRoutePolicySpec struct {
 	// +kubebuilder:validation:MaxItems=16
 	TargetRefs []gatewayv1alpha2.LocalPolicyTargetReferenceWithSectionName `json:"targetRefs"`
 
-	Policy HTTPRoutePolicySpecPolicy `json:"policy"`
+	Priority *int64 `json:"priority,omitempty" yaml:"priority,omitempty"`
+	Vars     Vars   `json:"vars,omitempty" yaml:"vars,omitempty"`
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // HTTPRoutePolicy is the Schema for the httproutepolicies API.
 type HTTPRoutePolicy struct {
@@ -57,11 +59,6 @@ type HTTPRoutePolicyList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []HTTPRoutePolicy `json:"items"`
-}
-
-type HTTPRoutePolicySpecPolicy struct {
-	Priority *int64 `json:"priority,omitempty" yaml:"priority,omitempty"`
-	Vars     Vars   `json:"vars,omitempty" yaml:"vars,omitempty"`
 }
 
 // Vars represents the route match expressions of APISIX.
