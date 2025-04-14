@@ -285,6 +285,38 @@ func (r *GatewayReconciler) processInfrastructure(tctx *provider.TranslateContex
 		} else {
 			log.Info("found GatewayProxy for Gateway", "gateway", gateway.Name, "gatewayproxy", gatewayProxy.Name)
 			tctx.GatewayProxy = gatewayProxy
+
+			// Process provider secrets if provider exists
+			if gatewayProxy.Spec.Provider != nil && gatewayProxy.Spec.Provider.Type == v1alpha1.ProviderTypeControlPlane {
+				if gatewayProxy.Spec.Provider.ControlPlane != nil &&
+					gatewayProxy.Spec.Provider.ControlPlane.Auth.Type == v1alpha1.AuthTypeAdminKey &&
+					gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey != nil &&
+					gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom != nil &&
+					gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
+
+					secretRef := gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef
+					secret := &corev1.Secret{}
+					if err := r.Get(context.Background(), client.ObjectKey{
+						Namespace: ns,
+						Name:      secretRef.Name,
+					}, secret); err != nil {
+						log.Error(err, "failed to get secret for GatewayProxy provider",
+							"namespace", ns,
+							"name", secretRef.Name)
+						return err
+					}
+
+					log.Info("found secret for GatewayProxy provider",
+						"gateway", gateway.Name,
+						"gatewayproxy", gatewayProxy.Name,
+						"secret", secretRef.Name)
+
+					tctx.Secrets[types.NamespacedName{
+						Namespace: ns,
+						Name:      secretRef.Name,
+					}] = secret
+				}
+			}
 		}
 	}
 
