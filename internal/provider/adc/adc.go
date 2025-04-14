@@ -65,7 +65,7 @@ func (d *adcClient) getConfigs(rk ResourceKind) []adcConfig {
 	return d.configs[rk]
 }
 
-func (d *adcClient) getConfigsForGatewayProxy(rk ResourceKind, tctx *provider.TranslateContext, gatewayProxy *v1alpha1.GatewayProxy) (*adcConfig, error) {
+func (d *adcClient) getConfigsForGatewayProxy(tctx *provider.TranslateContext, gatewayProxy *v1alpha1.GatewayProxy) (*adcConfig, error) {
 	if gatewayProxy == nil || gatewayProxy.Spec.Provider == nil {
 		return nil, nil
 	}
@@ -89,7 +89,8 @@ func (d *adcClient) getConfigsForGatewayProxy(rk ResourceKind, tctx *provider.Tr
 		if provider.ControlPlane.Auth.AdminKey.ValueFrom != nil && provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
 			secretRef := provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef
 			secret, ok := tctx.Secrets[types.NamespacedName{
-				Namespace: rk.Namespace,
+				// we should use gateway proxy namespace
+				Namespace: gatewayProxy.GetNamespace(),
 				Name:      secretRef.Name,
 			}]
 			if ok {
@@ -112,7 +113,7 @@ func (d *adcClient) getConfigsForGatewayProxy(rk ResourceKind, tctx *provider.Tr
 func (d *adcClient) updateConfigs(rk ResourceKind, tctx *provider.TranslateContext) error {
 	var configs []adcConfig
 	for _, gatewayProxy := range tctx.GatewayProxies {
-		config, err := d.getConfigsForGatewayProxy(rk, tctx, &gatewayProxy)
+		config, err := d.getConfigsForGatewayProxy(tctx, &gatewayProxy)
 		if err != nil {
 			return err
 		}
@@ -139,21 +140,12 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		resourceTypes = append(resourceTypes, "service")
 	case *gatewayv1.Gateway:
 		result, err = d.translator.TranslateGateway(tctx, t.DeepCopy())
-		if err != nil {
-			return err
-		}
 		resourceTypes = append(resourceTypes, "global_rule", "ssl", "plugin_metadata")
 	case *networkingv1.Ingress:
 		result, err = d.translator.TranslateIngress(tctx, t.DeepCopy())
-		if err != nil {
-			return err
-		}
 		resourceTypes = append(resourceTypes, "service", "ssl")
 	case *v1alpha1.Consumer:
 		result, err = d.translator.TranslateConsumerV1alpha1(tctx, t.DeepCopy())
-		if err != nil {
-			return err
-		}
 		resourceTypes = append(resourceTypes, "consumer")
 	}
 	if err != nil {

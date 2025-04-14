@@ -22,7 +22,6 @@ type TranslateContext struct {
 	GatewayTLSConfig []gatewayv1.GatewayTLSConfig
 	GatewayProxies   []v1alpha1.GatewayProxy
 	Credentials      []v1alpha1.Credential
-	Gateways         []gatewayv1.Gateway
 	EndpointSlices   map[types.NamespacedName][]discoveryv1.EndpointSlice
 	Secrets          map[types.NamespacedName]*corev1.Secret
 	PluginConfigs    map[types.NamespacedName]*v1alpha1.PluginConfig
