@@ -153,6 +153,8 @@ spec:
                   - kind
                   - name
                   type: object
+                  x-kubernetes-validations:
+                  - rule: self.kind == 'Service' && self.group == ""
                 maxItems: 16
                 minItems: 1
                 type: array

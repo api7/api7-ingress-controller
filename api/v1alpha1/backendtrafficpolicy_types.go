@@ -2,8 +2,6 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 // +kubebuilder:object:root=true
@@ -12,8 +10,8 @@ type BackendTrafficPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   BackendTrafficPolicySpec     `json:"spec,omitempty"`
-	Status gatewayv1alpha2.PolicyStatus `json:"status,omitempty"`
+	Spec   BackendTrafficPolicySpec `json:"spec,omitempty"`
+	Status PolicyStatus             `json:"status,omitempty"`
 }
 
 type BackendTrafficPolicySpec struct {
@@ -27,7 +25,7 @@ type BackendTrafficPolicySpec struct {
 	// +listMapKey=name
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=16
-	TargetRefs []gatewayv1alpha2.LocalPolicyTargetReferenceWithSectionName `json:"targetRefs"`
+	TargetRefs []BackendPolicyTargetReferenceWithSectionName `json:"targetRefs"`
 	// LoadBalancer represents the load balancer configuration for Kubernetes Service.
 	// The default strategy is round robin.
 	LoadBalancer *LoadBalancer `json:"loadbalancer,omitempty" yaml:"loadbalancer,omitempty"`
