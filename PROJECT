@@ -26,4 +26,12 @@ resources:
   kind: GatewayProxy
   path: github.com/api7/api7-ingress-controller/api/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  domain: github.com
+  group: gateway.apisix.io
+  kind: HTTPRoutePolicy
+  path: github.com/api7/api7-ingress-controller/api/v1alpha1
+  version: v1alpha1
 version: "3"
