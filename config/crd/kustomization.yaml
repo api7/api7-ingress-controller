@@ -6,6 +6,7 @@ resources:
 - bases/gateway.apisix.io_gatewayproxies.yaml
 - bases/gateway.apisix.io_consumers.yaml
 - bases/gateway.apisix.io_backendtrafficpolicies.yaml
+- bases/gateway.apisix.io_httproutepolicies.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:

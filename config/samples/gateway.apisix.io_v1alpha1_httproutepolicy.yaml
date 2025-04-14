@@ -1,0 +1,9 @@
+apiVersion: gateway.apisix.io.github.com/v1alpha1
+kind: HTTPRoutePolicy
+metadata:
+  labels:
+    app.kubernetes.io/name: api7-ingress-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: httproutepolicy-sample
+spec:
+  # TODO(user): Add fields here
