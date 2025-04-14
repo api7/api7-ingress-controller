@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	types "github.com/api7/api7-ingress-controller/api/adc"
+	adctypes "github.com/api7/api7-ingress-controller/api/adc"
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/api7/api7-ingress-controller/internal/controller/label"
@@ -22,19 +22,32 @@ import (
 	"github.com/api7/gopkg/pkg/log"
 )
 
+type ResourceKind struct {
+	Kind      string
+	Namespace string
+	Name      string
+}
+
+type adcConfig struct {
+	ServerAddr string
+	Token      string
+}
+
 type adcClient struct {
 	translator *translator.Translator
 
 	ServerAddr   string
 	Token        string
 	GatewayGroup string
+	configs      map[ResourceKind][]adcConfig
 }
 
 type Task struct {
 	Name          string
-	Resources     types.Resources
+	Resources     adctypes.Resources
 	Labels        map[string]string
 	ResourceTypes []string
+	configs       []adcConfig
 }
 
 func New() (provider.Provider, error) {
@@ -43,7 +56,30 @@ func New() (provider.Provider, error) {
 		translator: &translator.Translator{},
 		ServerAddr: gc.ControlPlane.Endpoints[0],
 		Token:      gc.ControlPlane.AdminKey,
+		configs:    make(map[ResourceKind][]adcConfig),
 	}, nil
+}
+
+func (d *adcClient) getConfigs(rk ResourceKind) []adcConfig {
+	return d.configs[rk]
+}
+
+func (d *adcClient) updateGatewayConfigs(rk ResourceKind, tctx *provider.TranslateContext) ([]adcConfig, error) {
+	// get gateway proxy from tctx
+	return nil, nil
+}
+
+func (d *adcClient) updateIngressConfigs(rk ResourceKind, tctx *provider.TranslateContext) ([]adcConfig, error) {
+	// get gateway proxy from tctx
+	return nil, nil
+}
+
+func (d *adcClient) updateHTTPRouteConfigs(rk ResourceKind, tctx *provider.TranslateContext) ([]adcConfig, error) {
+	return nil, nil
+}
+
+func (d *adcClient) updateConsumerConfigs(rk ResourceKind, tctx *provider.TranslateContext) ([]adcConfig, error) {
+	return nil, nil
 }
 
 func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext, obj client.Object) error {
@@ -54,22 +90,55 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		err           error
 	)
 
+	var configs []adcConfig
+
+	rk := ResourceKind{
+		Kind:      obj.GetObjectKind().GroupVersionKind().Kind,
+		Namespace: obj.GetNamespace(),
+		Name:      obj.GetName(),
+	}
+
 	switch t := obj.(type) {
 	case *gatewayv1.HTTPRoute:
 		result, err = d.translator.TranslateHTTPRoute(tctx, t.DeepCopy())
+		if err != nil {
+			return err
+		}
 		resourceTypes = append(resourceTypes, "service")
+		configs, err = d.updateHTTPRouteConfigs(rk, tctx)
+		if err != nil {
+			return err
+		}
 	case *gatewayv1.Gateway:
 		result, err = d.translator.TranslateGateway(tctx, t.DeepCopy())
+		if err != nil {
+			return err
+		}
 		resourceTypes = append(resourceTypes, "global_rule", "ssl", "plugin_metadata")
+		configs, err = d.updateGatewayConfigs(rk, tctx)
+		if err != nil {
+			return err
+		}
 	case *networkingv1.Ingress:
 		result, err = d.translator.TranslateIngress(tctx, t.DeepCopy())
+		if err != nil {
+			return err
+		}
 		resourceTypes = append(resourceTypes, "service", "ssl")
+		configs, err = d.updateIngressConfigs(rk, tctx)
+		if err != nil {
+			return err
+		}
 	case *v1alpha1.Consumer:
 		result, err = d.translator.TranslateConsumerV1alpha1(tctx, t.DeepCopy())
+		if err != nil {
+			return err
+		}
 		resourceTypes = append(resourceTypes, "consumer")
-	}
-	if err != nil {
-		return err
+		configs, err = d.updateConsumerConfigs(rk, tctx)
+		if err != nil {
+			return err
+		}
 	}
 	if result == nil {
 		return nil
@@ -78,7 +147,7 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 	return d.sync(Task{
 		Name:   obj.GetName(),
 		Labels: label.GenLabel(obj),
-		Resources: types.Resources{
+		Resources: adctypes.Resources{
 			GlobalRules:    result.GlobalRules,
 			PluginMetadata: result.PluginMetadata,
 			Services:       result.Services,
@@ -86,6 +155,7 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 			Consumers:      result.Consumers,
 		},
 		ResourceTypes: resourceTypes,
+		configs:       configs,
 	})
 }
 
@@ -108,10 +178,19 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 		labels = label.GenLabel(obj)
 	}
 
+	rk := ResourceKind{
+		Kind:      obj.GetObjectKind().GroupVersionKind().Kind,
+		Namespace: obj.GetNamespace(),
+		Name:      obj.GetName(),
+	}
+
+	configs := d.getConfigs(rk)
+
 	return d.sync(Task{
 		Name:          obj.GetName(),
 		Labels:        labels,
 		ResourceTypes: resourceTypes,
+		configs:       configs,
 	})
 }
 
@@ -150,12 +229,39 @@ func (d *adcClient) sync(task Task) error {
 		args = append(args, "--include-resource-type", t)
 	}
 
+	// todo: use adc config
+	// for _, config := range task.configs {
+	// 	if err := d.execADC(config, args); err != nil {
+	// 		return err
+	// 	}
+	// }
+	if err := d.execADC(adcConfig{
+		ServerAddr: d.ServerAddr,
+		Token:      d.Token,
+	}, args); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d *adcClient) execADC(config adcConfig, args []string) error {
+	// todo: use adc config
+	serverAddr := d.ServerAddr
+	if config.ServerAddr != "" {
+		serverAddr = config.ServerAddr
+	}
+	token := d.Token
+	if config.Token != "" {
+		token = config.Token
+	}
+
 	adcEnv := []string{
 		"ADC_EXPERIMENTAL_FEATURE_FLAGS=remote-state-file,parallel-backend-request",
 		"ADC_RUNNING_MODE=ingress",
 		"ADC_BACKEND=api7ee",
-		"ADC_SERVER=" + d.ServerAddr,
-		"ADC_TOKEN=" + d.Token,
+		"ADC_SERVER=" + serverAddr,
+		"ADC_TOKEN=" + token,
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -167,7 +273,7 @@ func (d *adcClient) sync(task Task) error {
 
 	log.Debug("running adc command", zap.String("command", cmd.String()), zap.Strings("env", adcEnv))
 
-	var result types.SyncResult
+	var result adctypes.SyncResult
 	if err := cmd.Run(); err != nil {
 		stderrStr := stderr.String()
 		stdoutStr := stdout.String()
