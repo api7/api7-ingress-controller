@@ -32,14 +32,18 @@ func (t *Translator) TranslateGateway(tctx *provider.TranslateContext, obj *gate
 			result.SSL = append(result.SSL, ssl...)
 		}
 	}
-	if tctx.GatewayProxy != nil {
+	var gatewayProxy *v1alpha1.GatewayProxy
+	if len(tctx.GatewayProxies) > 0 {
+		gatewayProxy = &tctx.GatewayProxies[0]
+	}
+	if gatewayProxy != nil {
 		var (
 			globalRules    = adctypes.Plugins{}
 			pluginMetadata = adctypes.Plugins{}
 		)
 		// apply plugins from GatewayProxy to global rules
-		t.fillPluginsFromGatewayProxy(globalRules, tctx.GatewayProxy)
-		t.fillPluginMetadataFromGatewayProxy(pluginMetadata, tctx.GatewayProxy)
+		t.fillPluginsFromGatewayProxy(globalRules, gatewayProxy)
+		t.fillPluginMetadataFromGatewayProxy(pluginMetadata, gatewayProxy)
 		result.GlobalRules = globalRules
 		result.PluginMetadata = pluginMetadata
 	}

@@ -20,7 +20,7 @@ type Provider interface {
 type TranslateContext struct {
 	BackendRefs      []gatewayv1.BackendRef
 	GatewayTLSConfig []gatewayv1.GatewayTLSConfig
-	GatewayProxy     *v1alpha1.GatewayProxy
+	GatewayProxies   []v1alpha1.GatewayProxy
 	Credentials      []v1alpha1.Credential
 	Gateways         []gatewayv1.Gateway
 	EndpointSlices   map[types.NamespacedName][]discoveryv1.EndpointSlice

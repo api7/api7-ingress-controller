@@ -267,60 +267,7 @@ func (r *GatewayReconciler) listGatewaysForHTTPRoute(_ context.Context, obj clie
 }
 
 func (r *GatewayReconciler) processInfrastructure(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway) error {
-	infra := gateway.Spec.Infrastructure
-	if infra == nil || infra.ParametersRef == nil {
-		return nil
-	}
-
-	ns := gateway.GetNamespace()
-	paramRef := infra.ParametersRef
-	if string(paramRef.Group) == v1alpha1.GroupVersion.Group && string(paramRef.Kind) == "GatewayProxy" {
-		gatewayProxy := &v1alpha1.GatewayProxy{}
-		if err := r.Get(context.Background(), client.ObjectKey{
-			Namespace: ns,
-			Name:      paramRef.Name,
-		}, gatewayProxy); err != nil {
-			log.Error(err, "failed to get GatewayProxy", "namespace", ns, "name", paramRef.Name)
-			return err
-		} else {
-			log.Info("found GatewayProxy for Gateway", "gateway", gateway.Name, "gatewayproxy", gatewayProxy.Name)
-			tctx.GatewayProxy = gatewayProxy
-
-			// Process provider secrets if provider exists
-			if gatewayProxy.Spec.Provider != nil && gatewayProxy.Spec.Provider.Type == v1alpha1.ProviderTypeControlPlane {
-				if gatewayProxy.Spec.Provider.ControlPlane != nil &&
-					gatewayProxy.Spec.Provider.ControlPlane.Auth.Type == v1alpha1.AuthTypeAdminKey &&
-					gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey != nil &&
-					gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom != nil &&
-					gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
-
-					secretRef := gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef
-					secret := &corev1.Secret{}
-					if err := r.Get(context.Background(), client.ObjectKey{
-						Namespace: ns,
-						Name:      secretRef.Name,
-					}, secret); err != nil {
-						log.Error(err, "failed to get secret for GatewayProxy provider",
-							"namespace", ns,
-							"name", secretRef.Name)
-						return err
-					}
-
-					log.Info("found secret for GatewayProxy provider",
-						"gateway", gateway.Name,
-						"gatewayproxy", gatewayProxy.Name,
-						"secret", secretRef.Name)
-
-					tctx.Secrets[types.NamespacedName{
-						Namespace: ns,
-						Name:      secretRef.Name,
-					}] = secret
-				}
-			}
-		}
-	}
-
-	return nil
+	return ProcessGatewayProxy(r.Client, tctx, gateway)
 }
 
 func (r *GatewayReconciler) processListenerConfig(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway) {

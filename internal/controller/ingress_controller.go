@@ -548,7 +548,7 @@ func (r *IngressReconciler) processIngressClassParameters(ctx context.Context, t
 		}
 
 		r.Log.Info("found GatewayProxy for IngressClass", "ingressClass", ingressClass.Name, "gatewayproxy", gatewayProxy.Name)
-		tctx.GatewayProxy = gatewayProxy
+		tctx.GatewayProxies = append(tctx.GatewayProxies, *gatewayProxy)
 
 		// check if the provider field references a secret
 		if gatewayProxy.Spec.Provider != nil && gatewayProxy.Spec.Provider.Type == v1alpha1.ProviderTypeControlPlane {

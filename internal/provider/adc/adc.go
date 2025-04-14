@@ -20,6 +20,7 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/api7-ingress-controller/internal/provider/adc/translator"
 	"github.com/api7/gopkg/pkg/log"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 type ResourceKind struct {
@@ -64,22 +65,64 @@ func (d *adcClient) getConfigs(rk ResourceKind) []adcConfig {
 	return d.configs[rk]
 }
 
-func (d *adcClient) updateGatewayConfigs(rk ResourceKind, tctx *provider.TranslateContext) ([]adcConfig, error) {
-	// get gateway proxy from tctx
-	return nil, nil
+func (d *adcClient) getConfigsForGatewayProxy(rk ResourceKind, tctx *provider.TranslateContext, gatewayProxy *v1alpha1.GatewayProxy) (*adcConfig, error) {
+	if gatewayProxy == nil || gatewayProxy.Spec.Provider == nil {
+		return nil, nil
+	}
+
+	provider := gatewayProxy.Spec.Provider
+	if provider.Type != v1alpha1.ProviderTypeControlPlane || provider.ControlPlane == nil {
+		return nil, nil
+	}
+
+	endpoints := provider.ControlPlane.Endpoints
+	if len(endpoints) == 0 {
+		return nil, errors.New("no endpoints found")
+	}
+
+	endpoint := endpoints[0]
+	config := adcConfig{
+		ServerAddr: endpoint,
+	}
+
+	if provider.ControlPlane.Auth.Type == v1alpha1.AuthTypeAdminKey && provider.ControlPlane.Auth.AdminKey != nil {
+		if provider.ControlPlane.Auth.AdminKey.ValueFrom != nil && provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
+			secretRef := provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef
+			secret, ok := tctx.Secrets[types.NamespacedName{
+				Namespace: rk.Namespace,
+				Name:      secretRef.Name,
+			}]
+			if ok {
+				if token, ok := secret.Data[secretRef.Key]; ok {
+					config.Token = string(token)
+				}
+			}
+		} else if provider.ControlPlane.Auth.AdminKey.Value != "" {
+			config.Token = provider.ControlPlane.Auth.AdminKey.Value
+		}
+	}
+
+	if config.Token == "" {
+		return nil, errors.New("no token found")
+	}
+
+	return &config, nil
 }
 
-func (d *adcClient) updateIngressConfigs(rk ResourceKind, tctx *provider.TranslateContext) ([]adcConfig, error) {
-	// get gateway proxy from tctx
-	return nil, nil
-}
+func (d *adcClient) updateConfigs(rk ResourceKind, tctx *provider.TranslateContext) error {
+	var configs []adcConfig
+	for _, gatewayProxy := range tctx.GatewayProxies {
+		config, err := d.getConfigsForGatewayProxy(rk, tctx, &gatewayProxy)
+		if err != nil {
+			return err
+		}
+		if config != nil {
+			configs = append(configs, *config)
+		}
+	}
 
-func (d *adcClient) updateHTTPRouteConfigs(rk ResourceKind, tctx *provider.TranslateContext) ([]adcConfig, error) {
-	return nil, nil
-}
-
-func (d *adcClient) updateConsumerConfigs(rk ResourceKind, tctx *provider.TranslateContext) ([]adcConfig, error) {
-	return nil, nil
+	d.configs[rk] = configs
+	return nil
 }
 
 func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext, obj client.Object) error {
@@ -90,59 +133,46 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		err           error
 	)
 
-	var configs []adcConfig
-
-	rk := ResourceKind{
-		Kind:      obj.GetObjectKind().GroupVersionKind().Kind,
-		Namespace: obj.GetNamespace(),
-		Name:      obj.GetName(),
-	}
-
 	switch t := obj.(type) {
 	case *gatewayv1.HTTPRoute:
 		result, err = d.translator.TranslateHTTPRoute(tctx, t.DeepCopy())
-		if err != nil {
-			return err
-		}
 		resourceTypes = append(resourceTypes, "service")
-		configs, err = d.updateHTTPRouteConfigs(rk, tctx)
-		if err != nil {
-			return err
-		}
 	case *gatewayv1.Gateway:
 		result, err = d.translator.TranslateGateway(tctx, t.DeepCopy())
 		if err != nil {
 			return err
 		}
 		resourceTypes = append(resourceTypes, "global_rule", "ssl", "plugin_metadata")
-		configs, err = d.updateGatewayConfigs(rk, tctx)
-		if err != nil {
-			return err
-		}
 	case *networkingv1.Ingress:
 		result, err = d.translator.TranslateIngress(tctx, t.DeepCopy())
 		if err != nil {
 			return err
 		}
 		resourceTypes = append(resourceTypes, "service", "ssl")
-		configs, err = d.updateIngressConfigs(rk, tctx)
-		if err != nil {
-			return err
-		}
 	case *v1alpha1.Consumer:
 		result, err = d.translator.TranslateConsumerV1alpha1(tctx, t.DeepCopy())
 		if err != nil {
 			return err
 		}
 		resourceTypes = append(resourceTypes, "consumer")
-		configs, err = d.updateConsumerConfigs(rk, tctx)
-		if err != nil {
-			return err
-		}
+	}
+	if err != nil {
+		return err
 	}
 	if result == nil {
 		return nil
 	}
+
+	// update adc configs
+	rk := ResourceKind{
+		Kind:      obj.GetObjectKind().GroupVersionKind().Kind,
+		Namespace: obj.GetNamespace(),
+		Name:      obj.GetName(),
+	}
+	if err := d.updateConfigs(rk, tctx); err != nil {
+		return err
+	}
+	configs := d.getConfigs(rk)
 
 	return d.sync(Task{
 		Name:   obj.GetName(),
