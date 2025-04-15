@@ -49,6 +49,7 @@ func ProcessBackendTrafficPolicy(c client.Client, tctx *provider.TranslateContex
 		}
 		for _, policy := range backendTrafficPolicyList.Items {
 			targetRefs := policy.Spec.TargetRefs
+			updated := false
 			for _, targetRef := range targetRefs {
 				sectionName := targetRef.SectionName
 				key := PolicyTargetKey{
@@ -60,15 +61,25 @@ func ProcessBackendTrafficPolicy(c client.Client, tctx *provider.TranslateContex
 					condition = NewPolicyCondition(policy.Generation, false, fmt.Sprintf("SectionName %s not found in Service %s/%s", *sectionName, service.Namespace, service.Name))
 					goto record_status
 				}
-				if p, ok := conflicts[key.String()]; ok && (p.Name == policy.Name && p.Namespace != policy.Namespace) {
-					condition = NewPolicyConflictCondition(policy.Generation, fmt.Sprintf("Unable to target Service %s/%s with BackendTrafficPolicy %s/%s", service.Namespace, service.Name, policy.Namespace, policy.Name))
+				if p, ok := conflicts[key.String()]; ok && (p.Name == policy.Name && p.Namespace == policy.Namespace) {
+					condition = NewPolicyConflictCondition(policy.Generation, fmt.Sprintf("Unable to target Service %s/%s, because it conflicts with another BackendTrafficPolicy", service.Namespace, service.Name))
 					goto record_status
 				}
 				conflicts[key.String()] = policy
 			record_status:
 				if ok := SetAncestors(&policy.Status, tctx.ParentRefs, condition); ok {
-					tctx.StatusUpdaters = append(tctx.StatusUpdaters, policy.DeepCopy())
+					updated = true
 				}
+			}
+			if _, ok := tctx.BackendTrafficPolicies[types.NamespacedName{
+				Name:      policy.Name,
+				Namespace: policy.Namespace,
+			}]; ok {
+				continue
+			}
+
+			if updated {
+				tctx.StatusUpdaters = append(tctx.StatusUpdaters, policy.DeepCopy())
 			}
 
 			tctx.BackendTrafficPolicies[types.NamespacedName{
