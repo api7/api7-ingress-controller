@@ -109,6 +109,8 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 				Name:      backendService.Name,
 			}]
 
+			t.attachBackendTrafficPolicyToUpstream(nil, upstream)
+
 			// get the service port configuration
 			var servicePort int32 = 0
 			var servicePortName string

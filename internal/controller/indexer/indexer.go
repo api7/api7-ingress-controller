@@ -5,6 +5,8 @@ import (
 
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	networkingv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -19,6 +21,7 @@ const (
 	SecretIndexRef     = "secretRefs"
 	IngressClassRef    = "ingressClassRef"
 	ConsumerGatewayRef = "consumerGatewayRef"
+	PolicyTargetRefs   = "targetRefs"
 )
 
 func SetupIndexer(mgr ctrl.Manager) error {
@@ -227,6 +230,18 @@ func IngressSecretIndexFunc(rawObj client.Object) []string {
 	return secrets
 }
 
+func GenIndexKeyWithGK(group, kind, namespace, name string) string {
+	gvk := schema.GroupKind{
+		Group: group,
+		Kind:  kind,
+	}
+	nsName := types.NamespacedName{
+		Namespace: namespace,
+		Name:      name,
+	}
+	return gvk.String() + "/" + nsName.String()
+}
+
 func GenIndexKey(namespace, name string) string {
 	return client.ObjectKey{
 		Namespace: namespace,
@@ -291,4 +306,20 @@ func GatewayParametersRefIndexFunc(rawObj client.Object) []string {
 		}
 	}
 	return nil
+}
+
+func BackendTrafficPolicyIndexFunc(rawObj client.Object) []string {
+	btp := rawObj.(*v1alpha1.BackendTrafficPolicy)
+	keys := make([]string, 0, len(btp.Spec.TargetRefs))
+	for _, ref := range btp.Spec.TargetRefs {
+		keys = append(keys,
+			GenIndexKeyWithGK(
+				v1alpha1.GroupVersion.Group,
+				string(ref.Kind),
+				btp.GetNamespace(),
+				string(ref.Name),
+			),
+		)
+	}
+	return keys
 }

@@ -93,16 +93,16 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	r.Log.Info("reconciling ingress", "ingress", ingress.Name)
 
 	// create a translate context
-	tctx := provider.NewDefaultTranslateContext()
+	tctx := provider.NewDefaultTranslateContext(ctx)
 
 	// process TLS configuration
-	if err := r.processTLS(ctx, tctx, ingress); err != nil {
+	if err := r.processTLS(tctx, ingress); err != nil {
 		r.Log.Error(err, "failed to process TLS configuration", "ingress", ingress.Name)
 		return ctrl.Result{}, err
 	}
 
 	// process backend services
-	if err := r.processBackends(ctx, tctx, ingress); err != nil {
+	if err := r.processBackends(tctx, ingress); err != nil {
 		r.Log.Error(err, "failed to process backend services", "ingress", ingress.Name)
 		return ctrl.Result{}, err
 	}
@@ -295,14 +295,14 @@ func (r *IngressReconciler) listIngressesBySecret(ctx context.Context, obj clien
 }
 
 // processTLS process the TLS configuration of the ingress
-func (r *IngressReconciler) processTLS(ctx context.Context, tctx *provider.TranslateContext, ingress *networkingv1.Ingress) error {
+func (r *IngressReconciler) processTLS(tctx *provider.TranslateContext, ingress *networkingv1.Ingress) error {
 	for _, tls := range ingress.Spec.TLS {
 		if tls.SecretName == "" {
 			continue
 		}
 
 		secret := corev1.Secret{}
-		if err := r.Get(ctx, client.ObjectKey{
+		if err := r.Get(tctx, client.ObjectKey{
 			Namespace: ingress.Namespace,
 			Name:      tls.SecretName,
 		}, &secret); err != nil {
@@ -323,7 +323,7 @@ func (r *IngressReconciler) processTLS(ctx context.Context, tctx *provider.Trans
 }
 
 // processBackends process the backend services of the ingress
-func (r *IngressReconciler) processBackends(ctx context.Context, tctx *provider.TranslateContext, ingress *networkingv1.Ingress) error {
+func (r *IngressReconciler) processBackends(tctx *provider.TranslateContext, ingress *networkingv1.Ingress) error {
 	var terr error
 
 	// process all the backend services in the rules
@@ -336,7 +336,7 @@ func (r *IngressReconciler) processBackends(ctx context.Context, tctx *provider.
 				continue
 			}
 			service := path.Backend.Service
-			if err := r.processBackendService(ctx, tctx, ingress.Namespace, service); err != nil {
+			if err := r.processBackendService(tctx, ingress.Namespace, service); err != nil {
 				terr = err
 			}
 		}
@@ -345,10 +345,10 @@ func (r *IngressReconciler) processBackends(ctx context.Context, tctx *provider.
 }
 
 // processBackendService process a single backend service
-func (r *IngressReconciler) processBackendService(ctx context.Context, tctx *provider.TranslateContext, namespace string, backendService *networkingv1.IngressServiceBackend) error {
+func (r *IngressReconciler) processBackendService(tctx *provider.TranslateContext, namespace string, backendService *networkingv1.IngressServiceBackend) error {
 	// get the service
 	var service corev1.Service
-	if err := r.Get(ctx, client.ObjectKey{
+	if err := r.Get(tctx, client.ObjectKey{
 		Namespace: namespace,
 		Name:      backendService.Name,
 	}, &service); err != nil {
@@ -385,7 +385,7 @@ func (r *IngressReconciler) processBackendService(ctx context.Context, tctx *pro
 
 	// get the endpoint slices
 	endpointSliceList := &discoveryv1.EndpointSliceList{}
-	if err := r.List(ctx, endpointSliceList,
+	if err := r.List(tctx, endpointSliceList,
 		client.InNamespace(namespace),
 		client.MatchingLabels{
 			discoveryv1.LabelServiceName: backendService.Name,
