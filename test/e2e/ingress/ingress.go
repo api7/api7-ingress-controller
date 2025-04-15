@@ -188,4 +188,88 @@ spec:
 				Status(200)
 		})
 	})
+
+	Context("IngressClass with GatewayProxy", func() {
+		gatewayProxyYaml := `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+  namespace: default
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+`
+
+		var ingressClassWithProxy = `
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: api7-with-proxy
+  annotations:
+    ingressclass.kubernetes.io/is-default-class: "true"
+spec:
+  controller: "gateway.api7.io/api7-ingress-controller"
+  parameters:
+    apiGroup: "gateway.apisix.io"
+    kind: "GatewayProxy"
+    name: "api7-proxy-config"
+    namespace: "default"
+    scope: "Namespace"
+`
+
+		var testIngress = `
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api7-ingress-with-proxy
+spec:
+  ingressClassName: api7-with-proxy
+  rules:
+  - host: proxy.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: httpbin-service-e2e-test
+            port:
+              number: 80
+`
+
+		It("Test IngressClass with GatewayProxy", func() {
+			By("create GatewayProxy")
+			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+
+			By("create GatewayProxy")
+			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+			time.Sleep(5 * time.Second)
+
+			By("create IngressClass with GatewayProxy reference")
+			err = s.CreateResourceFromStringWithNamespace(ingressClassWithProxy, "")
+			Expect(err).NotTo(HaveOccurred(), "creating IngressClass with GatewayProxy")
+			time.Sleep(5 * time.Second)
+
+			By("create Ingress with GatewayProxy IngressClass")
+			err = s.CreateResourceFromString(testIngress)
+			Expect(err).NotTo(HaveOccurred(), "creating Ingress with GatewayProxy IngressClass")
+			time.Sleep(5 * time.Second)
+
+			By("verify HTTP request")
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("proxy.example.com").
+				Expect().
+				Status(200)
+		})
+	})
 })

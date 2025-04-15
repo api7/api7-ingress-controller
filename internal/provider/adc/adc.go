@@ -270,17 +270,22 @@ func (d *adcClient) sync(task Task) error {
 		args = append(args, "--include-resource-type", t)
 	}
 
-	// todo: use adc config
-	// for _, config := range task.configs {
-	// 	if err := d.execADC(config, args); err != nil {
-	// 		return err
-	// 	}
-	// }
-	if err := d.execADC(adcConfig{
-		ServerAddr: d.ServerAddr,
-		Token:      d.Token,
-	}, args); err != nil {
-		return err
+	if len(task.configs) > 0 {
+		log.Debugw("syncing resources with multiple configs", zap.Any("configs", task.configs))
+		for _, config := range task.configs {
+			if err := d.execADC(config, args); err != nil {
+				return err
+			}
+		}
+	} else {
+		// todo: remove using default config
+		log.Debugw("syncing resources with default config")
+		if err := d.execADC(adcConfig{
+			ServerAddr: d.ServerAddr,
+			Token:      d.Token,
+		}, args); err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -461,6 +461,8 @@ func (r *IngressReconciler) processBackendService(ctx context.Context, tctx *pro
 func (r *IngressReconciler) updateStatus(ctx context.Context, ingress *networkingv1.Ingress) error {
 	var loadBalancerStatus networkingv1.IngressLoadBalancerStatus
 
+	// todo: remove using default config, use the StatusAddress And PublishService in the gateway proxy
+
 	// 1. use the IngressStatusAddress in the config
 	statusAddresses := config.GetIngressStatusAddress()
 	if len(statusAddresses) > 0 {

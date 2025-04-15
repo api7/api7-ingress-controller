@@ -1,4 +1,4 @@
-log_level: "info"                               # The log level of the API7 Ingress Controller.
+log_level: "debug"                               # The log level of the API7 Ingress Controller.
                                                 # the default value is "info".
 
 controller_name: gateway.api7.io/api7-ingress-controller  # The controller name of the API7 Ingress Controller,
@@ -12,9 +12,9 @@ ingress_status_address: [] # The status address of the ingress.
 gateway_configs:                  # The configuration of the API7 Gateway.
 - name: api7                      # The name of the Gateway in the Gateway API.
   control_plane:
-    admin_key: "${ADMIN_KEY}"     # The admin key of the control plane.
+    admin_key: "a7adm-qqEncKkktQFWrSdF8bGpDzjcRDbVFYgRXSBSPCzpVZZkc7pags-70be7645fdf94c3c8e4d656c2334bd8b"     # The admin key of the control plane.
     endpoints:         
-      - ${ENDPOINT}               # The endpoint of the control plane.                    
+      - https://172.18.0.6:7443               # The endpoint of the control plane.                    
     tls_verify: false
   addresses:                      # record the status address of the gateway-api gateway
   - "172.18.0.4"                  # The LB IP of the gateway service.
