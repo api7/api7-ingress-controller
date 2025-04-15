@@ -208,6 +208,27 @@ spec:
           value: "%s"
 `
 
+		gatewayProxyWithSecretYaml := `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config-with-secret
+  namespace: default
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          valueFrom:
+            secretKeyRef:
+              name: admin-secret
+              key: admin-key
+`
+
 		var ingressClassWithProxy = `
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
@@ -225,6 +246,21 @@ spec:
     scope: "Namespace"
 `
 
+		var ingressClassWithProxySecret = `
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: api7-with-proxy-secret
+spec:
+  controller: "gateway.api7.io/api7-ingress-controller"
+  parameters:
+    apiGroup: "gateway.apisix.io"
+    kind: "GatewayProxy"
+    name: "api7-proxy-config-with-secret"
+    namespace: "default"
+    scope: "Namespace"
+`
+
 		var testIngress = `
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -234,6 +270,26 @@ spec:
   ingressClassName: api7-with-proxy
   rules:
   - host: proxy.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: httpbin-service-e2e-test
+            port:
+              number: 80
+`
+
+		var testIngressWithSecret = `
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api7-ingress-with-proxy-secret
+spec:
+  ingressClassName: api7-with-proxy-secret
+  rules:
+  - host: proxy-secret.example.com
     http:
       paths:
       - path: /
@@ -268,6 +324,46 @@ spec:
 			s.NewAPISIXClient().
 				GET("/get").
 				WithHost("proxy.example.com").
+				Expect().
+				Status(200)
+		})
+
+		It("Test IngressClass with GatewayProxy using Secret", func() {
+			By("create admin key secret")
+			adminSecret := fmt.Sprintf(`
+apiVersion: v1
+kind: Secret
+metadata:
+  name: admin-secret
+  namespace: default
+type: Opaque
+stringData:
+  admin-key: %s
+`, s.AdminKey())
+			err := s.CreateResourceFromStringWithNamespace(adminSecret, "default")
+			Expect(err).NotTo(HaveOccurred(), "creating admin secret")
+			time.Sleep(5 * time.Second)
+
+			By("create GatewayProxy with Secret reference")
+			gatewayProxy := fmt.Sprintf(gatewayProxyWithSecretYaml, framework.DashboardTLSEndpoint)
+			err = s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy with Secret")
+			time.Sleep(5 * time.Second)
+
+			By("create IngressClass with GatewayProxy reference")
+			err = s.CreateResourceFromStringWithNamespace(ingressClassWithProxySecret, "")
+			Expect(err).NotTo(HaveOccurred(), "creating IngressClass with GatewayProxy")
+			time.Sleep(5 * time.Second)
+
+			By("create Ingress with GatewayProxy IngressClass")
+			err = s.CreateResourceFromString(testIngressWithSecret)
+			Expect(err).NotTo(HaveOccurred(), "creating Ingress with GatewayProxy IngressClass")
+			time.Sleep(5 * time.Second)
+
+			By("verify HTTP request")
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("proxy-secret.example.com").
 				Expect().
 				Status(200)
 		})
