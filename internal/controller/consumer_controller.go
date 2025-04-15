@@ -136,7 +136,7 @@ func (r *ConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	var statusErr error
-	tctx := provider.NewDefaultTranslateContext()
+	tctx := provider.NewDefaultTranslateContext(ctx)
 
 	if err := r.processSpec(ctx, tctx, consumer); err != nil {
 		r.Log.Error(err, "failed to process consumer spec", "consumer", consumer)
