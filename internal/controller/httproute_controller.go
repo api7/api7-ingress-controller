@@ -65,6 +65,9 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				},
 			),
 		).
+		Watches(&v1alpha1.HTTPRoutePolicy{},
+			handler.EnqueueRequestsFromMapFunc(r.listHTTPRouteByHTTPRoutePolicy),
+		).
 		Complete(r)
 }
 
@@ -232,6 +235,36 @@ func (r *HTTPRouteReconciler) listHTTPRoutesForGateway(ctx context.Context, obj 
 	return requests
 }
 
+func (r *HTTPRouteReconciler) listHTTPRouteByHTTPRoutePolicy(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
+	httpRoutePolicy, ok := obj.(*v1alpha1.HTTPRoutePolicy)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to HTTPRoutePolicy")
+		return nil
+	}
+
+	var keys = make(map[client.ObjectKey]struct{})
+	for _, ref := range httpRoutePolicy.Spec.TargetRefs {
+		if ref.Kind == "HTTPRoute" {
+			keys[client.ObjectKey{
+				Namespace: obj.GetNamespace(),
+				Name:      string(ref.Name),
+			}] = struct{}{}
+		}
+	}
+	for key := range keys {
+		var httpRoute gatewayv1.HTTPRoute
+		if err := r.Get(ctx, key, &httpRoute); err != nil {
+			r.Log.Error(err, "failed to get httproute by HTTPRoutePolicy targetRef", "HTTPRoutePolicy", obj.GetName())
+			continue
+		}
+		requests = append(requests, reconcile.Request{
+			NamespacedName: key,
+		})
+	}
+
+	return requests
+}
+
 func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.TranslateContext) error {
 	var terr error
 	for _, backend := range tctx.BackendRefs {
@@ -290,7 +323,7 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 	return terr
 }
 
-func (t *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, httpRoute *gatewayv1.HTTPRoute) error {
+func (r *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, httpRoute *gatewayv1.HTTPRoute) error {
 	var terror error
 	for _, rule := range httpRoute.Spec.Rules {
 		for _, filter := range rule.Filters {
@@ -299,7 +332,7 @@ func (t *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, 
 			}
 			if filter.ExtensionRef.Kind == "PluginConfig" {
 				pluginconfig := new(v1alpha1.PluginConfig)
-				if err := t.Get(context.Background(), client.ObjectKey{
+				if err := r.Get(context.Background(), client.ObjectKey{
 					Namespace: httpRoute.GetNamespace(),
 					Name:      string(filter.ExtensionRef.Name),
 				}, pluginconfig); err != nil {
@@ -339,6 +372,20 @@ func (t *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, 
 					Port:      backend.Port,
 				},
 			})
+		}
+
+		var httpRoutePolicyList v1alpha1.HTTPRoutePolicyList
+		var ruleName string
+		if rule.Name != nil {
+			ruleName = string(*rule.Name)
+		}
+		key := indexer.GenHTTPRoutePolicyIndexKey(v1alpha1.GroupVersion.Group, "HTTPRoute", httpRoute.GetNamespace(), httpRoute.GetName(), ruleName)
+		if err := r.List(context.Background(), &httpRoutePolicyList, client.MatchingFields{indexer.HTTPRoutePolicy: key}); err != nil {
+			terror = err
+			continue
+		}
+		for _, item := range httpRoutePolicyList.Items {
+			tctx.HTTPRoutePolicies[ruleName] = append(tctx.HTTPRoutePolicies[key], item.Spec)
 		}
 	}
 

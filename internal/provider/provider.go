@@ -7,9 +7,10 @@ import (
 	discoveryv1 "k8s.io/api/discovery/v1"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 )
 
 type Provider interface {
@@ -18,14 +19,15 @@ type Provider interface {
 }
 
 type TranslateContext struct {
-	BackendRefs      []gatewayv1.BackendRef
-	GatewayTLSConfig []gatewayv1.GatewayTLSConfig
-	GatewayProxy     *v1alpha1.GatewayProxy
-	Credentials      []v1alpha1.Credential
-	EndpointSlices   map[types.NamespacedName][]discoveryv1.EndpointSlice
-	Secrets          map[types.NamespacedName]*corev1.Secret
-	PluginConfigs    map[types.NamespacedName]*v1alpha1.PluginConfig
-	Services         map[types.NamespacedName]*corev1.Service
+	BackendRefs       []gatewayv1.BackendRef
+	GatewayTLSConfig  []gatewayv1.GatewayTLSConfig
+	GatewayProxy      *v1alpha1.GatewayProxy
+	Credentials       []v1alpha1.Credential
+	EndpointSlices    map[types.NamespacedName][]discoveryv1.EndpointSlice
+	Secrets           map[types.NamespacedName]*corev1.Secret
+	PluginConfigs     map[types.NamespacedName]*v1alpha1.PluginConfig
+	Services          map[types.NamespacedName]*corev1.Service
+	HTTPRoutePolicies map[string][]v1alpha1.HTTPRoutePolicySpec
 }
 
 func NewDefaultTranslateContext() *TranslateContext {

@@ -231,6 +231,23 @@ func (t *Translator) fillPluginFromHTTPRequestRedirectFilter(plugins adctypes.Pl
 	plugin.URI = uri
 }
 
+func (t *Translator) fillHTTPRoutePolicies(tctx *provider.TranslateContext, rule gatewayv1.HTTPRouteRule, routes []*adctypes.Route) {
+	var ruleName string
+	if rule.Name != nil {
+		ruleName = string(*rule.Name)
+	}
+	specs, ok := tctx.HTTPRoutePolicies[ruleName]
+	if !ok || len(specs) == 0 {
+		return
+	}
+	for _, route := range routes {
+		for _, spec := range specs {
+			route.Priority = spec.Priority
+			route.Vars = append(route.Vars, spec.Vars...)
+		}
+	}
+}
+
 func (t *Translator) translateEndpointSlice(weight int, endpointSlices []discoveryv1.EndpointSlice) adctypes.UpstreamNodes {
 	var nodes adctypes.UpstreamNodes
 	if len(endpointSlices) == 0 {
@@ -337,6 +354,7 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 			route.Labels = labels
 			routes = append(routes, route)
 		}
+		t.fillHTTPRoutePolicies(tctx, rule, routes)
 		service.Routes = routes
 
 		result.Services = append(result.Services, service)
