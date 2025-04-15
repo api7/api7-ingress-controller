@@ -314,4 +314,77 @@ spec:
 				Body().Contains(`{"error_msg":"404 Route Not Found"}`)
 		})
 	})
+
+	var (
+		gatewayProxyWithInvalidProviderType = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+spec:
+  provider:
+    type: "InvalidType"
+`
+		gatewayProxyWithMissingControlPlane = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+spec:
+  provider:
+    type: "ControlPlane"
+`
+		gatewayProxyWithValidProvider = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+spec:
+  provider:
+    type: "ControlPlane"
+    controlPlane:
+      endpoints:
+        - "http://localhost:9180"
+      auth:
+        type: "AdminKey"
+        adminKey:
+          value: "test-key"
+`
+	)
+
+	Context("Test GatewayProxy Provider Validation", func() {
+		AfterEach(func() {
+			By("Clean up GatewayProxy resources")
+			_ = s.DeleteResourceFromString(gatewayProxyWithInvalidProviderType)
+			_ = s.DeleteResourceFromString(gatewayProxyWithMissingControlPlane)
+			_ = s.DeleteResourceFromString(gatewayProxyWithValidProvider)
+		})
+
+		It("Should reject invalid provider type", func() {
+			By("Create GatewayProxy with invalid provider type")
+			err := s.CreateResourceFromString(gatewayProxyWithInvalidProviderType)
+			Expect(err).To(HaveOccurred(), "creating GatewayProxy with invalid provider type")
+			Expect(err.Error()).To(ContainSubstring("Invalid value"))
+		})
+
+		It("Should reject missing controlPlane configuration", func() {
+			By("Create GatewayProxy with missing controlPlane")
+			err := s.CreateResourceFromString(gatewayProxyWithMissingControlPlane)
+			Expect(err).To(HaveOccurred(), "creating GatewayProxy with missing controlPlane")
+			Expect(err.Error()).To(ContainSubstring("controlPlane must be specified when type is ControlPlane"))
+		})
+
+		It("Should accept valid provider configuration", func() {
+			By("Create GatewayProxy with valid provider")
+			err := s.CreateResourceFromString(gatewayProxyWithValidProvider)
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy with valid provider")
+
+			Eventually(func() string {
+				gpYaml, err := s.GetResourceYaml("GatewayProxy", "api7-proxy-config")
+				Expect(err).NotTo(HaveOccurred(), "getting GatewayProxy yaml")
+				return gpYaml
+			}).WithTimeout(8*time.Second).ProbeEvery(2*time.Second).
+				Should(ContainSubstring(`"type":"ControlPlane"`), "checking GatewayProxy is applied")
+		})
+	})
 })
