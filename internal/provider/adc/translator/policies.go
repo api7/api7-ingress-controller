@@ -3,8 +3,6 @@ package translator
 import (
 	"github.com/api7/api7-ingress-controller/api/adc"
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
-	"github.com/api7/gopkg/pkg/log"
-	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/types"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -28,8 +26,6 @@ func (t *Translator) AttachBackendTrafficPolicyToUpstream(ref gatewayv1.BackendR
 	if policy == nil {
 		return
 	}
-	log.Errorw("attach backend traffic policy to upstream",
-		zap.String("policy", policy.Name))
 	t.attachBackendTrafficPolicyToUpstream(policy, upstream)
 }
 
