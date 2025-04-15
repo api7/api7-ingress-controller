@@ -128,9 +128,9 @@ type Route struct {
 }
 
 type Timeout struct {
-	Connect *int64 `json:"connect,omitempty"`
-	Read    *int64 `json:"read,omitempty"`
-	Send    *int64 `json:"send,omitempty"`
+	Connect int64 `json:"connect"`
+	Read    int64 `json:"read"`
+	Send    int64 `json:"send"`
 }
 
 type StreamRoute struct {

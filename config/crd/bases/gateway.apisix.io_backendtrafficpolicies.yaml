@@ -168,10 +168,13 @@ spec:
                   upstream.
                 properties:
                   connect:
+                    default: 60s
                     type: string
                   read:
+                    default: 60s
                     type: string
                   send:
+                    default: 60s
                     type: string
                 type: object
               upstream_host:

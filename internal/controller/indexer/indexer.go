@@ -37,6 +37,9 @@ func SetupIndexer(mgr ctrl.Manager) error {
 	if err := setupConsumerIndexer(mgr); err != nil {
 		return err
 	}
+	if err := setupBackendTrafficPolicyIndexer(mgr); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -178,6 +181,18 @@ func setupIngressIndexer(mgr ctrl.Manager) error {
 	return nil
 }
 
+func setupBackendTrafficPolicyIndexer(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.BackendTrafficPolicy{},
+		PolicyTargetRefs,
+		BackendTrafficPolicyIndexFunc,
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
 func IngressClassIndexFunc(rawObj client.Object) []string {
 	ingressClass := rawObj.(*networkingv1.IngressClass)
 	if ingressClass.Spec.Controller == "" {
@@ -314,7 +329,7 @@ func BackendTrafficPolicyIndexFunc(rawObj client.Object) []string {
 	for _, ref := range btp.Spec.TargetRefs {
 		keys = append(keys,
 			GenIndexKeyWithGK(
-				v1alpha1.GroupVersion.Group,
+				string(ref.Group),
 				string(ref.Kind),
 				btp.GetNamespace(),
 				string(ref.Name),

@@ -3,19 +3,34 @@ package translator
 import (
 	"github.com/api7/api7-ingress-controller/api/adc"
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
+	"github.com/api7/gopkg/pkg/log"
+	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/types"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	adctypes "github.com/api7/api7-ingress-controller/api/adc"
 )
 
-func (t *Translator) AttachBackendTrafficPolicyToUpstream(policies map[types.NamespacedName]*v1alpha1.BackendTrafficPolicy, upstream *adctypes.Upstream) {
+func (t *Translator) AttachBackendTrafficPolicyToUpstream(ref gatewayv1.BackendRef, policies map[types.NamespacedName]*v1alpha1.BackendTrafficPolicy, upstream *adctypes.Upstream) {
 	if len(policies) == 0 {
 		return
 	}
-	for _, policy := range policies {
-		t.attachBackendTrafficPolicyToUpstream(policy, upstream)
+	var policy *v1alpha1.BackendTrafficPolicy
+	for _, po := range policies {
+		for _, targetRef := range po.Spec.TargetRefs {
+			if ref.Name == targetRef.Name &&
+				(ref.Namespace != nil && string(*ref.Namespace) == po.Namespace) {
+				policy = po
+				break
+			}
+		}
 	}
-
+	if policy == nil {
+		return
+	}
+	log.Errorw("attach backend traffic policy to upstream",
+		zap.String("policy", policy.Name))
+	t.attachBackendTrafficPolicyToUpstream(policy, upstream)
 }
 
 func (t *Translator) attachBackendTrafficPolicyToUpstream(policy *v1alpha1.BackendTrafficPolicy, upstream *adctypes.Upstream) {
@@ -29,27 +44,10 @@ func (t *Translator) attachBackendTrafficPolicyToUpstream(policy *v1alpha1.Backe
 		*upstream.Retries = int64(*policy.Spec.Retries)
 	}
 	if policy.Spec.Timeout != nil {
-		var (
-			connect *int64
-			read    *int64
-			send    *int64
-		)
-		if policy.Spec.Timeout.Connect.Duration > 0 {
-			connect = new(int64)
-			*connect = policy.Spec.Timeout.Connect.Duration.Milliseconds()
-		}
-		if policy.Spec.Timeout.Read.Duration > 0 {
-			read = new(int64)
-			*read = policy.Spec.Timeout.Read.Duration.Milliseconds()
-		}
-		if policy.Spec.Timeout.Send.Duration > 0 {
-			send = new(int64)
-			*send = policy.Spec.Timeout.Send.Duration.Milliseconds()
-		}
 		upstream.Timeout = &adctypes.Timeout{
-			Connect: connect,
-			Read:    read,
-			Send:    send,
+			Connect: policy.Spec.Timeout.Connect.Duration.Milliseconds(),
+			Read:    policy.Spec.Timeout.Read.Duration.Milliseconds(),
+			Send:    policy.Spec.Timeout.Send.Duration.Milliseconds(),
 		}
 	}
 	if policy.Spec.LoadBalancer != nil {

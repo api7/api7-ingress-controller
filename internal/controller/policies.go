@@ -10,6 +10,7 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
 	"github.com/api7/api7-ingress-controller/internal/provider"
+	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -25,7 +26,9 @@ func (p PolicyTargetKey) String() string {
 	return p.NsName.String() + "/" + p.GroupKind.String()
 }
 
-func ProcessBackendTrafficPolicy(c client.Client, tctx *provider.TranslateContext) {
+func ProcessBackendTrafficPolicy(c client.Client,
+	log logr.Logger,
+	tctx *provider.TranslateContext) {
 	conflicts := map[string]v1alpha1.BackendTrafficPolicy{}
 	for _, service := range tctx.Services {
 		backendTrafficPolicyList := &v1alpha1.BackendTrafficPolicyList{}
@@ -34,10 +37,8 @@ func ProcessBackendTrafficPolicy(c client.Client, tctx *provider.TranslateContex
 				indexer.PolicyTargetRefs: indexer.GenIndexKeyWithGK("", "Service", service.Namespace, service.Name),
 			},
 		); err != nil {
-			if client.IgnoreNotFound(err) == nil {
-				continue
-			}
-			return
+			log.Error(err, "failed to list BackendTrafficPolicy for Service")
+			continue
 		}
 		if len(backendTrafficPolicyList.Items) == 0 {
 			continue
