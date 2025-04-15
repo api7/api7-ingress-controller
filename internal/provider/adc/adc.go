@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"sync"
 
 	"go.uber.org/zap"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -41,6 +42,7 @@ type adcClient struct {
 	Token        string
 	GatewayGroup string
 	configs      map[ResourceKind][]adcConfig
+	sync.Mutex
 }
 
 type Task struct {
@@ -59,10 +61,6 @@ func New() (provider.Provider, error) {
 		Token:      gc.ControlPlane.AdminKey,
 		configs:    make(map[ResourceKind][]adcConfig),
 	}, nil
-}
-
-func (d *adcClient) getConfigs(rk ResourceKind) []adcConfig {
-	return d.configs[rk]
 }
 
 func (d *adcClient) getConfigsForGatewayProxy(tctx *provider.TranslateContext, gatewayProxy *v1alpha1.GatewayProxy) (*adcConfig, error) {
@@ -110,7 +108,22 @@ func (d *adcClient) getConfigsForGatewayProxy(tctx *provider.TranslateContext, g
 	return &config, nil
 }
 
+func (d *adcClient) deleteConfigs(rk ResourceKind) {
+	d.Lock()
+	defer d.Unlock()
+	delete(d.configs, rk)
+}
+
+func (d *adcClient) getConfigs(rk ResourceKind) []adcConfig {
+	d.Lock()
+	defer d.Unlock()
+	return d.configs[rk]
+}
+
 func (d *adcClient) updateConfigs(rk ResourceKind, tctx *provider.TranslateContext) error {
+	d.Lock()
+	defer d.Unlock()
+
 	var configs []adcConfig
 	for _, gatewayProxy := range tctx.GatewayProxies {
 		config, err := d.getConfigsForGatewayProxy(tctx, &gatewayProxy)
@@ -208,12 +221,18 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 
 	configs := d.getConfigs(rk)
 
-	return d.sync(Task{
+	err := d.sync(Task{
 		Name:          obj.GetName(),
 		Labels:        labels,
 		ResourceTypes: resourceTypes,
 		configs:       configs,
 	})
+	if err != nil {
+		return err
+	}
+
+	d.deleteConfigs(rk)
+	return nil
 }
 
 func (d *adcClient) sync(task Task) error {
