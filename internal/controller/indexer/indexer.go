@@ -37,9 +37,11 @@ func SetupIndexer(mgr ctrl.Manager) error {
 	if err := setupConsumerIndexer(mgr); err != nil {
 		return err
 	}
-	if err := setupBackendTrafficPolicyIndexer(mgr); err != nil {
-		return err
-	}
+	/*
+		if err := setupBackendTrafficPolicyIndexer(mgr); err != nil {
+			return err
+		}
+	*/
 	return nil
 }
 
