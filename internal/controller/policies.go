@@ -60,17 +60,16 @@ func ProcessBackendTrafficPolicy(c client.Client,
 				condition := NewPolicyCondition(policy.Generation, true, "Policy has been accepted")
 				if sectionName != nil && !portNameExist[string(*sectionName)] {
 					condition = NewPolicyCondition(policy.Generation, false, fmt.Sprintf("SectionName %s not found in Service %s/%s", *sectionName, service.Namespace, service.Name))
-					if ok := SetAncestors(&policy.Status, tctx.ParentRefs, condition); ok {
-						updated = true
-					}
+					processPolicyStatus(&policy, tctx, condition, &updated)
+					continue
 				}
 				if p, ok := conflicts[key.String()]; ok && (p.Name == policy.Name && p.Namespace == policy.Namespace) {
 					condition = NewPolicyConflictCondition(policy.Generation, fmt.Sprintf("Unable to target Service %s/%s, because it conflicts with another BackendTrafficPolicy", service.Namespace, service.Name))
-					if ok := SetAncestors(&policy.Status, tctx.ParentRefs, condition); ok {
-						updated = true
-					}
+					processPolicyStatus(&policy, tctx, condition, &updated)
+					continue
 				}
 				conflicts[key.String()] = policy
+				processPolicyStatus(&policy, tctx, condition, &updated)
 			}
 			if _, ok := tctx.BackendTrafficPolicies[types.NamespacedName{
 				Name:      policy.Name,
@@ -90,6 +89,16 @@ func ProcessBackendTrafficPolicy(c client.Client,
 		}
 	}
 }
+
+func processPolicyStatus(policy *v1alpha1.BackendTrafficPolicy,
+	tctx *provider.TranslateContext,
+	condition metav1.Condition,
+	updated *bool) {
+	if ok := SetAncestors(&policy.Status, tctx.ParentRefs, condition); ok {
+		*updated = true
+	}
+}
+
 func SetAncestors(status *v1alpha1.PolicyStatus, parentRefs []gatewayv1.ParentReference, condition metav1.Condition) bool {
 	updated := false
 	for _, parent := range parentRefs {
