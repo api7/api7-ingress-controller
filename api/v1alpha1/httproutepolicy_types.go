@@ -17,10 +17,9 @@ limitations under the License.
 package v1alpha1
 
 import (
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-
-	"github.com/api7/api7-ingress-controller/api/common"
 )
 
 // HTTPRoutePolicySpec defines the desired state of HTTPRoutePolicy.
@@ -36,8 +35,8 @@ type HTTPRoutePolicySpec struct {
 	// +kubebuilder:validation:MaxItems=16
 	TargetRefs []gatewayv1alpha2.LocalPolicyTargetReferenceWithSectionName `json:"targetRefs"`
 
-	Priority *int64 `json:"priority,omitempty" yaml:"priority,omitempty"`
-	Vars     Vars   `json:"vars,omitempty" yaml:"vars,omitempty"`
+	Priority *int64                 `json:"priority,omitempty" yaml:"priority,omitempty"`
+	Vars     []apiextensionsv1.JSON `json:"vars,omitempty" yaml:"vars,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -60,10 +59,6 @@ type HTTPRoutePolicyList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []HTTPRoutePolicy `json:"items"`
 }
-
-// Vars represents the route match expressions of APISIX.
-// +kubebuilder:object:generate=false
-type Vars = common.Vars
 
 func init() {
 	SchemeBuilder.Register(&HTTPRoutePolicy{}, &HTTPRoutePolicyList{})

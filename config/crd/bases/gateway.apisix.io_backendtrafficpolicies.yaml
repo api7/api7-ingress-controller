@@ -158,11 +158,6 @@ spec:
                 maxItems: 16
                 minItems: 1
                 type: array
-                x-kubernetes-list-map-keys:
-                - group
-                - kind
-                - name
-                x-kubernetes-list-type: map
               timeout:
                 description: Timeout settings for the read, send and connect to the
                   upstream.

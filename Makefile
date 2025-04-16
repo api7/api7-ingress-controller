@@ -156,13 +156,27 @@ pull-infra-images:
 
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.
-	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 go build -o bin/api7-ingress-controller -ldflags $(GO_LDFLAGS) cmd/main.go
+	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 go build -o bin/api7-ingress-controller_$(GOARCH) -ldflags $(GO_LDFLAGS) cmd/main.go
 
 linux-build:
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o bin/api7-ingress-controller -ldflags $(GO_LDFLAGS) cmd/main.go
 
 .PHONY: build-image
 build-image: docker-build
+
+.PHONY: build-multi-arch
+build-multi-arch:
+	@CGO_ENABLED=0 GOARCH=amd64 go build -o bin/api7-ingress-controller_amd64 -ldflags $(GO_LDFLAGS) cmd/main.go
+	@CGO_ENABLED=0 GOARCH=arm64 go build -o bin/api7-ingress-controller_arm64 -ldflags $(GO_LDFLAGS) cmd/main.go
+
+.PHONY: build-multi-arch-image
+build-multi-arch-image: build-multi-arch
+    # daemon.json: "features":{"containerd-snapshotter": true}
+	@docker buildx build --load --platform linux/amd64,linux/arm64 -t $(IMG) .
+
+.PHONY: build-push-multi-arch-image
+build-push-multi-arch-image: build-multi-arch
+	@docker buildx build --push --platform linux/amd64,linux/arm64 -t $(IMG) .
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.

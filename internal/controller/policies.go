@@ -60,17 +60,16 @@ func ProcessBackendTrafficPolicy(c client.Client,
 				condition := NewPolicyCondition(policy.Generation, true, "Policy has been accepted")
 				if sectionName != nil && !portNameExist[string(*sectionName)] {
 					condition = NewPolicyCondition(policy.Generation, false, fmt.Sprintf("SectionName %s not found in Service %s/%s", *sectionName, service.Namespace, service.Name))
-					goto record_status
+					processPolicyStatus(&policy, tctx, condition, &updated)
+					continue
 				}
 				if p, ok := conflicts[key.String()]; ok && (p.Name == policy.Name && p.Namespace == policy.Namespace) {
 					condition = NewPolicyConflictCondition(policy.Generation, fmt.Sprintf("Unable to target Service %s/%s, because it conflicts with another BackendTrafficPolicy", service.Namespace, service.Name))
-					goto record_status
+					processPolicyStatus(&policy, tctx, condition, &updated)
+					continue
 				}
 				conflicts[key.String()] = policy
-			record_status:
-				if ok := SetAncestors(&policy.Status, tctx.ParentRefs, condition); ok {
-					updated = true
-				}
+				processPolicyStatus(&policy, tctx, condition, &updated)
 			}
 			if _, ok := tctx.BackendTrafficPolicies[types.NamespacedName{
 				Name:      policy.Name,
@@ -90,6 +89,16 @@ func ProcessBackendTrafficPolicy(c client.Client,
 		}
 	}
 }
+
+func processPolicyStatus(policy *v1alpha1.BackendTrafficPolicy,
+	tctx *provider.TranslateContext,
+	condition metav1.Condition,
+	updated *bool) {
+	if ok := SetAncestors(&policy.Status, tctx.ParentRefs, condition); ok {
+		*updated = true
+	}
+}
+
 func SetAncestors(status *v1alpha1.PolicyStatus, parentRefs []gatewayv1.ParentReference, condition metav1.Condition) bool {
 	updated := false
 	for _, parent := range parentRefs {
@@ -108,6 +117,10 @@ func SetAncestors(status *v1alpha1.PolicyStatus, parentRefs []gatewayv1.ParentRe
 func SetAncestorStatus(status *v1alpha1.PolicyStatus, ancestorStatus gatewayv1alpha2.PolicyAncestorStatus) bool {
 	for _, c := range status.Ancestors {
 		if c.AncestorRef == ancestorStatus.AncestorRef {
+			if len(c.Conditions) == 0 || len(ancestorStatus.Conditions) == 0 {
+				c.Conditions = ancestorStatus.Conditions
+				return true
+			}
 			if c.Conditions[0].ObservedGeneration < ancestorStatus.Conditions[0].ObservedGeneration {
 				c.Conditions = ancestorStatus.Conditions
 				return true

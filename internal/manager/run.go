@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"os"
-	"time"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -99,12 +98,12 @@ func Run(ctx context.Context, logger logr.Logger) error {
 		Metrics:                 metricsServerOptions,
 		WebhookServer:           webhookServer,
 		HealthProbeBindAddress:  cfg.ProbeAddr,
-		LeaderElection:          true,
+		LeaderElection:          !config.ControllerConfig.LeaderElection.Disable,
 		LeaderElectionID:        cfg.LeaderElectionID,
 		LeaderElectionNamespace: namespace,
-		LeaseDuration:           ptr.To(time.Second * 15),
-		RenewDeadline:           ptr.To(time.Second * 10),
-		RetryPeriod:             ptr.To(time.Second * 5),
+		LeaseDuration:           ptr.To(config.ControllerConfig.LeaderElection.LeaseDuration.Duration),
+		RenewDeadline:           ptr.To(config.ControllerConfig.LeaderElection.RenewDeadline.Duration),
+		RetryPeriod:             ptr.To(config.ControllerConfig.LeaderElection.RetryPeriod.Duration),
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the
 		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly

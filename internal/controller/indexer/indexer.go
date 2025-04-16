@@ -37,6 +37,11 @@ func SetupIndexer(mgr ctrl.Manager) error {
 	if err := setupConsumerIndexer(mgr); err != nil {
 		return err
 	}
+	/*
+		if err := setupBackendTrafficPolicyIndexer(mgr); err != nil {
+			return err
+		}
+	*/
 	return nil
 }
 
@@ -184,6 +189,18 @@ func setupIngressIndexer(mgr ctrl.Manager) error {
 		return err
 	}
 
+	return nil
+}
+
+func SetupBackendTrafficPolicyIndexer(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.BackendTrafficPolicy{},
+		PolicyTargetRefs,
+		BackendTrafficPolicyIndexFunc,
+	); err != nil {
+		return err
+	}
 	return nil
 }
 
