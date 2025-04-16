@@ -153,46 +153,34 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		Namespace: obj.GetNamespace(),
 		Name:      obj.GetName(),
 	}
+
 	switch t := obj.(type) {
 	case *gatewayv1.HTTPRoute:
-		if result, err = d.translator.TranslateHTTPRoute(tctx, t.DeepCopy()); err != nil {
-			return err
-		}
+		result, err = d.handleHTTPRoute(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "service")
-		// delete http route if old configs diff with new configs exist
-		if err = d.DeleteHTTPRoute(ctx, tctx, t.DeepCopy()); err != nil {
-			return err
-		}
 	case *gatewayv1.Gateway:
-		if result, err = d.translator.TranslateGateway(tctx, t.DeepCopy()); err != nil {
-			return err
-		}
+		result, err = d.translator.TranslateGateway(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "global_rule", "ssl", "plugin_metadata")
-		if err = d.updateConfigs(rk, tctx); err != nil {
-			return err
-		}
 	case *networkingv1.Ingress:
-		if result, err = d.translator.TranslateIngress(tctx, t.DeepCopy()); err != nil {
-			return err
-		}
+		result, err = d.translator.TranslateIngress(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "service", "ssl")
-		if err = d.updateConfigs(rk, tctx); err != nil {
-			return err
-		}
 	case *v1alpha1.Consumer:
-		if result, err = d.translator.TranslateConsumerV1alpha1(tctx, t.DeepCopy()); err != nil {
-			return err
-		}
+		result, err = d.translator.TranslateConsumerV1alpha1(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "consumer")
-		if err = d.updateConfigs(rk, tctx); err != nil {
-			return err
-		}
+	}
+	if err != nil {
+		return err
 	}
 	if result == nil {
 		return nil
 	}
 
-	configs := d.getConfigs(rk)
+	// Update configs for non-HTTPRoute types
+	if _, ok := obj.(*gatewayv1.HTTPRoute); !ok {
+		if err := d.updateConfigs(rk, tctx); err != nil {
+			return err
+		}
+	}
 
 	return d.sync(Task{
 		Name:   obj.GetName(),
@@ -205,12 +193,24 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 			Consumers:      result.Consumers,
 		},
 		ResourceTypes: resourceTypes,
-		configs:       configs,
+		configs:       d.getConfigs(rk),
 	})
 }
 
-func (d *adcClient) DeleteHTTPRoute(ctx context.Context, tctx *provider.TranslateContext, obj client.Object) error {
-	// diff adc configs
+func (d *adcClient) handleHTTPRoute(tctx *provider.TranslateContext, route *gatewayv1.HTTPRoute) (*translator.TranslateResult, error) {
+	result, err := d.translator.TranslateHTTPRoute(tctx, route)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := d.deleteHTTPRoute(tctx, route); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (d *adcClient) deleteHTTPRoute(tctx *provider.TranslateContext, obj client.Object) error {
 	rk := ResourceKind{
 		Kind:      obj.GetObjectKind().GroupVersionKind().Kind,
 		Namespace: obj.GetNamespace(),
@@ -218,13 +218,26 @@ func (d *adcClient) DeleteHTTPRoute(ctx context.Context, tctx *provider.Translat
 	}
 
 	oldConfigs := d.getConfigs(rk)
-	err := d.updateConfigs(rk, tctx)
-	if err != nil {
+	if err := d.updateConfigs(rk, tctx); err != nil {
 		return err
 	}
 	newConfigs := d.getConfigs(rk)
 
-	// diff old configs and new configs
+	deleteConfigs := d.findConfigsToDelete(oldConfigs, newConfigs)
+	if len(deleteConfigs) == 0 {
+		return nil
+	}
+
+	log.Debugw("http route delete configs", zap.Any("configs", deleteConfigs))
+	return d.sync(Task{
+		Name:          obj.GetName(),
+		Labels:        label.GenLabel(obj),
+		ResourceTypes: []string{"service"},
+		configs:       deleteConfigs,
+	})
+}
+
+func (d *adcClient) findConfigsToDelete(oldConfigs, newConfigs []adcConfig) []adcConfig {
 	var deleteConfigs []adcConfig
 	for _, config := range oldConfigs {
 		if !slices.ContainsFunc(newConfigs, func(c adcConfig) bool {
@@ -233,22 +246,7 @@ func (d *adcClient) DeleteHTTPRoute(ctx context.Context, tctx *provider.Translat
 			deleteConfigs = append(deleteConfigs, config)
 		}
 	}
-
-	if len(deleteConfigs) > 0 {
-		log.Debugw("http route delete configs", zap.Any("configs", deleteConfigs))
-		// sync old delete
-		err = d.sync(Task{
-			Name:          obj.GetName(),
-			Labels:        label.GenLabel(obj),
-			ResourceTypes: []string{"service"},
-			configs:       deleteConfigs,
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return deleteConfigs
 }
 
 func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
