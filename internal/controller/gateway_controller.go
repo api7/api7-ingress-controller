@@ -267,7 +267,12 @@ func (r *GatewayReconciler) listGatewaysForHTTPRoute(_ context.Context, obj clie
 }
 
 func (r *GatewayReconciler) processInfrastructure(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway) error {
-	return ProcessGatewayProxy(r.Client, tctx, gateway)
+	rk := provider.ResourceKind{
+		Kind:      gateway.Kind,
+		Namespace: gateway.Namespace,
+		Name:      gateway.Name,
+	}
+	return ProcessGatewayProxy(r.Client, tctx, gateway, rk)
 }
 
 func (r *GatewayReconciler) processListenerConfig(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway) {

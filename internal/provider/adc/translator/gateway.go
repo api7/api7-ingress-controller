@@ -32,21 +32,25 @@ func (t *Translator) TranslateGateway(tctx *provider.TranslateContext, obj *gate
 			result.SSL = append(result.SSL, ssl...)
 		}
 	}
-	var gatewayProxy *v1alpha1.GatewayProxy
-	if len(tctx.GatewayProxies) > 0 {
-		gatewayProxy = &tctx.GatewayProxies[0]
+	rk := provider.ResourceKind{
+		Kind:      obj.Kind,
+		Namespace: obj.Namespace,
+		Name:      obj.Name,
 	}
-	if gatewayProxy != nil {
-		var (
-			globalRules    = adctypes.Plugins{}
-			pluginMetadata = adctypes.Plugins{}
-		)
-		// apply plugins from GatewayProxy to global rules
-		t.fillPluginsFromGatewayProxy(globalRules, gatewayProxy)
-		t.fillPluginMetadataFromGatewayProxy(pluginMetadata, gatewayProxy)
-		result.GlobalRules = globalRules
-		result.PluginMetadata = pluginMetadata
+	gatewayProxy, ok := tctx.GatewayProxies[rk]
+	if !ok {
+		log.Debugw("no GatewayProxy found for Gateway", zap.String("gateway", obj.Name))
+		return result, nil
 	}
+
+	globalRules := adctypes.Plugins{}
+	pluginMetadata := adctypes.Plugins{}
+	// apply plugins from GatewayProxy to global rules
+	t.fillPluginsFromGatewayProxy(globalRules, &gatewayProxy)
+	t.fillPluginMetadataFromGatewayProxy(pluginMetadata, &gatewayProxy)
+	result.GlobalRules = globalRules
+	result.PluginMetadata = pluginMetadata
+
 	return result, nil
 }
 

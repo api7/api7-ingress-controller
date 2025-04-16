@@ -144,7 +144,13 @@ func (r *ConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		statusErr = err
 	}
 
-	if err := ProcessGatewayProxy(r.Client, tctx, gateway); err != nil {
+	rk := provider.ResourceKind{
+		Kind:      consumer.Kind,
+		Namespace: consumer.Namespace,
+		Name:      consumer.Name,
+	}
+
+	if err := ProcessGatewayProxy(r.Client, tctx, gateway, rk); err != nil {
 		r.Log.Error(err, "failed to process gateway proxy", "gateway", gateway)
 		statusErr = err
 	}

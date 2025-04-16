@@ -764,13 +764,19 @@ func SplitMetaNamespaceKey(key string) (namespace, name string, err error) {
 	return "", "", fmt.Errorf("unexpected key format: %q", key)
 }
 
-func ProcessGatewayProxy(r client.Client, tctx *provider.TranslateContext, gateway *gatewayv1.Gateway) error {
+func ProcessGatewayProxy(r client.Client, tctx *provider.TranslateContext, gateway *gatewayv1.Gateway, rk provider.ResourceKind) error {
 	if gateway == nil {
 		return nil
 	}
 	infra := gateway.Spec.Infrastructure
 	if infra == nil || infra.ParametersRef == nil {
 		return nil
+	}
+
+	gatewayKind := provider.ResourceKind{
+		Kind:      gateway.Kind,
+		Namespace: gateway.Namespace,
+		Name:      gateway.Name,
 	}
 
 	ns := gateway.GetNamespace()
@@ -785,7 +791,8 @@ func ProcessGatewayProxy(r client.Client, tctx *provider.TranslateContext, gatew
 			return err
 		} else {
 			log.Info("found GatewayProxy for Gateway", "gateway", gateway.Name, "gatewayproxy", gatewayProxy.Name)
-			tctx.GatewayProxies = append(tctx.GatewayProxies, *gatewayProxy)
+			tctx.GatewayProxies[gatewayKind] = *gatewayProxy
+			tctx.ParentRefs[rk] = append(tctx.ParentRefs[rk], gatewayKind)
 
 			// Process provider secrets if provider exists
 			if gatewayProxy.Spec.Provider != nil && gatewayProxy.Spec.Provider.Type == v1alpha1.ProviderTypeControlPlane {

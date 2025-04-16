@@ -17,10 +17,17 @@ type Provider interface {
 	Delete(context.Context, client.Object) error
 }
 
+type ResourceKind struct {
+	Kind      string
+	Namespace string
+	Name      string
+}
+
 type TranslateContext struct {
 	BackendRefs      []gatewayv1.BackendRef
 	GatewayTLSConfig []gatewayv1.GatewayTLSConfig
-	GatewayProxies   []v1alpha1.GatewayProxy
+	GatewayProxies   map[ResourceKind]v1alpha1.GatewayProxy
+	ParentRefs       map[ResourceKind][]ResourceKind
 	Credentials      []v1alpha1.Credential
 	EndpointSlices   map[types.NamespacedName][]discoveryv1.EndpointSlice
 	Secrets          map[types.NamespacedName]*corev1.Secret
@@ -34,5 +41,7 @@ func NewDefaultTranslateContext() *TranslateContext {
 		Secrets:        make(map[types.NamespacedName]*corev1.Secret),
 		PluginConfigs:  make(map[types.NamespacedName]*v1alpha1.PluginConfig),
 		Services:       make(map[types.NamespacedName]*corev1.Service),
+		GatewayProxies: make(map[ResourceKind]v1alpha1.GatewayProxy),
+		ParentRefs:     make(map[ResourceKind][]ResourceKind),
 	}
 }

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"os"
 	"os/exec"
-	"slices"
 	"sync"
 
 	"go.uber.org/zap"
@@ -22,14 +21,7 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/api7-ingress-controller/internal/provider/adc/translator"
 	"github.com/api7/gopkg/pkg/log"
-	"k8s.io/apimachinery/pkg/types"
 )
-
-type ResourceKind struct {
-	Kind      string
-	Namespace string
-	Name      string
-}
 
 type adcConfig struct {
 	ServerAddr string
@@ -37,13 +29,16 @@ type adcConfig struct {
 }
 
 type adcClient struct {
-	translator *translator.Translator
+	sync.Mutex
 
+	translator   *translator.Translator
 	ServerAddr   string
 	Token        string
 	GatewayGroup string
-	configs      map[ResourceKind][]adcConfig
-	sync.Mutex
+	// gateway/ingressclass -> adcConfig
+	configs map[provider.ResourceKind]adcConfig
+	// httproute/consumer/ingress/gateway -> gateway/ingressclass
+	parentRefs map[provider.ResourceKind][]provider.ResourceKind
 }
 
 type Task struct {
@@ -60,84 +55,9 @@ func New() (provider.Provider, error) {
 		translator: &translator.Translator{},
 		ServerAddr: gc.ControlPlane.Endpoints[0],
 		Token:      gc.ControlPlane.AdminKey,
-		configs:    make(map[ResourceKind][]adcConfig),
+		configs:    make(map[provider.ResourceKind]adcConfig),
+		parentRefs: make(map[provider.ResourceKind][]provider.ResourceKind),
 	}, nil
-}
-
-func (d *adcClient) getConfigsForGatewayProxy(tctx *provider.TranslateContext, gatewayProxy *v1alpha1.GatewayProxy) (*adcConfig, error) {
-	if gatewayProxy == nil || gatewayProxy.Spec.Provider == nil {
-		return nil, nil
-	}
-
-	provider := gatewayProxy.Spec.Provider
-	if provider.Type != v1alpha1.ProviderTypeControlPlane || provider.ControlPlane == nil {
-		return nil, nil
-	}
-
-	endpoints := provider.ControlPlane.Endpoints
-	if len(endpoints) == 0 {
-		return nil, errors.New("no endpoints found")
-	}
-
-	endpoint := endpoints[0]
-	config := adcConfig{
-		ServerAddr: endpoint,
-	}
-
-	if provider.ControlPlane.Auth.Type == v1alpha1.AuthTypeAdminKey && provider.ControlPlane.Auth.AdminKey != nil {
-		if provider.ControlPlane.Auth.AdminKey.ValueFrom != nil && provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
-			secretRef := provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef
-			secret, ok := tctx.Secrets[types.NamespacedName{
-				// we should use gateway proxy namespace
-				Namespace: gatewayProxy.GetNamespace(),
-				Name:      secretRef.Name,
-			}]
-			if ok {
-				if token, ok := secret.Data[secretRef.Key]; ok {
-					config.Token = string(token)
-				}
-			}
-		} else if provider.ControlPlane.Auth.AdminKey.Value != "" {
-			config.Token = provider.ControlPlane.Auth.AdminKey.Value
-		}
-	}
-
-	if config.Token == "" {
-		return nil, errors.New("no token found")
-	}
-
-	return &config, nil
-}
-
-func (d *adcClient) deleteConfigs(rk ResourceKind) {
-	d.Lock()
-	defer d.Unlock()
-	delete(d.configs, rk)
-}
-
-func (d *adcClient) getConfigs(rk ResourceKind) []adcConfig {
-	d.Lock()
-	defer d.Unlock()
-	return d.configs[rk]
-}
-
-func (d *adcClient) updateConfigs(rk ResourceKind, tctx *provider.TranslateContext) error {
-	d.Lock()
-	defer d.Unlock()
-
-	var configs []adcConfig
-	for _, gatewayProxy := range tctx.GatewayProxies {
-		config, err := d.getConfigsForGatewayProxy(tctx, &gatewayProxy)
-		if err != nil {
-			return err
-		}
-		if config != nil {
-			configs = append(configs, *config)
-		}
-	}
-
-	d.configs[rk] = configs
-	return nil
 }
 
 func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext, obj client.Object) error {
@@ -148,7 +68,7 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		err           error
 	)
 
-	rk := ResourceKind{
+	rk := provider.ResourceKind{
 		Kind:      obj.GetObjectKind().GroupVersionKind().Kind,
 		Namespace: obj.GetNamespace(),
 		Name:      obj.GetName(),
@@ -156,7 +76,7 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 
 	switch t := obj.(type) {
 	case *gatewayv1.HTTPRoute:
-		result, err = d.handleHTTPRoute(tctx, t.DeepCopy())
+		result, err = d.translator.TranslateHTTPRoute(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "service")
 	case *gatewayv1.Gateway:
 		result, err = d.translator.TranslateGateway(tctx, t.DeepCopy())
@@ -175,14 +95,29 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		return nil
 	}
 
-	// Update configs for non-HTTPRoute types
-	if _, ok := obj.(*gatewayv1.HTTPRoute); !ok {
-		if err := d.updateConfigs(rk, tctx); err != nil {
+	oldParentRefs := d.getParentRefs(rk)
+	if err := d.updateConfigs(rk, tctx); err != nil {
+		return err
+	}
+	newParentRefs := d.getParentRefs(rk)
+	deleteConfigs := d.findConfigsToDelete(oldParentRefs, newParentRefs)
+	configs := d.getConfigs(rk)
+
+	// sync delete
+	if len(deleteConfigs) > 0 {
+		err = d.sync(Task{
+			Name:          obj.GetName(),
+			Labels:        label.GenLabel(obj),
+			ResourceTypes: resourceTypes,
+			configs:       deleteConfigs,
+		})
+		if err != nil {
 			return err
 		}
 	}
 
-	return d.sync(Task{
+	// sync update
+	err = d.sync(Task{
 		Name:   obj.GetName(),
 		Labels: label.GenLabel(obj),
 		Resources: adctypes.Resources{
@@ -193,60 +128,13 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 			Consumers:      result.Consumers,
 		},
 		ResourceTypes: resourceTypes,
-		configs:       d.getConfigs(rk),
+		configs:       configs,
 	})
-}
-
-func (d *adcClient) handleHTTPRoute(tctx *provider.TranslateContext, route *gatewayv1.HTTPRoute) (*translator.TranslateResult, error) {
-	result, err := d.translator.TranslateHTTPRoute(tctx, route)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := d.deleteHTTPRoute(tctx, route); err != nil {
-		return nil, err
-	}
-
-	return result, nil
-}
-
-func (d *adcClient) deleteHTTPRoute(tctx *provider.TranslateContext, obj client.Object) error {
-	rk := ResourceKind{
-		Kind:      obj.GetObjectKind().GroupVersionKind().Kind,
-		Namespace: obj.GetNamespace(),
-		Name:      obj.GetName(),
-	}
-
-	oldConfigs := d.getConfigs(rk)
-	if err := d.updateConfigs(rk, tctx); err != nil {
 		return err
 	}
-	newConfigs := d.getConfigs(rk)
 
-	deleteConfigs := d.findConfigsToDelete(oldConfigs, newConfigs)
-	if len(deleteConfigs) == 0 {
-		return nil
-	}
-
-	log.Debugw("http route delete configs", zap.Any("configs", deleteConfigs))
-	return d.sync(Task{
-		Name:          obj.GetName(),
-		Labels:        label.GenLabel(obj),
-		ResourceTypes: []string{"service"},
-		configs:       deleteConfigs,
-	})
-}
-
-func (d *adcClient) findConfigsToDelete(oldConfigs, newConfigs []adcConfig) []adcConfig {
-	var deleteConfigs []adcConfig
-	for _, config := range oldConfigs {
-		if !slices.ContainsFunc(newConfigs, func(c adcConfig) bool {
-			return c.ServerAddr == config.ServerAddr && c.Token == config.Token
-		}) {
-			deleteConfigs = append(deleteConfigs, config)
-		}
-	}
-	return deleteConfigs
+	return nil
 }
 
 func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
@@ -268,7 +156,7 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 		labels = label.GenLabel(obj)
 	}
 
-	rk := ResourceKind{
+	rk := provider.ResourceKind{
 		Kind:      obj.GetObjectKind().GroupVersionKind().Kind,
 		Namespace: obj.GetNamespace(),
 		Name:      obj.GetName(),
