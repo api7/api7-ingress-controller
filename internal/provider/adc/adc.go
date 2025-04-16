@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"slices"
 	"sync"
 
 	"go.uber.org/zap"
@@ -147,36 +148,50 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		err           error
 	)
 
-	switch t := obj.(type) {
-	case *gatewayv1.HTTPRoute:
-		result, err = d.translator.TranslateHTTPRoute(tctx, t.DeepCopy())
-		resourceTypes = append(resourceTypes, "service")
-	case *gatewayv1.Gateway:
-		result, err = d.translator.TranslateGateway(tctx, t.DeepCopy())
-		resourceTypes = append(resourceTypes, "global_rule", "ssl", "plugin_metadata")
-	case *networkingv1.Ingress:
-		result, err = d.translator.TranslateIngress(tctx, t.DeepCopy())
-		resourceTypes = append(resourceTypes, "service", "ssl")
-	case *v1alpha1.Consumer:
-		result, err = d.translator.TranslateConsumerV1alpha1(tctx, t.DeepCopy())
-		resourceTypes = append(resourceTypes, "consumer")
-	}
-	if err != nil {
-		return err
-	}
-	if result == nil {
-		return nil
-	}
-
-	// update adc configs
 	rk := ResourceKind{
 		Kind:      obj.GetObjectKind().GroupVersionKind().Kind,
 		Namespace: obj.GetNamespace(),
 		Name:      obj.GetName(),
 	}
-	if err := d.updateConfigs(rk, tctx); err != nil {
-		return err
+	switch t := obj.(type) {
+	case *gatewayv1.HTTPRoute:
+		if result, err = d.translator.TranslateHTTPRoute(tctx, t.DeepCopy()); err != nil {
+			return err
+		}
+		resourceTypes = append(resourceTypes, "service")
+		// delete http route if old configs diff with new configs exist
+		if err = d.DeleteHTTPRoute(ctx, tctx, t.DeepCopy()); err != nil {
+			return err
+		}
+	case *gatewayv1.Gateway:
+		if result, err = d.translator.TranslateGateway(tctx, t.DeepCopy()); err != nil {
+			return err
+		}
+		resourceTypes = append(resourceTypes, "global_rule", "ssl", "plugin_metadata")
+		if err = d.updateConfigs(rk, tctx); err != nil {
+			return err
+		}
+	case *networkingv1.Ingress:
+		if result, err = d.translator.TranslateIngress(tctx, t.DeepCopy()); err != nil {
+			return err
+		}
+		resourceTypes = append(resourceTypes, "service", "ssl")
+		if err = d.updateConfigs(rk, tctx); err != nil {
+			return err
+		}
+	case *v1alpha1.Consumer:
+		if result, err = d.translator.TranslateConsumerV1alpha1(tctx, t.DeepCopy()); err != nil {
+			return err
+		}
+		resourceTypes = append(resourceTypes, "consumer")
+		if err = d.updateConfigs(rk, tctx); err != nil {
+			return err
+		}
 	}
+	if result == nil {
+		return nil
+	}
+
 	configs := d.getConfigs(rk)
 
 	return d.sync(Task{
@@ -192,6 +207,48 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		ResourceTypes: resourceTypes,
 		configs:       configs,
 	})
+}
+
+func (d *adcClient) DeleteHTTPRoute(ctx context.Context, tctx *provider.TranslateContext, obj client.Object) error {
+	// diff adc configs
+	rk := ResourceKind{
+		Kind:      obj.GetObjectKind().GroupVersionKind().Kind,
+		Namespace: obj.GetNamespace(),
+		Name:      obj.GetName(),
+	}
+
+	oldConfigs := d.getConfigs(rk)
+	err := d.updateConfigs(rk, tctx)
+	if err != nil {
+		return err
+	}
+	newConfigs := d.getConfigs(rk)
+
+	// diff old configs and new configs
+	var deleteConfigs []adcConfig
+	for _, config := range oldConfigs {
+		if !slices.ContainsFunc(newConfigs, func(c adcConfig) bool {
+			return c.ServerAddr == config.ServerAddr && c.Token == config.Token
+		}) {
+			deleteConfigs = append(deleteConfigs, config)
+		}
+	}
+
+	if len(deleteConfigs) > 0 {
+		log.Debugw("http route delete configs", zap.Any("configs", deleteConfigs))
+		// sync old delete
+		err = d.sync(Task{
+			Name:          obj.GetName(),
+			Labels:        label.GenLabel(obj),
+			ResourceTypes: []string{"service"},
+			configs:       deleteConfigs,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
