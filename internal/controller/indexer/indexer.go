@@ -183,7 +183,7 @@ func setupIngressIndexer(mgr ctrl.Manager) error {
 	return nil
 }
 
-func setupBackendTrafficPolicyIndexer(mgr ctrl.Manager) error {
+func SetupBackendTrafficPolicyIndexer(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
 		&v1alpha1.BackendTrafficPolicy{},
