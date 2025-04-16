@@ -5,6 +5,8 @@ import (
 
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	networkingv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -19,6 +21,7 @@ const (
 	SecretIndexRef     = "secretRefs"
 	IngressClassRef    = "ingressClassRef"
 	ConsumerGatewayRef = "consumerGatewayRef"
+	PolicyTargetRefs   = "targetRefs"
 )
 
 func SetupIndexer(mgr ctrl.Manager) error {
@@ -34,6 +37,11 @@ func SetupIndexer(mgr ctrl.Manager) error {
 	if err := setupConsumerIndexer(mgr); err != nil {
 		return err
 	}
+	/*
+		if err := setupBackendTrafficPolicyIndexer(mgr); err != nil {
+			return err
+		}
+	*/
 	return nil
 }
 
@@ -175,6 +183,18 @@ func setupIngressIndexer(mgr ctrl.Manager) error {
 	return nil
 }
 
+func SetupBackendTrafficPolicyIndexer(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.BackendTrafficPolicy{},
+		PolicyTargetRefs,
+		BackendTrafficPolicyIndexFunc,
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
 func IngressClassIndexFunc(rawObj client.Object) []string {
 	ingressClass := rawObj.(*networkingv1.IngressClass)
 	if ingressClass.Spec.Controller == "" {
@@ -225,6 +245,18 @@ func IngressSecretIndexFunc(rawObj client.Object) []string {
 		secrets = append(secrets, key)
 	}
 	return secrets
+}
+
+func GenIndexKeyWithGK(group, kind, namespace, name string) string {
+	gvk := schema.GroupKind{
+		Group: group,
+		Kind:  kind,
+	}
+	nsName := types.NamespacedName{
+		Namespace: namespace,
+		Name:      name,
+	}
+	return gvk.String() + "/" + nsName.String()
 }
 
 func GenIndexKey(namespace, name string) string {
@@ -291,4 +323,20 @@ func GatewayParametersRefIndexFunc(rawObj client.Object) []string {
 		}
 	}
 	return nil
+}
+
+func BackendTrafficPolicyIndexFunc(rawObj client.Object) []string {
+	btp := rawObj.(*v1alpha1.BackendTrafficPolicy)
+	keys := make([]string, 0, len(btp.Spec.TargetRefs))
+	for _, ref := range btp.Spec.TargetRefs {
+		keys = append(keys,
+			GenIndexKeyWithGK(
+				string(ref.Group),
+				string(ref.Kind),
+				btp.GetNamespace(),
+				string(ref.Name),
+			),
+		)
+	}
+	return keys
 }
