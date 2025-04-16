@@ -21,7 +21,6 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"github.com/api7/api7-ingress-controller/api/common"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -554,15 +553,9 @@ func (in *HTTPRoutePolicySpec) DeepCopyInto(out *HTTPRoutePolicySpec) {
 	}
 	if in.Vars != nil {
 		in, out := &in.Vars, &out.Vars
-		*out = make(common.Vars, len(*in))
+		*out = make([]v1.JSON, len(*in))
 		for i := range *in {
-			if (*in)[i] != nil {
-				in, out := &(*in)[i], &(*out)[i]
-				*out = make([]common.StringOrSlice, len(*in))
-				for i := range *in {
-					(*in)[i].DeepCopyInto(&(*out)[i])
-				}
-			}
+			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
 }
