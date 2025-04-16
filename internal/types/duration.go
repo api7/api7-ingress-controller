@@ -35,7 +35,7 @@ func (d *TimeDuration) MarshalJSON() ([]byte, error) {
 }
 
 func (d *TimeDuration) UnmarshalJSON(data []byte) error {
-	var value interface{}
+	var value any
 	if err := json.Unmarshal(data, &value); err != nil {
 		return err
 	}
@@ -54,11 +54,11 @@ func (d *TimeDuration) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (d *TimeDuration) MarshalYAML() (interface{}, error) {
+func (d *TimeDuration) MarshalYAML() (any, error) {
 	return d.Duration.String(), nil
 }
 
-func (d *TimeDuration) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (d *TimeDuration) UnmarshalYAML(unmarshal func(any) error) error {
 	var s string
 	if err := unmarshal(&s); err != nil {
 		return err

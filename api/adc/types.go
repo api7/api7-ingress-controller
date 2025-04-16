@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/incubator4/go-resty-expr/expr"
-
-	"github.com/api7/api7-ingress-controller/api/common"
 )
 
 const (
@@ -115,16 +113,16 @@ type Service struct {
 type Route struct {
 	Metadata `json:",inline" yaml:",inline"`
 
-	EnableWebsocket *bool       `json:"enable_websocket,omitempty" yaml:"enable_websocket,omitempty"`
-	FilterFunc      string      `json:"filter_func,omitempty" yaml:"filter_func,omitempty"`
-	Hosts           []string    `json:"hosts,omitempty" yaml:"hosts,omitempty"`
-	Methods         []string    `json:"methods,omitempty" yaml:"methods,omitempty"`
-	Plugins         Plugins     `json:"plugins,omitempty" yaml:"plugins,omitempty"`
-	Priority        *int64      `json:"priority,omitempty" yaml:"priority,omitempty"`
-	RemoteAddrs     []string    `json:"remote_addrs,omitempty" yaml:"remote_addrs,omitempty"`
-	Timeout         *Timeout    `json:"timeout,omitempty" yaml:"timeout,omitempty"`
-	Uris            []string    `json:"uris" yaml:"uris"`
-	Vars            common.Vars `json:"vars,omitempty" yaml:"vars,omitempty"`
+	EnableWebsocket *bool    `json:"enable_websocket,omitempty" yaml:"enable_websocket,omitempty"`
+	FilterFunc      string   `json:"filter_func,omitempty" yaml:"filter_func,omitempty"`
+	Hosts           []string `json:"hosts,omitempty" yaml:"hosts,omitempty"`
+	Methods         []string `json:"methods,omitempty" yaml:"methods,omitempty"`
+	Plugins         Plugins  `json:"plugins,omitempty" yaml:"plugins,omitempty"`
+	Priority        *int64   `json:"priority,omitempty" yaml:"priority,omitempty"`
+	RemoteAddrs     []string `json:"remote_addrs,omitempty" yaml:"remote_addrs,omitempty"`
+	Timeout         *Timeout `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	Uris            []string `json:"uris" yaml:"uris"`
+	Vars            Vars     `json:"vars,omitempty" yaml:"vars,omitempty"`
 }
 
 type Timeout struct {
@@ -501,4 +499,50 @@ type ResponseDetails struct {
 type ResponseData struct {
 	Value    map[string]any `json:"value"`
 	ErrorMsg string         `json:"error_msg"`
+}
+
+// Vars represents the route match expressions of APISIX.
+type Vars [][]StringOrSlice
+
+// UnmarshalJSON implements json.Unmarshaler interface.
+// lua-cjson doesn't distinguish empty array and table,
+// and by default empty array will be encoded as '{}'.
+// We have to maintain the compatibility.
+func (vars *Vars) UnmarshalJSON(p []byte) error {
+	if p[0] == '{' {
+		if len(p) != 2 {
+			return errors.New("unexpected non-empty object")
+		}
+		return nil
+	}
+	var data [][]StringOrSlice
+	if err := json.Unmarshal(p, &data); err != nil {
+		return err
+	}
+	*vars = data
+	return nil
+}
+
+// StringOrSlice represents a string or a string slice.
+// TODO Do not use interface{} to avoid the reflection overheads.
+type StringOrSlice struct {
+	StrVal   string          `json:"-"`
+	SliceVal []StringOrSlice `json:"-"`
+}
+
+func (s *StringOrSlice) MarshalJSON() ([]byte, error) {
+	if s.SliceVal != nil {
+		return json.Marshal(s.SliceVal)
+	}
+	return json.Marshal(s.StrVal)
+}
+
+func (s *StringOrSlice) UnmarshalJSON(p []byte) error {
+	if len(p) == 0 {
+		return errors.New("empty object")
+	}
+	if p[0] == '[' {
+		return json.Unmarshal(p, &s.SliceVal)
+	}
+	return json.Unmarshal(p, &s.StrVal)
 }
