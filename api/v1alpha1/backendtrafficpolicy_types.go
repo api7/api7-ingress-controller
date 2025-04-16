@@ -19,10 +19,6 @@ type BackendTrafficPolicySpec struct {
 	// Currently, Backends (i.e. Service, ServiceImport, or any
 	// implementation-specific backendRef) are the only valid API
 	// target references.
-	// +listType=map
-	// +listMapKey=group
-	// +listMapKey=kind
-	// +listMapKey=name
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=16
 	TargetRefs []BackendPolicyTargetReferenceWithSectionName `json:"targetRefs"`
