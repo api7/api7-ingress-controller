@@ -153,23 +153,23 @@ spec:
                   - kind
                   - name
                   type: object
+                  x-kubernetes-validations:
+                  - rule: self.kind == 'Service' && self.group == ""
                 maxItems: 16
                 minItems: 1
                 type: array
-                x-kubernetes-list-map-keys:
-                - group
-                - kind
-                - name
-                x-kubernetes-list-type: map
               timeout:
                 description: Timeout settings for the read, send and connect to the
                   upstream.
                 properties:
                   connect:
+                    default: 60s
                     type: string
                   read:
+                    default: 60s
                     type: string
                   send:
+                    default: 60s
                     type: string
                 type: object
               upstream_host:

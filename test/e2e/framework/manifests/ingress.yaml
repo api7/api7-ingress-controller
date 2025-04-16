@@ -109,6 +109,21 @@ rules:
 - apiGroups:
   - gateway.apisix.io
   resources:
+  - backendtrafficpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gateway.apisix.io
+  resources:
+  - backendtrafficpolicies/status
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - gateway.apisix.io
+  resources:
   - consumers
   verbs:
   - get
@@ -129,6 +144,21 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - gateway.apisix.io
+  resources:
+  - httproutepolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gateway.apisix.io
+  resources:
+  - httproutepolicies/status
+  verbs:
+  - get
+  - update
 - apiGroups:
   - gateway.apisix.io
   resources:
@@ -350,6 +380,15 @@ spec:
     spec:
       containers:
       - image: api7/api7-ingress-controller:dev
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
         volumeMounts:
         - name: ingress-config
           mountPath: /app/conf/config.yaml

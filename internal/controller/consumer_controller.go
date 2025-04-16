@@ -136,7 +136,7 @@ func (r *ConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	var statusErr error
-	tctx := provider.NewDefaultTranslateContext()
+	tctx := provider.NewDefaultTranslateContext(ctx)
 
 	gateway, err := r.getGateway(ctx, consumer)
 	if err != nil {

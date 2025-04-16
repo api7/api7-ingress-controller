@@ -112,7 +112,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, nil
 	}
 
-	tctx := provider.NewDefaultTranslateContext()
+	tctx := provider.NewDefaultTranslateContext(ctx)
 
 	rk := provider.ResourceKind{
 		Kind:      hr.Kind,
@@ -261,7 +261,7 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 		}
 
 		var service corev1.Service
-		if err := r.Get(context.TODO(), client.ObjectKey{
+		if err := r.Get(tctx, client.ObjectKey{
 			Namespace: namespace,
 			Name:      name,
 		}, &service); err != nil {
@@ -280,9 +280,13 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 			terr = fmt.Errorf("port %d not found in service %s", *backend.Port, name)
 			continue
 		}
+		tctx.Services[client.ObjectKey{
+			Namespace: namespace,
+			Name:      name,
+		}] = &service
 
 		endpointSliceList := new(discoveryv1.EndpointSliceList)
-		if err := r.List(context.TODO(), endpointSliceList,
+		if err := r.List(tctx, endpointSliceList,
 			client.InNamespace(namespace),
 			client.MatchingLabels{
 				discoveryv1.LabelServiceName: name,

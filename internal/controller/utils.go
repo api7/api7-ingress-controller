@@ -792,7 +792,7 @@ func ProcessGatewayProxy(r client.Client, tctx *provider.TranslateContext, gatew
 		} else {
 			log.Info("found GatewayProxy for Gateway", "gateway", gateway.Name, "gatewayproxy", gatewayProxy.Name)
 			tctx.GatewayProxies[gatewayKind] = *gatewayProxy
-			tctx.ParentRefs[rk] = append(tctx.ParentRefs[rk], gatewayKind)
+			tctx.ResourceParentRefs[rk] = append(tctx.ResourceParentRefs[rk], gatewayKind)
 
 			// Process provider secrets if provider exists
 			if gatewayProxy.Spec.Provider != nil && gatewayProxy.Spec.Provider.Type == v1alpha1.ProviderTypeControlPlane {

@@ -87,7 +87,7 @@ func (d *adcClient) updateConfigs(rk provider.ResourceKind, tctx *provider.Trans
 	defer d.Unlock()
 
 	// set parent refs
-	d.parentRefs[rk] = tctx.ParentRefs[rk]
+	d.parentRefs[rk] = tctx.ResourceParentRefs[rk]
 	parentRefs := d.parentRefs[rk]
 
 	for _, parentRef := range parentRefs {

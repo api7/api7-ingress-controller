@@ -24,24 +24,32 @@ type ResourceKind struct {
 }
 
 type TranslateContext struct {
-	BackendRefs      []gatewayv1.BackendRef
-	GatewayTLSConfig []gatewayv1.GatewayTLSConfig
-	GatewayProxies   map[ResourceKind]v1alpha1.GatewayProxy
-	ParentRefs       map[ResourceKind][]ResourceKind
-	Credentials      []v1alpha1.Credential
-	EndpointSlices   map[types.NamespacedName][]discoveryv1.EndpointSlice
-	Secrets          map[types.NamespacedName]*corev1.Secret
-	PluginConfigs    map[types.NamespacedName]*v1alpha1.PluginConfig
-	Services         map[types.NamespacedName]*corev1.Service
+	context.Context
+	ParentRefs             []gatewayv1.ParentReference
+	BackendRefs            []gatewayv1.BackendRef
+	GatewayTLSConfig       []gatewayv1.GatewayTLSConfig
+	Credentials            []v1alpha1.Credential
+	EndpointSlices         map[types.NamespacedName][]discoveryv1.EndpointSlice
+	Secrets                map[types.NamespacedName]*corev1.Secret
+	PluginConfigs          map[types.NamespacedName]*v1alpha1.PluginConfig
+	Services               map[types.NamespacedName]*corev1.Service
+	BackendTrafficPolicies map[types.NamespacedName]*v1alpha1.BackendTrafficPolicy
+
+	StatusUpdaters []client.Object
+
+	GatewayProxies     map[ResourceKind]v1alpha1.GatewayProxy
+	ResourceParentRefs map[ResourceKind][]ResourceKind
 }
 
-func NewDefaultTranslateContext() *TranslateContext {
+func NewDefaultTranslateContext(ctx context.Context) *TranslateContext {
 	return &TranslateContext{
-		EndpointSlices: make(map[types.NamespacedName][]discoveryv1.EndpointSlice),
-		Secrets:        make(map[types.NamespacedName]*corev1.Secret),
-		PluginConfigs:  make(map[types.NamespacedName]*v1alpha1.PluginConfig),
-		Services:       make(map[types.NamespacedName]*corev1.Service),
-		GatewayProxies: make(map[ResourceKind]v1alpha1.GatewayProxy),
-		ParentRefs:     make(map[ResourceKind][]ResourceKind),
+		Context:                ctx,
+		EndpointSlices:         make(map[types.NamespacedName][]discoveryv1.EndpointSlice),
+		Secrets:                make(map[types.NamespacedName]*corev1.Secret),
+		PluginConfigs:          make(map[types.NamespacedName]*v1alpha1.PluginConfig),
+		Services:               make(map[types.NamespacedName]*corev1.Service),
+		BackendTrafficPolicies: make(map[types.NamespacedName]*v1alpha1.BackendTrafficPolicy),
+		GatewayProxies:         make(map[ResourceKind]v1alpha1.GatewayProxy),
+		ResourceParentRefs:     make(map[ResourceKind][]ResourceKind),
 	}
 }

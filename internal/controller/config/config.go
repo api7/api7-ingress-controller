@@ -7,7 +7,9 @@ import (
 	"os"
 	"strings"
 	"text/template"
+	"time"
 
+	"github.com/api7/api7-ingress-controller/internal/types"
 	"gopkg.in/yaml.v2"
 )
 
@@ -29,6 +31,16 @@ func NewDefaultConfig() *Config {
 		ProbeAddr:        DefaultProbeAddr,
 		MetricsAddr:      DefaultMetricsAddr,
 		IngressClass:     DefaultIngressClass,
+		LeaderElection:   NewLeaderElection(),
+	}
+}
+
+func NewLeaderElection() *LeaderElection {
+	return &LeaderElection{
+		LeaseDuration: types.TimeDuration{Duration: 15 * time.Second},
+		RenewDeadline: types.TimeDuration{Duration: 10 * time.Second},
+		RetryPeriod:   types.TimeDuration{Duration: 2 * time.Second},
+		Disable:       false,
 	}
 }
 
