@@ -72,9 +72,12 @@ type LoadBalancer struct {
 }
 
 type Timeout struct {
+	// +kubebuilder:default="60s"
 	Connect metav1.Duration `json:"connect,omitempty" yaml:"connect,omitempty"`
-	Send    metav1.Duration `json:"send,omitempty" yaml:"send,omitempty"`
-	Read    metav1.Duration `json:"read,omitempty" yaml:"read,omitempty"`
+	// +kubebuilder:default="60s"
+	Send metav1.Duration `json:"send,omitempty" yaml:"send,omitempty"`
+	// +kubebuilder:default="60s"
+	Read metav1.Duration `json:"read,omitempty" yaml:"read,omitempty"`
 }
 
 // +kubebuilder:object:root=true

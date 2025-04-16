@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
+	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,6 +24,7 @@ import (
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
 	"github.com/api7/api7-ingress-controller/internal/provider"
+	"github.com/api7/gopkg/pkg/log"
 )
 
 // HTTPRouteReconciler reconciles a GatewayClass object.
@@ -64,6 +66,9 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					},
 				},
 			),
+		).
+		Watches(&v1alpha1.BackendTrafficPolicy{},
+			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesForBackendTrafficPolicy),
 		).
 		Complete(r)
 }
@@ -125,6 +130,8 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			msg:    err.Error(),
 		}
 	}
+
+	ProcessBackendTrafficPolicy(r.Client, tctx)
 
 	if err := r.Provider.Update(ctx, tctx, hr); err != nil {
 		acceptStatus.status = false
@@ -205,6 +212,48 @@ func (r *HTTPRouteReconciler) listHTTPRoutesByExtensionRef(ctx context.Context, 
 			},
 		})
 	}
+	return requests
+}
+
+func (r *HTTPRouteReconciler) listHTTPRoutesForBackendTrafficPolicy(ctx context.Context, obj client.Object) []reconcile.Request {
+	policy, ok := obj.(*v1alpha1.BackendTrafficPolicy)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to BackendTrafficPolicy")
+		return nil
+	}
+
+	httprouteList := []gatewayv1.HTTPRoute{}
+	for _, targetRef := range policy.Spec.TargetRefs {
+		service := &corev1.Service{}
+		if err := r.Get(ctx, client.ObjectKey{
+			Namespace: policy.Namespace,
+			Name:      string(targetRef.Name),
+		}, service); err != nil {
+			if client.IgnoreNotFound(err) != nil {
+				r.Log.Error(err, "failed to get service", "namespace", policy.Namespace, "name", targetRef.Name)
+			}
+			continue
+		}
+		hrList := &gatewayv1.HTTPRouteList{}
+		if err := r.List(ctx, hrList, client.MatchingFields{
+			indexer.ServiceIndexRef: indexer.GenIndexKey(policy.Namespace, string(targetRef.Name)),
+		}); err != nil {
+			r.Log.Error(err, "failed to list httproutes by service reference", "service", targetRef.Name)
+			return nil
+		}
+		httprouteList = append(httprouteList, hrList.Items...)
+	}
+
+	requests := make([]reconcile.Request, 0, len(httprouteList))
+	for _, hr := range httprouteList {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: client.ObjectKey{
+				Namespace: hr.Namespace,
+				Name:      hr.Name,
+			},
+		})
+	}
+	log.Errorw("list httproutes for backend traffic policy", zap.Any("httproutes", requests))
 	return requests
 }
 

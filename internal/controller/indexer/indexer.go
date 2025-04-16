@@ -131,6 +131,15 @@ func setupHTTPRouteIndexer(mgr ctrl.Manager) error {
 	); err != nil {
 		return err
 	}
+
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.BackendTrafficPolicy{},
+		PolicyTargetRefs,
+		BackendTrafficPolicyIndexFunc,
+	); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -314,7 +323,7 @@ func BackendTrafficPolicyIndexFunc(rawObj client.Object) []string {
 	for _, ref := range btp.Spec.TargetRefs {
 		keys = append(keys,
 			GenIndexKeyWithGK(
-				v1alpha1.GroupVersion.Group,
+				string(ref.Group),
 				string(ref.Kind),
 				btp.GetNamespace(),
 				string(ref.Name),
