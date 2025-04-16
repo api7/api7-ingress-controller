@@ -110,14 +110,8 @@ spec:
                 - name
                 x-kubernetes-list-type: map
               vars:
-                description: Vars represents the route match expressions of APISIX.
                 items:
-                  items:
-                    description: |-
-                      StringOrSlice represents a string or a string slice.
-                      TODO Do not use interface{} to avoid the reflection overheads.
-                    type: object
-                  type: array
+                  x-kubernetes-preserve-unknown-fields: true
                 type: array
             required:
             - targetRefs
