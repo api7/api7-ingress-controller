@@ -1,5 +1,9 @@
 package config
 
+import (
+	"github.com/api7/api7-ingress-controller/internal/types"
+)
+
 const (
 	// IngressAPISIXLeader is the default election id for the controller
 	// leader election.
@@ -36,6 +40,7 @@ type Config struct {
 	IngressClass          string           `json:"ingress_class" yaml:"ingress_class"`
 	IngressPublishService string           `json:"ingress_publish_service" yaml:"ingress_publish_service"`
 	IngressStatusAddress  []string         `json:"ingress_status_address" yaml:"ingress_status_address"`
+	LeaderElection        *LeaderElection  `json:"leader_election" yaml:"leader_election"`
 }
 
 type GatewayConfig struct {
@@ -48,4 +53,11 @@ type ControlPlaneConfig struct {
 	AdminKey  string   `json:"admin_key" yaml:"admin_key"`
 	Endpoints []string `json:"endpoints" yaml:"endpoints"`
 	TLSVerify *bool    `json:"tls_verify" yaml:"tls_verify"`
+}
+
+type LeaderElection struct {
+	LeaseDuration types.TimeDuration `json:"leaseDuration,omitempty" yaml:"leaseDuration,omitempty"`
+	RenewDeadline types.TimeDuration `json:"renewDeadline,omitempty" yaml:"renewDeadline,omitempty"`
+	RetryPeriod   types.TimeDuration `json:"retryPeriod,omitempty" yaml:"retryPeriod,omitempty"`
+	Disable       bool               `json:"disable,omitempty" yaml:"disable,omitempty"`
 }

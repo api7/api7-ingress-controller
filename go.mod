@@ -29,7 +29,6 @@ require (
 	go.uber.org/zap v1.27.0
 	golang.org/x/net v0.28.0
 	gopkg.in/yaml.v2 v2.4.0
-	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/gorm v1.25.11
 	helm.sh/helm/v3 v3.15.4
 	k8s.io/api v0.31.1
@@ -213,6 +212,7 @@ require (
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/apiserver v0.31.1 // indirect
 	k8s.io/cli-runtime v0.30.3 // indirect
 	k8s.io/component-base v0.31.1 // indirect
