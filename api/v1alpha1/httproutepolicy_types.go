@@ -19,7 +19,6 @@ package v1alpha1
 import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
@@ -34,20 +33,10 @@ type HTTPRoutePolicySpec struct {
 	// +listMapKey=name
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=16
-	TargetRefs []TargetReference `json:"targetRefs"`
+	TargetRefs []gatewayv1alpha2.LocalPolicyTargetReferenceWithSectionName `json:"targetRefs"`
 
 	Priority *int64                 `json:"priority,omitempty" yaml:"priority,omitempty"`
 	Vars     []apiextensionsv1.JSON `json:"vars,omitempty" yaml:"vars,omitempty"`
-}
-
-type TargetReference struct {
-	Group v1.Group `json:"group"`
-	Kind  v1.Kind  `json:"kind"`
-	// +optional
-	Namespace *v1.Namespace `json:"namespace,omitempty"`
-	Name      v1.ObjectName `json:"name"`
-	// +optional
-	SectionName *v1.SectionName `json:"sectionName,omitempty"`
 }
 
 // +kubebuilder:object:root=true

@@ -5,15 +5,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/api7/gopkg/pkg/log"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-
-	"github.com/api7/api7-ingress-controller/api/common"
-	"github.com/api7/gopkg/pkg/log"
 
 	adctypes "github.com/api7/api7-ingress-controller/api/adc"
 	"github.com/api7/api7-ingress-controller/internal/controller/label"
@@ -245,7 +243,7 @@ func (t *Translator) fillHTTPRoutePolicies(tctx *provider.TranslateContext, rule
 		for _, spec := range specs {
 			route.Priority = spec.Priority
 			for _, data := range spec.Vars {
-				var v []common.StringOrSlice
+				var v []adctypes.StringOrSlice
 				if err := json.Unmarshal(data.Raw, &v); err != nil {
 					log.Errorf("failed to unmarshal spec.Vars item to []StringOrSlice, data: %s", string(data.Raw))
 					continue
@@ -383,14 +381,14 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 		case gatewayv1.PathMatchPathPrefix:
 			route.Uris = []string{*match.Path.Value + "*"}
 		case gatewayv1.PathMatchRegularExpression:
-			var this []common.StringOrSlice
-			this = append(this, common.StringOrSlice{
+			var this []adctypes.StringOrSlice
+			this = append(this, adctypes.StringOrSlice{
 				StrVal: "uri",
 			})
-			this = append(this, common.StringOrSlice{
+			this = append(this, adctypes.StringOrSlice{
 				StrVal: "~~",
 			})
-			this = append(this, common.StringOrSlice{
+			this = append(this, adctypes.StringOrSlice{
 				StrVal: *match.Path.Value,
 			})
 
@@ -405,25 +403,25 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 			name := strings.ToLower(string(header.Name))
 			name = strings.ReplaceAll(name, "-", "_")
 
-			var this []common.StringOrSlice
-			this = append(this, common.StringOrSlice{
+			var this []adctypes.StringOrSlice
+			this = append(this, adctypes.StringOrSlice{
 				StrVal: "http_" + name,
 			})
 
 			switch *header.Type {
 			case gatewayv1.HeaderMatchExact:
-				this = append(this, common.StringOrSlice{
+				this = append(this, adctypes.StringOrSlice{
 					StrVal: "==",
 				})
 			case gatewayv1.HeaderMatchRegularExpression:
-				this = append(this, common.StringOrSlice{
+				this = append(this, adctypes.StringOrSlice{
 					StrVal: "~~",
 				})
 			default:
 				return nil, errors.New("unknown header match type " + string(*header.Type))
 			}
 
-			this = append(this, common.StringOrSlice{
+			this = append(this, adctypes.StringOrSlice{
 				StrVal: header.Value,
 			})
 
@@ -433,25 +431,25 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 
 	if len(match.QueryParams) > 0 {
 		for _, query := range match.QueryParams {
-			var this []common.StringOrSlice
-			this = append(this, common.StringOrSlice{
+			var this []adctypes.StringOrSlice
+			this = append(this, adctypes.StringOrSlice{
 				StrVal: "arg_" + strings.ToLower(fmt.Sprintf("%v", query.Name)),
 			})
 
 			switch *query.Type {
 			case gatewayv1.QueryParamMatchExact:
-				this = append(this, common.StringOrSlice{
+				this = append(this, adctypes.StringOrSlice{
 					StrVal: "==",
 				})
 			case gatewayv1.QueryParamMatchRegularExpression:
-				this = append(this, common.StringOrSlice{
+				this = append(this, adctypes.StringOrSlice{
 					StrVal: "~~",
 				})
 			default:
 				return nil, errors.New("unknown query match type " + string(*query.Type))
 			}
 
-			this = append(this, common.StringOrSlice{
+			this = append(this, adctypes.StringOrSlice{
 				StrVal: query.Value,
 			})
 
