@@ -13,16 +13,15 @@ import (
 )
 
 const (
-	ServiceIndexRef          = "serviceRefs"
-	ExtensionRef             = "extensionRef"
-	ParametersRef            = "parametersRef"
-	ParentRefs               = "parentRefs"
-	IngressClass             = "ingressClass"
-	SecretIndexRef           = "secretRefs"
-	IngressClassRef          = "ingressClassRef"
-	ConsumerGatewayRef       = "consumerGatewayRef"
-	HTTPRoutePolicyTargetRef = "httpRoutePolicyTargetRef"
-	HTTPRoutePolicy          = "httpRoutePolicy"
+	ServiceIndexRef    = "serviceRefs"
+	ExtensionRef       = "extensionRef"
+	ParametersRef      = "parametersRef"
+	ParentRefs         = "parentRefs"
+	IngressClass       = "ingressClass"
+	SecretIndexRef     = "secretRefs"
+	IngressClassRef    = "ingressClassRef"
+	ConsumerGatewayRef = "consumerGatewayRef"
+	HTTPRoutePolicy    = "httpRoutePolicy"
 )
 
 func SetupIndexer(mgr ctrl.Manager) error {
@@ -302,12 +301,12 @@ func GenHTTPRoutePolicyIndexKey(group, kind, namespace, name, sectionName string
 func HTTPRoutePolicyIndexFunc(rawObj client.Object) []string {
 	hrp := rawObj.(*v1alpha1.HTTPRoutePolicy)
 	var keys = make([]string, 0, len(hrp.Spec.TargetRefs))
-	for i, ref := range hrp.Spec.TargetRefs {
+	for _, ref := range hrp.Spec.TargetRefs {
 		var sectionName string
 		if ref.SectionName != nil {
 			sectionName = string(*ref.SectionName)
 		}
-		keys[i] = GenHTTPRoutePolicyIndexKey(v1alpha1.GroupVersion.Group, string(ref.Kind), hrp.GetNamespace(), string(ref.Name), sectionName)
+		keys = append(keys, GenHTTPRoutePolicyIndexKey(v1alpha1.GroupVersion.Group, string(ref.Kind), hrp.GetNamespace(), string(ref.Name), sectionName))
 	}
 	return keys
 }

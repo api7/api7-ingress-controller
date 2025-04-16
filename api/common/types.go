@@ -31,34 +31,26 @@ func (vars *Vars) UnmarshalJSON(p []byte) error {
 
 // StringOrSlice represents a string or a string slice.
 // TODO Do not use interface{} to avoid the reflection overheads.
+//
+// +kubebuilder:validation:Schemaless
 type StringOrSlice struct {
-	StrVal   string   `json:"-"`
-	SliceVal []string `json:"-"`
+	StrVal   string          `json:"-"`
+	SliceVal []StringOrSlice `json:"-"`
 }
 
 func (s *StringOrSlice) MarshalJSON() ([]byte, error) {
-	var (
-		p   []byte
-		err error
-	)
 	if s.SliceVal != nil {
-		p, err = json.Marshal(s.SliceVal)
-	} else {
-		p, err = json.Marshal(s.StrVal)
+		return json.Marshal(s.SliceVal)
 	}
-	return p, err
+	return json.Marshal(s.StrVal)
 }
 
 func (s *StringOrSlice) UnmarshalJSON(p []byte) error {
-	var err error
-
 	if len(p) == 0 {
 		return errors.New("empty object")
 	}
 	if p[0] == '[' {
-		err = json.Unmarshal(p, &s.SliceVal)
-	} else {
-		err = json.Unmarshal(p, &s.StrVal)
+		return json.Unmarshal(p, &s.SliceVal)
 	}
-	return err
+	return json.Unmarshal(p, &s.StrVal)
 }

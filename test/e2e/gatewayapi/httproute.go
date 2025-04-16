@@ -262,7 +262,6 @@ spec:
     - path:
         type: Exact
         value: /get
-      name: get
     backendRefs:
     - name: httpbin-service-e2e-test
       port: 80
@@ -286,33 +285,34 @@ spec:
         - type: Exact
           name: X-Route-Name
           value: httpbin
+    # name: get
     backendRefs:
     - name: httpbin-service-e2e-test
       port: 80
 `
 		var httpRoutePolicy = `
-apiVersion: gateway.networking.k8s.io/v1
+apiVersion: gateway.apisix.io/v1alpha1
 kind: HTTPRoutePolicy
 metadata:
-  name: httpRoutePolicy0
+  name: http-route-policy-0
 spec:
   targetRefs:
   - group: gateway.apisix.io
     kind: HTTPRoute
     name: httpbin
-    sectionName: get
+    # sectionName: get
   - group: gateway.apisix.io
-    kind: HTTPRoute
-    name: httpbin
-    sectionName: put
-- group: gateway.apisix.io
     kind: HTTPRoute
     name: httpbin-1
     sectionName: get
-priority: 10
-vars:
-- ["http_x_hrp_name", "==", "httpRoutePolicy0"]
-- ["arg_hrp_name", "==", "httpRoutePolicy0"]
+  priority: 10
+  vars:
+  - - http_x_hrp_name
+    - ==
+    - http-route-policy-0
+  - - arg_hrp_name
+    - ==
+    - http-route-policy-0
 `
 
 		var prefixRouteByStatus = `
@@ -440,7 +440,7 @@ spec:
 				Status(http.StatusOK)
 
 			By("create HTTPRoutePolicy")
-			ResourceApplied("HTTPRoutePolicy", "httpRoutePolicy0", httpRoutePolicy, 1)
+			ResourceApplied("HTTPRoutePolicy", "http-route-policy-0", httpRoutePolicy, 1)
 
 			By("access dataplane to check the HTTPRoutePolicy")
 			s.NewAPISIXClient().
@@ -454,8 +454,8 @@ spec:
 				GET("/get").
 				WithHost("httpbin.example").
 				WithHeader("X-Route-Name", "httpbin").
-				WithHeader("X-HRP-Name", "httpRoutePolicy0").
-				WithQuery("hrp_name", "httpRoutePolicy0").
+				WithHeader("X-HRP-Name", "http-route-policy-0").
+				WithQuery("hrp_name", "http-route-policy-0").
 				Expect().
 				Status(http.StatusOK)
 		})

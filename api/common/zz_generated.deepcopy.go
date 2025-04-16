@@ -27,8 +27,10 @@ func (in *StringOrSlice) DeepCopyInto(out *StringOrSlice) {
 	*out = *in
 	if in.SliceVal != nil {
 		in, out := &in.SliceVal, &out.SliceVal
-		*out = make([]string, len(*in))
-		copy(*out, *in)
+		*out = make([]StringOrSlice, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 }
 

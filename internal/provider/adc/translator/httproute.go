@@ -244,7 +244,14 @@ func (t *Translator) fillHTTPRoutePolicies(tctx *provider.TranslateContext, rule
 	for _, route := range routes {
 		for _, spec := range specs {
 			route.Priority = spec.Priority
-			route.Vars = append(route.Vars, spec.Vars...)
+			for _, data := range spec.Vars {
+				var v []common.StringOrSlice
+				if err := json.Unmarshal(data.Raw, &v); err != nil {
+					log.Errorf("failed to unmarshal spec.Vars item to []StringOrSlice, data: %s", string(data.Raw))
+					continue
+				}
+				route.Vars = append(route.Vars, v)
+			}
 		}
 	}
 }

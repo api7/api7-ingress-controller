@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -19,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
@@ -386,6 +389,24 @@ func (r *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, 
 		}
 		for _, item := range httpRoutePolicyList.Items {
 			tctx.HTTPRoutePolicies[ruleName] = append(tctx.HTTPRoutePolicies[key], item.Spec)
+			item.Status.Ancestors = []v1alpha2.PolicyAncestorStatus{
+				{
+					AncestorRef: v1alpha2.ParentReference{
+						Group:       nil,
+						Kind:        nil,
+						Namespace:   nil,
+						Name:        gatewayv1.ObjectName(httpRoute.GetName()),
+						SectionName: nil,
+						Port:        nil,
+					},
+					ControllerName: v1alpha2.GatewayController(config.GetControllerName()),
+					Conditions:     []metav1.Condition{},
+				},
+			}
+			meta.SetStatusCondition(&item.Status.Ancestors[0].Conditions, NewCondition(item.Generation, true, "Successfully"))
+			if err := r.Status().Update(context.Background(), &item); err != nil {
+				r.Log.Error(err, "failed to Update policy status")
+			}
 		}
 	}
 
