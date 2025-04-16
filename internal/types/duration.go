@@ -48,7 +48,7 @@ func (d *TimeDuration) UnmarshalJSON(data []byte) error {
 		}
 		d.Duration = dur
 	default:
-		panic("unknown type")
+		return fmt.Errorf("unknown type: %T", v)
 	}
 	return nil
 }
