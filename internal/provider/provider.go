@@ -25,20 +25,20 @@ type ResourceKind struct {
 
 type TranslateContext struct {
 	context.Context
-	ParentRefs             []gatewayv1.ParentReference
-	BackendRefs            []gatewayv1.BackendRef
-	GatewayTLSConfig       []gatewayv1.GatewayTLSConfig
-	Credentials            []v1alpha1.Credential
+	ParentRefs       []gatewayv1.ParentReference
+	BackendRefs      []gatewayv1.BackendRef
+	GatewayTLSConfig []gatewayv1.GatewayTLSConfig
+	Credentials      []v1alpha1.Credential
+
 	EndpointSlices         map[types.NamespacedName][]discoveryv1.EndpointSlice
 	Secrets                map[types.NamespacedName]*corev1.Secret
 	PluginConfigs          map[types.NamespacedName]*v1alpha1.PluginConfig
 	Services               map[types.NamespacedName]*corev1.Service
 	BackendTrafficPolicies map[types.NamespacedName]*v1alpha1.BackendTrafficPolicy
+	GatewayProxies         map[ResourceKind]v1alpha1.GatewayProxy
+	ResourceParentRefs     map[ResourceKind][]ResourceKind
 
 	StatusUpdaters []client.Object
-
-	GatewayProxies     map[ResourceKind]v1alpha1.GatewayProxy
-	ResourceParentRefs map[ResourceKind][]ResourceKind
 }
 
 func NewDefaultTranslateContext(ctx context.Context) *TranslateContext {

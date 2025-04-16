@@ -107,9 +107,10 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		status: true,
 		msg:    acceptedMessage("gateway"),
 	}
-	tctx := &provider.TranslateContext{
-		Secrets: make(map[types.NamespacedName]*corev1.Secret),
-	}
+
+	// create a translate context
+	tctx := provider.NewDefaultTranslateContext(ctx)
+
 	r.processListenerConfig(tctx, gateway)
 	if err := r.processInfrastructure(tctx, gateway); err != nil {
 		acceptStatus = status{
