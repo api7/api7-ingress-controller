@@ -231,21 +231,18 @@ func (t *Translator) fillPluginFromHTTPRequestRedirectFilter(plugins adctypes.Pl
 }
 
 func (t *Translator) fillHTTPRoutePolicies(tctx *provider.TranslateContext, rule gatewayv1.HTTPRouteRule, routes []*adctypes.Route) {
-	var ruleName string
+	policies := tctx.HTTPRoutePolicies["*"] // policies which not specify a sectionName
 	if rule.Name != nil {
-		ruleName = string(*rule.Name)
+		policies = append(policies, tctx.HTTPRoutePolicies[string(*rule.Name)]...) // append policies which specify the sectionName as the same as rule.name
 	}
-	specs, ok := tctx.HTTPRoutePolicies[ruleName]
-	if !ok || len(specs) == 0 {
-		return
-	}
-	for _, route := range routes {
-		for _, spec := range specs {
-			route.Priority = spec.Priority
-			for _, data := range spec.Vars {
+
+	for _, policy := range policies {
+		for _, route := range routes {
+			route.Priority = policy.Spec.Priority
+			for _, data := range policy.Spec.Vars {
 				var v []adctypes.StringOrSlice
 				if err := json.Unmarshal(data.Raw, &v); err != nil {
-					log.Errorf("failed to unmarshal spec.Vars item to []StringOrSlice, data: %s", string(data.Raw))
+					log.Errorf("failed to unmarshal spec.Vars item to []StringOrSlice, data: %s", string(data.Raw)) // todo: update status
 					continue
 				}
 				route.Vars = append(route.Vars, v)

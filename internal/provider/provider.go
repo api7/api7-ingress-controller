@@ -27,7 +27,7 @@ type TranslateContext struct {
 	Secrets           map[types.NamespacedName]*corev1.Secret
 	PluginConfigs     map[types.NamespacedName]*v1alpha1.PluginConfig
 	Services          map[types.NamespacedName]*corev1.Service
-	HTTPRoutePolicies map[string][]v1alpha1.HTTPRoutePolicySpec
+	HTTPRoutePolicies map[string][]v1alpha1.HTTPRoutePolicy
 }
 
 func NewDefaultTranslateContext() *TranslateContext {
@@ -36,6 +36,6 @@ func NewDefaultTranslateContext() *TranslateContext {
 		Secrets:           make(map[types.NamespacedName]*corev1.Secret),
 		PluginConfigs:     make(map[types.NamespacedName]*v1alpha1.PluginConfig),
 		Services:          make(map[types.NamespacedName]*corev1.Service),
-		HTTPRoutePolicies: make(map[string][]v1alpha1.HTTPRoutePolicySpec),
+		HTTPRoutePolicies: make(map[string][]v1alpha1.HTTPRoutePolicy),
 	}
 }

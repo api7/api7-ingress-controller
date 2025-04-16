@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/api7/api7-ingress-controller/internal/controller/config"
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
+	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
+	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -22,10 +23,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
-
-	"github.com/api7/api7-ingress-controller/api/v1alpha1"
-	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
-	"github.com/api7/api7-ingress-controller/internal/provider"
 )
 
 // HTTPRouteReconciler reconciles a GatewayClass object.
@@ -121,6 +118,11 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	tctx := provider.NewDefaultTranslateContext()
 
 	if err := r.processHTTPRoute(tctx, hr); err != nil {
+		acceptStatus.status = false
+		acceptStatus.msg = err.Error()
+	}
+
+	if err := r.processHTTPRoutePolicies(tctx, hr); err != nil {
 		acceptStatus.status = false
 		acceptStatus.msg = err.Error()
 	}
@@ -245,24 +247,40 @@ func (r *HTTPRouteReconciler) listHTTPRouteByHTTPRoutePolicy(ctx context.Context
 		return nil
 	}
 
-	var keys = make(map[client.ObjectKey]struct{})
+	var keys = make(map[ancestorRefKey]struct{})
 	for _, ref := range httpRoutePolicy.Spec.TargetRefs {
 		if ref.Kind == "HTTPRoute" {
-			keys[client.ObjectKey{
-				Namespace: obj.GetNamespace(),
-				Name:      string(ref.Name),
-			}] = struct{}{}
+			key := ancestorRefKey{
+				Group:     gatewayv1.GroupName,
+				Kind:      "HTTPRoute",
+				Namespace: gatewayv1.Namespace(obj.GetNamespace()),
+				Name:      ref.Name,
+			}
+			if ref.SectionName != nil {
+				key.SectionName = *ref.SectionName
+			}
+			keys[key] = struct{}{}
 		}
 	}
 	for key := range keys {
 		var httpRoute gatewayv1.HTTPRoute
-		if err := r.Get(ctx, key, &httpRoute); err != nil {
-			r.Log.Error(err, "failed to get httproute by HTTPRoutePolicy targetRef", "HTTPRoutePolicy", obj.GetName())
+		if err := r.Get(ctx, client.ObjectKey{Namespace: string(key.Namespace), Name: string(key.Name)}, &httpRoute); err != nil {
+			r.Log.Error(err, "failed to get httproute by HTTPRoutePolicy targetRef", "namespace", obj.GetNamespace(), "name", obj.GetName())
+			if err := r.updateHTTPRoutePolicyStatus(key, *httpRoutePolicy, false, string(v1alpha2.PolicyReasonTargetNotFound), "not found HTTPRoute"); err != nil {
+				r.Log.Error(err, "failed to update HTTPRoutePolicy Status")
+			}
 			continue
 		}
 		requests = append(requests, reconcile.Request{
-			NamespacedName: key,
+			NamespacedName: types.NamespacedName{
+				Namespace: string(key.Namespace),
+				Name:      string(key.Name),
+			},
 		})
+	}
+
+	if err := r.Status().Update(ctx, httpRoutePolicy); err != nil {
+		r.Log.Error(err, "failed to update HTTPRoutePolicy status", "namespace", obj.GetNamespace(), "name", obj.GetName())
 	}
 
 	return requests
@@ -375,38 +393,6 @@ func (r *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, 
 					Port:      backend.Port,
 				},
 			})
-		}
-
-		var httpRoutePolicyList v1alpha1.HTTPRoutePolicyList
-		var ruleName string
-		if rule.Name != nil {
-			ruleName = string(*rule.Name)
-		}
-		key := indexer.GenHTTPRoutePolicyIndexKey(v1alpha1.GroupVersion.Group, "HTTPRoute", httpRoute.GetNamespace(), httpRoute.GetName(), ruleName)
-		if err := r.List(context.Background(), &httpRoutePolicyList, client.MatchingFields{indexer.HTTPRoutePolicy: key}); err != nil {
-			terror = err
-			continue
-		}
-		for _, item := range httpRoutePolicyList.Items {
-			tctx.HTTPRoutePolicies[ruleName] = append(tctx.HTTPRoutePolicies[key], item.Spec)
-			item.Status.Ancestors = []v1alpha2.PolicyAncestorStatus{
-				{
-					AncestorRef: v1alpha2.ParentReference{
-						Group:       nil,
-						Kind:        nil,
-						Namespace:   nil,
-						Name:        gatewayv1.ObjectName(httpRoute.GetName()),
-						SectionName: nil,
-						Port:        nil,
-					},
-					ControllerName: v1alpha2.GatewayController(config.GetControllerName()),
-					Conditions:     []metav1.Condition{},
-				},
-			}
-			meta.SetStatusCondition(&item.Status.Ancestors[0].Conditions, NewCondition(item.Generation, true, "Successfully"))
-			if err := r.Status().Update(context.Background(), &item); err != nil {
-				r.Log.Error(err, "failed to Update policy status")
-			}
 		}
 	}
 
