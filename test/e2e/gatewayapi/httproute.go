@@ -421,7 +421,7 @@ spec:
 				Status(404)
 		})
 
-		FIt("HTTPRoute Vars Match", func() {
+		It("HTTPRoute Vars Match", func() {
 			By("create HTTPRoute")
 			ResourceApplied("HTTPRoute", "httpbin", varsRoute, 1)
 

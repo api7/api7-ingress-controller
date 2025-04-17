@@ -2,11 +2,9 @@ package controller
 
 import (
 	"context"
-	"slices"
 	"time"
 
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
-	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
 	"github.com/api7/api7-ingress-controller/internal/provider"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,7 +18,7 @@ func (r *HTTPRouteReconciler) processHTTPRoutePolicies(tctx *provider.TranslateC
 	var (
 		checker = conflictChecker{
 			httpRoute: httpRoute,
-			policies:  make(map[ancestorRefKey][]v1alpha1.HTTPRoutePolicy),
+			policies:  make(map[targetRefKey][]v1alpha1.HTTPRoutePolicy),
 		}
 		listForAllRules v1alpha1.HTTPRoutePolicyList
 		key             = indexer.GenHTTPRoutePolicyIndexKey(v1alpha1.GroupVersion.Group, "HTTPRoute", httpRoute.GetNamespace(), httpRoute.GetName(), "")
@@ -67,51 +65,18 @@ func (r *HTTPRouteReconciler) processHTTPRoutePolicies(tctx *provider.TranslateC
 		tctx.HTTPRoutePolicies = make(map[string][]v1alpha1.HTTPRoutePolicy)
 	}
 
-	for key, policies := range checker.policies {
-		for _, policy := range policies {
-			r.modifyHTTPRoutePolicyStatus(key, &policy, status, reason, message)
-			if err := r.Status().Update(context.Background(), &policy); err != nil {
-				r.Log.Error(err, "failed to update HTTPRoutePolicyStatus")
-			}
+	for _, policies := range checker.policies {
+		for i := range policies {
+			policy := policies[i]
+			r.modifyHTTPRoutePolicyStatus(httpRoute, &policy, status, reason, message)
+			tctx.StatusUpdaters = append(tctx.StatusUpdaters, &policy)
 		}
 	}
 
 	return nil
 }
 
-func (r *HTTPRouteReconciler) clearHTTPRoutePolicyRedundantAncestor(policy *v1alpha1.HTTPRoutePolicy) {
-	var keys = make(map[ancestorRefKey]struct{})
-	for _, ref := range policy.Spec.TargetRefs {
-		key := ancestorRefKey{
-			Group:     ref.Group,
-			Namespace: gatewayv1.Namespace(policy.GetNamespace()),
-			Name:      ref.Name,
-		}
-		if ref.SectionName != nil {
-			key.SectionName = *ref.SectionName
-		}
-		r.Log.Info("clearHTTPRoutePolicyRedundantAncestor", "keys[]", key)
-		keys[key] = struct{}{}
-	}
-
-	policy.Status.Ancestors = slices.DeleteFunc(policy.Status.Ancestors, func(ancestor v1alpha2.PolicyAncestorStatus) bool {
-		key := ancestorRefKey{
-			Namespace: gatewayv1.Namespace(policy.GetNamespace()),
-			Name:      ancestor.AncestorRef.Name,
-		}
-		if ancestor.AncestorRef.Group != nil {
-			key.Group = *ancestor.AncestorRef.Group
-		}
-		if ancestor.AncestorRef.SectionName != nil {
-			key.SectionName = *ancestor.AncestorRef.SectionName
-		}
-		r.Log.Info("clearHTTPRoutePolicyRedundantAncestor", "key", key)
-		_, ok := keys[key]
-		return !ok
-	})
-}
-
-func (r *HTTPRouteReconciler) modifyHTTPRoutePolicyStatus(key ancestorRefKey, policy *v1alpha1.HTTPRoutePolicy, status bool, reason, message string) {
+func (r *HTTPRouteReconciler) modifyHTTPRoutePolicyStatus(httpRoute *gatewayv1.HTTPRoute, policy *v1alpha1.HTTPRoutePolicy, status bool, reason, message string) {
 	condition := metav1.Condition{
 		Type:               string(v1alpha2.PolicyConditionAccepted),
 		Status:             metav1.ConditionTrue,
@@ -123,39 +88,16 @@ func (r *HTTPRouteReconciler) modifyHTTPRoutePolicyStatus(key ancestorRefKey, po
 	if !status {
 		condition.Status = metav1.ConditionFalse
 	}
-	var hasAncestor bool
-	for i, ancestor := range policy.Status.Ancestors {
-		if ancestor.AncestorRef.Name == key.Name {
-			ancestor.ControllerName = v1alpha2.GatewayController(config.GetControllerName())
-			ancestor.Conditions = []metav1.Condition{condition}
-			hasAncestor = true
-		}
-		policy.Status.Ancestors[i] = ancestor
-	}
-	if !hasAncestor {
-		ref := v1alpha2.ParentReference{
-			Group:     &key.Group,
-			Namespace: &key.Namespace,
-			Name:      key.Name,
-		}
-		if key.SectionName != "" {
-			ref.SectionName = &key.SectionName
-		}
-		policy.Status.Ancestors = append(policy.Status.Ancestors, v1alpha2.PolicyAncestorStatus{
-			AncestorRef:    ref,
-			ControllerName: v1alpha2.GatewayController(config.GetControllerName()),
-			Conditions:     []metav1.Condition{condition},
-		})
-	}
+	_ = SetAncestors(&policy.Status, httpRoute.Spec.ParentRefs, condition)
 }
 
 type conflictChecker struct {
 	httpRoute *gatewayv1.HTTPRoute
-	policies  map[ancestorRefKey][]v1alpha1.HTTPRoutePolicy
+	policies  map[targetRefKey][]v1alpha1.HTTPRoutePolicy
 	conflict  bool
 }
 
-type ancestorRefKey struct {
+type targetRefKey struct {
 	Group       gatewayv1.Group
 	Namespace   gatewayv1.Namespace
 	Name        gatewayv1.ObjectName
@@ -163,7 +105,7 @@ type ancestorRefKey struct {
 }
 
 func (c *conflictChecker) append(sectionName string, policy v1alpha1.HTTPRoutePolicy) {
-	key := ancestorRefKey{
+	key := targetRefKey{
 		Group:       gatewayv1.GroupName,
 		Namespace:   gatewayv1.Namespace(c.httpRoute.GetNamespace()),
 		Name:        gatewayv1.ObjectName(c.httpRoute.GetName()),
