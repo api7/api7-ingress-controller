@@ -297,11 +297,11 @@ metadata:
   name: http-route-policy-0
 spec:
   targetRefs:
-  - group: gateway.apisix.io
+  - group: gateway.networking.k8s.io
     kind: HTTPRoute
     name: httpbin
     # sectionName: get
-  - group: gateway.apisix.io
+  - group: gateway.networking.k8s.io
     kind: HTTPRoute
     name: httpbin-1
     sectionName: get

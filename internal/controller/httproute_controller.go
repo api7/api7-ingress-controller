@@ -265,10 +265,9 @@ func (r *HTTPRouteReconciler) listHTTPRouteByHTTPRoutePolicy(ctx context.Context
 	for key := range keys {
 		var httpRoute gatewayv1.HTTPRoute
 		if err := r.Get(ctx, client.ObjectKey{Namespace: string(key.Namespace), Name: string(key.Name)}, &httpRoute); err != nil {
-			r.Log.Error(err, "failed to get httproute by HTTPRoutePolicy targetRef", "namespace", obj.GetNamespace(), "name", obj.GetName())
-			if err := r.updateHTTPRoutePolicyStatus(key, *httpRoutePolicy, false, string(v1alpha2.PolicyReasonTargetNotFound), "not found HTTPRoute"); err != nil {
-				r.Log.Error(err, "failed to update HTTPRoutePolicy Status")
-			}
+			r.Log.Error(err, "failed to get HTTPRoute by HTTPRoutePolicy targetRef", "namespace", obj.GetNamespace(), "name", obj.GetName())
+			r.modifyHTTPRoutePolicyStatus(key, httpRoutePolicy, false, string(v1alpha2.PolicyReasonTargetNotFound), "not found HTTPRoute")
+			r.Log.Info("status after modified", "key", key, "status", httpRoutePolicy.Status.Ancestors)
 			continue
 		}
 		requests = append(requests, reconcile.Request{
@@ -279,6 +278,9 @@ func (r *HTTPRouteReconciler) listHTTPRouteByHTTPRoutePolicy(ctx context.Context
 		})
 	}
 
+	r.Log.Info("status before clear", "status", httpRoutePolicy.Status.Ancestors)
+	r.clearHTTPRoutePolicyRedundantAncestor(httpRoutePolicy)
+	r.Log.Info("status after clear", "status", httpRoutePolicy.Status.Ancestors)
 	if err := r.Status().Update(ctx, httpRoutePolicy); err != nil {
 		r.Log.Error(err, "failed to update HTTPRoutePolicy status", "namespace", obj.GetNamespace(), "name", obj.GetName())
 	}
