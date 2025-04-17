@@ -342,6 +342,10 @@ func (r *HTTPRouteReconciler) listHTTPRouteForGenericEvent(ctx context.Context, 
 			namespacedName := types.NamespacedName{Namespace: v.GetNamespace(), Name: string(ref.Name)}
 			if _, ok := namespacedNames[namespacedName]; !ok {
 				namespacedNames[namespacedName] = struct{}{}
+				if err := r.Get(ctx, namespacedName, new(gatewayv1.HTTPRoute)); err != nil {
+					r.Log.Info("failed to Get HTTPRoute", "namespace", namespacedName.Namespace, "name", namespacedName.Name)
+					continue
+				}
 				requests = append(requests, reconcile.Request{NamespacedName: namespacedName})
 			}
 		}
