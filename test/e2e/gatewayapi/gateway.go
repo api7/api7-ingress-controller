@@ -30,6 +30,23 @@ var _ = Describe("Test Gateway", func() {
 		ControllerName: "gateway.api7.io/api7-ingress-controller",
 	})
 
+	var gatewayProxyYaml = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+`
+
 	Context("Gateway", func() {
 		var defautlGatewayClass = `
 apiVersion: gateway.networking.k8s.io/v1
@@ -51,6 +68,11 @@ spec:
     - name: http1
       protocol: HTTP
       port: 80
+  infrastructure:
+    parametersRef:
+      group: gateway.apisix.io
+      kind: GatewayProxy
+      name: api7-proxy-config
 `
 
 		var noClassGateway = `
@@ -64,11 +86,22 @@ spec:
     - name: http1
       protocol: HTTP
       port: 80
+  infrastructure:
+    parametersRef:
+      group: gateway.apisix.io
+      kind: GatewayProxy
+      name: api7-proxy-config
 `
 
 		It("Create Gateway", func() {
+			By("create GatewayProxy")
+			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+			err := s.CreateResourceFromString(gatewayProxy)
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+			time.Sleep(5 * time.Second)
+
 			By("create GatewayClass")
-			err := s.CreateResourceFromStringWithNamespace(defautlGatewayClass, "")
+			err = s.CreateResourceFromStringWithNamespace(defautlGatewayClass, "")
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 			time.Sleep(5 * time.Second)
 
@@ -103,6 +136,13 @@ spec:
 
 	Context("Gateway SSL", func() {
 		It("Check if SSL resource was created", func() {
+			By("create GatewayProxy")
+			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+			err := s.CreateResourceFromString(gatewayProxy)
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+			time.Sleep(5 * time.Second)
+
+			By("create secret")
 			secretName := _secretName
 			host := "api6.com"
 			createSecret(s, secretName)
@@ -132,9 +172,14 @@ spec:
         - kind: Secret
           group: ""
           name: %s
+  infrastructure:
+    parametersRef:
+      group: gateway.apisix.io
+      kind: GatewayProxy
+      name: api7-proxy-config
 `, host, secretName)
 			By("create GatewayClass")
-			err := s.CreateResourceFromStringWithNamespace(defaultGatewayClass, "")
+			err = s.CreateResourceFromStringWithNamespace(defaultGatewayClass, "")
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 			time.Sleep(5 * time.Second)
 
@@ -152,6 +197,12 @@ spec:
 
 		Context("Gateway SSL with and without hostname", func() {
 			It("Check if SSL resource was created", func() {
+				By("create GatewayProxy")
+				gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+				err := s.CreateResourceFromString(gatewayProxy)
+				Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+				time.Sleep(5 * time.Second)
+
 				secretName := _secretName
 				createSecret(s, secretName)
 				var defaultGatewayClass = `
@@ -194,9 +245,14 @@ spec:
       - group: ""
         kind: Secret
         name: %s
+  infrastructure:
+    parametersRef:
+      group: gateway.apisix.io
+      kind: GatewayProxy
+      name: api7-proxy-config
 `, secretName, secretName)
 				By("create GatewayClass")
-				err := s.CreateResourceFromStringWithNamespace(defaultGatewayClass, "")
+				err = s.CreateResourceFromStringWithNamespace(defaultGatewayClass, "")
 				Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 				time.Sleep(5 * time.Second)
 
