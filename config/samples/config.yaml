@@ -1,4 +1,4 @@
-log_level: "info"                               # The log level of the API7 Ingress Controller.
+log_level: "debug"                               # The log level of the API7 Ingress Controller.
                                                 # the default value is "info".
 
 controller_name: gateway.api7.io/api7-ingress-controller  # The controller name of the API7 Ingress Controller,
