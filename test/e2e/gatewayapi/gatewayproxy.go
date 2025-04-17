@@ -8,6 +8,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
@@ -60,6 +61,15 @@ kind: GatewayProxy
 metadata:
   name: api7-proxy-config
 spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+        - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
   plugins:
   - name: response-rewrite
     enabled: true
@@ -178,7 +188,7 @@ spec:
 		Expect(gcYaml).To(ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"), "checking GatewayClass condition message")
 
 		By("Create GatewayProxy with enabled plugin")
-		err = s.CreateResourceFromString(gatewayProxyWithEnabledPlugin)
+		err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxyWithEnabledPlugin, framework.DashboardTLSEndpoint, s.AdminKey()))
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy with enabled plugin")
 		time.Sleep(5 * time.Second)
 
@@ -196,7 +206,7 @@ spec:
 
 	AfterEach(func() {
 		By("Clean up resources")
-		_ = s.DeleteResourceFromString(gatewayProxyWithEnabledPlugin)
+		_ = s.DeleteResourceFromString(fmt.Sprintf(gatewayProxyWithEnabledPlugin, framework.DashboardTLSEndpoint, s.AdminKey()))
 		_ = s.DeleteResourceFromString(fmt.Sprintf(httpRouteForTest, "api7"))
 		_ = s.DeleteResourceFromString(fmt.Sprintf(gatewayWithProxy, gatewayClassName))
 	})
@@ -312,6 +322,79 @@ spec:
 				Expect().
 				Status(http.StatusNotFound).
 				Body().Contains(`{"error_msg":"404 Route Not Found"}`)
+		})
+	})
+
+	var (
+		gatewayProxyWithInvalidProviderType = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+spec:
+  provider:
+    type: "InvalidType"
+`
+		gatewayProxyWithMissingControlPlane = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+spec:
+  provider:
+    type: "ControlPlane"
+`
+		gatewayProxyWithValidProvider = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+spec:
+  provider:
+    type: "ControlPlane"
+    controlPlane:
+      endpoints:
+        - "http://localhost:9180"
+      auth:
+        type: "AdminKey"
+        adminKey:
+          value: "test-key"
+`
+	)
+
+	Context("Test GatewayProxy Provider Validation", func() {
+		AfterEach(func() {
+			By("Clean up GatewayProxy resources")
+			_ = s.DeleteResourceFromString(gatewayProxyWithInvalidProviderType)
+			_ = s.DeleteResourceFromString(gatewayProxyWithMissingControlPlane)
+			_ = s.DeleteResourceFromString(gatewayProxyWithValidProvider)
+		})
+
+		It("Should reject invalid provider type", func() {
+			By("Create GatewayProxy with invalid provider type")
+			err := s.CreateResourceFromString(gatewayProxyWithInvalidProviderType)
+			Expect(err).To(HaveOccurred(), "creating GatewayProxy with invalid provider type")
+			Expect(err.Error()).To(ContainSubstring("Invalid value"))
+		})
+
+		It("Should reject missing controlPlane configuration", func() {
+			By("Create GatewayProxy with missing controlPlane")
+			err := s.CreateResourceFromString(gatewayProxyWithMissingControlPlane)
+			Expect(err).To(HaveOccurred(), "creating GatewayProxy with missing controlPlane")
+			Expect(err.Error()).To(ContainSubstring("controlPlane must be specified when type is ControlPlane"))
+		})
+
+		It("Should accept valid provider configuration", func() {
+			By("Create GatewayProxy with valid provider")
+			err := s.CreateResourceFromString(gatewayProxyWithValidProvider)
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy with valid provider")
+
+			Eventually(func() string {
+				gpYaml, err := s.GetResourceYaml("GatewayProxy", "api7-proxy-config")
+				Expect(err).NotTo(HaveOccurred(), "getting GatewayProxy yaml")
+				return gpYaml
+			}).WithTimeout(8*time.Second).ProbeEvery(2*time.Second).
+				Should(ContainSubstring(`"type":"ControlPlane"`), "checking GatewayProxy is applied")
 		})
 	})
 })

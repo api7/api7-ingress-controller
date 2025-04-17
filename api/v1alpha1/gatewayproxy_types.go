@@ -113,6 +113,10 @@ type ControlPlaneProvider struct {
 	// +kubebuilder:validation:MinItems=1
 	Endpoints []string `json:"endpoints"`
 
+	// TlsVerify specifies whether to verify the TLS certificate of the control plane
+	// +optional
+	TlsVerify *bool `json:"tlsVerify,omitempty"`
+
 	// Auth specifies the authentication configuration
 	// +kubebuilder:validation:Required
 	Auth ControlPlaneAuth `json:"auth"`

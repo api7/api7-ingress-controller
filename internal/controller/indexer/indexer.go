@@ -5,6 +5,7 @@ import (
 
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -21,7 +22,7 @@ const (
 	SecretIndexRef     = "secretRefs"
 	IngressClassRef    = "ingressClassRef"
 	ConsumerGatewayRef = "consumerGatewayRef"
-	HTTPRoutePolicy    = "httpRoutePolicy"
+	PolicyTargetRefs   = "targetRefs"
 )
 
 func SetupIndexer(mgr ctrl.Manager) error {
@@ -37,6 +38,11 @@ func SetupIndexer(mgr ctrl.Manager) error {
 	if err := setupConsumerIndexer(mgr); err != nil {
 		return err
 	}
+	/*
+		if err := setupBackendTrafficPolicyIndexer(mgr); err != nil {
+			return err
+		}
+	*/
 	return nil
 }
 
@@ -135,7 +141,7 @@ func setupHTTPRouteIndexer(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
 		&v1alpha1.HTTPRoutePolicy{},
-		HTTPRoutePolicy,
+		PolicyTargetRefs,
 		HTTPRoutePolicyIndexFunc,
 	); err != nil {
 		return err
@@ -185,6 +191,18 @@ func setupIngressIndexer(mgr ctrl.Manager) error {
 		return err
 	}
 
+	return nil
+}
+
+func SetupBackendTrafficPolicyIndexer(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.BackendTrafficPolicy{},
+		PolicyTargetRefs,
+		BackendTrafficPolicyIndexFunc,
+	); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -238,6 +256,18 @@ func IngressSecretIndexFunc(rawObj client.Object) []string {
 		secrets = append(secrets, key)
 	}
 	return secrets
+}
+
+func GenIndexKeyWithGK(group, kind, namespace, name string) string {
+	gvk := schema.GroupKind{
+		Group: group,
+		Kind:  kind,
+	}
+	nsName := types.NamespacedName{
+		Namespace: namespace,
+		Name:      name,
+	}
+	return gvk.String() + "/" + nsName.String()
 }
 
 func GenIndexKey(namespace, name string) string {
@@ -321,4 +351,20 @@ func GatewayParametersRefIndexFunc(rawObj client.Object) []string {
 		}
 	}
 	return nil
+}
+
+func BackendTrafficPolicyIndexFunc(rawObj client.Object) []string {
+	btp := rawObj.(*v1alpha1.BackendTrafficPolicy)
+	keys := make([]string, 0, len(btp.Spec.TargetRefs))
+	for _, ref := range btp.Spec.TargetRefs {
+		keys = append(keys,
+			GenIndexKeyWithGK(
+				string(ref.Group),
+				string(ref.Kind),
+				btp.GetNamespace(),
+				string(ref.Name),
+			),
+		)
+	}
+	return keys
 }

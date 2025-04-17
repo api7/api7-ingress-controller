@@ -2,8 +2,6 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 // +kubebuilder:object:root=true
@@ -12,8 +10,8 @@ type BackendTrafficPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   BackendTrafficPolicySpec     `json:"spec,omitempty"`
-	Status gatewayv1alpha2.PolicyStatus `json:"status,omitempty"`
+	Spec   BackendTrafficPolicySpec `json:"spec,omitempty"`
+	Status PolicyStatus             `json:"status,omitempty"`
 }
 
 type BackendTrafficPolicySpec struct {
@@ -21,13 +19,9 @@ type BackendTrafficPolicySpec struct {
 	// Currently, Backends (i.e. Service, ServiceImport, or any
 	// implementation-specific backendRef) are the only valid API
 	// target references.
-	// +listType=map
-	// +listMapKey=group
-	// +listMapKey=kind
-	// +listMapKey=name
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=16
-	TargetRefs []gatewayv1alpha2.LocalPolicyTargetReferenceWithSectionName `json:"targetRefs"`
+	TargetRefs []BackendPolicyTargetReferenceWithSectionName `json:"targetRefs"`
 	// LoadBalancer represents the load balancer configuration for Kubernetes Service.
 	// The default strategy is round robin.
 	LoadBalancer *LoadBalancer `json:"loadbalancer,omitempty" yaml:"loadbalancer,omitempty"`
@@ -74,9 +68,12 @@ type LoadBalancer struct {
 }
 
 type Timeout struct {
+	// +kubebuilder:default="60s"
 	Connect metav1.Duration `json:"connect,omitempty" yaml:"connect,omitempty"`
-	Send    metav1.Duration `json:"send,omitempty" yaml:"send,omitempty"`
-	Read    metav1.Duration `json:"read,omitempty" yaml:"read,omitempty"`
+	// +kubebuilder:default="60s"
+	Send metav1.Duration `json:"send,omitempty" yaml:"send,omitempty"`
+	// +kubebuilder:default="60s"
+	Read metav1.Duration `json:"read,omitempty" yaml:"read,omitempty"`
 }
 
 // +kubebuilder:object:root=true

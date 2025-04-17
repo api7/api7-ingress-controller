@@ -25,7 +25,7 @@ func (r *HTTPRouteReconciler) processHTTPRoutePolicies(tctx *provider.TranslateC
 		listForAllRules v1alpha1.HTTPRoutePolicyList
 		key             = indexer.GenHTTPRoutePolicyIndexKey(v1alpha1.GroupVersion.Group, "HTTPRoute", httpRoute.GetNamespace(), httpRoute.GetName(), "")
 	)
-	if err := r.List(context.Background(), &listForAllRules, client.MatchingFields{indexer.HTTPRoutePolicy: key}); err != nil {
+	if err := r.List(context.Background(), &listForAllRules, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
 		return err
 	}
 
@@ -44,7 +44,7 @@ func (r *HTTPRouteReconciler) processHTTPRoutePolicies(tctx *provider.TranslateC
 			listForSectionRules v1alpha1.HTTPRoutePolicyList
 			key                 = indexer.GenHTTPRoutePolicyIndexKey(v1alpha1.GroupVersion.Group, "HTTPRoute", httpRoute.GetNamespace(), httpRoute.GetName(), ruleName)
 		)
-		if err := r.List(context.Background(), &listForSectionRules, client.MatchingFields{indexer.HTTPRoutePolicy: key}); err != nil {
+		if err := r.List(context.Background(), &listForSectionRules, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
 			continue
 		}
 		for _, item := range listForSectionRules.Items {

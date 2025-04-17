@@ -136,7 +136,24 @@ func (r *ConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	var statusErr error
-	tctx := provider.NewDefaultTranslateContext()
+	tctx := provider.NewDefaultTranslateContext(ctx)
+
+	gateway, err := r.getGateway(ctx, consumer)
+	if err != nil {
+		r.Log.Error(err, "failed to get gateway", "consumer", consumer)
+		statusErr = err
+	}
+
+	rk := provider.ResourceKind{
+		Kind:      consumer.Kind,
+		Namespace: consumer.Namespace,
+		Name:      consumer.Name,
+	}
+
+	if err := ProcessGatewayProxy(r.Client, tctx, gateway, rk); err != nil {
+		r.Log.Error(err, "failed to process gateway proxy", "gateway", gateway)
+		statusErr = err
+	}
 
 	if err := r.processSpec(ctx, tctx, consumer); err != nil {
 		r.Log.Error(err, "failed to process consumer spec", "consumer", consumer)
@@ -199,6 +216,22 @@ func (r *ConsumerReconciler) updateStatus(ctx context.Context, consumer *v1alpha
 		return err
 	}
 	return nil
+}
+
+func (r *ConsumerReconciler) getGateway(ctx context.Context, consumer *v1alpha1.Consumer) (*gatewayv1.Gateway, error) {
+	ns := consumer.GetNamespace()
+	if consumer.Spec.GatewayRef.Namespace != nil {
+		ns = *consumer.Spec.GatewayRef.Namespace
+	}
+	gateway := &gatewayv1.Gateway{}
+	if err := r.Get(ctx, client.ObjectKey{
+		Name:      consumer.Spec.GatewayRef.Name,
+		Namespace: ns,
+	}, gateway); err != nil {
+		r.Log.Error(err, "failed to get gateway", "gateway", consumer.Spec.GatewayRef.Name)
+		return nil, err
+	}
+	return gateway, nil
 }
 
 func (r *ConsumerReconciler) checkGatewayRef(object client.Object) bool {
