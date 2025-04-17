@@ -16,15 +16,15 @@ leader_election:
                                         # will wait between tries of actions with the controller.
   disable: false                        # Whether to disable leader election.
 
-ingress_class: api7 # The ingress class name of the API7 Ingress Controller.
-ingress_publish_service: "" # The service name of the ingress publish service.
-ingress_status_address: [] # The status address of the ingress.
-gateway_configs:                  # The configuration of the API7 Gateway.
-- name: api7                      # The name of the Gateway in the Gateway API.
-  control_plane:
-    admin_key: "${ADMIN_KEY}"     # The admin key of the control plane.
-    endpoints:         
-      - ${ENDPOINT}               # The endpoint of the control plane.
-    tls_verify: false
-  addresses:                      # record the status address of the gateway-api gateway
-  - "172.18.0.4"                  # The LB IP of the gateway service.
+# ingress_class: api7 # The ingress class name of the API7 Ingress Controller.
+# ingress_publish_service: "" # The service name of the ingress publish service.
+# ingress_status_address: [] # The status address of the ingress.
+# gateway_configs:                  # The configuration of the API7 Gateway.
+# - name: api7                      # The name of the Gateway in the Gateway API.
+#   control_plane:
+#     admin_key: "${ADMIN_KEY}"     # The admin key of the control plane.
+#     endpoints:         
+#       - ${ENDPOINT}               # The endpoint of the control plane.
+#     tls_verify: false
+#   addresses:                      # record the status address of the gateway-api gateway
+#   - "172.18.0.4"                  # The LB IP of the gateway service.

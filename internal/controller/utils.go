@@ -828,5 +828,10 @@ func ProcessGatewayProxy(r client.Client, tctx *provider.TranslateContext, gatew
 		}
 	}
 
+	_, ok := tctx.GatewayProxies[gatewayKind]
+	if !ok {
+		return fmt.Errorf("no gateway proxy found for gateway: %s", gateway.Name)
+	}
+
 	return nil
 }

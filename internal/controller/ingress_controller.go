@@ -97,9 +97,15 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// create a translate context
 	tctx := provider.NewDefaultTranslateContext(ctx)
 
+	ingressClass, err := r.getIngressClass(ingress)
+	if err != nil {
+		r.Log.Error(err, "failed to get IngressClass")
+		return ctrl.Result{}, err
+	}
+
 	// process IngressClass parameters if they reference GatewayProxy
-	if err := r.processIngressClassParameters(ctx, tctx, ingress); err != nil {
-		r.Log.Error(err, "failed to process IngressClass parameters", "ingress", ingress.Name)
+	if err := r.processIngressClassParameters(ctx, tctx, ingress, ingressClass); err != nil {
+		r.Log.Error(err, "failed to process IngressClass parameters", "ingressClass", ingressClass.Name)
 		return ctrl.Result{}, err
 	}
 
@@ -122,7 +128,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// update the ingress status
-	if err := r.updateStatus(ctx, ingress); err != nil {
+	if err := r.updateStatus(ctx, tctx, ingress, ingressClass); err != nil {
 		r.Log.Error(err, "failed to update ingress status", "ingress", ingress.Name)
 		return ctrl.Result{}, err
 	}
@@ -197,14 +203,7 @@ func (r *IngressReconciler) checkIngressClass(obj client.Object) bool {
 		return false
 	}
 
-	configuredClass := config.GetIngressClass()
-	// if the ingress class name matches the configured ingress class name, return true
-	if *ingress.Spec.IngressClassName == configuredClass {
-		log.Debugw("match the configured ingress class name")
-		return true
-	}
-
-	// if it does not match, check if the ingress class is controlled by us
+	// check if the ingress class is controlled by us
 	ingressClass := networkingv1.IngressClass{}
 	if err := r.Client.Get(context.Background(), client.ObjectKey{Name: *ingress.Spec.IngressClassName}, &ingressClass); err != nil {
 		return false
@@ -458,13 +457,23 @@ func (r *IngressReconciler) processBackendService(tctx *provider.TranslateContex
 }
 
 // updateStatus update the status of the ingress
-func (r *IngressReconciler) updateStatus(ctx context.Context, ingress *networkingv1.Ingress) error {
+func (r *IngressReconciler) updateStatus(ctx context.Context, tctx *provider.TranslateContext, ingress *networkingv1.Ingress, ingressClass *networkingv1.IngressClass) error {
 	var loadBalancerStatus networkingv1.IngressLoadBalancerStatus
 
-	// todo: remove using default config, use the StatusAddress And PublishService in the gateway proxy
+	ingressClassKind := provider.ResourceKind{
+		Kind:      ingressClass.Kind,
+		Namespace: ingressClass.Namespace,
+		Name:      ingressClass.Name,
+	}
+
+	gatewayProxy, ok := tctx.GatewayProxies[ingressClassKind]
+	if !ok {
+		log.Debugw("no gateway proxy found for ingress class", zap.String("ingressClass", ingressClass.Name))
+		return nil
+	}
 
 	// 1. use the IngressStatusAddress in the config
-	statusAddresses := config.GetIngressStatusAddress()
+	statusAddresses := gatewayProxy.Spec.StatusAddress
 	if len(statusAddresses) > 0 {
 		for _, addr := range statusAddresses {
 			if addr == "" {
@@ -476,7 +485,7 @@ func (r *IngressReconciler) updateStatus(ctx context.Context, ingress *networkin
 		}
 	} else {
 		// 2. if the IngressStatusAddress is not configured, try to use the PublishService
-		publishService := config.GetIngressPublishService()
+		publishService := gatewayProxy.Spec.PublishService
 		if publishService != "" {
 			// parse the namespace/name format
 			namespace, name, err := SplitMetaNamespaceKey(publishService)
@@ -521,13 +530,7 @@ func (r *IngressReconciler) updateStatus(ctx context.Context, ingress *networkin
 }
 
 // processIngressClassParameters processes the IngressClass parameters that reference GatewayProxy
-func (r *IngressReconciler) processIngressClassParameters(ctx context.Context, tctx *provider.TranslateContext, ingress *networkingv1.Ingress) error {
-	ingressClass, err := r.getIngressClass(ingress)
-	if err != nil {
-		r.Log.Error(err, "failed to get IngressClass", "name", ingress.Spec.IngressClassName)
-		return err
-	}
-
+func (r *IngressReconciler) processIngressClassParameters(ctx context.Context, tctx *provider.TranslateContext, ingress *networkingv1.Ingress, ingressClass *networkingv1.IngressClass) error {
 	if ingressClass.Spec.Parameters == nil {
 		return nil
 	}
@@ -596,6 +599,13 @@ func (r *IngressReconciler) processIngressClassParameters(ctx context.Context, t
 				}] = secret
 			}
 		}
+	}
+
+	// if gateway proxy is not found, return error
+	_, ok := tctx.GatewayProxies[ingressClassKind]
+	if !ok {
+		r.Log.Error(fmt.Errorf("no gateway proxy found for ingress class"), "failed to process IngressClass parameters", "ingressClass", ingressClass.Name)
+		return fmt.Errorf("no gateway proxy found for ingress class")
 	}
 
 	return nil
