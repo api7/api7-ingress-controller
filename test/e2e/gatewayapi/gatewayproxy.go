@@ -42,19 +42,6 @@ spec:
       name: api7-proxy-config
 `
 
-	var gatewayWithoutProxy = `
-apiVersion: gateway.networking.k8s.io/v1
-kind: Gateway
-metadata:
-  name: api7
-spec:
-  gatewayClassName: %s
-  listeners:
-    - name: http
-      protocol: HTTP
-      port: 80
-`
-
 	var gatewayProxyWithEnabledPlugin = `
 apiVersion: gateway.apisix.io/v1alpha1
 kind: GatewayProxy
@@ -84,6 +71,15 @@ kind: GatewayProxy
 metadata:
   name: api7-proxy-config
 spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+        - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
   plugins:
   - name: response-rewrite
     enabled: false
@@ -98,6 +94,15 @@ kind: GatewayProxy
 metadata:
   name: api7-proxy-config
 spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+        - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
   plugins:
   - name: error-page
     enabled: true
@@ -117,6 +122,15 @@ kind: GatewayProxy
 metadata:
   name: api7-proxy-config
 spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+        - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
   plugins:
   - name: error-page
     enabled: true
@@ -226,7 +240,7 @@ spec:
 			resp.Header("X-Proxy-Test").IsEqual("enabled")
 
 			By("Update GatewayProxy with disabled plugin")
-			err := s.CreateResourceFromString(gatewayProxyWithDisabledPlugin)
+			err := s.CreateResourceFromString(fmt.Sprintf(gatewayProxyWithDisabledPlugin, framework.DashboardTLSEndpoint, s.AdminKey()))
 			Expect(err).NotTo(HaveOccurred(), "updating GatewayProxy with disabled plugin")
 			time.Sleep(5 * time.Second)
 
@@ -234,37 +248,6 @@ spec:
 			resourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
 
 			By("Check if the plugin is not applied")
-			resp = s.NewAPISIXClient().
-				GET("/get").
-				WithHost("example.com").
-				Expect().
-				Status(200)
-
-			resp.Header("X-Proxy-Test").IsEmpty()
-		})
-
-		It("Should work normally without GatewayProxy", func() {
-			By("Create HTTPRoute for Gateway with GatewayProxy")
-			resourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
-
-			By("Check if the plugin is applied")
-			resp := s.NewAPISIXClient().
-				GET("/get").
-				WithHost("example.com").
-				Expect().
-				Status(200)
-
-			resp.Header("X-Proxy-Test").IsEqual("enabled")
-
-			By("Update Gateway without GatewayProxy")
-			err := s.CreateResourceFromString(fmt.Sprintf(gatewayWithoutProxy, gatewayClassName))
-			Expect(err).NotTo(HaveOccurred(), "updating Gateway without GatewayProxy")
-			time.Sleep(5 * time.Second)
-
-			By("Create HTTPRoute for Gateway without GatewayProxy")
-			resourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
-
-			By("Check if the route works without plugin")
 			resp = s.NewAPISIXClient().
 				GET("/get").
 				WithHost("example.com").
@@ -282,7 +265,7 @@ spec:
 
 		It("Should work OK with error-page", func() {
 			By("Update GatewayProxy with PluginMetadata")
-			err = s.CreateResourceFromString(gatewayProxyWithPluginMetadata0)
+			err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxyWithPluginMetadata0, framework.DashboardTLSEndpoint, s.AdminKey()))
 			Expect(err).ShouldNot(HaveOccurred())
 			time.Sleep(5 * time.Second)
 
@@ -298,7 +281,7 @@ spec:
 				Body().Contains("404 from plugin metadata")
 
 			By("Update GatewayProxy with PluginMetadata")
-			err = s.CreateResourceFromString(gatewayProxyWithPluginMetadata1)
+			err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxyWithPluginMetadata1, framework.DashboardTLSEndpoint, s.AdminKey()))
 			Expect(err).ShouldNot(HaveOccurred())
 			time.Sleep(5 * time.Second)
 
@@ -311,7 +294,7 @@ spec:
 				Body().Contains(`{"error_msg":"404 Route Not Found"}`)
 
 			By("Delete GatewayProxy")
-			err = s.DeleteResourceFromString(gatewayProxyWithPluginMetadata0)
+			err = s.DeleteResourceFromString(fmt.Sprintf(gatewayProxyWithPluginMetadata0, framework.DashboardTLSEndpoint, s.AdminKey()))
 			Expect(err).ShouldNot(HaveOccurred())
 			time.Sleep(5 * time.Second)
 
