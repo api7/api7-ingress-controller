@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"runtime/debug"
 
 	"go.uber.org/zap"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -90,7 +91,7 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 }
 
 func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
-	log.Debugw("deleting object", zap.Any("object", obj))
+	log.Debugw("deleting object", zap.Any("object", obj), zap.String("stack", string(debug.Stack())))
 
 	var resourceTypes []string
 	var labels map[string]string

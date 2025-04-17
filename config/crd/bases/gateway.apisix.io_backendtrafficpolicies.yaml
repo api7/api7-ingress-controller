@@ -164,12 +164,15 @@ spec:
                 properties:
                   connect:
                     default: 60s
+                    pattern: ^[0-9]+s$
                     type: string
                   read:
                     default: 60s
+                    pattern: ^[0-9]+s$
                     type: string
                   send:
                     default: 60s
+                    pattern: ^[0-9]+s$
                     type: string
                 type: object
               upstream_host:

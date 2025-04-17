@@ -126,9 +126,9 @@ type Route struct {
 }
 
 type Timeout struct {
-	Connect int64 `json:"connect"`
-	Read    int64 `json:"read"`
-	Send    int64 `json:"send"`
+	Connect int `json:"connect"`
+	Read    int `json:"read"`
+	Send    int `json:"send"`
 }
 
 type StreamRoute struct {

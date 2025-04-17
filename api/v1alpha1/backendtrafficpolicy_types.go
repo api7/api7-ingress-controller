@@ -69,10 +69,16 @@ type LoadBalancer struct {
 
 type Timeout struct {
 	// +kubebuilder:default="60s"
+	// +kubebuilder:validation:Pattern=`^[0-9]+s$`
+	// +kubebuilder:validation:Type=string
 	Connect metav1.Duration `json:"connect,omitempty" yaml:"connect,omitempty"`
 	// +kubebuilder:default="60s"
+	// +kubebuilder:validation:Pattern=`^[0-9]+s$`
+	// +kubebuilder:validation:Type=string
 	Send metav1.Duration `json:"send,omitempty" yaml:"send,omitempty"`
 	// +kubebuilder:default="60s"
+	// +kubebuilder:validation:Pattern=`^[0-9]+s$`
+	// +kubebuilder:validation:Type=string
 	Read metav1.Duration `json:"read,omitempty" yaml:"read,omitempty"`
 }
 

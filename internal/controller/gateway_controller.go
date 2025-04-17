@@ -76,6 +76,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			if err := r.Provider.Delete(ctx, gateway); err != nil {
 				return ctrl.Result{}, err
 			}
+			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
 	}
@@ -222,6 +223,9 @@ func (r *GatewayReconciler) listGatewaysForGatewayProxy(ctx context.Context, obj
 
 	recs := make([]reconcile.Request, 0, len(gatewayList.Items))
 	for _, gateway := range gatewayList.Items {
+		if !r.checkGatewayClass(&gateway) {
+			continue
+		}
 		recs = append(recs, reconcile.Request{
 			NamespacedName: client.ObjectKey{
 				Namespace: gateway.GetNamespace(),
@@ -232,7 +236,7 @@ func (r *GatewayReconciler) listGatewaysForGatewayProxy(ctx context.Context, obj
 	return recs
 }
 
-func (r *GatewayReconciler) listGatewaysForHTTPRoute(_ context.Context, obj client.Object) []reconcile.Request {
+func (r *GatewayReconciler) listGatewaysForHTTPRoute(ctx context.Context, obj client.Object) []reconcile.Request {
 	httpRoute, ok := obj.(*gatewayv1.HTTPRoute)
 	if !ok {
 		r.Log.Error(
@@ -254,6 +258,18 @@ func (r *GatewayReconciler) listGatewaysForHTTPRoute(_ context.Context, obj clie
 		}
 		if parentRef.Namespace != nil {
 			gatewayNamespace = string(*parentRef.Namespace)
+		}
+
+		gateway := new(gatewayv1.Gateway)
+		if err := r.Get(ctx, client.ObjectKey{
+			Namespace: gatewayNamespace,
+			Name:      string(parentRef.Name),
+		}, gateway); err != nil {
+			continue
+		}
+
+		if !r.checkGatewayClass(gateway) {
+			continue
 		}
 
 		recs = append(recs, reconcile.Request{

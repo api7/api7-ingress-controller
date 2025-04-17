@@ -41,9 +41,9 @@ func (t *Translator) attachBackendTrafficPolicyToUpstream(policy *v1alpha1.Backe
 	}
 	if policy.Spec.Timeout != nil {
 		upstream.Timeout = &adctypes.Timeout{
-			Connect: policy.Spec.Timeout.Connect.Duration.Seconds(),
-			Read:    policy.Spec.Timeout.Read.Duration.Seconds(),
-			Send:    policy.Spec.Timeout.Send.Duration.Seconds(),
+			Connect: int(policy.Spec.Timeout.Connect.Duration.Seconds()),
+			Read:    int(policy.Spec.Timeout.Read.Duration.Seconds()),
+			Send:    int(policy.Spec.Timeout.Send.Duration.Seconds()),
 		}
 	}
 	if policy.Spec.LoadBalancer != nil {

@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,12 +18,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
 	"github.com/api7/api7-ingress-controller/internal/provider"
-	"github.com/api7/gopkg/pkg/log"
 )
 
 // HTTPRouteReconciler reconciles a GatewayClass object.
@@ -35,10 +34,14 @@ type HTTPRouteReconciler struct { //nolint:revive
 	Log logr.Logger
 
 	Provider provider.Provider
+
+	genericEvent chan event.GenericEvent
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.genericEvent = make(chan event.GenericEvent, 100)
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.HTTPRoute{}).
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
@@ -69,8 +72,89 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Watches(&v1alpha1.BackendTrafficPolicy{},
 			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesForBackendTrafficPolicy),
+			builder.WithPredicates(
+				predicate.Funcs{
+					GenericFunc: func(e event.GenericEvent) bool {
+						return false
+					},
+					DeleteFunc: func(e event.DeleteEvent) bool {
+						return true
+					},
+					CreateFunc: func(e event.CreateEvent) bool {
+						return true
+					},
+					UpdateFunc: func(e event.UpdateEvent) bool {
+						oldObj, ok := e.ObjectOld.(*v1alpha1.BackendTrafficPolicy)
+						newObj, ok2 := e.ObjectNew.(*v1alpha1.BackendTrafficPolicy)
+						if !ok || !ok2 {
+							return false
+						}
+						oldRefs := oldObj.Spec.TargetRefs
+						newRefs := newObj.Spec.TargetRefs
+
+						// 将旧引用转换为 Map
+						oldRefMap := make(map[string]v1alpha1.BackendPolicyTargetReferenceWithSectionName)
+						for _, ref := range oldRefs {
+							key := fmt.Sprintf("%s/%s/%s", ref.Group, ref.Kind, ref.Name)
+							oldRefMap[key] = ref
+						}
+
+						for _, ref := range newRefs {
+							key := fmt.Sprintf("%s/%s/%s", ref.Group, ref.Kind, ref.Name)
+							delete(oldRefMap, key)
+						}
+						if len(oldRefMap) > 0 {
+							targetRefs := make([]v1alpha1.BackendPolicyTargetReferenceWithSectionName, 0, len(oldRefs))
+							for _, ref := range oldRefMap {
+								targetRefs = append(targetRefs, ref)
+							}
+							dump := oldObj.DeepCopy()
+							dump.Spec.TargetRefs = targetRefs
+							r.genericEvent <- event.GenericEvent{
+								Object: dump,
+							}
+						}
+						return true
+					},
+				},
+			),
+		).
+		WatchesRawSource(
+			source.Channel(
+				r.genericEvent,
+				handler.EnqueueRequestsFromMapFunc(r.listHTTPRouteForGenericEvent),
+			),
 		).
 		Complete(r)
+}
+
+func (r *HTTPRouteReconciler) listHTTPRouteForGenericEvent(ctx context.Context, obj client.Object) []reconcile.Request {
+	requests := []reconcile.Request{}
+	switch v := obj.(type) {
+	case *v1alpha1.BackendTrafficPolicy:
+		httprouteAll := []gatewayv1.HTTPRoute{}
+		for _, ref := range v.Spec.TargetRefs {
+			httprouteList := &gatewayv1.HTTPRouteList{}
+			if err := r.List(ctx, httprouteList, client.MatchingFields{
+				indexer.ServiceIndexRef: indexer.GenIndexKey(v.GetNamespace(), string(ref.Name)),
+			}); err != nil {
+				r.Log.Error(err, "failed to list HTTPRoutes for BackendTrafficPolicy", "namespace", v.GetNamespace(), "ref", ref.Name)
+				return nil
+			}
+			httprouteAll = append(httprouteAll, httprouteList.Items...)
+		}
+		for _, hr := range httprouteAll {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: client.ObjectKey{
+					Namespace: hr.Namespace,
+					Name:      hr.Name,
+				},
+			})
+		}
+	default:
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to BackendTrafficPolicy")
+	}
+	return requests
 }
 
 func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -131,7 +215,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	ProcessBackendTrafficPolicy(r.Client, tctx)
+	ProcessBackendTrafficPolicy(r.Client, r.Log, tctx)
 
 	if err := r.Provider.Update(ctx, tctx, hr); err != nil {
 		acceptStatus.status = false
@@ -156,6 +240,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if err := r.Status().Update(ctx, hr); err != nil {
 		return ctrl.Result{}, err
 	}
+	UpdateStatus(r.Client, r.Log, tctx)
 	return ctrl.Result{}, nil
 }
 
@@ -253,7 +338,10 @@ func (r *HTTPRouteReconciler) listHTTPRoutesForBackendTrafficPolicy(ctx context.
 			},
 		})
 	}
-	log.Errorw("list httproutes for backend traffic policy", zap.Any("httproutes", requests))
+	if !policy.GetDeletionTimestamp().IsZero() {
+		// If the policy is deleted, we need to list all HTTPRoutes that reference this policy
+		// and add them to the requests.
+	}
 	return requests
 }
 
