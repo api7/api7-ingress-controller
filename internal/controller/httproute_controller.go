@@ -9,6 +9,7 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
 	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,6 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
@@ -33,10 +35,14 @@ type HTTPRouteReconciler struct { //nolint:revive
 	Log logr.Logger
 
 	Provider provider.Provider
+
+	genericEvent chan event.GenericEvent
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.genericEvent = make(chan event.GenericEvent, 100)
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.HTTPRoute{}).
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
@@ -67,8 +73,54 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Watches(&v1alpha1.HTTPRoutePolicy{},
 			handler.EnqueueRequestsFromMapFunc(r.listHTTPRouteByHTTPRoutePolicy),
+			builder.WithPredicates(
+				predicate.Funcs{
+					CreateFunc: func(e event.CreateEvent) bool {
+						return true
+					},
+					DeleteFunc: func(e event.DeleteEvent) bool {
+						return true
+					},
+					UpdateFunc: r.httpRoutePolicyPredicateOnUpdate,
+					GenericFunc: func(e event.GenericEvent) bool {
+						return false
+					},
+				},
+			),
+		).
+		WatchesRawSource(
+			source.Channel(
+				r.genericEvent,
+				handler.EnqueueRequestsFromMapFunc(r.listHTTPRouteForGenericEvent),
+			),
 		).
 		Complete(r)
+}
+
+func (r *HTTPRouteReconciler) httpRoutePolicyPredicateOnUpdate(e event.UpdateEvent) bool {
+	oldPolicy, ok0 := e.ObjectOld.(*v1alpha1.HTTPRoutePolicy)
+	newPolicy, ok1 := e.ObjectNew.(*v1alpha1.HTTPRoutePolicy)
+	if !ok0 || !ok1 {
+		return false
+	}
+	var discardsRefs = make(map[string]v1alpha2.LocalPolicyTargetReferenceWithSectionName)
+	for _, ref := range oldPolicy.Spec.TargetRefs {
+		key := indexer.GenHTTPRoutePolicyIndexKey(string(ref.Group), string(ref.Kind), e.ObjectOld.GetNamespace(), string(ref.Name), "")
+		discardsRefs[key] = ref
+	}
+	for _, ref := range newPolicy.Spec.TargetRefs {
+		key := indexer.GenHTTPRoutePolicyIndexKey(string(ref.Group), string(ref.Kind), e.ObjectOld.GetNamespace(), string(ref.Name), "")
+		delete(discardsRefs, key)
+	}
+	if len(discardsRefs) > 0 {
+		dump := oldPolicy.DeepCopy()
+		dump.Spec.TargetRefs = make([]v1alpha2.LocalPolicyTargetReferenceWithSectionName, 0, len(discardsRefs))
+		for _, ref := range discardsRefs {
+			dump.Spec.TargetRefs = append(dump.Spec.TargetRefs, ref)
+		}
+		r.genericEvent <- event.GenericEvent{Object: dump}
+	}
+	return true
 }
 
 func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -264,7 +316,6 @@ func (r *HTTPRouteReconciler) listHTTPRouteByHTTPRoutePolicy(ctx context.Context
 		if ref.Kind == "HTTPRoute" {
 			key := ancestorRefKey{
 				Group:     gatewayv1.GroupName,
-				Kind:      "HTTPRoute",
 				Namespace: gatewayv1.Namespace(obj.GetNamespace()),
 				Name:      ref.Name,
 			}
@@ -277,10 +328,24 @@ func (r *HTTPRouteReconciler) listHTTPRouteByHTTPRoutePolicy(ctx context.Context
 	for key := range keys {
 		var httpRoute gatewayv1.HTTPRoute
 		if err := r.Get(ctx, client.ObjectKey{Namespace: string(key.Namespace), Name: string(key.Name)}, &httpRoute); err != nil {
-			r.Log.Error(err, "failed to get HTTPRoute by HTTPRoutePolicy targetRef", "namespace", obj.GetNamespace(), "name", obj.GetName())
-			r.modifyHTTPRoutePolicyStatus(key, httpRoutePolicy, false, string(v1alpha2.PolicyReasonTargetNotFound), "not found HTTPRoute")
+			r.Log.Error(err, "failed to get HTTPRoute by HTTPRoutePolicy targetRef", "namespace", key.Namespace, "name", key.Name)
+			r.modifyHTTPRoutePolicyStatus(key, httpRoutePolicy, false, string(v1alpha2.PolicyReasonTargetNotFound), "not found target HTTPRoute")
 			r.Log.Info("status after modified", "key", key, "status", httpRoutePolicy.Status.Ancestors)
 			continue
+		}
+		if key.SectionName != "" {
+			var matchRuleName bool
+			for _, rule := range httpRoute.Spec.Rules {
+				if rule.Name != nil && *rule.Name == key.SectionName {
+					matchRuleName = true
+					break
+				}
+			}
+			if !matchRuleName {
+				r.Log.Error(errors.Errorf("failed to get HTTPRoute rule by HTTPRoutePolicy targetRef"), "namespace", key.Namespace, "name", key.Name, "sectionName", key.SectionName)
+				r.modifyHTTPRoutePolicyStatus(key, httpRoutePolicy, false, string(v1alpha2.PolicyReasonTargetNotFound), "not found target HTTPRoute rule")
+				continue
+			}
 		}
 		requests = append(requests, reconcile.Request{
 			NamespacedName: types.NamespacedName{
@@ -293,11 +358,32 @@ func (r *HTTPRouteReconciler) listHTTPRouteByHTTPRoutePolicy(ctx context.Context
 	r.Log.Info("status before clear", "status", httpRoutePolicy.Status.Ancestors)
 	r.clearHTTPRoutePolicyRedundantAncestor(httpRoutePolicy)
 	r.Log.Info("status after clear", "status", httpRoutePolicy.Status.Ancestors)
-	if err := r.Status().Update(ctx, httpRoutePolicy); err != nil {
-		r.Log.Error(err, "failed to update HTTPRoutePolicy status", "namespace", obj.GetNamespace(), "name", obj.GetName())
+	if httpRoutePolicy.GetDeletionTimestamp().IsZero() {
+		if err := r.Status().Update(ctx, httpRoutePolicy); err != nil {
+			r.Log.Error(err, "failed to update HTTPRoutePolicy status", "namespace", obj.GetNamespace(), "name", obj.GetName())
+		}
 	}
 
 	return requests
+}
+
+func (r *HTTPRouteReconciler) listHTTPRouteForGenericEvent(ctx context.Context, obj client.Object) []reconcile.Request {
+	switch v := obj.(type) {
+	case *v1alpha1.HTTPRoutePolicy:
+		var (
+			namespacedNames = make(map[types.NamespacedName]struct{})
+			requests        []reconcile.Request
+		)
+		for _, ref := range v.Spec.TargetRefs {
+			namespacedName := types.NamespacedName{Namespace: v.GetNamespace(), Name: string(ref.Name)}
+			if _, ok := namespacedNames[namespacedName]; !ok {
+				namespacedNames[namespacedName] = struct{}{}
+				requests = append(requests, reconcile.Request{NamespacedName: namespacedName})
+			}
+		}
+		return requests
+	}
+	return nil
 }
 
 func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.TranslateContext) error {

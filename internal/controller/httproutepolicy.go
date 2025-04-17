@@ -84,7 +84,6 @@ func (r *HTTPRouteReconciler) clearHTTPRoutePolicyRedundantAncestor(policy *v1al
 	for _, ref := range policy.Spec.TargetRefs {
 		key := ancestorRefKey{
 			Group:     ref.Group,
-			Kind:      ref.Kind,
 			Namespace: gatewayv1.Namespace(policy.GetNamespace()),
 			Name:      ref.Name,
 		}
@@ -102,9 +101,6 @@ func (r *HTTPRouteReconciler) clearHTTPRoutePolicyRedundantAncestor(policy *v1al
 		}
 		if ancestor.AncestorRef.Group != nil {
 			key.Group = *ancestor.AncestorRef.Group
-		}
-		if ancestor.AncestorRef.Kind != nil {
-			key.Kind = *ancestor.AncestorRef.Kind
 		}
 		if ancestor.AncestorRef.SectionName != nil {
 			key.SectionName = *ancestor.AncestorRef.SectionName
@@ -129,7 +125,7 @@ func (r *HTTPRouteReconciler) modifyHTTPRoutePolicyStatus(key ancestorRefKey, po
 	}
 	var hasAncestor bool
 	for i, ancestor := range policy.Status.Ancestors {
-		if ancestor.AncestorRef.Kind != nil && *ancestor.AncestorRef.Kind == key.Kind && ancestor.AncestorRef.Name == key.Name {
+		if ancestor.AncestorRef.Name == key.Name {
 			ancestor.ControllerName = v1alpha2.GatewayController(config.GetControllerName())
 			ancestor.Conditions = []metav1.Condition{condition}
 			hasAncestor = true
@@ -139,7 +135,6 @@ func (r *HTTPRouteReconciler) modifyHTTPRoutePolicyStatus(key ancestorRefKey, po
 	if !hasAncestor {
 		ref := v1alpha2.ParentReference{
 			Group:     &key.Group,
-			Kind:      &key.Kind,
 			Namespace: &key.Namespace,
 			Name:      key.Name,
 		}
@@ -162,7 +157,6 @@ type conflictChecker struct {
 
 type ancestorRefKey struct {
 	Group       gatewayv1.Group
-	Kind        gatewayv1.Kind
 	Namespace   gatewayv1.Namespace
 	Name        gatewayv1.ObjectName
 	SectionName gatewayv1.SectionName
@@ -171,7 +165,6 @@ type ancestorRefKey struct {
 func (c *conflictChecker) append(sectionName string, policy v1alpha1.HTTPRoutePolicy) {
 	key := ancestorRefKey{
 		Group:       gatewayv1.GroupName,
-		Kind:        "HTTPRoute",
 		Namespace:   gatewayv1.Namespace(c.httpRoute.GetNamespace()),
 		Name:        gatewayv1.ObjectName(c.httpRoute.GetName()),
 		SectionName: gatewayv1.SectionName(sectionName),
