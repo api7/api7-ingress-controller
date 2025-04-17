@@ -108,6 +108,10 @@ spec:
                           type: string
                         minItems: 1
                         type: array
+                      tlsVerify:
+                        description: TlsVerify specifies whether to verify the TLS
+                          certificate of the control plane
+                        type: boolean
                     required:
                     - auth
                     - endpoints

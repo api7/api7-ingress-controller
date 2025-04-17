@@ -17,18 +17,26 @@ type Provider interface {
 	Delete(context.Context, client.Object) error
 }
 
+type ResourceKind struct {
+	Kind      string
+	Namespace string
+	Name      string
+}
+
 type TranslateContext struct {
 	context.Context
-	ParentRefs             []gatewayv1.ParentReference
-	BackendRefs            []gatewayv1.BackendRef
-	GatewayTLSConfig       []gatewayv1.GatewayTLSConfig
-	GatewayProxy           *v1alpha1.GatewayProxy
-	Credentials            []v1alpha1.Credential
+	ParentRefs       []gatewayv1.ParentReference
+	BackendRefs      []gatewayv1.BackendRef
+	GatewayTLSConfig []gatewayv1.GatewayTLSConfig
+	Credentials      []v1alpha1.Credential
+
 	EndpointSlices         map[types.NamespacedName][]discoveryv1.EndpointSlice
 	Secrets                map[types.NamespacedName]*corev1.Secret
 	PluginConfigs          map[types.NamespacedName]*v1alpha1.PluginConfig
 	Services               map[types.NamespacedName]*corev1.Service
 	BackendTrafficPolicies map[types.NamespacedName]*v1alpha1.BackendTrafficPolicy
+	GatewayProxies         map[ResourceKind]v1alpha1.GatewayProxy
+	ResourceParentRefs     map[ResourceKind][]ResourceKind
 
 	StatusUpdaters []client.Object
 }
@@ -41,5 +49,7 @@ func NewDefaultTranslateContext(ctx context.Context) *TranslateContext {
 		PluginConfigs:          make(map[types.NamespacedName]*v1alpha1.PluginConfig),
 		Services:               make(map[types.NamespacedName]*corev1.Service),
 		BackendTrafficPolicies: make(map[types.NamespacedName]*v1alpha1.BackendTrafficPolicy),
+		GatewayProxies:         make(map[ResourceKind]v1alpha1.GatewayProxy),
+		ResourceParentRefs:     make(map[ResourceKind][]ResourceKind),
 	}
 }
