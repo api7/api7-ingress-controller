@@ -19,22 +19,19 @@ type dashboardProvider struct {
 	c          dashboard.Dashboard
 }
 
+//nolint:unused
 func NewDashboard() (provider.Provider, error) {
 	control, err := dashboard.NewClient()
 	if err != nil {
 		return nil, err
 	}
 
-	gc := config.GetFirstGatewayConfig()
 	if err := control.AddCluster(context.TODO(), &dashboard.ClusterOptions{
 		Name: "default",
 		Labels: map[string]string{
 			"k8s/controller-name": config.ControllerConfig.ControllerName,
 		},
 		ControllerName: config.ControllerConfig.ControllerName,
-		BaseURL:        gc.ControlPlane.Endpoints[0],
-		AdminKey:       gc.ControlPlane.AdminKey,
-		SkipTLSVerify:  !*gc.ControlPlane.TLSVerify,
 		SyncCache:      true,
 	}); err != nil {
 		return nil, err

@@ -10,13 +10,3 @@ data:
     controller_name: {{ .Values.controllerName | default "gateway.api7.io/api7-ingress-controller" }}
 
     leader_election_id: "api7-ingress-controller-leader"
-    
-    gateway_configs:
-    - name: "api7ee"
-      control_plane:
-        admin_key: "{{ required "Provide a valid admin key!" .Values.admin.key }}"
-        endpoints:
-          - "{{ .Values.admin.endpoint }}"
-        tls_verify: {{ .Values.admin.tlsVerify }}
-      addresses:                      # record the status address of the gateway-api gateway
-      - "{{ .Values.statusAddress }}"

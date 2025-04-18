@@ -11,6 +11,5 @@ func (s *Scaffold) deployIngress() {
 		AdminTLSVerify: false,
 		Namespace:      s.namespace,
 		AdminEnpoint:   framework.DashboardTLSEndpoint,
-		StatusAddress:  s.gatewayAddress,
 	})
 }

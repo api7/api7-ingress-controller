@@ -16,7 +16,6 @@ import (
 
 	adctypes "github.com/api7/api7-ingress-controller/api/adc"
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
-	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/api7/api7-ingress-controller/internal/controller/label"
 	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/api7-ingress-controller/internal/provider/adc/translator"
@@ -50,11 +49,8 @@ type Task struct {
 }
 
 func New() (provider.Provider, error) {
-	gc := config.GetFirstGatewayConfig()
 	return &adcClient{
 		translator: &translator.Translator{},
-		ServerAddr: gc.ControlPlane.Endpoints[0],
-		Token:      gc.ControlPlane.AdminKey,
 		configs:    make(map[provider.ResourceKind]adcConfig),
 		parentRefs: make(map[provider.ResourceKind][]provider.ResourceKind),
 	}, nil
@@ -181,6 +177,11 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 func (d *adcClient) sync(task Task) error {
 	log.Debugw("syncing resources", zap.Any("task", task))
 
+	if len(task.configs) == 0 {
+		log.Errorw("no adc configs provided", zap.Any("task", task))
+		return errors.New("no adc configs provided")
+	}
+
 	data, err := json.Marshal(task.Resources)
 	if err != nil {
 		return err
@@ -213,20 +214,9 @@ func (d *adcClient) sync(task Task) error {
 		args = append(args, "--include-resource-type", t)
 	}
 
-	if len(task.configs) > 0 {
-		log.Debugw("syncing resources with multiple configs", zap.Any("configs", task.configs))
-		for _, config := range task.configs {
-			if err := d.execADC(config, args); err != nil {
-				return err
-			}
-		}
-	} else {
-		// todo: remove using default config
-		log.Debugw("syncing resources with default config")
-		if err := d.execADC(adcConfig{
-			ServerAddr: d.ServerAddr,
-			Token:      d.Token,
-		}, args); err != nil {
+	log.Debugw("syncing resources with multiple configs", zap.Any("configs", task.configs))
+	for _, config := range task.configs {
+		if err := d.execADC(config, args); err != nil {
 			return err
 		}
 	}
