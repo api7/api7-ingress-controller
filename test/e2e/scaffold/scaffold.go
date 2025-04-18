@@ -97,6 +97,18 @@ type Scaffold struct {
 	apisixUDPTunnel        *k8s.Tunnel
 	// apisixControlTunnel    *k8s.Tunnel
 
+	// Support for multiple Gateway groups
+	additionalGatewayGroups map[string]*GatewayGroupResources
+}
+
+// GatewayGroupResources contains resources associated with a specific Gateway group
+type GatewayGroupResources struct {
+	GatewayGroupID   string
+	Namespace        string
+	DataplaneService *corev1.Service
+	HttpTunnel       *k8s.Tunnel
+	HttpsTunnel      *k8s.Tunnel
+	AdminAPIKey      string
 }
 
 func (s *Scaffold) AdminKey() string {
@@ -371,6 +383,9 @@ func (s *Scaffold) beforeEach() {
 		s.label["apisix.ingress.watch"] = s.namespace
 	}
 
+	// Initialize additionalGatewayGroups map
+	s.additionalGatewayGroups = make(map[string]*GatewayGroupResources)
+
 	var nsLabel map[string]string
 	if !s.opts.DisableNamespaceLabel {
 		nsLabel = s.label
@@ -461,6 +476,12 @@ func (s *Scaffold) afterEach() {
 		if output != "" {
 			_, _ = fmt.Fprintln(GinkgoWriter, output)
 		}
+	}
+
+	// Delete all additional namespaces
+	for _, resources := range s.additionalGatewayGroups {
+		err := s.CleanupAdditionalGatewayGroup(resources.GatewayGroupID)
+		Expect(err).NotTo(HaveOccurred(), "cleaning up additional gateway group")
 	}
 
 	// if the test case is successful, just delete namespace
@@ -575,4 +596,217 @@ func (s *Scaffold) labelSelector(label string) metav1.ListOptions {
 
 func (s *Scaffold) GetControllerName() string {
 	return s.opts.ControllerName
+}
+
+// CreateAdditionalGatewayGroup creates a new gateway group and deploys a dataplane for it.
+// It returns the gateway group ID and namespace name where the dataplane is deployed.
+func (s *Scaffold) CreateAdditionalGatewayGroup(namePrefix string) (string, string, error) {
+	// Create a new namespace for this gateway group
+	additionalNS := fmt.Sprintf("%s-%d", namePrefix, time.Now().Unix())
+
+	// Create namespace with the same labels
+	var nsLabel map[string]string
+	if !s.opts.DisableNamespaceLabel {
+		nsLabel = s.label
+	}
+	k8s.CreateNamespaceWithMetadata(s.t, s.kubectlOptions, metav1.ObjectMeta{Name: additionalNS, Labels: nsLabel})
+
+	// Create new kubectl options for the new namespace
+	kubectlOpts := &k8s.KubectlOptions{
+		ConfigPath: s.opts.Kubeconfig,
+		Namespace:  additionalNS,
+	}
+
+	// Create a new gateway group
+	gatewayGroupID := s.CreateNewGatewayGroupWithIngress()
+	s.Logf("additional gateway group id: %s in namespace %s", gatewayGroupID, additionalNS)
+
+	// Get the admin key for this gateway group
+	adminKey := s.GetAdminKey(gatewayGroupID)
+	s.Logf("additional gateway group admin api key: %s", adminKey)
+
+	// Store gateway group info
+	resources := &GatewayGroupResources{
+		GatewayGroupID: gatewayGroupID,
+		Namespace:      additionalNS,
+		AdminAPIKey:    adminKey,
+	}
+
+	serviceName := fmt.Sprintf("api7ee3-apisix-gateway-%s", namePrefix)
+
+	// Deploy dataplane for this gateway group
+	svc := s.DeployGateway(framework.DataPlaneDeployOptions{
+		GatewayGroupID:         gatewayGroupID,
+		Namespace:              additionalNS,
+		Name:                   serviceName,
+		ServiceName:            serviceName,
+		DPManagerEndpoint:      framework.DPManagerTLSEndpoint,
+		SetEnv:                 true,
+		SSLKey:                 framework.TestKey,
+		SSLCert:                framework.TestCert,
+		TLSEnabled:             true,
+		ForIngressGatewayGroup: true,
+		ServiceHTTPPort:        9080,
+		ServiceHTTPSPort:       9443,
+	})
+
+	resources.DataplaneService = svc
+
+	// Create tunnels for the dataplane
+	httpTunnel, httpsTunnel, err := s.createDataplaneTunnels(svc, kubectlOpts, serviceName)
+	if err != nil {
+		return "", "", err
+	}
+
+	resources.HttpTunnel = httpTunnel
+	resources.HttpsTunnel = httpsTunnel
+
+	// Store in the map
+	s.additionalGatewayGroups[gatewayGroupID] = resources
+
+	return gatewayGroupID, additionalNS, nil
+}
+
+// createDataplaneTunnels creates HTTP and HTTPS tunnels for a dataplane service.
+// It's extracted from newAPISIXTunnels to be reusable for additional gateway groups.
+func (s *Scaffold) createDataplaneTunnels(
+	svc *corev1.Service,
+	kubectlOpts *k8s.KubectlOptions,
+	serviceName string,
+) (*k8s.Tunnel, *k8s.Tunnel, error) {
+	var (
+		httpNodePort  int
+		httpsNodePort int
+		httpPort      int
+		httpsPort     int
+	)
+
+	for _, port := range svc.Spec.Ports {
+		if port.Name == "http" {
+			httpNodePort = int(port.NodePort)
+			httpPort = int(port.Port)
+		} else if port.Name == "https" {
+			httpsNodePort = int(port.NodePort)
+			httpsPort = int(port.Port)
+		}
+	}
+
+	httpTunnel := k8s.NewTunnel(kubectlOpts, k8s.ResourceTypeService, serviceName,
+		httpNodePort, httpPort)
+	httpsTunnel := k8s.NewTunnel(kubectlOpts, k8s.ResourceTypeService, serviceName,
+		httpsNodePort, httpsPort)
+
+	if err := httpTunnel.ForwardPortE(s.t); err != nil {
+		return nil, nil, err
+	}
+	s.addFinalizers(httpTunnel.Close)
+
+	if err := httpsTunnel.ForwardPortE(s.t); err != nil {
+		httpTunnel.Close()
+		return nil, nil, err
+	}
+	s.addFinalizers(httpsTunnel.Close)
+
+	return httpTunnel, httpsTunnel, nil
+}
+
+// GetAdditionalGatewayGroup returns resources associated with a specific Gateway group
+func (s *Scaffold) GetAdditionalGatewayGroup(gatewayGroupID string) (*GatewayGroupResources, bool) {
+	resources, exists := s.additionalGatewayGroups[gatewayGroupID]
+	return resources, exists
+}
+
+// NewAPISIXClientForGatewayGroup creates an HTTP client for a specific Gateway group
+func (s *Scaffold) NewAPISIXClientForGatewayGroup(gatewayGroupID string) (*httpexpect.Expect, error) {
+	resources, exists := s.additionalGatewayGroups[gatewayGroupID]
+	if !exists {
+		return nil, fmt.Errorf("gateway group %s not found", gatewayGroupID)
+	}
+
+	u := url.URL{
+		Scheme: "http",
+		Host:   resources.HttpTunnel.Endpoint(),
+	}
+	return httpexpect.WithConfig(httpexpect.Config{
+		BaseURL: u.String(),
+		Client: &http.Client{
+			Transport: &http.Transport{},
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
+		Reporter: httpexpect.NewAssertReporter(
+			httpexpect.NewAssertReporter(GinkgoT()),
+		),
+	}), nil
+}
+
+// NewAPISIXHttpsClientForGatewayGroup creates an HTTPS client for a specific Gateway group
+func (s *Scaffold) NewAPISIXHttpsClientForGatewayGroup(gatewayGroupID string, host string) (*httpexpect.Expect, error) {
+	resources, exists := s.additionalGatewayGroups[gatewayGroupID]
+	if !exists {
+		return nil, fmt.Errorf("gateway group %s not found", gatewayGroupID)
+	}
+
+	u := url.URL{
+		Scheme: "https",
+		Host:   resources.HttpsTunnel.Endpoint(),
+	}
+	return httpexpect.WithConfig(httpexpect.Config{
+		BaseURL: u.String(),
+		Client: &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					// accept any certificate; for testing only!
+					InsecureSkipVerify: true,
+					ServerName:         host,
+				},
+			},
+		},
+		Reporter: httpexpect.NewAssertReporter(
+			httpexpect.NewAssertReporter(GinkgoT()),
+		),
+	}), nil
+}
+
+// CleanupAdditionalGatewayGroup cleans up resources associated with a specific Gateway group
+func (s *Scaffold) CleanupAdditionalGatewayGroup(gatewayGroupID string) error {
+	resources, exists := s.additionalGatewayGroups[gatewayGroupID]
+	if !exists {
+		return fmt.Errorf("gateway group %s not found", gatewayGroupID)
+	}
+
+	// Delete the gateway group
+	s.DeleteGatewayGroup(gatewayGroupID)
+
+	// Delete the namespace
+	err := k8s.DeleteNamespaceE(s.t, &k8s.KubectlOptions{
+		ConfigPath: s.opts.Kubeconfig,
+		Namespace:  resources.Namespace,
+	}, resources.Namespace)
+
+	// Remove from the map
+	delete(s.additionalGatewayGroups, gatewayGroupID)
+
+	return err
+}
+
+// GetGatewayGroupHTTPEndpoint returns the HTTP endpoint for a specific Gateway group
+func (s *Scaffold) GetGatewayGroupHTTPEndpoint(gatewayGroupID string) (string, error) {
+	resources, exists := s.additionalGatewayGroups[gatewayGroupID]
+	if !exists {
+		return "", fmt.Errorf("gateway group %s not found", gatewayGroupID)
+	}
+
+	return resources.HttpTunnel.Endpoint(), nil
+}
+
+// GetGatewayGroupHTTPSEndpoint returns the HTTPS endpoint for a specific Gateway group
+func (s *Scaffold) GetGatewayGroupHTTPSEndpoint(gatewayGroupID string) (string, error) {
+	resources, exists := s.additionalGatewayGroups[gatewayGroupID]
+	if !exists {
+		return "", fmt.Errorf("gateway group %s not found", gatewayGroupID)
+	}
+
+	return resources.HttpsTunnel.Endpoint(), nil
 }

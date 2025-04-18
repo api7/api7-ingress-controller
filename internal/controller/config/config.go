@@ -89,26 +89,6 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-//nolint:unused
-func (c *Config) validateGatewayConfig(gc *GatewayConfig) error {
-
-	if gc.Name == "" {
-		return fmt.Errorf("control_planesp[].gateway_name is required")
-	}
-	if gc.ControlPlane.AdminKey == "" {
-		return fmt.Errorf("control_planes[].admin_api.admin_key is required")
-	}
-	if len(gc.ControlPlane.Endpoints) == 0 {
-		return fmt.Errorf("control_planes[].admin_api.endpoints is required")
-	}
-	if gc.ControlPlane.TLSVerify == nil {
-		gc.ControlPlane.TLSVerify = new(bool)
-		*gc.ControlPlane.TLSVerify = true
-	}
-
-	return nil
-}
-
 func GetControllerName() string {
 	return ControllerConfig.ControllerName
 }
