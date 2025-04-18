@@ -7,14 +7,14 @@ import (
 	"errors"
 	"os"
 	"os/exec"
-	"runtime/debug"
+	"sync"
 
 	"go.uber.org/zap"
 	networkingv1 "k8s.io/api/networking/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	types "github.com/api7/api7-ingress-controller/api/adc"
+	adctypes "github.com/api7/api7-ingress-controller/api/adc"
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/api7/api7-ingress-controller/internal/controller/label"
@@ -23,19 +23,30 @@ import (
 	"github.com/api7/gopkg/pkg/log"
 )
 
-type adcClient struct {
-	translator *translator.Translator
+type adcConfig struct {
+	ServerAddr string
+	Token      string
+}
 
+type adcClient struct {
+	sync.Mutex
+
+	translator   *translator.Translator
 	ServerAddr   string
 	Token        string
 	GatewayGroup string
+	// gateway/ingressclass -> adcConfig
+	configs map[provider.ResourceKind]adcConfig
+	// httproute/consumer/ingress/gateway -> gateway/ingressclass
+	parentRefs map[provider.ResourceKind][]provider.ResourceKind
 }
 
 type Task struct {
 	Name          string
-	Resources     types.Resources
+	Resources     adctypes.Resources
 	Labels        map[string]string
 	ResourceTypes []string
+	configs       []adcConfig
 }
 
 func New() (provider.Provider, error) {
@@ -44,6 +55,8 @@ func New() (provider.Provider, error) {
 		translator: &translator.Translator{},
 		ServerAddr: gc.ControlPlane.Endpoints[0],
 		Token:      gc.ControlPlane.AdminKey,
+		configs:    make(map[provider.ResourceKind]adcConfig),
+		parentRefs: make(map[provider.ResourceKind][]provider.ResourceKind),
 	}, nil
 }
 
@@ -54,6 +67,12 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		resourceTypes []string
 		err           error
 	)
+
+	rk := provider.ResourceKind{
+		Kind:      obj.GetObjectKind().GroupVersionKind().Kind,
+		Namespace: obj.GetNamespace(),
+		Name:      obj.GetName(),
+	}
 
 	switch t := obj.(type) {
 	case *gatewayv1.HTTPRoute:
@@ -76,10 +95,32 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		return nil
 	}
 
-	return d.sync(Task{
+	oldParentRefs := d.getParentRefs(rk)
+	if err := d.updateConfigs(rk, tctx); err != nil {
+		return err
+	}
+	newParentRefs := d.getParentRefs(rk)
+	deleteConfigs := d.findConfigsToDelete(oldParentRefs, newParentRefs)
+	configs := d.getConfigs(rk)
+
+	// sync delete
+	if len(deleteConfigs) > 0 {
+		err = d.sync(Task{
+			Name:          obj.GetName(),
+			Labels:        label.GenLabel(obj),
+			ResourceTypes: resourceTypes,
+			configs:       deleteConfigs,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	// sync update
+	err = d.sync(Task{
 		Name:   obj.GetName(),
 		Labels: label.GenLabel(obj),
-		Resources: types.Resources{
+		Resources: adctypes.Resources{
 			GlobalRules:    result.GlobalRules,
 			PluginMetadata: result.PluginMetadata,
 			Services:       result.Services,
@@ -87,11 +128,17 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 			Consumers:      result.Consumers,
 		},
 		ResourceTypes: resourceTypes,
+		configs:       configs,
 	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
-	log.Debugw("deleting object", zap.Any("object", obj), zap.String("stack", string(debug.Stack())))
+	log.Debugw("deleting object", zap.Any("object", obj))
 
 	var resourceTypes []string
 	var labels map[string]string
@@ -109,11 +156,26 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 		labels = label.GenLabel(obj)
 	}
 
-	return d.sync(Task{
+	rk := provider.ResourceKind{
+		Kind:      obj.GetObjectKind().GroupVersionKind().Kind,
+		Namespace: obj.GetNamespace(),
+		Name:      obj.GetName(),
+	}
+
+	configs := d.getConfigs(rk)
+
+	err := d.sync(Task{
 		Name:          obj.GetName(),
 		Labels:        labels,
 		ResourceTypes: resourceTypes,
+		configs:       configs,
 	})
+	if err != nil {
+		return err
+	}
+
+	d.deleteConfigs(rk)
+	return nil
 }
 
 func (d *adcClient) sync(task Task) error {
@@ -151,12 +213,44 @@ func (d *adcClient) sync(task Task) error {
 		args = append(args, "--include-resource-type", t)
 	}
 
+	if len(task.configs) > 0 {
+		log.Debugw("syncing resources with multiple configs", zap.Any("configs", task.configs))
+		for _, config := range task.configs {
+			if err := d.execADC(config, args); err != nil {
+				return err
+			}
+		}
+	} else {
+		// todo: remove using default config
+		log.Debugw("syncing resources with default config")
+		if err := d.execADC(adcConfig{
+			ServerAddr: d.ServerAddr,
+			Token:      d.Token,
+		}, args); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (d *adcClient) execADC(config adcConfig, args []string) error {
+	// todo: use adc config
+	serverAddr := d.ServerAddr
+	if config.ServerAddr != "" {
+		serverAddr = config.ServerAddr
+	}
+	token := d.Token
+	if config.Token != "" {
+		token = config.Token
+	}
+
 	adcEnv := []string{
 		"ADC_EXPERIMENTAL_FEATURE_FLAGS=remote-state-file,parallel-backend-request",
 		"ADC_RUNNING_MODE=ingress",
 		"ADC_BACKEND=api7ee",
-		"ADC_SERVER=" + d.ServerAddr,
-		"ADC_TOKEN=" + d.Token,
+		"ADC_SERVER=" + serverAddr,
+		"ADC_TOKEN=" + token,
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -168,7 +262,7 @@ func (d *adcClient) sync(task Task) error {
 
 	log.Debug("running adc command", zap.String("command", cmd.String()), zap.Strings("env", adcEnv))
 
-	var result types.SyncResult
+	var result adctypes.SyncResult
 	if err := cmd.Run(); err != nil {
 		stderrStr := stderr.String()
 		stdoutStr := stdout.String()

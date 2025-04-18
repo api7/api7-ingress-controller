@@ -212,6 +212,17 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	tctx := provider.NewDefaultTranslateContext(ctx)
 
 	tctx.RouteParentRefs = hr.Spec.ParentRefs
+	rk := provider.ResourceKind{
+		Kind:      hr.Kind,
+		Namespace: hr.Namespace,
+		Name:      hr.Name,
+	}
+	for _, gateway := range gateways {
+		if err := ProcessGatewayProxy(r.Client, tctx, gateway.Gateway, rk); err != nil {
+			acceptStatus.status = false
+			acceptStatus.msg = err.Error()
+		}
+	}
 
 	if err := r.processHTTPRoute(tctx, hr); err != nil {
 		acceptStatus.status = false

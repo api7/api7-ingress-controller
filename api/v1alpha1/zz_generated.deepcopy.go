@@ -302,6 +302,11 @@ func (in *ControlPlaneProvider) DeepCopyInto(out *ControlPlaneProvider) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.TlsVerify != nil {
+		in, out := &in.TlsVerify, &out.TlsVerify
+		*out = new(bool)
+		**out = **in
+	}
 	in.Auth.DeepCopyInto(&out.Auth)
 }
 

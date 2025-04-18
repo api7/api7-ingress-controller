@@ -5,12 +5,16 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
+	"github.com/api7/api7-ingress-controller/internal/provider"
+	"github.com/api7/gopkg/pkg/log"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -758,4 +762,71 @@ func SplitMetaNamespaceKey(key string) (namespace, name string, err error) {
 	}
 
 	return "", "", fmt.Errorf("unexpected key format: %q", key)
+}
+
+func ProcessGatewayProxy(r client.Client, tctx *provider.TranslateContext, gateway *gatewayv1.Gateway, rk provider.ResourceKind) error {
+	if gateway == nil {
+		return nil
+	}
+	infra := gateway.Spec.Infrastructure
+	if infra == nil || infra.ParametersRef == nil {
+		return nil
+	}
+
+	gatewayKind := provider.ResourceKind{
+		Kind:      gateway.Kind,
+		Namespace: gateway.Namespace,
+		Name:      gateway.Name,
+	}
+
+	ns := gateway.GetNamespace()
+	paramRef := infra.ParametersRef
+	if string(paramRef.Group) == v1alpha1.GroupVersion.Group && string(paramRef.Kind) == "GatewayProxy" {
+		gatewayProxy := &v1alpha1.GatewayProxy{}
+		if err := r.Get(context.Background(), client.ObjectKey{
+			Namespace: ns,
+			Name:      paramRef.Name,
+		}, gatewayProxy); err != nil {
+			log.Error(err, "failed to get GatewayProxy", "namespace", ns, "name", paramRef.Name)
+			return err
+		} else {
+			log.Info("found GatewayProxy for Gateway", "gateway", gateway.Name, "gatewayproxy", gatewayProxy.Name)
+			tctx.GatewayProxies[gatewayKind] = *gatewayProxy
+			tctx.ResourceParentRefs[rk] = append(tctx.ResourceParentRefs[rk], gatewayKind)
+
+			// Process provider secrets if provider exists
+			if gatewayProxy.Spec.Provider != nil && gatewayProxy.Spec.Provider.Type == v1alpha1.ProviderTypeControlPlane {
+				if gatewayProxy.Spec.Provider.ControlPlane != nil &&
+					gatewayProxy.Spec.Provider.ControlPlane.Auth.Type == v1alpha1.AuthTypeAdminKey &&
+					gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey != nil &&
+					gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom != nil &&
+					gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
+
+					secretRef := gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef
+					secret := &corev1.Secret{}
+					if err := r.Get(context.Background(), client.ObjectKey{
+						Namespace: ns,
+						Name:      secretRef.Name,
+					}, secret); err != nil {
+						log.Error(err, "failed to get secret for GatewayProxy provider",
+							"namespace", ns,
+							"name", secretRef.Name)
+						return err
+					}
+
+					log.Info("found secret for GatewayProxy provider",
+						"gateway", gateway.Name,
+						"gatewayproxy", gatewayProxy.Name,
+						"secret", secretRef.Name)
+
+					tctx.Secrets[types.NamespacedName{
+						Namespace: ns,
+						Name:      secretRef.Name,
+					}] = secret
+				}
+			}
+		}
+	}
+
+	return nil
 }
