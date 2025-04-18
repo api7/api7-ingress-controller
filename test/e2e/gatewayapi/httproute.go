@@ -532,14 +532,16 @@ spec:
 `
 			ResourceApplied("HTTPRoutePolicy", "http-route-policy-0", changedHTTPRoutePolicy, 1)
 			// use the old vars cannot match any route
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.example").
-				WithHeader("X-Route-Name", "httpbin").
-				WithHeader("X-HRP-Name", "http-route-policy-0").
-				WithQuery("hrp_name", "http-route-policy-0").
-				Expect().
-				Status(http.StatusNotFound)
+			Eventually(func() int {
+				return s.NewAPISIXClient().
+					GET("/get").
+					WithHost("httpbin.example").
+					WithHeader("X-Route-Name", "httpbin").
+					WithHeader("X-HRP-Name", "http-route-policy-0").
+					WithQuery("hrp_name", "http-route-policy-0").
+					Expect().Raw().StatusCode
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
+
 			// use the new vars can match the route
 			s.NewAPISIXClient().
 				GET("/get").
