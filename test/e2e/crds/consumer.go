@@ -12,6 +12,23 @@ import (
 var _ = Describe("Test Consumer", func() {
 	s := scaffold.NewDefaultScaffold()
 
+	var defaultGatewayProxy = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+`
+
 	var defaultGatewayClass = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
@@ -32,6 +49,11 @@ spec:
     - name: http1
       protocol: HTTP
       port: 80
+  infrastructure:
+    parametersRef:
+      group: gateway.apisix.io
+      kind: GatewayProxy
+      name: api7-proxy-config
 `
 
 	var defaultHTTPRoute = `
@@ -66,7 +88,7 @@ spec:
     filters:
     - type: ExtensionRef
       extensionRef:
-        group: gateway.api7.io
+        group: gateway.apisix.io
         kind: PluginConfig
         name: auth-plugin-config
     backendRefs:
@@ -113,7 +135,7 @@ spec:
 `
 
 		BeforeEach(func() {
-			s.ApplyDefaultGatewayResource(defaultGatewayClass, defaultGateway, defaultHTTPRoute)
+			s.ApplyDefaultGatewayResource(defaultGatewayProxy, defaultGatewayClass, defaultGateway, defaultHTTPRoute)
 		})
 
 		It("limit-count plugin", func() {
@@ -154,7 +176,8 @@ spec:
 	})
 
 	Context("Credential", func() {
-		var defaultCredential = `apiVersion: gateway.apisix.io/v1alpha1
+		var defaultCredential = `
+apiVersion: gateway.apisix.io/v1alpha1
 kind: Consumer
 metadata:
   name: consumer-sample
@@ -196,7 +219,7 @@ spec:
 `
 
 		BeforeEach(func() {
-			s.ApplyDefaultGatewayResource(defaultGatewayClass, defaultGateway, defaultHTTPRoute)
+			s.ApplyDefaultGatewayResource(defaultGatewayProxy, defaultGatewayClass, defaultGateway, defaultHTTPRoute)
 		})
 
 		It("Create/Update/Delete", func() {
@@ -310,7 +333,7 @@ spec:
 `
 
 		BeforeEach(func() {
-			s.ApplyDefaultGatewayResource(defaultGatewayClass, defaultGateway, defaultHTTPRoute)
+			s.ApplyDefaultGatewayResource(defaultGatewayProxy, defaultGatewayClass, defaultGateway, defaultHTTPRoute)
 		})
 		It("Create/Update/Delete", func() {
 			err := s.CreateResourceFromString(keyAuthSecret)

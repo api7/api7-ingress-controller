@@ -83,7 +83,6 @@ type Scaffold struct {
 	nodes            []corev1.Node
 	dataplaneService *corev1.Service
 	httpbinService   *corev1.Service
-	gatewayAddress   string
 
 	finalizers []func()
 	label      map[string]string

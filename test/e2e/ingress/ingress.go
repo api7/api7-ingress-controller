@@ -30,58 +30,34 @@ var _ = Describe("Test Ingress", func() {
 		ControllerName: "gateway.api7.io/api7-ingress-controller",
 	})
 
-	Context("Basic Ingress Functionality", func() {
-		var defaultIngressClass = `
-apiVersion: networking.k8s.io/v1
-kind: IngressClass
+	var gatewayProxyYaml = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: GatewayProxy
 metadata:
-  name: api7
+  name: api7-proxy-config
+  namespace: default
 spec:
-  controller: "gateway.api7.io/api7-ingress-controller"
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
 `
-
-		var defaultIngress = `
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: api7-ingress
-spec:
-  ingressClassName: api7
-  rules:
-  - host: example.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: httpbin-service-e2e-test
-            port:
-              number: 80
-`
-
-		It("Create Ingress", func() {
-			By("create IngressClass")
-			err := s.CreateResourceFromStringWithNamespace(defaultIngressClass, "")
-			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
-			time.Sleep(5 * time.Second)
-
-			By("create Ingress")
-			err = s.CreateResourceFromString(defaultIngress)
-			Expect(err).NotTo(HaveOccurred(), "creating Ingress")
-			time.Sleep(5 * time.Second)
-
-			By("verify HTTP request")
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("example.com").
-				Expect().
-				Status(200)
-		})
-	})
 
 	Context("Ingress TLS", func() {
 		It("Check if SSL resource was created", func() {
+			By("create GatewayProxy")
+			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+
+			By("create GatewayProxy")
+			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+			time.Sleep(5 * time.Second)
+
 			secretName := _secretName
 			host := "api6.com"
 			createSecret(s, secretName)
@@ -93,6 +69,12 @@ metadata:
   name: api7
 spec:
   controller: "gateway.api7.io/api7-ingress-controller"
+  parameters:
+    apiGroup: "gateway.apisix.io"
+    kind: "GatewayProxy"
+    name: "api7-proxy-config"
+    namespace: "default"
+    scope: "Namespace"
 `
 
 			var tlsIngress = fmt.Sprintf(`
@@ -120,7 +102,7 @@ spec:
 `, host, secretName, host)
 
 			By("create IngressClass")
-			err := s.CreateResourceFromStringWithNamespace(defaultIngressClass, "")
+			err = s.CreateResourceFromStringWithNamespace(defaultIngressClass, "")
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
 			time.Sleep(5 * time.Second)
 
@@ -148,6 +130,12 @@ metadata:
     ingressclass.kubernetes.io/is-default-class: "true"
 spec:
   controller: "gateway.api7.io/api7-ingress-controller"
+  parameters:
+    apiGroup: "gateway.apisix.io"
+    kind: "GatewayProxy"
+    name: "api7-proxy-config"
+    namespace: "default"
+    scope: "Namespace"
 `
 
 		var defaultIngress = `
@@ -170,8 +158,16 @@ spec:
 `
 
 		It("Test IngressClass Selection", func() {
+			By("create GatewayProxy")
+			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+
+			By("create GatewayProxy")
+			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+			time.Sleep(5 * time.Second)
+
 			By("create Default IngressClass")
-			err := s.CreateResourceFromStringWithNamespace(defaultIngressClass, "")
+			err = s.CreateResourceFromStringWithNamespace(defaultIngressClass, "")
 			Expect(err).NotTo(HaveOccurred(), "creating Default IngressClass")
 			time.Sleep(5 * time.Second)
 

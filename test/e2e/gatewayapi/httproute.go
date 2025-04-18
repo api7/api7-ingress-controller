@@ -16,6 +16,23 @@ import (
 var _ = Describe("Test HTTPRoute", func() {
 	s := scaffold.NewDefaultScaffold()
 
+	var gatewayProxyYaml = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+`
+
 	var defautlGatewayClass = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
@@ -36,6 +53,11 @@ spec:
     - name: http1
       protocol: HTTP
       port: 80
+  infrastructure:
+    parametersRef:
+      group: gateway.apisix.io
+      kind: GatewayProxy
+      name: api7-proxy-config
 `
 	var defautlGatewayHTTPS = `
 apiVersion: gateway.networking.k8s.io/v1
@@ -54,6 +76,11 @@ spec:
         - kind: Secret
           group: ""
           name: test-apisix-tls
+  infrastructure:
+    parametersRef:
+      group: gateway.apisix.io
+      kind: GatewayProxy
+      name: api7-proxy-config
 `
 
 	var ResourceApplied = func(resourType, resourceName, resourceRaw string, observedGeneration int) {
@@ -76,9 +103,15 @@ spec:
 	}
 
 	var beforeEachHTTP = func() {
+		By("create GatewayProxy")
+		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+		err := s.CreateResourceFromString(gatewayProxy)
+		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+		time.Sleep(5 * time.Second)
+
 		By("create GatewayClass")
 		gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
-		err := s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defautlGatewayClass, gatewayClassName, s.GetControllerName()), "")
+		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defautlGatewayClass, gatewayClassName, s.GetControllerName()), "")
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 		time.Sleep(5 * time.Second)
 
@@ -101,11 +134,17 @@ spec:
 	}
 
 	var beforeEachHTTPS = func() {
+		By("create GatewayProxy")
+		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+		err := s.CreateResourceFromString(gatewayProxy)
+		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+		time.Sleep(5 * time.Second)
+
 		secretName := _secretName
 		createSecret(s, secretName)
 		By("create GatewayClass")
 		gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
-		err := s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defautlGatewayClass, gatewayClassName, s.GetControllerName()), "")
+		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defautlGatewayClass, gatewayClassName, s.GetControllerName()), "")
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 		time.Sleep(5 * time.Second)
 
@@ -616,7 +655,7 @@ spec:
     filters:
     - type: ExtensionRef
       extensionRef:
-        group: gateway.api7.io
+        group: gateway.apisix.io
         kind: PluginConfig
         name: example-plugin-config
     backendRefs:

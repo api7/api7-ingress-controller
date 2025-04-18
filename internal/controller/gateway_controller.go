@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
-	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
 	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/gopkg/pkg/log"
@@ -82,23 +81,6 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 	conditionProgrammedStatus, conditionProgrammedMsg := true, "Programmed"
 
-	cfg := config.GetFirstGatewayConfig()
-
-	var addrs []gatewayv1.GatewayStatusAddress
-
-	if len(gateway.Status.Addresses) != len(cfg.Addresses) {
-		for _, addr := range cfg.Addresses {
-			if addr == "" {
-				continue
-			}
-			addrs = append(addrs,
-				gatewayv1.GatewayStatusAddress{
-					Value: addr,
-				},
-			)
-		}
-	}
-
 	r.Log.Info("gateway has been accepted", "gateway", gateway.GetName())
 	type status struct {
 		status bool
@@ -117,6 +99,35 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		acceptStatus = status{
 			status: false,
 			msg:    err.Error(),
+		}
+	}
+
+	var addrs []gatewayv1.GatewayStatusAddress
+
+	rk := provider.ResourceKind{
+		Kind:      gateway.Kind,
+		Namespace: gateway.Namespace,
+		Name:      gateway.Name,
+	}
+
+	gatewayProxy, ok := tctx.GatewayProxies[rk]
+	if !ok {
+		acceptStatus = status{
+			status: false,
+			msg:    "gateway proxy not found",
+		}
+	} else {
+		if len(gateway.Status.Addresses) != len(gatewayProxy.Spec.StatusAddress) {
+			for _, addr := range gatewayProxy.Spec.StatusAddress {
+				if addr == "" {
+					continue
+				}
+				addrs = append(addrs,
+					gatewayv1.GatewayStatusAddress{
+						Value: addr,
+					},
+				)
+			}
 		}
 	}
 

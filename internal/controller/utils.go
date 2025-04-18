@@ -10,6 +10,7 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/samber/lo"
+	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -787,10 +788,10 @@ func ProcessGatewayProxy(r client.Client, tctx *provider.TranslateContext, gatew
 			Namespace: ns,
 			Name:      paramRef.Name,
 		}, gatewayProxy); err != nil {
-			log.Error(err, "failed to get GatewayProxy", "namespace", ns, "name", paramRef.Name)
+			log.Errorw("failed to get GatewayProxy", zap.String("namespace", ns), zap.String("name", paramRef.Name), zap.Error(err))
 			return err
 		} else {
-			log.Info("found GatewayProxy for Gateway", "gateway", gateway.Name, "gatewayproxy", gatewayProxy.Name)
+			log.Infow("found GatewayProxy for Gateway", zap.String("namespace", gateway.Namespace), zap.String("name", gateway.Name))
 			tctx.GatewayProxies[gatewayKind] = *gatewayProxy
 			tctx.ResourceParentRefs[rk] = append(tctx.ResourceParentRefs[rk], gatewayKind)
 
@@ -826,6 +827,11 @@ func ProcessGatewayProxy(r client.Client, tctx *provider.TranslateContext, gatew
 				}
 			}
 		}
+	}
+
+	_, ok := tctx.GatewayProxies[gatewayKind]
+	if !ok {
+		return fmt.Errorf("no gateway proxy found for gateway: %s", gateway.Name)
 	}
 
 	return nil

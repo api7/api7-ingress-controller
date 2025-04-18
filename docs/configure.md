@@ -14,16 +14,6 @@ controller_name: gateway.api7.io/api7-ingress-controller  # The controller name 
 
 leader_election_id: "api7-ingress-controller-leader" # The leader election ID for the API7 Ingress Controller.
                                                         # The default value is "api7-ingress-controller-leader".
-
-gateway_configs:               # The configuration of the API7 Gateway.
-- name: api7                      # The name of the Gateway in the Gateway API.
-  control_plane:
-    admin_key: "${ADMIN_KEY}"     # The admin key of the control plane.
-    endpoints:         
-      - ${ENDPOINT}/apisix/admin        # The endpoint of the control plane.                    
-    tls_verify: false
-  addresses:                      # record the status address of the gateway-api gateway
-  - "172.18.0.4"                  # The LB IP of the gateway service.
 ```
 
 ### Controller Name
