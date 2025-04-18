@@ -2,19 +2,23 @@ package controller
 
 import (
 	"fmt"
+	"slices"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/utils/ptr"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	"github.com/api7/api7-ingress-controller/api/v1alpha1"
-	"github.com/api7/api7-ingress-controller/internal/controller/config"
-	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
-	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
+	"github.com/api7/api7-ingress-controller/internal/controller/config"
+	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
+	"github.com/api7/api7-ingress-controller/internal/provider"
 )
 
 type PolicyTargetKey struct {
@@ -115,19 +119,37 @@ func SetAncestors(status *v1alpha1.PolicyStatus, parentRefs []gatewayv1.ParentRe
 }
 
 func SetAncestorStatus(status *v1alpha1.PolicyStatus, ancestorStatus gatewayv1alpha2.PolicyAncestorStatus) bool {
+	if len(ancestorStatus.Conditions) == 0 {
+		return false
+	}
+	condition := ancestorStatus.Conditions[0]
 	for _, c := range status.Ancestors {
-		if c.AncestorRef == ancestorStatus.AncestorRef {
-			if len(c.Conditions) == 0 || len(ancestorStatus.Conditions) == 0 {
-				c.Conditions = ancestorStatus.Conditions
-				return true
+		if parentRefValueEqual(c.AncestorRef, ancestorStatus.AncestorRef) &&
+			c.ControllerName == ancestorStatus.ControllerName {
+			if !VerifyConditions(&c.Conditions, condition) {
+				return false
 			}
-			if c.Conditions[0].ObservedGeneration < ancestorStatus.Conditions[0].ObservedGeneration {
-				c.Conditions = ancestorStatus.Conditions
-				return true
-			}
-			return false
+			meta.SetStatusCondition(&c.Conditions, condition)
+			return true
 		}
 	}
 	status.Ancestors = append(status.Ancestors, ancestorStatus)
 	return true
+}
+
+func DeleteAncestors(status *v1alpha1.PolicyStatus, parentRefs []gatewayv1.ParentReference) bool {
+	var length = len(status.Ancestors)
+	for _, parentRef := range parentRefs {
+		status.Ancestors = slices.DeleteFunc(status.Ancestors, func(status gatewayv1alpha2.PolicyAncestorStatus) bool {
+			return parentRefValueEqual(parentRef, status.AncestorRef)
+		})
+	}
+	return length != len(status.Ancestors)
+}
+
+func parentRefValueEqual(a, b gatewayv1.ParentReference) bool {
+	return ptr.Equal(a.Group, b.Group) &&
+		ptr.Equal(a.Kind, b.Kind) &&
+		ptr.Equal(a.Namespace, b.Namespace) &&
+		a.Name == b.Name
 }

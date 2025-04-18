@@ -67,7 +67,7 @@ spec:
     filters:
     - type: ExtensionRef
       extensionRef:
-        group: gateway.api7.io
+        group: gateway.apisix.io
         kind: PluginConfig
         name: auth-plugin-config
     backendRefs:

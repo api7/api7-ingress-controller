@@ -52,6 +52,24 @@ func (r *HTTPRouteReconciler) processHTTPRoutePolicies(tctx *provider.TranslateC
 		}
 	}
 
+	// todo: unreachable
+	// if the HTTPRoute is deleted, clear tctx.HTTPRoutePolicies and delete Ancestors from HTTPRoutePolicies status
+	// if !httpRoute.GetDeletionTimestamp().IsZero() {
+	// 	for _, policies := range checker.policies {
+	// 		for i := range policies {
+	// 			policy := policies[i]
+	// 			_ = DeleteAncestors(&policy.Status, httpRoute.Spec.ParentRefs)
+	// 			data, _ := json.Marshal(policy.Status)
+	// 			r.Log.Info("policy status after delete ancestor", "data", string(data))
+	// 			if err := r.Status().Update(context.Background(), &policy); err != nil {
+	// 				r.Log.Error(err, "failed to Update policy status")
+	// 			}
+	// 			// tctx.StatusUpdaters = append(tctx.StatusUpdaters, &policy)
+	// 		}
+	// 	}
+	// 	return nil
+	// }
+
 	var (
 		status  = true
 		reason  = string(v1alpha2.PolicyReasonAccepted)
