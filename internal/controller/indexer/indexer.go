@@ -134,15 +134,6 @@ func setupHTTPRouteIndexer(mgr ctrl.Manager) error {
 	); err != nil {
 		return err
 	}
-
-	if err := mgr.GetFieldIndexer().IndexField(
-		context.Background(),
-		&v1alpha1.BackendTrafficPolicy{},
-		PolicyTargetRefs,
-		BackendTrafficPolicyIndexFunc,
-	); err != nil {
-		return err
-	}
 	return nil
 }
 
