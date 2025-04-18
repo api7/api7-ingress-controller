@@ -465,11 +465,6 @@ func (s *Scaffold) afterEach() {
 	defer GinkgoRecover()
 	s.DeleteGatewayGroup(s.gatewaygroupid)
 
-	// Clean up all additional gateway groups
-	for gatewayGroupID := range s.additionalGatewayGroups {
-		s.DeleteGatewayGroup(gatewayGroupID)
-	}
-
 	if CurrentSpecReport().Failed() {
 		if os.Getenv("TEST_ENV") == "CI" {
 			_, _ = fmt.Fprintln(GinkgoWriter, "Dumping namespace contents")
@@ -485,13 +480,8 @@ func (s *Scaffold) afterEach() {
 
 	// Delete all additional namespaces
 	for _, resources := range s.additionalGatewayGroups {
-		err := k8s.DeleteNamespaceE(s.t, &k8s.KubectlOptions{
-			ConfigPath: s.opts.Kubeconfig,
-			Namespace:  resources.Namespace,
-		}, resources.Namespace)
-		if err != nil {
-			s.Logf("failed to delete additional namespace %s: %v", resources.Namespace, err)
-		}
+		err := s.CleanupAdditionalGatewayGroup(resources.GatewayGroupID)
+		Expect(err).NotTo(HaveOccurred(), "cleaning up additional gateway group")
 	}
 
 	// if the test case is successful, just delete namespace
