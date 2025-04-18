@@ -15,7 +15,6 @@
 package scaffold
 
 import (
-	"github.com/gruntwork-io/terratest/modules/k8s"
 	. "github.com/onsi/gomega"
 
 	"github.com/api7/api7-ingress-controller/test/e2e/framework"
@@ -43,36 +42,13 @@ func (s *Scaffold) deployDataplane() {
 }
 
 func (s *Scaffold) newAPISIXTunnels() error {
-	var (
-		httpNodePort  int
-		httpsNodePort int
-		httpPort      int
-		httpsPort     int
-		serviceName   = "api7ee3-apisix-gateway-mtls"
-	)
-
-	svc := s.dataplaneService
-	for _, port := range svc.Spec.Ports {
-		if port.Name == "http" {
-			httpNodePort = int(port.NodePort)
-			httpPort = int(port.Port)
-		} else if port.Name == "https" {
-			httpsNodePort = int(port.NodePort)
-			httpsPort = int(port.Port)
-		}
-	}
-	s.apisixHttpTunnel = k8s.NewTunnel(s.kubectlOptions, k8s.ResourceTypeService, serviceName,
-		httpNodePort, httpPort)
-	s.apisixHttpsTunnel = k8s.NewTunnel(s.kubectlOptions, k8s.ResourceTypeService, serviceName,
-		httpsNodePort, httpsPort)
-
-	if err := s.apisixHttpTunnel.ForwardPortE(s.t); err != nil {
+	serviceName := "api7ee3-apisix-gateway-mtls"
+	httpTunnel, httpsTunnel, err := s.createDataplaneTunnels(s.dataplaneService, s.kubectlOptions, serviceName)
+	if err != nil {
 		return err
 	}
-	s.addFinalizers(s.apisixHttpTunnel.Close)
-	if err := s.apisixHttpsTunnel.ForwardPortE(s.t); err != nil {
-		return err
-	}
-	s.addFinalizers(s.apisixHttpsTunnel.Close)
+
+	s.apisixHttpTunnel = httpTunnel
+	s.apisixHttpsTunnel = httpsTunnel
 	return nil
 }
