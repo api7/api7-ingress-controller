@@ -801,64 +801,6 @@ func (s *Scaffold) CleanupAdditionalGatewayGroup(gatewayGroupID string) error {
 	return err
 }
 
-// InitializeDataplaneClientForGatewayGroup initializes the Dashboard client for a specific Gateway group
-func (s *Scaffold) InitializeDataplaneClientForGatewayGroup(gatewayGroupID string) error {
-	resources, exists := s.additionalGatewayGroups[gatewayGroupID]
-	if !exists {
-		return fmt.Errorf("gateway group %s not found", gatewayGroupID)
-	}
-
-	// HTTP client
-	httpURL := fmt.Sprintf("http://%s/apisix/admin", resources.HttpTunnel.Endpoint())
-	clusterName := fmt.Sprintf("gateway-%s", gatewayGroupID[:8]) // Use first 8 chars of gateway group ID as identifier
-
-	err := s.apisixCli.AddCluster(context.Background(), &dashboard.ClusterOptions{
-		Name:           clusterName,
-		ControllerName: s.opts.ControllerName,
-		Labels:         map[string]string{"k8s/controller-name": s.opts.ControllerName},
-		BaseURL:        httpURL,
-		AdminKey:       resources.AdminAPIKey,
-	})
-	if err != nil {
-		return err
-	}
-
-	// HTTPS client
-	httpsURL := fmt.Sprintf("https://%s/apisix/admin", resources.HttpsTunnel.Endpoint())
-	clusterNameHTTPS := fmt.Sprintf("gateway-%s-https", gatewayGroupID[:8])
-
-	err = s.apisixCli.AddCluster(context.Background(), &dashboard.ClusterOptions{
-		Name:          clusterNameHTTPS,
-		BaseURL:       httpsURL,
-		AdminKey:      resources.AdminAPIKey,
-		SkipTLSVerify: true,
-	})
-
-	return err
-}
-
-// GetDataplaneResourceForGatewayGroup returns the dataplane resource for a specific Gateway group
-func (s *Scaffold) GetDataplaneResourceForGatewayGroup(gatewayGroupID string) (dashboard.Cluster, error) {
-	_, exists := s.additionalGatewayGroups[gatewayGroupID]
-	if !exists {
-		return nil, fmt.Errorf("gateway group %s not found", gatewayGroupID)
-	}
-
-	clusterName := fmt.Sprintf("gateway-%s", gatewayGroupID[:8])
-	return s.apisixCli.Cluster(clusterName), nil
-}
-
-// GetDataplaneResourceHTTPSForGatewayGroup returns the HTTPS dataplane resource for a specific Gateway group
-func (s *Scaffold) GetDataplaneResourceHTTPSForGatewayGroup(gatewayGroupID string) (dashboard.Cluster, error) {
-	_, exists := s.additionalGatewayGroups[gatewayGroupID]
-	if !exists {
-		return nil, fmt.Errorf("gateway group %s not found", gatewayGroupID)
-	}
-
-	clusterName := fmt.Sprintf("gateway-%s-https", gatewayGroupID[:8])
-	return s.apisixCli.Cluster(clusterName), nil
-}
-
 // GetGatewayGroupHTTPEndpoint returns the HTTP endpoint for a specific Gateway group
 func (s *Scaffold) GetGatewayGroupHTTPEndpoint(gatewayGroupID string) (string, error) {
 	resources, exists := s.additionalGatewayGroups[gatewayGroupID]
