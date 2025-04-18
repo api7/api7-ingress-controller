@@ -44,11 +44,11 @@ type BackendTrafficPolicySpec struct {
 	//
 	// +kubebuilder:validation:Enum=pass;node;rewrite;
 	// +kubebuilder:default=pass
-	PassHost string `json:"pass_host,omitempty" yaml:"pass_host,omitempty"`
+	PassHost string `json:"passHost,omitempty" yaml:"passHost,omitempty"`
 
 	// Specifies the host of the Upstream request. This is only valid if
-	// the pass_host is set to rewrite
-	Host Hostname `json:"upstream_host,omitempty" yaml:"upstream_host,omitempty"`
+	// the passHost is set to rewrite
+	Host Hostname `json:"upstreamHost,omitempty" yaml:"upstreamHost,omitempty"`
 }
 
 // LoadBalancer describes the load balancing parameters.
@@ -69,10 +69,16 @@ type LoadBalancer struct {
 
 type Timeout struct {
 	// +kubebuilder:default="60s"
+	// +kubebuilder:validation:Pattern=`^[0-9]+s$`
+	// +kubebuilder:validation:Type=string
 	Connect metav1.Duration `json:"connect,omitempty" yaml:"connect,omitempty"`
 	// +kubebuilder:default="60s"
+	// +kubebuilder:validation:Pattern=`^[0-9]+s$`
+	// +kubebuilder:validation:Type=string
 	Send metav1.Duration `json:"send,omitempty" yaml:"send,omitempty"`
 	// +kubebuilder:default="60s"
+	// +kubebuilder:validation:Pattern=`^[0-9]+s$`
+	// +kubebuilder:validation:Type=string
 	Read metav1.Duration `json:"read,omitempty" yaml:"read,omitempty"`
 }
 

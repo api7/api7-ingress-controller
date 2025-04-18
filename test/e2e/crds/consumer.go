@@ -1,20 +1,18 @@
 package gatewayapi
 
 import (
-	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
 var _ = Describe("Test Consumer", func() {
 	s := scaffold.NewDefaultScaffold()
 
-	var gatewayProxyYaml = `
+	var defaultGatewayProxy = `
 apiVersion: gateway.apisix.io/v1alpha1
 kind: GatewayProxy
 metadata:
@@ -98,46 +96,6 @@ spec:
       port: 80
 `
 
-	var beforeEachHTTP = func() {
-		By("create GatewayProxy")
-		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
-		err := s.CreateResourceFromString(gatewayProxy)
-		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
-		time.Sleep(5 * time.Second)
-
-		By("create GatewayClass")
-		gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
-		gatewayString := fmt.Sprintf(defaultGatewayClass, gatewayClassName, s.GetControllerName())
-		err = s.CreateResourceFromStringWithNamespace(gatewayString, "")
-		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
-		time.Sleep(5 * time.Second)
-
-		By("check GatewayClass condition")
-		gcyaml, err := s.GetResourceYaml("GatewayClass", gatewayClassName)
-		Expect(err).NotTo(HaveOccurred(), "getting GatewayClass yaml")
-		Expect(gcyaml).To(ContainSubstring(`status: "True"`), "checking GatewayClass condition status")
-		Expect(gcyaml).To(
-			ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"),
-			"checking GatewayClass condition message",
-		)
-
-		By("create Gateway")
-		err = s.CreateResourceFromString(fmt.Sprintf(defaultGateway, gatewayClassName))
-		Expect(err).NotTo(HaveOccurred(), "creating Gateway")
-		time.Sleep(5 * time.Second)
-
-		By("check Gateway condition")
-		gwyaml, err := s.GetResourceYaml("Gateway", "api7ee")
-		Expect(err).NotTo(HaveOccurred(), "getting Gateway yaml")
-		Expect(gwyaml).To(ContainSubstring(`status: "True"`), "checking Gateway condition status")
-		Expect(gwyaml).To(
-			ContainSubstring("message: the gateway has been accepted by the api7-ingress-controller"),
-			"checking Gateway condition message",
-		)
-
-		s.ResourceApplied("httproute", "httpbin", defaultHTTPRoute, 1)
-	}
-
 	Context("Consumer plugins", func() {
 		var limitCountConsumer = `
 apiVersion: gateway.apisix.io/v1alpha1
@@ -176,7 +134,9 @@ spec:
         key: sample-key2
 `
 
-		BeforeEach(beforeEachHTTP)
+		BeforeEach(func() {
+			s.ApplyDefaultGatewayResource(defaultGatewayProxy, defaultGatewayClass, defaultGateway, defaultHTTPRoute)
+		})
 
 		It("limit-count plugin", func() {
 			s.ResourceApplied("Consumer", "consumer-sample", limitCountConsumer, 1)
@@ -257,7 +217,10 @@ spec:
       config:
         key: consumer-key
 `
-		BeforeEach(beforeEachHTTP)
+
+		BeforeEach(func() {
+			s.ApplyDefaultGatewayResource(defaultGatewayProxy, defaultGatewayClass, defaultGateway, defaultHTTPRoute)
+		})
 
 		It("Create/Update/Delete", func() {
 			s.ResourceApplied("Consumer", "consumer-sample", defaultCredential, 1)
@@ -368,8 +331,10 @@ spec:
       config:
         key: sample-key2
 `
-		BeforeEach(beforeEachHTTP)
 
+		BeforeEach(func() {
+			s.ApplyDefaultGatewayResource(defaultGatewayProxy, defaultGatewayClass, defaultGateway, defaultHTTPRoute)
+		})
 		It("Create/Update/Delete", func() {
 			err := s.CreateResourceFromString(keyAuthSecret)
 			Expect(err).NotTo(HaveOccurred(), "creating key-auth secret")

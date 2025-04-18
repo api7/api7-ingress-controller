@@ -25,7 +25,7 @@ type ResourceKind struct {
 
 type TranslateContext struct {
 	context.Context
-	ParentRefs       []gatewayv1.ParentReference
+	RouteParentRefs  []gatewayv1.ParentReference
 	BackendRefs      []gatewayv1.BackendRef
 	GatewayTLSConfig []gatewayv1.GatewayTLSConfig
 	Credentials      []v1alpha1.Credential

@@ -70,7 +70,7 @@ spec:
                 type: object
                 x-kubernetes-validations:
                 - rule: '!(has(self.key) && self.type != ''chash'')'
-              pass_host:
+              passHost:
                 default: pass
                 description: |-
                   Configures the host when the request is forwarded to the upstream.
@@ -164,18 +164,21 @@ spec:
                 properties:
                   connect:
                     default: 60s
+                    pattern: ^[0-9]+s$
                     type: string
                   read:
                     default: 60s
+                    pattern: ^[0-9]+s$
                     type: string
                   send:
                     default: 60s
+                    pattern: ^[0-9]+s$
                     type: string
                 type: object
-              upstream_host:
+              upstreamHost:
                 description: |-
                   Specifies the host of the Upstream request. This is only valid if
-                  the pass_host is set to rewrite
+                  the passHost is set to rewrite
                 maxLength: 253
                 minLength: 1
                 pattern: ^(\*\.)?[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$

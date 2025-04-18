@@ -24,6 +24,7 @@ import (
 
 	"github.com/api7/api7-ingress-controller/pkg/dashboard"
 	apisix "github.com/api7/api7-ingress-controller/pkg/dashboard"
+	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/retry"
 	"github.com/gruntwork-io/terratest/modules/testing"
@@ -241,4 +242,49 @@ func (s *Scaffold) ResourceApplied(resourType, resourceName, resourceRaw string,
 			fmt.Sprintf("checking %s condition status", resourType),
 		)
 	time.Sleep(1 * time.Second)
+}
+
+func (s *Scaffold) ApplyDefaultGatewayResource(
+	defaultGatewayProxy string,
+	defaultGatewayClass string,
+	defaultGateway string,
+	defaultHTTPRoute string,
+) {
+	By("create GatewayProxy")
+	gatewayProxy := fmt.Sprintf(defaultGatewayProxy, framework.DashboardTLSEndpoint, s.AdminKey())
+	err := s.CreateResourceFromString(gatewayProxy)
+	Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+	time.Sleep(5 * time.Second)
+
+	By("create GatewayClass")
+	gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
+	gatewayString := fmt.Sprintf(defaultGatewayClass, gatewayClassName, s.GetControllerName())
+	err = s.CreateResourceFromStringWithNamespace(gatewayString, "")
+	Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
+	time.Sleep(5 * time.Second)
+
+	By("check GatewayClass condition")
+	gcyaml, err := s.GetResourceYaml("GatewayClass", gatewayClassName)
+	Expect(err).NotTo(HaveOccurred(), "getting GatewayClass yaml")
+	Expect(gcyaml).To(ContainSubstring(`status: "True"`), "checking GatewayClass condition status")
+	Expect(gcyaml).To(
+		ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"),
+		"checking GatewayClass condition message",
+	)
+
+	By("create Gateway")
+	err = s.CreateResourceFromString(fmt.Sprintf(defaultGateway, gatewayClassName))
+	Expect(err).NotTo(HaveOccurred(), "creating Gateway")
+	time.Sleep(5 * time.Second)
+
+	By("check Gateway condition")
+	gwyaml, err := s.GetResourceYaml("Gateway", "api7ee")
+	Expect(err).NotTo(HaveOccurred(), "getting Gateway yaml")
+	Expect(gwyaml).To(ContainSubstring(`status: "True"`), "checking Gateway condition status")
+	Expect(gwyaml).To(
+		ContainSubstring("message: the gateway has been accepted by the api7-ingress-controller"),
+		"checking Gateway condition message",
+	)
+
+	s.ResourceApplied("httproute", "httpbin", defaultHTTPRoute, 1)
 }
