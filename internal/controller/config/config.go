@@ -30,7 +30,6 @@ func NewDefaultConfig() *Config {
 		LeaderElectionID: DefaultLeaderElectionID,
 		ProbeAddr:        DefaultProbeAddr,
 		MetricsAddr:      DefaultMetricsAddr,
-		IngressClass:     DefaultIngressClass,
 		LeaderElection:   NewLeaderElection(),
 	}
 }
@@ -84,21 +83,13 @@ func NewConfigFromFile(filename string) (*Config, error) {
 }
 
 func (c *Config) Validate() error {
-
-	if len(c.GatewayConfigs) == 0 {
-		return fmt.Errorf("gateway_configs config is required")
-	}
-	for _, gc := range c.GatewayConfigs {
-		if err := c.validateGatewayConfig(gc); err != nil {
-			return fmt.Errorf("failed to validate control_planes: %w", err)
-		}
-	}
 	if c.ControllerName == "" {
 		return fmt.Errorf("controller_name is required")
 	}
 	return nil
 }
 
+//nolint:unused
 func (c *Config) validateGatewayConfig(gc *GatewayConfig) error {
 
 	if gc.Name == "" {
@@ -116,75 +107,6 @@ func (c *Config) validateGatewayConfig(gc *GatewayConfig) error {
 	}
 
 	return nil
-}
-
-var gatewayNameMap map[string]*GatewayConfig
-var gatewayNameList []string
-
-func initGatewayNameMap() {
-	if gatewayNameMap == nil {
-		gatewayNameMap = make(map[string]*GatewayConfig)
-		for _, gc := range ControllerConfig.GatewayConfigs {
-			gatewayNameMap[gc.Name] = gc
-		}
-	}
-}
-
-func GetControlPlaneConfigByGatewatName(gatewatName string) *ControlPlaneConfig {
-	initGatewayNameMap()
-	if gc, ok := gatewayNameMap[gatewatName]; ok {
-		return gc.ControlPlane
-	}
-	return nil
-}
-
-func GetGatewayConfig(gatewayName string) *GatewayConfig {
-	initGatewayNameMap()
-	if gc, ok := gatewayNameMap[gatewayName]; ok {
-		return gc
-	}
-	return nil
-}
-
-func GetFirstGatewayConfig() *GatewayConfig {
-	if len(ControllerConfig.GatewayConfigs) > 0 {
-		return ControllerConfig.GatewayConfigs[0]
-	}
-	return nil
-}
-
-func GetGatewayAddresses(gatewayName string) []string {
-	initGatewayNameMap()
-	if gc, ok := gatewayNameMap[gatewayName]; ok {
-		return gc.Addresses
-	}
-	return nil
-}
-
-func GatewayConfigs() []*GatewayConfig {
-	return ControllerConfig.GatewayConfigs
-}
-
-func GatewayNameList() []string {
-	if gatewayNameList == nil {
-		gatewayNameList = make([]string, 0, len(ControllerConfig.GatewayConfigs))
-		for _, gc := range ControllerConfig.GatewayConfigs {
-			gatewayNameList = append(gatewayNameList, gc.Name)
-		}
-	}
-	return gatewayNameList
-}
-
-func GetIngressClass() string {
-	return ControllerConfig.IngressClass
-}
-
-func GetIngressPublishService() string {
-	return ControllerConfig.IngressPublishService
-}
-
-func GetIngressStatusAddress() []string {
-	return ControllerConfig.IngressStatusAddress
 }
 
 func GetControllerName() string {

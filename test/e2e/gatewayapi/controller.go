@@ -8,10 +8,29 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
 var _ = Describe("Check if controller cache gets synced with correct resources", func() {
+
+	var gatewayProxyYaml = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+`
+
 	var defautlGatewayClass = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
@@ -34,6 +53,11 @@ spec:
     - name: http1
       protocol: HTTP
       port: 80
+  infrastructure:
+    parametersRef:
+      group: gateway.apisix.io
+      kind: GatewayProxy
+      name: api7-proxy-config
 `
 
 	var ResourceApplied = func(s *scaffold.Scaffold, resourType, resourceName, ns, resourceRaw string, observedGeneration int) {
@@ -63,6 +87,13 @@ metadata:
 `, gatewayName))
 		Expect(err).NotTo(HaveOccurred(), "creating namespace")
 		By(fmt.Sprintf("create GatewayClass for controller %s", s.GetControllerName()))
+
+		By("create GatewayProxy")
+		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+		err = s.CreateResourceFromStringWithNamespace(gatewayProxy, gatewayName)
+		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+		time.Sleep(5 * time.Second)
+
 		gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
 		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defautlGatewayClass, gatewayClassName, gatewayName, s.GetControllerName()), gatewayName)
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")

@@ -7,11 +7,29 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
 var _ = Describe("Test Consumer", func() {
 	s := scaffold.NewDefaultScaffold()
+
+	var gatewayProxyYaml = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+`
 
 	var defaultGatewayClass = `
 apiVersion: gateway.networking.k8s.io/v1
@@ -33,6 +51,11 @@ spec:
     - name: http1
       protocol: HTTP
       port: 80
+  infrastructure:
+    parametersRef:
+      group: gateway.apisix.io
+      kind: GatewayProxy
+      name: api7-proxy-config
 `
 
 	var defaultHTTPRoute = `
@@ -76,10 +99,16 @@ spec:
 `
 
 	var beforeEachHTTP = func() {
+		By("create GatewayProxy")
+		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+		err := s.CreateResourceFromString(gatewayProxy)
+		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+		time.Sleep(5 * time.Second)
+
 		By("create GatewayClass")
 		gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
 		gatewayString := fmt.Sprintf(defaultGatewayClass, gatewayClassName, s.GetControllerName())
-		err := s.CreateResourceFromStringWithNamespace(gatewayString, "")
+		err = s.CreateResourceFromStringWithNamespace(gatewayString, "")
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 		time.Sleep(5 * time.Second)
 
@@ -187,7 +216,8 @@ spec:
 	})
 
 	Context("Credential", func() {
-		var defaultCredential = `apiVersion: gateway.apisix.io/v1alpha1
+		var defaultCredential = `
+apiVersion: gateway.apisix.io/v1alpha1
 kind: Consumer
 metadata:
   name: consumer-sample

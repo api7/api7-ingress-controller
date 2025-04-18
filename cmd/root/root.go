@@ -91,7 +91,6 @@ func newAPI7IngressController() *cobra.Command {
 	cfg := config.ControllerConfig
 	var configPath string
 
-	var controlPlanesFlag GatewayConfigsFlag
 	cmd := &cobra.Command{
 		Use:     "api7-ingress-controller [command]",
 		Long:    "Yet another Ingress controller for Kubernetes using api7ee Gateway as the high performance reverse proxy.",
@@ -104,8 +103,6 @@ func newAPI7IngressController() *cobra.Command {
 				}
 				cfg = c
 				config.SetControllerConfig(c)
-			} else {
-				cfg.GatewayConfigs = controlPlanesFlag.GatewayConfigs
 			}
 
 			if err := cfg.Validate(); err != nil {
@@ -153,7 +150,6 @@ func newAPI7IngressController() *cobra.Command {
 	cmd.Flags().StringVar(&cfg.MetricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
 	cmd.Flags().StringVar(&cfg.ProbeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	cmd.Flags().Var(&controlPlanesFlag, "control-planes", "Control planes configuration in YAML format")
 	cmd.Flags().StringVar(&cfg.LogLevel, "log-level", config.DefaultLogLevel, "The log level for api7-ingress-controller")
 	cmd.Flags().StringVar(&cfg.ControllerName,
 		"controller-name",
