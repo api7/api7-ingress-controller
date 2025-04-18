@@ -301,7 +301,7 @@ func (r *HTTPRouteReconciler) listHTTPRouteByHTTPRoutePolicy(ctx context.Context
 		}
 
 		var httpRoute gatewayv1.HTTPRoute
-		if err := r.Get(ctx, client.ObjectKey{Namespace: string(key.Namespace), Name: string(key.Name)}, &httpRoute); err != nil {
+		if err := r.Get(ctx, client.ObjectKey{Namespace: key.Namespace, Name: key.Name}, &httpRoute); err != nil {
 			r.Log.Error(err, "failed to get HTTPRoute by HTTPRoutePolicy targetRef", "namespace", key.Namespace, "name", key.Name)
 			continue
 		}
@@ -321,8 +321,8 @@ func (r *HTTPRouteReconciler) listHTTPRouteByHTTPRoutePolicy(ctx context.Context
 		keys[key] = struct{}{}
 		requests = append(requests, reconcile.Request{
 			NamespacedName: types.NamespacedName{
-				Namespace: string(key.Namespace),
-				Name:      string(key.Name),
+				Namespace: key.Namespace,
+				Name:      key.Name,
 			},
 		})
 	}
