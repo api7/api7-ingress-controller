@@ -92,7 +92,6 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 						oldRefs := oldObj.Spec.TargetRefs
 						newRefs := newObj.Spec.TargetRefs
 
-						// 将旧引用转换为 Map
 						oldRefMap := make(map[string]v1alpha1.BackendPolicyTargetReferenceWithSectionName)
 						for _, ref := range oldRefs {
 							key := fmt.Sprintf("%s/%s/%s", ref.Group, ref.Kind, ref.Name)
