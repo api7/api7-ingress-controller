@@ -129,6 +129,7 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *HTTPRouteReconciler) listHTTPRouteForGenericEvent(ctx context.Context, obj client.Object) []reconcile.Request {
+	var namespacedNameMap = make(map[types.NamespacedName]struct{})
 	requests := []reconcile.Request{}
 	switch v := obj.(type) {
 	case *v1alpha1.BackendTrafficPolicy:
@@ -144,12 +145,19 @@ func (r *HTTPRouteReconciler) listHTTPRouteForGenericEvent(ctx context.Context, 
 			httprouteAll = append(httprouteAll, httprouteList.Items...)
 		}
 		for _, hr := range httprouteAll {
-			requests = append(requests, reconcile.Request{
-				NamespacedName: client.ObjectKey{
-					Namespace: hr.Namespace,
-					Name:      hr.Name,
-				},
-			})
+			key := types.NamespacedName{
+				Namespace: hr.Namespace,
+				Name:      hr.Name,
+			}
+			if _, ok := namespacedNameMap[key]; !ok {
+				namespacedNameMap[key] = struct{}{}
+				requests = append(requests, reconcile.Request{
+					NamespacedName: client.ObjectKey{
+						Namespace: hr.Namespace,
+						Name:      hr.Name,
+					},
+				})
+			}
 		}
 	default:
 		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to BackendTrafficPolicy")
@@ -202,6 +210,8 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	tctx := provider.NewDefaultTranslateContext(ctx)
+
+	tctx.RouteParentRefs = hr.Spec.ParentRefs
 
 	if err := r.processHTTPRoute(tctx, hr); err != nil {
 		acceptStatus.status = false
@@ -328,19 +338,22 @@ func (r *HTTPRouteReconciler) listHTTPRoutesForBackendTrafficPolicy(ctx context.
 		}
 		httprouteList = append(httprouteList, hrList.Items...)
 	}
-
+	var namespacedNameMap = make(map[types.NamespacedName]struct{})
 	requests := make([]reconcile.Request, 0, len(httprouteList))
 	for _, hr := range httprouteList {
-		requests = append(requests, reconcile.Request{
-			NamespacedName: client.ObjectKey{
-				Namespace: hr.Namespace,
-				Name:      hr.Name,
-			},
-		})
-	}
-	if !policy.GetDeletionTimestamp().IsZero() {
-		// If the policy is deleted, we need to list all HTTPRoutes that reference this policy
-		// and add them to the requests.
+		key := types.NamespacedName{
+			Namespace: hr.Namespace,
+			Name:      hr.Name,
+		}
+		if _, ok := namespacedNameMap[key]; !ok {
+			namespacedNameMap[key] = struct{}{}
+			requests = append(requests, reconcile.Request{
+				NamespacedName: client.ObjectKey{
+					Namespace: hr.Namespace,
+					Name:      hr.Name,
+				},
+			})
+		}
 	}
 	return requests
 }

@@ -63,6 +63,7 @@ func NewPolicyCondition(observedGeneration int64, status bool, message string) m
 		Status:             conditionStatus,
 		Message:            message,
 		ObservedGeneration: observedGeneration,
+		LastTransitionTime: metav1.Now(),
 	}
 }
 
@@ -73,6 +74,7 @@ func NewPolicyConflictCondition(observedGeneration int64, message string) metav1
 		Status:             metav1.ConditionFalse,
 		Message:            message,
 		ObservedGeneration: observedGeneration,
+		LastTransitionTime: metav1.Now(),
 	}
 }
 
@@ -82,9 +84,6 @@ func UpdateStatus(
 	tctx *provider.TranslateContext,
 ) {
 	for _, obj := range tctx.StatusUpdaters {
-		if err := c.Status().Update(tctx, obj); err != nil {
-			log.Error(err, "failed to update status", "object", obj)
-			continue
-		}
+		_ = c.Status().Update(tctx, obj)
 	}
 }

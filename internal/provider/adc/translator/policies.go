@@ -33,6 +33,7 @@ func (t *Translator) attachBackendTrafficPolicyToUpstream(policy *v1alpha1.Backe
 	if policy == nil {
 		return
 	}
+	upstream.PassHost = policy.Spec.PassHost
 	upstream.UpstreamHost = string(policy.Spec.Host)
 	upstream.Scheme = policy.Spec.Scheme
 	if policy.Spec.Retries != nil {
