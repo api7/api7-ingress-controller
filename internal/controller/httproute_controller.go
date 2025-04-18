@@ -287,39 +287,38 @@ func (r *HTTPRouteReconciler) listHTTPRouteByHTTPRoutePolicy(ctx context.Context
 		return nil
 	}
 
-	var keys = make(map[targetRefKey]struct{})
+	var keys = make(map[types.NamespacedName]struct{})
 	for _, ref := range httpRoutePolicy.Spec.TargetRefs {
-		if ref.Kind == "HTTPRoute" {
-			key := targetRefKey{
-				Group:     gatewayv1.GroupName,
-				Namespace: gatewayv1.Namespace(obj.GetNamespace()),
-				Name:      ref.Name,
-			}
-			if ref.SectionName != nil {
-				key.SectionName = *ref.SectionName
-			}
-			keys[key] = struct{}{}
+		if ref.Kind != "HTTPRoute" {
+			continue
 		}
-	}
-	for key := range keys {
+		key := types.NamespacedName{
+			Namespace: obj.GetNamespace(),
+			Name:      string(ref.Name),
+		}
+		if _, ok := keys[key]; ok {
+			continue
+		}
+
 		var httpRoute gatewayv1.HTTPRoute
 		if err := r.Get(ctx, client.ObjectKey{Namespace: string(key.Namespace), Name: string(key.Name)}, &httpRoute); err != nil {
 			r.Log.Error(err, "failed to get HTTPRoute by HTTPRoutePolicy targetRef", "namespace", key.Namespace, "name", key.Name)
 			continue
 		}
-		if key.SectionName != "" {
+		if ref.SectionName != nil {
 			var matchRuleName bool
 			for _, rule := range httpRoute.Spec.Rules {
-				if rule.Name != nil && *rule.Name == key.SectionName {
+				if rule.Name != nil && *rule.Name == *ref.SectionName {
 					matchRuleName = true
 					break
 				}
 			}
 			if !matchRuleName {
-				r.Log.Error(errors.Errorf("failed to get HTTPRoute rule by HTTPRoutePolicy targetRef"), "namespace", key.Namespace, "name", key.Name, "sectionName", key.SectionName)
+				r.Log.Error(errors.Errorf("failed to get HTTPRoute rule by HTTPRoutePolicy targetRef"), "namespace", key.Namespace, "name", key.Name, "sectionName", *ref.SectionName)
 				continue
 			}
 		}
+		keys[key] = struct{}{}
 		requests = append(requests, reconcile.Request{
 			NamespacedName: types.NamespacedName{
 				Namespace: string(key.Namespace),
