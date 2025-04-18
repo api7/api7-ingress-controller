@@ -49,6 +49,11 @@ spec:
     - name: http1
       protocol: HTTP
       port: 80
+  infrastructure:
+    parametersRef:
+      group: gateway.apisix.io
+      kind: GatewayProxy
+      name: api7-proxy-config
 `
 
 	var defaultHTTPRoute = `
@@ -79,7 +84,6 @@ apiVersion: gateway.apisix.io/v1alpha1
 kind: BackendTrafficPolicy
 metadata:
   name: httpbin
-  namespace: default
 spec:
   targetRefs:
   - name: httpbin-service-e2e-test
@@ -94,7 +98,6 @@ apiVersion: gateway.apisix.io/v1alpha1
 kind: BackendTrafficPolicy
 metadata:
   name: httpbin
-  namespace: default
 spec:
   targetRefs:
   - name: httpbin-service-e2e-test
