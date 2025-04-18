@@ -641,12 +641,13 @@ spec:
 			}
 
 			// assert that conflict policies are not in effect
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.example").
-				WithHeader("X-Route-Name", "httpbin").
-				Expect().
-				Status(http.StatusOK)
+			Eventually(func() int {
+				return s.NewAPISIXClient().
+					GET("/get").
+					WithHost("httpbin.example").
+					WithHeader("X-Route-Name", "httpbin").
+					Expect().Raw().StatusCode
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 		})
 
 		PIt("HTTPRoutePolicy status changes on HTTPRoute deleting", func() {
