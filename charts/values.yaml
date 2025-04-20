@@ -2,7 +2,7 @@ nameOverride: ""
 labelsOverride: {}
 annotations: {}
 podAnnotations: {}
-controllerName: gateway.api7.io/api7-ingress-controller
+controllerName: gateway.apisix.io/api7-ingress-controller
 replicas: 1
 admin:
   key: '' # Pass the admin key generated for the ingress gateway group

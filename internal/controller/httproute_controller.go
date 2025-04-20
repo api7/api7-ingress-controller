@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
@@ -118,6 +120,23 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				},
 			),
 		).
+		Watches(&v1alpha1.HTTPRoutePolicy{},
+			handler.EnqueueRequestsFromMapFunc(r.listHTTPRouteByHTTPRoutePolicy),
+			builder.WithPredicates(
+				predicate.Funcs{
+					CreateFunc: func(e event.CreateEvent) bool {
+						return true
+					},
+					DeleteFunc: func(e event.DeleteEvent) bool {
+						return true
+					},
+					UpdateFunc: r.httpRoutePolicyPredicateOnUpdate,
+					GenericFunc: func(e event.GenericEvent) bool {
+						return false
+					},
+				},
+			),
+		).
 		WatchesRawSource(
 			source.Channel(
 				r.genericEvent,
@@ -125,43 +144,6 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			),
 		).
 		Complete(r)
-}
-
-func (r *HTTPRouteReconciler) listHTTPRouteForGenericEvent(ctx context.Context, obj client.Object) []reconcile.Request {
-	var namespacedNameMap = make(map[types.NamespacedName]struct{})
-	requests := []reconcile.Request{}
-	switch v := obj.(type) {
-	case *v1alpha1.BackendTrafficPolicy:
-		httprouteAll := []gatewayv1.HTTPRoute{}
-		for _, ref := range v.Spec.TargetRefs {
-			httprouteList := &gatewayv1.HTTPRouteList{}
-			if err := r.List(ctx, httprouteList, client.MatchingFields{
-				indexer.ServiceIndexRef: indexer.GenIndexKey(v.GetNamespace(), string(ref.Name)),
-			}); err != nil {
-				r.Log.Error(err, "failed to list HTTPRoutes for BackendTrafficPolicy", "namespace", v.GetNamespace(), "ref", ref.Name)
-				return nil
-			}
-			httprouteAll = append(httprouteAll, httprouteList.Items...)
-		}
-		for _, hr := range httprouteAll {
-			key := types.NamespacedName{
-				Namespace: hr.Namespace,
-				Name:      hr.Name,
-			}
-			if _, ok := namespacedNameMap[key]; !ok {
-				namespacedNameMap[key] = struct{}{}
-				requests = append(requests, reconcile.Request{
-					NamespacedName: client.ObjectKey{
-						Namespace: hr.Namespace,
-						Name:      hr.Name,
-					},
-				})
-			}
-		}
-	default:
-		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to BackendTrafficPolicy")
-	}
-	return requests
 }
 
 func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -224,6 +206,11 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	if err := r.processHTTPRoute(tctx, hr); err != nil {
+		acceptStatus.status = false
+		acceptStatus.msg = err.Error()
+	}
+
+	if err := r.processHTTPRoutePolicies(tctx, hr); err != nil {
 		acceptStatus.status = false
 		acceptStatus.msg = err.Error()
 	}
@@ -392,6 +379,105 @@ func (r *HTTPRouteReconciler) listHTTPRoutesForGateway(ctx context.Context, obj 
 	return requests
 }
 
+func (r *HTTPRouteReconciler) listHTTPRouteByHTTPRoutePolicy(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
+	httpRoutePolicy, ok := obj.(*v1alpha1.HTTPRoutePolicy)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to HTTPRoutePolicy")
+		return nil
+	}
+
+	var keys = make(map[types.NamespacedName]struct{})
+	for _, ref := range httpRoutePolicy.Spec.TargetRefs {
+		if ref.Kind != "HTTPRoute" {
+			continue
+		}
+		key := types.NamespacedName{
+			Namespace: obj.GetNamespace(),
+			Name:      string(ref.Name),
+		}
+		if _, ok := keys[key]; ok {
+			continue
+		}
+
+		var httpRoute gatewayv1.HTTPRoute
+		if err := r.Get(ctx, client.ObjectKey{Namespace: key.Namespace, Name: key.Name}, &httpRoute); err != nil {
+			r.Log.Error(err, "failed to get HTTPRoute by HTTPRoutePolicy targetRef", "namespace", key.Namespace, "name", key.Name)
+			continue
+		}
+		if ref.SectionName != nil {
+			var matchRuleName bool
+			for _, rule := range httpRoute.Spec.Rules {
+				if rule.Name != nil && *rule.Name == *ref.SectionName {
+					matchRuleName = true
+					break
+				}
+			}
+			if !matchRuleName {
+				r.Log.Error(errors.Errorf("failed to get HTTPRoute rule by HTTPRoutePolicy targetRef"), "namespace", key.Namespace, "name", key.Name, "sectionName", *ref.SectionName)
+				continue
+			}
+		}
+		keys[key] = struct{}{}
+		requests = append(requests, reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Namespace: key.Namespace,
+				Name:      key.Name,
+			},
+		})
+	}
+
+	return requests
+}
+
+func (r *HTTPRouteReconciler) listHTTPRouteForGenericEvent(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
+	var namespacedNameMap = make(map[types.NamespacedName]struct{})
+
+	switch v := obj.(type) {
+	case *v1alpha1.BackendTrafficPolicy:
+		httprouteAll := []gatewayv1.HTTPRoute{}
+		for _, ref := range v.Spec.TargetRefs {
+			httprouteList := &gatewayv1.HTTPRouteList{}
+			if err := r.List(ctx, httprouteList, client.MatchingFields{
+				indexer.ServiceIndexRef: indexer.GenIndexKey(v.GetNamespace(), string(ref.Name)),
+			}); err != nil {
+				r.Log.Error(err, "failed to list HTTPRoutes for BackendTrafficPolicy", "namespace", v.GetNamespace(), "ref", ref.Name)
+				return nil
+			}
+			httprouteAll = append(httprouteAll, httprouteList.Items...)
+		}
+		for _, hr := range httprouteAll {
+			key := types.NamespacedName{
+				Namespace: hr.Namespace,
+				Name:      hr.Name,
+			}
+			if _, ok := namespacedNameMap[key]; !ok {
+				namespacedNameMap[key] = struct{}{}
+				requests = append(requests, reconcile.Request{
+					NamespacedName: client.ObjectKey{
+						Namespace: hr.Namespace,
+						Name:      hr.Name,
+					},
+				})
+			}
+		}
+	case *v1alpha1.HTTPRoutePolicy:
+		for _, ref := range v.Spec.TargetRefs {
+			namespacedName := types.NamespacedName{Namespace: v.GetNamespace(), Name: string(ref.Name)}
+			if _, ok := namespacedNameMap[namespacedName]; !ok {
+				namespacedNameMap[namespacedName] = struct{}{}
+				if err := r.Get(ctx, namespacedName, new(gatewayv1.HTTPRoute)); err != nil {
+					r.Log.Info("failed to Get HTTPRoute", "namespace", namespacedName.Namespace, "name", namespacedName.Name)
+					continue
+				}
+				requests = append(requests, reconcile.Request{NamespacedName: namespacedName})
+			}
+		}
+	default:
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to BackendTrafficPolicy")
+	}
+	return requests
+}
+
 func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.TranslateContext) error {
 	var terr error
 	for _, backend := range tctx.BackendRefs {
@@ -454,7 +540,7 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 	return terr
 }
 
-func (t *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, httpRoute *gatewayv1.HTTPRoute) error {
+func (r *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, httpRoute *gatewayv1.HTTPRoute) error {
 	var terror error
 	for _, rule := range httpRoute.Spec.Rules {
 		for _, filter := range rule.Filters {
@@ -463,7 +549,7 @@ func (t *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, 
 			}
 			if filter.ExtensionRef.Kind == "PluginConfig" {
 				pluginconfig := new(v1alpha1.PluginConfig)
-				if err := t.Get(context.Background(), client.ObjectKey{
+				if err := r.Get(context.Background(), client.ObjectKey{
 					Namespace: httpRoute.GetNamespace(),
 					Name:      string(filter.ExtensionRef.Name),
 				}, pluginconfig); err != nil {
@@ -507,4 +593,30 @@ func (t *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, 
 	}
 
 	return terror
+}
+
+func (r *HTTPRouteReconciler) httpRoutePolicyPredicateOnUpdate(e event.UpdateEvent) bool {
+	oldPolicy, ok0 := e.ObjectOld.(*v1alpha1.HTTPRoutePolicy)
+	newPolicy, ok1 := e.ObjectNew.(*v1alpha1.HTTPRoutePolicy)
+	if !ok0 || !ok1 {
+		return false
+	}
+	var discardsRefs = make(map[string]v1alpha2.LocalPolicyTargetReferenceWithSectionName)
+	for _, ref := range oldPolicy.Spec.TargetRefs {
+		key := indexer.GenHTTPRoutePolicyIndexKey(string(ref.Group), string(ref.Kind), e.ObjectOld.GetNamespace(), string(ref.Name), "")
+		discardsRefs[key] = ref
+	}
+	for _, ref := range newPolicy.Spec.TargetRefs {
+		key := indexer.GenHTTPRoutePolicyIndexKey(string(ref.Group), string(ref.Kind), e.ObjectOld.GetNamespace(), string(ref.Name), "")
+		delete(discardsRefs, key)
+	}
+	if len(discardsRefs) > 0 {
+		dump := oldPolicy.DeepCopy()
+		dump.Spec.TargetRefs = make([]v1alpha2.LocalPolicyTargetReferenceWithSectionName, 0, len(discardsRefs))
+		for _, ref := range discardsRefs {
+			dump.Spec.TargetRefs = append(dump.Spec.TargetRefs, ref)
+		}
+		r.genericEvent <- event.GenericEvent{Object: dump}
+	}
+	return true
 }

@@ -27,10 +27,6 @@ type HTTPRoutePolicySpec struct {
 	// TargetRef identifies an API object (enum: HTTPRoute, Ingress) to apply HTTPRoutePolicy to.
 	//
 	// target references.
-	// +listType=map
-	// +listMapKey=group
-	// +listMapKey=kind
-	// +listMapKey=name
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=16
 	TargetRefs []gatewayv1alpha2.LocalPolicyTargetReferenceWithSectionName `json:"targetRefs"`
@@ -47,8 +43,8 @@ type HTTPRoutePolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   HTTPRoutePolicySpec          `json:"spec,omitempty"`
-	Status gatewayv1alpha2.PolicyStatus `json:"status,omitempty"`
+	Spec   HTTPRoutePolicySpec `json:"spec,omitempty"`
+	Status PolicyStatus        `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true

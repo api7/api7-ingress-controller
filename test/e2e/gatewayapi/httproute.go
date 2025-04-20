@@ -6,8 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gruntwork-io/terratest/modules/retry"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/pkg/errors"
 
 	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
@@ -475,9 +477,34 @@ spec:
         - type: Exact
           name: X-Route-Name
           value: httpbin
+    # name: get
     backendRefs:
     - name: httpbin-service-e2e-test
       port: 80
+`
+		const httpRoutePolicy = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: HTTPRoutePolicy
+metadata:
+  name: http-route-policy-0
+spec:
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: httpbin
+    # sectionName: get
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: httpbin-1
+    sectionName: get
+  priority: 10
+  vars:
+  - - http_x_hrp_name
+    - ==
+    - http-route-policy-0
+  - - arg_hrp_name
+    - ==
+    - http-route-policy-0
 `
 
 		var prefixRouteByStatus = `
@@ -603,6 +630,226 @@ spec:
 				WithHeader("X-Route-Name", "httpbin").
 				Expect().
 				Status(http.StatusOK)
+		})
+
+		It("HTTPRoutePolicy in effect", func() {
+			By("create HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", varsRoute, 1)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.example").
+				WithHeader("X-Route-Name", "httpbin").
+				Expect().
+				Status(http.StatusOK)
+
+			By("create HTTPRoutePolicy")
+			ResourceApplied("HTTPRoutePolicy", "http-route-policy-0", httpRoutePolicy, 1)
+
+			By("access dataplane to check the HTTPRoutePolicy")
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.example").
+				WithHeader("X-Route-Name", "httpbin").
+				Expect().
+				Status(http.StatusNotFound)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.example").
+				WithHeader("X-Route-Name", "httpbin").
+				WithHeader("X-HRP-Name", "http-route-policy-0").
+				WithQuery("hrp_name", "http-route-policy-0").
+				Expect().
+				Status(http.StatusOK)
+
+			By("update HTTPRoutePolicy")
+			const changedHTTPRoutePolicy = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: HTTPRoutePolicy
+metadata:
+  name: http-route-policy-0
+spec:
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: httpbin
+    # sectionName: get
+  priority: 10
+  vars:
+  - - http_x_hrp_name
+    - ==
+    - new-hrp-name
+`
+			ResourceApplied("HTTPRoutePolicy", "http-route-policy-0", changedHTTPRoutePolicy, 1)
+			// use the old vars cannot match any route
+			Eventually(func() int {
+				return s.NewAPISIXClient().
+					GET("/get").
+					WithHost("httpbin.example").
+					WithHeader("X-Route-Name", "httpbin").
+					WithHeader("X-HRP-Name", "http-route-policy-0").
+					WithQuery("hrp_name", "http-route-policy-0").
+					Expect().Raw().StatusCode
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
+
+			// use the new vars can match the route
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.example").
+				WithHeader("X-Route-Name", "httpbin").
+				WithHeader("X-HRP-Name", "new-hrp-name").
+				Expect().
+				Status(http.StatusOK)
+
+			By("delete the HTTPRoutePolicy")
+			err := s.DeleteResource("HTTPRoutePolicy", "http-route-policy-0")
+			Expect(err).NotTo(HaveOccurred(), "deleting HTTPRoutePolicy")
+			Eventually(func() string {
+				_, err := s.GetResourceYaml("HTTPRoutePolicy", "http-route-policy-0")
+				return err.Error()
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(ContainSubstring(`httproutepolicies.gateway.apisix.io "http-route-policy-0" not found`))
+			// access the route without additional vars should be OK
+			message := retry.DoWithRetry(s.GinkgoT, "", 10, time.Second, func() (string, error) {
+				statusCode := s.NewAPISIXClient().
+					GET("/get").
+					WithHost("httpbin.example").
+					WithHeader("X-Route-Name", "httpbin").
+					Expect().Raw().StatusCode
+				if statusCode != http.StatusOK {
+					return "", errors.Errorf("unexpected status code: %v", statusCode)
+				}
+				return "request OK", nil
+			})
+			s.Logf(message)
+		})
+
+		It("HTTPRoutePolicy conflicts", func() {
+			const httpRoutePolicy0 = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: HTTPRoutePolicy
+metadata:
+  name: http-route-policy-0
+spec:
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: httpbin
+  priority: 10
+  vars:
+  - - http_x_hrp_name
+    - ==
+    - http-route-policy-0
+`
+			const httpRoutePolicy1 = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: HTTPRoutePolicy
+metadata:
+  name: http-route-policy-1
+spec:
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: httpbin
+  priority: 20
+  vars:
+  - - http_x_hrp_name
+    - ==
+    - http-route-policy-0
+`
+			const httpRoutePolicy2 = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: HTTPRoutePolicy
+metadata:
+  name: http-route-policy-2
+spec:
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: httpbin
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: httpbin-1
+  priority: 30
+  vars:
+  - - http_x_hrp_name
+    - ==
+    - http-route-policy-0
+`
+			By("create HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", varsRoute, 1)
+
+			By("create HTTPRoutePolices")
+			for _, spec := range []string{httpRoutePolicy0, httpRoutePolicy1, httpRoutePolicy2} {
+				err := s.CreateResourceFromString(spec)
+				Expect(err).NotTo(HaveOccurred(), "creating HTTPRoutePolicy")
+			}
+			for _, name := range []string{"http-route-policy-0", "http-route-policy-1", "http-route-policy-2"} {
+				Eventually(func() string {
+					spec, err := s.GetResourceYaml("HTTPRoutePolicy", name)
+					Expect(err).NotTo(HaveOccurred(), "getting HTTPRoutePolicy yaml")
+					return spec
+				}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).
+					Should(ContainSubstring("reason: Conflicted"))
+			}
+
+			// assert that conflict policies are not in effect
+			Eventually(func() int {
+				return s.NewAPISIXClient().
+					GET("/get").
+					WithHost("httpbin.example").
+					WithHeader("X-Route-Name", "httpbin").
+					Expect().Raw().StatusCode
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+		})
+
+		PIt("HTTPRoutePolicy status changes on HTTPRoute deleting", func() {
+			By("create HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", varsRoute, 1)
+
+			By("create HTTPRoutePolicy")
+			ResourceApplied("HTTPRoutePolicy", "http-route-policy-0", httpRoutePolicy, 1)
+
+			By("access dataplane to check the HTTPRoutePolicy")
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.example").
+				WithHeader("X-Route-Name", "httpbin").
+				Expect().
+				Status(http.StatusNotFound)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.example").
+				WithHeader("X-Route-Name", "httpbin").
+				WithHeader("X-HRP-Name", "http-route-policy-0").
+				WithQuery("hrp_name", "http-route-policy-0").
+				Expect().
+				Status(http.StatusOK)
+
+			By("delete the HTTPRoute, assert the HTTPRoutePolicy's status will be changed")
+			err := s.DeleteResource("HTTPRoute", "httpbin")
+			Expect(err).NotTo(HaveOccurred(), "deleting HTTPRoute")
+			message := retry.DoWithRetry(s.GinkgoT, "request the deleted route", 10, time.Second, func() (string, error) {
+				statusCode := s.NewAPISIXClient().
+					GET("/get").
+					WithHost("httpbin.example").
+					WithHeader("X-Route-Name", "httpbin").
+					WithHeader("X-HRP-Name", "http-route-policy-0").
+					WithQuery("hrp_name", "http-route-policy-0").
+					Expect().Raw().StatusCode
+				if statusCode != http.StatusNotFound {
+					return "", errors.Errorf("unexpected status code: %v", statusCode)
+				}
+				return "the route is deleted", nil
+			})
+			s.Logf(message)
+
+			Eventually(func() string {
+				spec, err := s.GetResourceYaml("HTTPRoutePolicy", "http-route-policy-0")
+				Expect(err).NotTo(HaveOccurred(), "getting HTTPRoutePolicy")
+				return spec
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).ShouldNot(ContainSubstring("ancestorRef:"))
 		})
 	})
 

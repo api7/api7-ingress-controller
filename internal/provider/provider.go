@@ -7,9 +7,10 @@ import (
 	discoveryv1 "k8s.io/api/discovery/v1"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 )
 
 type Provider interface {
@@ -37,6 +38,7 @@ type TranslateContext struct {
 	BackendTrafficPolicies map[types.NamespacedName]*v1alpha1.BackendTrafficPolicy
 	GatewayProxies         map[ResourceKind]v1alpha1.GatewayProxy
 	ResourceParentRefs     map[ResourceKind][]ResourceKind
+	HTTPRoutePolicies      map[string][]v1alpha1.HTTPRoutePolicy
 
 	StatusUpdaters []client.Object
 }
@@ -51,5 +53,6 @@ func NewDefaultTranslateContext(ctx context.Context) *TranslateContext {
 		BackendTrafficPolicies: make(map[types.NamespacedName]*v1alpha1.BackendTrafficPolicy),
 		GatewayProxies:         make(map[ResourceKind]v1alpha1.GatewayProxy),
 		ResourceParentRefs:     make(map[ResourceKind][]ResourceKind),
+		HTTPRoutePolicies:      make(map[string][]v1alpha1.HTTPRoutePolicy),
 	}
 }

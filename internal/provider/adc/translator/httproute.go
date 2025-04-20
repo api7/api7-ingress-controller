@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/api7/gopkg/pkg/log"
@@ -230,6 +231,27 @@ func (t *Translator) fillPluginFromHTTPRequestRedirectFilter(plugins adctypes.Pl
 	plugin.URI = uri
 }
 
+func (t *Translator) fillHTTPRoutePolicies(tctx *provider.TranslateContext, rule gatewayv1.HTTPRouteRule, routes []*adctypes.Route) {
+	policies := tctx.HTTPRoutePolicies["*"] // policies which not specify a sectionName
+	if rule.Name != nil {
+		policies = append(policies, tctx.HTTPRoutePolicies[string(*rule.Name)]...) // append policies which specify the sectionName as the same as rule.name
+	}
+
+	for _, policy := range policies {
+		for _, route := range routes {
+			route.Priority = policy.Spec.Priority
+			for _, data := range policy.Spec.Vars {
+				var v []adctypes.StringOrSlice
+				if err := json.Unmarshal(data.Raw, &v); err != nil {
+					log.Errorf("failed to unmarshal spec.Vars item to []StringOrSlice, data: %s", string(data.Raw)) // todo: update status
+					continue
+				}
+				route.Vars = append(route.Vars, v)
+			}
+		}
+	}
+}
+
 func (t *Translator) translateEndpointSlice(weight int, endpointSlices []discoveryv1.EndpointSlice) adctypes.UpstreamNodes {
 	var nodes adctypes.UpstreamNodes
 	if len(endpointSlices) == 0 {
@@ -327,8 +349,10 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 			route.Name = name
 			route.ID = id.GenID(name)
 			route.Labels = labels
+			route.EnableWebsocket = ptr.To(true)
 			routes = append(routes, route)
 		}
+		t.fillHTTPRoutePolicies(tctx, rule, routes)
 		service.Routes = routes
 
 		result.Services = append(result.Services, service)

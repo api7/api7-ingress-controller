@@ -3,13 +3,14 @@ package indexer
 import (
 	"context"
 
-	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 )
 
 const (
@@ -134,6 +135,16 @@ func setupHTTPRouteIndexer(mgr ctrl.Manager) error {
 	); err != nil {
 		return err
 	}
+
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.HTTPRoutePolicy{},
+		PolicyTargetRefs,
+		HTTPRoutePolicyIndexFunc,
+	); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -307,6 +318,23 @@ func HTTPRouteExtensionIndexFunc(rawObj client.Object) []string {
 				keys = append(keys, GenIndexKey(hr.GetNamespace(), string(filter.ExtensionRef.Name)))
 			}
 		}
+	}
+	return keys
+}
+
+func GenHTTPRoutePolicyIndexKey(group, kind, namespace, name, sectionName string) string {
+	return schema.GroupKind{Group: group, Kind: kind}.String() + "/" + client.ObjectKey{Namespace: namespace, Name: name}.String() + "/" + sectionName
+}
+
+func HTTPRoutePolicyIndexFunc(rawObj client.Object) []string {
+	hrp := rawObj.(*v1alpha1.HTTPRoutePolicy)
+	var keys = make([]string, 0, len(hrp.Spec.TargetRefs))
+	for _, ref := range hrp.Spec.TargetRefs {
+		var sectionName string
+		if ref.SectionName != nil {
+			sectionName = string(*ref.SectionName)
+		}
+		keys = append(keys, GenHTTPRoutePolicyIndexKey(string(ref.Group), string(ref.Kind), hrp.GetNamespace(), string(ref.Name), sectionName))
 	}
 	return keys
 }

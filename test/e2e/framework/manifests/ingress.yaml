@@ -145,6 +145,21 @@ rules:
   - list
   - watch
 - apiGroups:
+    - gateway.apisix.io
+  resources:
+    - httproutepolicies
+  verbs:
+    - get
+    - list
+    - watch
+- apiGroups:
+    - gateway.apisix.io
+  resources:
+    - httproutepolicies/status
+  verbs:
+    - get
+    - update
+- apiGroups:
   - gateway.apisix.io
   resources:
   - httproutepolicies

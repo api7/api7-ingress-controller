@@ -104,11 +104,6 @@ spec:
                 maxItems: 16
                 minItems: 1
                 type: array
-                x-kubernetes-list-map-keys:
-                - group
-                - kind
-                - name
-                x-kubernetes-list-type: map
               vars:
                 items:
                   x-kubernetes-preserve-unknown-fields: true
