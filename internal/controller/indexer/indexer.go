@@ -23,6 +23,7 @@ const (
 	IngressClassRef    = "ingressClassRef"
 	ConsumerGatewayRef = "consumerGatewayRef"
 	PolicyTargetRefs   = "targetRefs"
+	PolicyTargetRefIng = "targetRefIng"
 )
 
 func SetupIndexer(mgr ctrl.Manager) error {
@@ -189,6 +190,16 @@ func setupIngressIndexer(mgr ctrl.Manager) error {
 		return err
 	}
 
+	// create HTTPRoutePolicy index
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.HTTPRoutePolicy{},
+		PolicyTargetRefIng,
+		IngressHTTPRouteIndexFunc,
+	); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -254,6 +265,10 @@ func IngressSecretIndexFunc(rawObj client.Object) []string {
 		secrets = append(secrets, key)
 	}
 	return secrets
+}
+
+func IngressHTTPRouteIndexFunc(rawObj client.Object) []string {
+	return []string{GenHTTPRoutePolicyIndexKey(networkingv1.GroupName, "Ingress", rawObj.GetGenerateName(), rawObj.GetName(), "")}
 }
 
 func GenIndexKeyWithGK(group, kind, namespace, name string) string {

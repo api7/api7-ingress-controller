@@ -3,6 +3,7 @@ package ingress
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -362,6 +363,196 @@ stringData:
 				WithHost("proxy-secret.example.com").
 				Expect().
 				Status(200)
+		})
+	})
+
+	Context("HTTPRoutePolicy for Ingress", func() {
+		getGatewayProxySpec := func() string {
+			return fmt.Sprintf(`
+apiVersion: gateway.apisix.io/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+  namespace: default
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+`, framework.DashboardTLSEndpoint, s.AdminKey())
+		}
+
+		const ingressClassSpec = `
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: api7
+spec:
+  controller: "gateway.api7.io/api7-ingress-controller"
+  parameters:
+    apiGroup: "gateway.apisix.io"
+    kind: "GatewayProxy"
+    name: "api7-proxy-config"
+    namespace: "default"
+    scope: "Namespace"
+`
+		const ingressSpec = `
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: default
+spec:
+  ingressClassName: api7
+  rules:
+  - host: example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: httpbin-service-e2e-test
+            port:
+              number: 80
+`
+		const httpRoutePolicySpec0 = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: HTTPRoutePolicy
+metadata:
+  name: http-route-policy-0
+spec:
+  targetRefs:
+  - group: networking.k8s.io
+    kind: Ingress
+    name: default
+  priority: 10
+  vars:
+  - - http_x_hrp_name
+    - ==
+    - http-route-policy-0
+`
+		const httpRoutePolicySpec1 = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: HTTPRoutePolicy
+metadata:
+  name: http-route-policy-0
+spec:
+  targetRefs:
+  - group: networking.k8s.io
+    kind: Ingress
+    name: default
+  priority: 10
+  vars:
+  - - arg_hrp_name
+    - ==
+    - http-route-policy-0
+`
+		const httpRoutePolicySpec2 = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: HTTPRoutePolicy
+metadata:
+  name: http-route-policy-0
+spec:
+  targetRefs:
+  - group: networking.k8s.io
+    kind: Ingress
+    name: other
+  priority: 10
+  vars:
+  - - arg_hrp_name
+    - ==
+    - http-route-policy-0
+`
+		BeforeEach(func() {
+			By("create GatewayProxy")
+			err := s.CreateResourceFromStringWithNamespace(getGatewayProxySpec(), "default")
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+			time.Sleep(5 * time.Second)
+
+			By("create IngressClass")
+			err = s.CreateResourceFromStringWithNamespace(ingressClassSpec, "")
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
+			time.Sleep(5 * time.Second)
+		})
+
+		It("HTTPRoutePolicy targetRef an Ingress", func() {
+			By("create Ingress")
+			err := s.CreateResourceFromString(ingressSpec)
+			Expect(err).NotTo(HaveOccurred(), "creating Ingress")
+
+			By("request the route should be OK")
+			Eventually(func() int {
+				return s.NewAPISIXClient().GET("/get").WithHost("example.com").Expect().Raw().StatusCode
+			}).
+				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+
+			By("create HTTPRoutePolicy")
+			err = s.CreateResourceFromString(httpRoutePolicySpec0)
+			Expect(err).NotTo(HaveOccurred(), "creating HTTPRoutePolicy")
+
+			By("request the route without vars should be Not Found")
+			Eventually(func() int {
+				return s.NewAPISIXClient().GET("/get").WithHost("example.com").Expect().Raw().StatusCode
+			}).
+				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
+
+			By("request the route with the correct vars should be OK")
+			s.NewAPISIXClient().GET("/get").WithHost("example.com").
+				WithHeader("X-HRP-Name", "http-route-policy-0").Expect().Status(http.StatusOK)
+
+			By("update the HTTPRoutePolicy")
+			err = s.CreateResourceFromString(httpRoutePolicySpec1)
+			Expect(err).NotTo(HaveOccurred(), "updating HTTPRoutePolicy")
+
+			By("request with the old vars should be Not Found")
+			Eventually(func() int {
+				return s.NewAPISIXClient().GET("/get").WithHost("example.com").
+					WithHeader("X-HRP-Name", "http-route-policy-0").Expect().Raw().StatusCode
+			}).
+				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
+
+			By("request with the new vars should be OK")
+			s.NewAPISIXClient().GET("/get").WithHost("example.com").
+				WithQuery("hrp_name", "http-route-policy-0").Expect().Status(http.StatusOK)
+
+			By("update the HTTPRoutePolicy's targetRef")
+			err = s.CreateResourceFromString(httpRoutePolicySpec2)
+			Expect(err).NotTo(HaveOccurred(), "updating HTTPRoutePolicy")
+
+			By("request the route without vars should be OK")
+			Eventually(func() int {
+				return s.NewAPISIXClient().GET("/get").WithHost("example.com").Expect().Raw().StatusCode
+			}).
+				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+
+			By("revert the HTTPRoutePolicy")
+			err = s.CreateResourceFromString(httpRoutePolicySpec0)
+			Expect(err).NotTo(HaveOccurred(), "creating HTTPRoutePolicy")
+
+			By("request the route without vars should be Not Found")
+			Eventually(func() int {
+				return s.NewAPISIXClient().GET("/get").WithHost("example.com").Expect().Raw().StatusCode
+			}).
+				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
+
+			By("request the route with the correct vars should be OK")
+			s.NewAPISIXClient().GET("/get").WithHost("example.com").
+				WithHeader("X-HRP-Name", "http-route-policy-0").Expect().Status(http.StatusOK)
+
+			By("delete the HTTPRoutePolicy")
+			err = s.DeleteResource("HTTPRoutePolicy", "http-route-policy-0")
+			Expect(err).NotTo(HaveOccurred(), "deleting HTTPRoutePolicy")
+
+			By("request the route without vars should be OK")
+			Eventually(func() int {
+				return s.NewAPISIXClient().GET("/get").WithHost("example.com").Expect().Raw().StatusCode
+			}).
+				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 		})
 	})
 })

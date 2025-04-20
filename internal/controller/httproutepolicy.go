@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -19,8 +20,8 @@ func (r *HTTPRouteReconciler) processHTTPRoutePolicies(tctx *provider.TranslateC
 	// list HTTPRoutePolices which sectionName is not specified
 	var (
 		checker = conflictChecker{
-			httpRoute: httpRoute,
-			policies:  make(map[targetRefKey][]v1alpha1.HTTPRoutePolicy),
+			object:   httpRoute,
+			policies: make(map[targetRefKey][]v1alpha1.HTTPRoutePolicy),
 		}
 		listForAllRules v1alpha1.HTTPRoutePolicyList
 		key             = indexer.GenHTTPRoutePolicyIndexKey(gatewayv1.GroupName, "HTTPRoute", httpRoute.GetNamespace(), httpRoute.GetName(), "")
@@ -111,10 +112,39 @@ func (r *HTTPRouteReconciler) modifyHTTPRoutePolicyStatus(httpRoute *gatewayv1.H
 	_ = SetAncestors(&policy.Status, httpRoute.Spec.ParentRefs, condition)
 }
 
+func (r *IngressReconciler) processHTTPRoutePolicies(tctx *provider.TranslateContext, ingress *networkingv1.Ingress) error {
+	var (
+		checker = conflictChecker{
+			object:   ingress,
+			policies: make(map[targetRefKey][]v1alpha1.HTTPRoutePolicy),
+			conflict: false,
+		}
+		list v1alpha1.HTTPRoutePolicyList
+		key  = indexer.GenHTTPRoutePolicyIndexKey(networkingv1.GroupName, "Ingress", ingress.GetNamespace(), ingress.GetName(), "")
+	)
+	if err := r.List(context.Background(), &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
+		return err
+	}
+
+	for _, item := range list.Items {
+		checker.append("", item)
+		tctx.HTTPRoutePolicies["*"] = append(tctx.HTTPRoutePolicies["*"], item)
+	}
+
+	if checker.conflict {
+		// clear HTTPRoutePolicies from TranslateContext
+		tctx.HTTPRoutePolicies = make(map[string][]v1alpha1.HTTPRoutePolicy)
+	}
+
+	// todo: handle HTTPRoutePolicy status
+
+	return nil
+}
+
 type conflictChecker struct {
-	httpRoute *gatewayv1.HTTPRoute
-	policies  map[targetRefKey][]v1alpha1.HTTPRoutePolicy
-	conflict  bool
+	object   client.Object
+	policies map[targetRefKey][]v1alpha1.HTTPRoutePolicy
+	conflict bool
 }
 
 type targetRefKey struct {
@@ -127,8 +157,8 @@ type targetRefKey struct {
 func (c *conflictChecker) append(sectionName string, policy v1alpha1.HTTPRoutePolicy) {
 	key := targetRefKey{
 		Group:       gatewayv1.GroupName,
-		Namespace:   gatewayv1.Namespace(c.httpRoute.GetNamespace()),
-		Name:        gatewayv1.ObjectName(c.httpRoute.GetName()),
+		Namespace:   gatewayv1.Namespace(c.object.GetNamespace()),
+		Name:        gatewayv1.ObjectName(c.object.GetName()),
 		SectionName: gatewayv1.SectionName(sectionName),
 	}
 	c.policies[key] = append(c.policies[key], policy)

@@ -130,7 +130,7 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					DeleteFunc: func(e event.DeleteEvent) bool {
 						return true
 					},
-					UpdateFunc: r.httpRoutePolicyPredicateOnUpdate,
+					UpdateFunc: httpRoutePolicyPredicateOnUpdate(r.genericEvent, "HTTPRoute"),
 					GenericFunc: func(e event.GenericEvent) bool {
 						return false
 					},
@@ -400,7 +400,7 @@ func (r *HTTPRouteReconciler) listHTTPRouteByHTTPRoutePolicy(ctx context.Context
 		}
 
 		var httpRoute gatewayv1.HTTPRoute
-		if err := r.Get(ctx, client.ObjectKey{Namespace: key.Namespace, Name: key.Name}, &httpRoute); err != nil {
+		if err := r.Get(ctx, key, &httpRoute); err != nil {
 			r.Log.Error(err, "failed to get HTTPRoute by HTTPRoutePolicy targetRef", "namespace", key.Namespace, "name", key.Name)
 			continue
 		}
@@ -418,12 +418,7 @@ func (r *HTTPRouteReconciler) listHTTPRouteByHTTPRoutePolicy(ctx context.Context
 			}
 		}
 		keys[key] = struct{}{}
-		requests = append(requests, reconcile.Request{
-			NamespacedName: types.NamespacedName{
-				Namespace: key.Namespace,
-				Name:      key.Name,
-			},
-		})
+		requests = append(requests, reconcile.Request{NamespacedName: key})
 	}
 
 	return requests
@@ -466,14 +461,14 @@ func (r *HTTPRouteReconciler) listHTTPRouteForGenericEvent(ctx context.Context, 
 			if _, ok := namespacedNameMap[namespacedName]; !ok {
 				namespacedNameMap[namespacedName] = struct{}{}
 				if err := r.Get(ctx, namespacedName, new(gatewayv1.HTTPRoute)); err != nil {
-					r.Log.Info("failed to Get HTTPRoute", "namespace", namespacedName.Namespace, "name", namespacedName.Name)
+					r.Log.Error(err, "failed to Get HTTPRoute", "namespace", namespacedName.Namespace, "name", namespacedName.Name)
 					continue
 				}
 				requests = append(requests, reconcile.Request{NamespacedName: namespacedName})
 			}
 		}
 	default:
-		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to BackendTrafficPolicy")
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to BackendTrafficPolicy or HTTPRoutePolicy")
 	}
 	return requests
 }
@@ -595,28 +590,36 @@ func (r *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, 
 	return terror
 }
 
-func (r *HTTPRouteReconciler) httpRoutePolicyPredicateOnUpdate(e event.UpdateEvent) bool {
-	oldPolicy, ok0 := e.ObjectOld.(*v1alpha1.HTTPRoutePolicy)
-	newPolicy, ok1 := e.ObjectNew.(*v1alpha1.HTTPRoutePolicy)
-	if !ok0 || !ok1 {
-		return false
-	}
-	var discardsRefs = make(map[string]v1alpha2.LocalPolicyTargetReferenceWithSectionName)
-	for _, ref := range oldPolicy.Spec.TargetRefs {
-		key := indexer.GenHTTPRoutePolicyIndexKey(string(ref.Group), string(ref.Kind), e.ObjectOld.GetNamespace(), string(ref.Name), "")
-		discardsRefs[key] = ref
-	}
-	for _, ref := range newPolicy.Spec.TargetRefs {
-		key := indexer.GenHTTPRoutePolicyIndexKey(string(ref.Group), string(ref.Kind), e.ObjectOld.GetNamespace(), string(ref.Name), "")
-		delete(discardsRefs, key)
-	}
-	if len(discardsRefs) > 0 {
-		dump := oldPolicy.DeepCopy()
-		dump.Spec.TargetRefs = make([]v1alpha2.LocalPolicyTargetReferenceWithSectionName, 0, len(discardsRefs))
-		for _, ref := range discardsRefs {
-			dump.Spec.TargetRefs = append(dump.Spec.TargetRefs, ref)
+func httpRoutePolicyPredicateOnUpdate(c chan event.GenericEvent, kind string) func(e event.UpdateEvent) bool {
+	return func(e event.UpdateEvent) bool {
+		oldPolicy, ok0 := e.ObjectOld.(*v1alpha1.HTTPRoutePolicy)
+		newPolicy, ok1 := e.ObjectNew.(*v1alpha1.HTTPRoutePolicy)
+		if !ok0 || !ok1 {
+			return false
 		}
-		r.genericEvent <- event.GenericEvent{Object: dump}
+		var discardsRefs = make(map[string]v1alpha2.LocalPolicyTargetReferenceWithSectionName)
+		for _, ref := range oldPolicy.Spec.TargetRefs {
+			if string(ref.Kind) != kind {
+				continue
+			}
+			key := indexer.GenHTTPRoutePolicyIndexKey(string(ref.Group), string(ref.Kind), e.ObjectOld.GetNamespace(), string(ref.Name), "")
+			discardsRefs[key] = ref
+		}
+		for _, ref := range newPolicy.Spec.TargetRefs {
+			if string(ref.Kind) != kind {
+				continue
+			}
+			key := indexer.GenHTTPRoutePolicyIndexKey(string(ref.Group), string(ref.Kind), e.ObjectOld.GetNamespace(), string(ref.Name), "")
+			delete(discardsRefs, key)
+		}
+		if len(discardsRefs) > 0 {
+			dump := oldPolicy.DeepCopy()
+			dump.Spec.TargetRefs = make([]v1alpha2.LocalPolicyTargetReferenceWithSectionName, 0, len(discardsRefs))
+			for _, ref := range discardsRefs {
+				dump.Spec.TargetRefs = append(dump.Spec.TargetRefs, ref)
+			}
+			c <- event.GenericEvent{Object: dump}
+		}
+		return true
 	}
-	return true
 }

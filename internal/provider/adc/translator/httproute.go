@@ -12,6 +12,7 @@ import (
 	"k8s.io/utils/ptr"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/gopkg/pkg/log"
 
 	adctypes "github.com/api7/api7-ingress-controller/api/adc"
@@ -231,10 +232,22 @@ func (t *Translator) fillPluginFromHTTPRequestRedirectFilter(plugins adctypes.Pl
 	plugin.URI = uri
 }
 
-func (t *Translator) fillHTTPRoutePolicies(tctx *provider.TranslateContext, rule gatewayv1.HTTPRouteRule, routes []*adctypes.Route) {
-	policies := tctx.HTTPRoutePolicies["*"] // policies which not specify a sectionName
+func (t *Translator) fillHTTPRoutePoliciesForHTTPRoute(tctx *provider.TranslateContext, routes []*adctypes.Route, rule gatewayv1.HTTPRouteRule) {
+	var keys = []string{"*"}
 	if rule.Name != nil {
-		policies = append(policies, tctx.HTTPRoutePolicies[string(*rule.Name)]...) // append policies which specify the sectionName as the same as rule.name
+		keys = append(keys, string(*rule.Name))
+	}
+	t.fillHTTPRoutePolicies(tctx, routes, keys...)
+}
+
+func (t *Translator) fillHTTPRoutePoliciesForIngress(tctx *provider.TranslateContext, routes []*adctypes.Route) {
+	t.fillHTTPRoutePolicies(tctx, routes, "*")
+}
+
+func (t *Translator) fillHTTPRoutePolicies(tctx *provider.TranslateContext, routes []*adctypes.Route, ctxKeys ...string) {
+	var policies []v1alpha1.HTTPRoutePolicy
+	for _, key := range ctxKeys {
+		policies = append(policies, tctx.HTTPRoutePolicies[key]...)
 	}
 
 	for _, policy := range policies {
@@ -352,7 +365,7 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 			route.EnableWebsocket = ptr.To(true)
 			routes = append(routes, route)
 		}
-		t.fillHTTPRoutePolicies(tctx, rule, routes)
+		t.fillHTTPRoutePoliciesForHTTPRoute(tctx, routes, rule)
 		service.Routes = routes
 
 		result.Services = append(result.Services, service)
