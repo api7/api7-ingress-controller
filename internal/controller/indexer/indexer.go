@@ -334,7 +334,7 @@ func HTTPRoutePolicyIndexFunc(rawObj client.Object) []string {
 		if ref.SectionName != nil {
 			sectionName = string(*ref.SectionName)
 		}
-		keys = append(keys, GenHTTPRoutePolicyIndexKey(v1alpha1.GroupVersion.Group, string(ref.Kind), hrp.GetNamespace(), string(ref.Name), sectionName))
+		keys = append(keys, GenHTTPRoutePolicyIndexKey(string(ref.Group), string(ref.Kind), hrp.GetNamespace(), string(ref.Name), sectionName))
 	}
 	return keys
 }

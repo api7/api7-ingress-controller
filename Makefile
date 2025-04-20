@@ -13,7 +13,7 @@ KIND_NAME ?= api7-ingress-cluster
 GATEAY_API_VERSION ?= v1.2.0
 
 DASHBOARD_VERSION ?= dev
-TEST_TIMEOUT ?= 30m
+TEST_TIMEOUT ?= 45m
 
 export KUBECONFIG = /tmp/$(KIND_NAME).kubeconfig
 

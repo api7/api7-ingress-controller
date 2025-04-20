@@ -5,6 +5,7 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -22,7 +23,7 @@ func (r *HTTPRouteReconciler) processHTTPRoutePolicies(tctx *provider.TranslateC
 			policies:  make(map[targetRefKey][]v1alpha1.HTTPRoutePolicy),
 		}
 		listForAllRules v1alpha1.HTTPRoutePolicyList
-		key             = indexer.GenHTTPRoutePolicyIndexKey(v1alpha1.GroupVersion.Group, "HTTPRoute", httpRoute.GetNamespace(), httpRoute.GetName(), "")
+		key             = indexer.GenHTTPRoutePolicyIndexKey(gatewayv1.GroupName, "HTTPRoute", httpRoute.GetNamespace(), httpRoute.GetName(), "")
 	)
 	if err := r.List(context.Background(), &listForAllRules, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
 		return err
@@ -41,7 +42,7 @@ func (r *HTTPRouteReconciler) processHTTPRoutePolicies(tctx *provider.TranslateC
 		var (
 			ruleName            = string(*rule.Name)
 			listForSectionRules v1alpha1.HTTPRoutePolicyList
-			key                 = indexer.GenHTTPRoutePolicyIndexKey(v1alpha1.GroupVersion.Group, "HTTPRoute", httpRoute.GetNamespace(), httpRoute.GetName(), ruleName)
+			key                 = indexer.GenHTTPRoutePolicyIndexKey(gatewayv1.GroupName, "HTTPRoute", httpRoute.GetNamespace(), httpRoute.GetName(), ruleName)
 		)
 		if err := r.List(context.Background(), &listForSectionRules, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
 			continue
@@ -136,7 +137,7 @@ func (c *conflictChecker) append(sectionName string, policy v1alpha1.HTTPRoutePo
 	Loop:
 		for _, items := range c.policies {
 			for _, item := range items {
-				if item.Spec.Priority != policy.Spec.Priority || *item.Spec.Priority != *policy.Spec.Priority {
+				if !ptr.Equal(item.Spec.Priority, policy.Spec.Priority) {
 					c.conflict = true
 					break Loop
 				}
