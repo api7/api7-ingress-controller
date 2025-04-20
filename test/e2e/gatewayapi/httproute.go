@@ -35,7 +35,7 @@ spec:
           value: "%s"
 `
 
-	var defautlGatewayClass = `
+	var gatewayClassYaml = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
@@ -44,7 +44,7 @@ spec:
   controllerName: %s
 `
 
-	var defautlGateway = `
+	var defaultGateway = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -61,7 +61,7 @@ spec:
       kind: GatewayProxy
       name: api7-proxy-config
 `
-	var defautlGatewayHTTPS = `
+	var defaultGatewayHTTPS = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -113,7 +113,7 @@ spec:
 
 		By("create GatewayClass")
 		gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
-		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defautlGatewayClass, gatewayClassName, s.GetControllerName()), "")
+		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewayClassYaml, gatewayClassName, s.GetControllerName()), "")
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 		time.Sleep(5 * time.Second)
 
@@ -124,7 +124,7 @@ spec:
 		Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"), "checking GatewayClass condition message")
 
 		By("create Gateway")
-		err = s.CreateResourceFromString(fmt.Sprintf(defautlGateway, gatewayClassName))
+		err = s.CreateResourceFromString(fmt.Sprintf(defaultGateway, gatewayClassName))
 		Expect(err).NotTo(HaveOccurred(), "creating Gateway")
 		time.Sleep(5 * time.Second)
 
@@ -146,7 +146,7 @@ spec:
 		createSecret(s, secretName)
 		By("create GatewayClass")
 		gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
-		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defautlGatewayClass, gatewayClassName, s.GetControllerName()), "")
+		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewayClassYaml, gatewayClassName, s.GetControllerName()), "")
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 		time.Sleep(5 * time.Second)
 
@@ -157,7 +157,7 @@ spec:
 		Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"), "checking GatewayClass condition message")
 
 		By("create Gateway")
-		err = s.CreateResourceFromString(fmt.Sprintf(defautlGatewayHTTPS, gatewayClassName))
+		err = s.CreateResourceFromString(fmt.Sprintf(defaultGatewayHTTPS, gatewayClassName))
 		Expect(err).NotTo(HaveOccurred(), "creating Gateway")
 		time.Sleep(5 * time.Second)
 
@@ -210,6 +210,157 @@ spec:
 				WithHost("api6.com").
 				Expect().
 				Status(404)
+		})
+	})
+
+	Context("HTTPRoute with Multiple Gateway", func() {
+		var additionalGatewayGroupID string
+		var additionalNamespace string
+		var additionalGatewayClassName string
+
+		var additionalGatewayProxyYaml = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: additional-proxy-config
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+`
+
+		var additionalGateway = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: additional-gateway
+spec:
+  gatewayClassName: %s
+  listeners:
+    - name: http-additional
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All
+  infrastructure:
+    parametersRef:
+      group: gateway.apisix.io
+      kind: GatewayProxy
+      name: additional-proxy-config
+`
+
+		// HTTPRoute that references both gateways
+		var multiGatewayHTTPRoute = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: multi-gateway-route
+spec:
+  parentRefs:
+  - name: api7ee
+    namespace: %s
+  - name: additional-gateway
+    namespace: %s
+  hostnames:
+  - httpbin.example
+  - httpbin-additional.example
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /get
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
+
+		BeforeEach(func() {
+			beforeEachHTTP()
+
+			By("Create additional gateway group")
+			var err error
+			additionalGatewayGroupID, additionalNamespace, err = s.CreateAdditionalGatewayGroup("multi-gw")
+			Expect(err).NotTo(HaveOccurred(), "creating additional gateway group")
+
+			By("Create additional GatewayProxy")
+			// Get admin key for the additional gateway group
+			resources, exists := s.GetAdditionalGatewayGroup(additionalGatewayGroupID)
+			Expect(exists).To(BeTrue(), "additional gateway group should exist")
+
+			By("Create additional GatewayClass")
+			additionalGatewayClassName = fmt.Sprintf("api7-%d", time.Now().Unix())
+			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewayClassYaml, additionalGatewayClassName, s.GetControllerName()), "")
+			Expect(err).NotTo(HaveOccurred(), "creating additional GatewayClass")
+			time.Sleep(5 * time.Second)
+			By("Check additional GatewayClass condition")
+			gcyaml, err := s.GetResourceYaml("GatewayClass", additionalGatewayClassName)
+			Expect(err).NotTo(HaveOccurred(), "getting additional GatewayClass yaml")
+			Expect(gcyaml).To(ContainSubstring(`status: "True"`), "checking additional GatewayClass condition status")
+			Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"), "checking additional GatewayClass condition message")
+
+			additionalGatewayProxy := fmt.Sprintf(additionalGatewayProxyYaml, framework.DashboardTLSEndpoint, resources.AdminAPIKey)
+			err = s.CreateResourceFromStringWithNamespace(additionalGatewayProxy, additionalNamespace)
+			Expect(err).NotTo(HaveOccurred(), "creating additional GatewayProxy")
+
+			By("Create additional Gateway")
+			err = s.CreateResourceFromStringWithNamespace(
+				fmt.Sprintf(additionalGateway, additionalGatewayClassName),
+				additionalNamespace,
+			)
+			Expect(err).NotTo(HaveOccurred(), "creating additional Gateway")
+			time.Sleep(5 * time.Second)
+		})
+
+		It("HTTPRoute should be accessible through both gateways", func() {
+			By("Create HTTPRoute referencing both gateways")
+			multiGatewayRoute := fmt.Sprintf(multiGatewayHTTPRoute, s.Namespace(), additionalNamespace)
+			ResourceApplied("HTTPRoute", "multi-gateway-route", multiGatewayRoute, 1)
+
+			By("Access through default gateway")
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.example").
+				Expect().
+				Status(http.StatusOK)
+
+			By("Access through additional gateway")
+			client, err := s.NewAPISIXClientForGatewayGroup(additionalGatewayGroupID)
+			Expect(err).NotTo(HaveOccurred(), "creating client for additional gateway")
+
+			client.
+				GET("/get").
+				WithHost("httpbin-additional.example").
+				Expect().
+				Status(http.StatusOK)
+
+			By("Delete Additional Gateway")
+			err = s.DeleteResourceFromStringWithNamespace(fmt.Sprintf(additionalGateway, additionalGatewayClassName), additionalNamespace)
+			Expect(err).NotTo(HaveOccurred(), "deleting additional Gateway")
+			time.Sleep(5 * time.Second)
+
+			By("HTTPRoute should still be accessible through default gateway")
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.example").
+				Expect().
+				Status(http.StatusOK)
+
+			By("HTTPRoute should not be accessible through additional gateway")
+			client, err = s.NewAPISIXClientForGatewayGroup(additionalGatewayGroupID)
+			Expect(err).NotTo(HaveOccurred(), "creating client for additional gateway")
+
+			client.
+				GET("/get").
+				WithHost("httpbin-additional.example").
+				Expect().
+				Status(http.StatusNotFound)
 		})
 	})
 

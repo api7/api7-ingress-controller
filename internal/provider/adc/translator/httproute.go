@@ -309,6 +309,7 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 				backend.Namespace = &namespace
 			}
 			upNodes := t.translateBackendRef(tctx, backend.BackendRef)
+			t.AttachBackendTrafficPolicyToUpstream(backend.BackendRef, tctx.BackendTrafficPolicies, upstream)
 			upstream.Nodes = append(upstream.Nodes, upNodes...)
 		}
 		t.attachBackendTrafficPolicyToUpstream(nil, upstream)
