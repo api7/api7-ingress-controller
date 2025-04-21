@@ -724,7 +724,7 @@ spec:
 			s.Logf(message)
 		})
 
-		FIt("HTTPRoutePolicy conflicts", func() {
+		It("HTTPRoutePolicy conflicts", func() {
 			const httpRoutePolicy0 = `
 apiVersion: gateway.apisix.io/v1alpha1
 kind: HTTPRoutePolicy
