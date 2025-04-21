@@ -61,7 +61,24 @@ kind: GatewayClass
 metadata:
   name: api7
 spec:
-  controllerName: "gateway.api7.io/api7-ingress-controller"
+  controllerName: "gateway.apisix.io/api7-ingress-controller"
+
+---
+
+apiVersion: gateway.apisix.io/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - ${ADMIN_ENDPOINT}   # https://127.0.0.1:7443
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "${ADMIN_KEY}"
 
 ---
 
@@ -75,8 +92,13 @@ spec:
   - name: http
     protocol: HTTP
     port: 80
+  infrastructure:
+    parametersRef:
+      group: gateway.apisix.io
+      kind: GatewayProxy
+      name: api7-proxy-config
 
---- 
+---
 
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -95,4 +117,3 @@ spec:
     backendRefs:
     - name: httpbin
       port: 80
-
