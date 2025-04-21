@@ -205,8 +205,6 @@ spec:
 	var beforeEach = func() {
 		By("create GatewayProxy")
 		gatewayProxy := fmt.Sprintf(defaultGatewayProxy, framework.DashboardTLSEndpoint, s.AdminKey())
-
-		By("create GatewayProxy")
 		err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 
