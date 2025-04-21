@@ -57,14 +57,8 @@ type GatewayProxyOpts struct {
 
 var defaultGatewayProxyOpts GatewayProxyOpts
 
-func TestMain(m *testing.M) {
-	RegisterFailHandler(Fail)
-	f := framework.NewFramework()
-
-	f.BeforeSuite()
-
-	// Check and delete specific namespaces if they exist
-	kubectl := k8s.NewKubectlOptions("", "", "default")
+func deleteNamespace(kubectl *k8s.KubectlOptions) {
+	// gateway api conformance test namespaces
 	namespacesToDelete := []string{
 		"gateway-conformance-infra",
 		"gateway-conformance-web-backend",
@@ -105,6 +99,17 @@ func TestMain(m *testing.M) {
 			GinkgoT().Logf("Namespace %s does not exist or cannot be accessed", ns)
 		}
 	}
+}
+
+func TestMain(m *testing.M) {
+	RegisterFailHandler(Fail)
+	f := framework.NewFramework()
+
+	f.BeforeSuite()
+
+	// Check and delete specific namespaces if they exist
+	kubectl := k8s.NewKubectlOptions("", "", "default")
+	deleteNamespace(kubectl)
 
 	namespace := "api7ee-conformance-test"
 
@@ -173,7 +178,6 @@ func patchGatewaysForConformanceTest(ctx context.Context, k8sClient client.Clien
 		patched := false
 		for i := range gatewayList.Items {
 			gateway := &gatewayList.Items[i]
-			GinkgoT().Logf("Patching Gateway %s", gateway.Name)
 
 			// check if the gateway already has infrastructure.parametersRef
 			if gateway.Spec.Infrastructure != nil &&
@@ -181,6 +185,7 @@ func patchGatewaysForConformanceTest(ctx context.Context, k8sClient client.Clien
 				continue
 			}
 
+			GinkgoT().Logf("Patching Gateway %s", gateway.Name)
 			// check if the gateway proxy has been created, if not, create it
 			if !gatewayProxyMap[gateway.Namespace] {
 				gatewayProxy := fmt.Sprintf(gatewayProxyYaml,
