@@ -4,7 +4,7 @@ ARG BASE_IMAGE_TAG=nonroot
 FROM debian:bullseye-slim AS deps
 WORKDIR /workspace
 
-ARG ADC_VERSION=0.18.0
+ARG ADC_VERSION=0.19.0
 ARG TARGETARCH
 
 RUN apt update \
