@@ -187,8 +187,8 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 				}
 			}
 			route.Uris = uris
-
 			service.Routes = []*adctypes.Route{route}
+			t.fillHTTPRoutePoliciesForIngress(tctx, service.Routes)
 			result.Services = append(result.Services, service)
 		}
 	}

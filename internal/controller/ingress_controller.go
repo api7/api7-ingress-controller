@@ -6,11 +6,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/api7/api7-ingress-controller/api/v1alpha1"
-	"github.com/api7/api7-ingress-controller/internal/controller/config"
-	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
-	"github.com/api7/api7-ingress-controller/internal/provider"
-	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
@@ -29,6 +24,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
+	"github.com/api7/api7-ingress-controller/internal/controller/config"
+	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
+	"github.com/api7/api7-ingress-controller/internal/provider"
+	"github.com/api7/gopkg/pkg/log"
 )
 
 // IngressReconciler reconciles a Ingress object.
@@ -77,6 +78,10 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			builder.WithPredicates(
 				BackendTrafficPolicyPredicateFunc(r.genericEvent),
 			),
+		).
+		Watches(&v1alpha1.HTTPRoutePolicy{},
+			handler.EnqueueRequestsFromMapFunc(r.listIngressesByHTTPRoutePolicy),
+			builder.WithPredicates(httpRoutePolicyPredicateFuncs(r.genericEvent)),
 		).
 		WatchesRawSource(
 			source.Channel(
@@ -143,6 +148,12 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// process backend services
 	if err := r.processBackends(tctx, ingress); err != nil {
 		r.Log.Error(err, "failed to process backend services", "ingress", ingress.Name)
+		return ctrl.Result{}, err
+	}
+
+	// process HTTPRoutePolicy
+	if err := r.processHTTPRoutePolicies(tctx, ingress); err != nil {
+		r.Log.Error(err, "failed to process HTTPRoutePolicy", "ingress", ingress.Name)
 		return ctrl.Result{}, err
 	}
 
@@ -415,13 +426,46 @@ func (r *IngressReconciler) listIngressForBackendTrafficPolicy(ctx context.Conte
 }
 
 func (r *IngressReconciler) listIngressForGenericEvent(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
-	switch v := obj.(type) {
+	switch obj.(type) {
 	case *v1alpha1.BackendTrafficPolicy:
-		requests = r.listIngressForBackendTrafficPolicy(ctx, v)
+		return r.listIngressForBackendTrafficPolicy(ctx, obj)
+	case *v1alpha1.HTTPRoutePolicy:
+		return r.listIngressesByHTTPRoutePolicy(ctx, obj)
 	default:
 		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to BackendTrafficPolicy")
+		return nil
 	}
-	return requests
+}
+
+func (r *IngressReconciler) listIngressesByHTTPRoutePolicy(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
+	httpRoutePolicy, ok := obj.(*v1alpha1.HTTPRoutePolicy)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to HTTPRoutePolicy")
+		return nil
+	}
+
+	var keys = make(map[types.NamespacedName]struct{})
+	for _, ref := range httpRoutePolicy.Spec.TargetRefs {
+		if ref.Kind != "Ingress" {
+			continue
+		}
+		key := types.NamespacedName{
+			Namespace: obj.GetNamespace(),
+			Name:      string(ref.Name),
+		}
+		if _, ok := keys[key]; ok {
+			continue
+		}
+
+		var ingress networkingv1.Ingress
+		if err := r.Get(ctx, key, &ingress); err != nil {
+			r.Log.Error(err, "failed to get Ingress By HTTPRoutePolicy targetRef", "namespace", key.Namespace, "name", key.Name)
+			continue
+		}
+		keys[key] = struct{}{}
+		requests = append(requests, reconcile.Request{NamespacedName: key})
+	}
+	return
 }
 
 // processTLS process the TLS configuration of the ingress

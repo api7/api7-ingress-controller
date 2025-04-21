@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -19,8 +20,8 @@ func (r *HTTPRouteReconciler) processHTTPRoutePolicies(tctx *provider.TranslateC
 	// list HTTPRoutePolices which sectionName is not specified
 	var (
 		checker = conflictChecker{
-			httpRoute: httpRoute,
-			policies:  make(map[targetRefKey][]v1alpha1.HTTPRoutePolicy),
+			object:   httpRoute,
+			policies: make(map[targetRefKey][]v1alpha1.HTTPRoutePolicy),
 		}
 		listForAllRules v1alpha1.HTTPRoutePolicyList
 		key             = indexer.GenHTTPRoutePolicyIndexKey(gatewayv1.GroupName, "HTTPRoute", httpRoute.GetNamespace(), httpRoute.GetName(), "")
@@ -88,7 +89,7 @@ func (r *HTTPRouteReconciler) processHTTPRoutePolicies(tctx *provider.TranslateC
 	for _, policies := range checker.policies {
 		for i := range policies {
 			policy := policies[i]
-			r.modifyHTTPRoutePolicyStatus(httpRoute, &policy, status, reason, message)
+			modifyHTTPRoutePolicyStatus(httpRoute.Spec.ParentRefs, &policy, status, reason, message)
 			tctx.StatusUpdaters = append(tctx.StatusUpdaters, &policy)
 		}
 	}
@@ -96,7 +97,49 @@ func (r *HTTPRouteReconciler) processHTTPRoutePolicies(tctx *provider.TranslateC
 	return nil
 }
 
-func (r *HTTPRouteReconciler) modifyHTTPRoutePolicyStatus(httpRoute *gatewayv1.HTTPRoute, policy *v1alpha1.HTTPRoutePolicy, status bool, reason, message string) {
+func (r *IngressReconciler) processHTTPRoutePolicies(tctx *provider.TranslateContext, ingress *networkingv1.Ingress) error {
+	var (
+		checker = conflictChecker{
+			object:   ingress,
+			policies: make(map[targetRefKey][]v1alpha1.HTTPRoutePolicy),
+			conflict: false,
+		}
+		list v1alpha1.HTTPRoutePolicyList
+		key  = indexer.GenHTTPRoutePolicyIndexKey(networkingv1.GroupName, "Ingress", ingress.GetNamespace(), ingress.GetName(), "")
+	)
+	if err := r.List(context.Background(), &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
+		return err
+	}
+
+	for _, item := range list.Items {
+		checker.append("", item)
+		tctx.HTTPRoutePolicies["*"] = append(tctx.HTTPRoutePolicies["*"], item)
+	}
+
+	var (
+		status  = true
+		reason  = string(v1alpha2.PolicyReasonAccepted)
+		message string
+	)
+	if checker.conflict {
+		status = false
+		reason = string(v1alpha2.PolicyReasonConflicted)
+		message = "HTTPRoutePolicy conflict with others target to the Ingress"
+
+		// clear HTTPRoutePolicies from TranslateContext
+		tctx.HTTPRoutePolicies = make(map[string][]v1alpha1.HTTPRoutePolicy)
+	}
+
+	for i := range list.Items {
+		policy := list.Items[i]
+		modifyHTTPRoutePolicyStatus(tctx.RouteParentRefs, &policy, status, reason, message)
+		tctx.StatusUpdaters = append(tctx.StatusUpdaters, &policy)
+	}
+
+	return nil
+}
+
+func modifyHTTPRoutePolicyStatus(parentRefs []gatewayv1.ParentReference, policy *v1alpha1.HTTPRoutePolicy, status bool, reason, message string) {
 	condition := metav1.Condition{
 		Type:               string(v1alpha2.PolicyConditionAccepted),
 		Status:             metav1.ConditionTrue,
@@ -108,13 +151,13 @@ func (r *HTTPRouteReconciler) modifyHTTPRoutePolicyStatus(httpRoute *gatewayv1.H
 	if !status {
 		condition.Status = metav1.ConditionFalse
 	}
-	_ = SetAncestors(&policy.Status, httpRoute.Spec.ParentRefs, condition)
+	_ = SetAncestors(&policy.Status, parentRefs, condition)
 }
 
 type conflictChecker struct {
-	httpRoute *gatewayv1.HTTPRoute
-	policies  map[targetRefKey][]v1alpha1.HTTPRoutePolicy
-	conflict  bool
+	object   client.Object
+	policies map[targetRefKey][]v1alpha1.HTTPRoutePolicy
+	conflict bool
 }
 
 type targetRefKey struct {
@@ -127,8 +170,8 @@ type targetRefKey struct {
 func (c *conflictChecker) append(sectionName string, policy v1alpha1.HTTPRoutePolicy) {
 	key := targetRefKey{
 		Group:       gatewayv1.GroupName,
-		Namespace:   gatewayv1.Namespace(c.httpRoute.GetNamespace()),
-		Name:        gatewayv1.ObjectName(c.httpRoute.GetName()),
+		Namespace:   gatewayv1.Namespace(c.object.GetNamespace()),
+		Name:        gatewayv1.ObjectName(c.object.GetName()),
 		SectionName: gatewayv1.SectionName(sectionName),
 	}
 	c.policies[key] = append(c.policies[key], policy)
