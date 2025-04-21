@@ -223,7 +223,7 @@ func patchGatewaysForConformanceTest(ctx context.Context, k8sClient client.Clien
 
 	// continuously monitor and patch gateway resources
 	go func() {
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
 
 		for {
