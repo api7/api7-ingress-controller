@@ -407,10 +407,7 @@ func (r *IngressReconciler) listIngressForBackendTrafficPolicy(ctx context.Conte
 		if _, ok := namespacedNameMap[key]; !ok {
 			namespacedNameMap[key] = struct{}{}
 			requests = append(requests, reconcile.Request{
-				NamespacedName: client.ObjectKey{
-					Namespace: ins.Namespace,
-					Name:      ins.Name,
-				},
+				NamespacedName: key,
 			})
 		}
 	}
