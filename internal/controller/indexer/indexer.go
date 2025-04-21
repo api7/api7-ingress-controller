@@ -23,7 +23,6 @@ const (
 	IngressClassRef    = "ingressClassRef"
 	ConsumerGatewayRef = "consumerGatewayRef"
 	PolicyTargetRefs   = "targetRefs"
-	PolicyTargetRefIng = "targetRefIng"
 )
 
 func SetupIndexer(mgr ctrl.Manager) error {
@@ -186,16 +185,6 @@ func setupIngressIndexer(mgr ctrl.Manager) error {
 		&networkingv1.IngressClass{},
 		IngressClass,
 		IngressClassIndexFunc,
-	); err != nil {
-		return err
-	}
-
-	// create HTTPRoutePolicy index
-	if err := mgr.GetFieldIndexer().IndexField(
-		context.Background(),
-		&v1alpha1.HTTPRoutePolicy{},
-		PolicyTargetRefIng,
-		IngressHTTPRouteIndexFunc,
 	); err != nil {
 		return err
 	}

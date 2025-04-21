@@ -409,25 +409,12 @@ func (r *IngressReconciler) listIngressesByHTTPRoutePolicy(ctx context.Context, 
 }
 
 func (r *IngressReconciler) listIngressesForGenericEvent(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
-	var namespacedNameMap = make(map[types.NamespacedName]struct{})
-
-	switch v := obj.(type) {
+	switch obj.(type) {
 	case *v1alpha1.HTTPRoutePolicy:
-		for _, ref := range v.Spec.TargetRefs {
-			namespacedName := types.NamespacedName{Namespace: v.GetNamespace(), Name: string(ref.Name)}
-			if _, ok := namespacedNameMap[namespacedName]; !ok {
-				namespacedNameMap[namespacedName] = struct{}{}
-				if err := r.Get(ctx, namespacedName, new(networkingv1.Ingress)); err != nil {
-					r.Log.Error(err, "failed to Get Ingress", "namespace", namespacedName.Namespace, "name", namespacedName.Name)
-					continue
-				}
-				requests = append(requests, reconcile.Request{NamespacedName: namespacedName})
-			}
-		}
+		return r.listIngressesByHTTPRoutePolicy(ctx, obj)
 	default:
 		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to HTTPRoutePolicy")
 	}
-
 	return
 }
 
