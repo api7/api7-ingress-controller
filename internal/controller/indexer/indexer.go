@@ -268,7 +268,7 @@ func IngressSecretIndexFunc(rawObj client.Object) []string {
 }
 
 func IngressHTTPRouteIndexFunc(rawObj client.Object) []string {
-	return []string{GenHTTPRoutePolicyIndexKey(networkingv1.GroupName, "Ingress", rawObj.GetGenerateName(), rawObj.GetName(), "")}
+	return []string{GenHTTPRoutePolicyIndexKey(networkingv1.GroupName, "Ingress", rawObj.GetNamespace(), rawObj.GetName(), "")}
 }
 
 func GenIndexKeyWithGK(group, kind, namespace, name string) string {
