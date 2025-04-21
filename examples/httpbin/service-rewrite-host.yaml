@@ -1,0 +1,12 @@
+apiVersion: gateway.apisix.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: httpbin
+spec:
+  # 解析到 upstream.nodes 当中
+  targetRefs:
+  - name: httpbin
+    kind: Service
+    group: ""
+  passHost: rewrite
+  upstreamHost: httpbin.example.com
