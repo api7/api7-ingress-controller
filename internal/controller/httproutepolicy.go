@@ -122,7 +122,8 @@ func (r *IngressReconciler) processHTTPRoutePolicies(tctx *provider.TranslateCon
 		list v1alpha1.HTTPRoutePolicyList
 		key  = indexer.GenHTTPRoutePolicyIndexKey(networkingv1.GroupName, "Ingress", ingress.GetNamespace(), ingress.GetName(), "")
 	)
-	if err := r.List(ctx, &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
+	if err := r.List(context.Background(), &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
+		return err
 	}
 
 	for _, item := range list.Items {
