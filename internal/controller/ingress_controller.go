@@ -19,12 +19,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 // IngressReconciler reconciles a Ingress object.
@@ -33,11 +37,14 @@ type IngressReconciler struct { //nolint:revive
 	Scheme *runtime.Scheme
 	Log    logr.Logger
 
-	Provider provider.Provider
+	Provider     provider.Provider
+	genericEvent chan event.GenericEvent
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.genericEvent = make(chan event.GenericEvent, 100)
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&networkingv1.Ingress{},
 			builder.WithPredicates(
@@ -64,6 +71,18 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.listIngressesBySecret),
+		).
+		Watches(&v1alpha1.BackendTrafficPolicy{},
+			handler.EnqueueRequestsFromMapFunc(r.listIngressForBackendTrafficPolicy),
+			builder.WithPredicates(
+				BackendTrafficPolicyPredicateFunc(r.genericEvent),
+			),
+		).
+		WatchesRawSource(
+			source.Channel(
+				r.genericEvent,
+				handler.EnqueueRequestsFromMapFunc(r.listIngressForGenericEvent),
+			),
 		).
 		Complete(r)
 }
@@ -103,6 +122,12 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
+	tctx.RouteParentRefs = append(tctx.RouteParentRefs, gatewayv1.ParentReference{
+		Group: ptr.To(gatewayv1.Group(ingressClass.GroupVersionKind().Group)),
+		Kind:  ptr.To(gatewayv1.Kind("IngressClass")),
+		Name:  gatewayv1.ObjectName(ingressClass.Name),
+	})
+
 	// process IngressClass parameters if they reference GatewayProxy
 	if err := r.processIngressClassParameters(ctx, tctx, ingress, ingressClass); err != nil {
 		r.Log.Error(err, "failed to process IngressClass parameters", "ingressClass", ingressClass.Name)
@@ -121,11 +146,16 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
+	ProcessBackendTrafficPolicy(r.Client, r.Log, tctx)
+
 	// update the ingress resources
 	if err := r.Provider.Update(ctx, tctx, ingress); err != nil {
 		r.Log.Error(err, "failed to update ingress resources", "ingress", ingress.Name)
 		return ctrl.Result{}, err
 	}
+
+	// update the status of related resources
+	UpdateStatus(r.Client, r.Log, tctx)
 
 	// update the ingress status
 	if err := r.updateStatus(ctx, tctx, ingress, ingressClass); err != nil {
@@ -337,6 +367,62 @@ func (r *IngressReconciler) listIngressesBySecret(ctx context.Context, obj clien
 				},
 			})
 		}
+	}
+	return requests
+}
+
+func (r *IngressReconciler) listIngressForBackendTrafficPolicy(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
+	v, ok := obj.(*v1alpha1.BackendTrafficPolicy)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to BackendTrafficPolicy")
+		return nil
+	}
+	var namespacedNameMap = make(map[types.NamespacedName]struct{})
+	ingresses := []networkingv1.Ingress{}
+	for _, ref := range v.Spec.TargetRefs {
+		service := &corev1.Service{}
+		if err := r.Get(ctx, client.ObjectKey{
+			Namespace: v.Namespace,
+			Name:      string(ref.Name),
+		}, service); err != nil {
+			if client.IgnoreNotFound(err) != nil {
+				r.Log.Error(err, "failed to get service", "namespace", v.Namespace, "name", ref.Name)
+			}
+			continue
+		}
+		ingressList := &networkingv1.IngressList{}
+		if err := r.List(ctx, ingressList, client.MatchingFields{
+			indexer.ServiceIndexRef: indexer.GenIndexKey(v.GetNamespace(), string(ref.Name)),
+		}); err != nil {
+			r.Log.Error(err, "failed to list HTTPRoutes for BackendTrafficPolicy", "namespace", v.GetNamespace(), "ref", ref.Name)
+			return nil
+		}
+		ingresses = append(ingresses, ingressList.Items...)
+	}
+	for _, ins := range ingresses {
+		key := types.NamespacedName{
+			Namespace: ins.Namespace,
+			Name:      ins.Name,
+		}
+		if _, ok := namespacedNameMap[key]; !ok {
+			namespacedNameMap[key] = struct{}{}
+			requests = append(requests, reconcile.Request{
+				NamespacedName: client.ObjectKey{
+					Namespace: ins.Namespace,
+					Name:      ins.Name,
+				},
+			})
+		}
+	}
+	return requests
+}
+
+func (r *IngressReconciler) listIngressForGenericEvent(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
+	switch v := obj.(type) {
+	case *v1alpha1.BackendTrafficPolicy:
+		requests = r.listIngressForBackendTrafficPolicy(ctx, v)
+	default:
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to BackendTrafficPolicy")
 	}
 	return requests
 }

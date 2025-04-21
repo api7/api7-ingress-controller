@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"strings"
 
-	adctypes "github.com/api7/api7-ingress-controller/api/adc"
-	"github.com/api7/api7-ingress-controller/internal/controller/label"
-	"github.com/api7/api7-ingress-controller/internal/id"
-	"github.com/api7/api7-ingress-controller/internal/provider"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	adctypes "github.com/api7/api7-ingress-controller/api/adc"
+	"github.com/api7/api7-ingress-controller/internal/controller/label"
+	"github.com/api7/api7-ingress-controller/internal/id"
+	"github.com/api7/api7-ingress-controller/internal/provider"
 )
 
 func (t *Translator) translateIngressTLS(ingressTLS *networkingv1.IngressTLS, secret *corev1.Secret, labels map[string]string) (*adctypes.SSL, error) {
@@ -109,7 +110,10 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 				Name:      backendService.Name,
 			}]
 
-			t.attachBackendTrafficPolicyToUpstream(nil, upstream)
+			if backendService != nil {
+				backendRef := convertBackendRef(obj.Namespace, backendService.Name, "Service")
+				t.AttachBackendTrafficPolicyToUpstream(backendRef, tctx.BackendTrafficPolicies, upstream)
+			}
 
 			// get the service port configuration
 			var servicePort int32 = 0
