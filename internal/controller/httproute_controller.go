@@ -75,67 +75,12 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&v1alpha1.BackendTrafficPolicy{},
 			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesForBackendTrafficPolicy),
 			builder.WithPredicates(
-				predicate.Funcs{
-					GenericFunc: func(e event.GenericEvent) bool {
-						return false
-					},
-					DeleteFunc: func(e event.DeleteEvent) bool {
-						return true
-					},
-					CreateFunc: func(e event.CreateEvent) bool {
-						return true
-					},
-					UpdateFunc: func(e event.UpdateEvent) bool {
-						oldObj, ok := e.ObjectOld.(*v1alpha1.BackendTrafficPolicy)
-						newObj, ok2 := e.ObjectNew.(*v1alpha1.BackendTrafficPolicy)
-						if !ok || !ok2 {
-							return false
-						}
-						oldRefs := oldObj.Spec.TargetRefs
-						newRefs := newObj.Spec.TargetRefs
-
-						oldRefMap := make(map[string]v1alpha1.BackendPolicyTargetReferenceWithSectionName)
-						for _, ref := range oldRefs {
-							key := fmt.Sprintf("%s/%s/%s", ref.Group, ref.Kind, ref.Name)
-							oldRefMap[key] = ref
-						}
-
-						for _, ref := range newRefs {
-							key := fmt.Sprintf("%s/%s/%s", ref.Group, ref.Kind, ref.Name)
-							delete(oldRefMap, key)
-						}
-						if len(oldRefMap) > 0 {
-							targetRefs := make([]v1alpha1.BackendPolicyTargetReferenceWithSectionName, 0, len(oldRefs))
-							for _, ref := range oldRefMap {
-								targetRefs = append(targetRefs, ref)
-							}
-							dump := oldObj.DeepCopy()
-							dump.Spec.TargetRefs = targetRefs
-							r.genericEvent <- event.GenericEvent{
-								Object: dump,
-							}
-						}
-						return true
-					},
-				},
+				BackendTrafficPolicyPredicateFunc(r.genericEvent),
 			),
 		).
 		Watches(&v1alpha1.HTTPRoutePolicy{},
 			handler.EnqueueRequestsFromMapFunc(r.listHTTPRouteByHTTPRoutePolicy),
-			builder.WithPredicates(
-				predicate.Funcs{
-					CreateFunc: func(e event.CreateEvent) bool {
-						return true
-					},
-					DeleteFunc: func(e event.DeleteEvent) bool {
-						return true
-					},
-					UpdateFunc: httpRoutePolicyPredicateOnUpdate(r.genericEvent, "HTTPRoute"),
-					GenericFunc: func(e event.GenericEvent) bool {
-						return false
-					},
-				},
-			),
+			builder.WithPredicates(httpRoutePolicyPredicateFuncs(r.genericEvent)),
 		).
 		WatchesRawSource(
 			source.Channel(
@@ -425,52 +370,15 @@ func (r *HTTPRouteReconciler) listHTTPRouteByHTTPRoutePolicy(ctx context.Context
 }
 
 func (r *HTTPRouteReconciler) listHTTPRouteForGenericEvent(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
-	var namespacedNameMap = make(map[types.NamespacedName]struct{})
-
-	switch v := obj.(type) {
+	switch obj.(type) {
 	case *v1alpha1.BackendTrafficPolicy:
-		httprouteAll := []gatewayv1.HTTPRoute{}
-		for _, ref := range v.Spec.TargetRefs {
-			httprouteList := &gatewayv1.HTTPRouteList{}
-			if err := r.List(ctx, httprouteList, client.MatchingFields{
-				indexer.ServiceIndexRef: indexer.GenIndexKey(v.GetNamespace(), string(ref.Name)),
-			}); err != nil {
-				r.Log.Error(err, "failed to list HTTPRoutes for BackendTrafficPolicy", "namespace", v.GetNamespace(), "ref", ref.Name)
-				return nil
-			}
-			httprouteAll = append(httprouteAll, httprouteList.Items...)
-		}
-		for _, hr := range httprouteAll {
-			key := types.NamespacedName{
-				Namespace: hr.Namespace,
-				Name:      hr.Name,
-			}
-			if _, ok := namespacedNameMap[key]; !ok {
-				namespacedNameMap[key] = struct{}{}
-				requests = append(requests, reconcile.Request{
-					NamespacedName: client.ObjectKey{
-						Namespace: hr.Namespace,
-						Name:      hr.Name,
-					},
-				})
-			}
-		}
+		return r.listHTTPRoutesForBackendTrafficPolicy(ctx, obj)
 	case *v1alpha1.HTTPRoutePolicy:
-		for _, ref := range v.Spec.TargetRefs {
-			namespacedName := types.NamespacedName{Namespace: v.GetNamespace(), Name: string(ref.Name)}
-			if _, ok := namespacedNameMap[namespacedName]; !ok {
-				namespacedNameMap[namespacedName] = struct{}{}
-				if err := r.Get(ctx, namespacedName, new(gatewayv1.HTTPRoute)); err != nil {
-					r.Log.Error(err, "failed to Get HTTPRoute", "namespace", namespacedName.Namespace, "name", namespacedName.Name)
-					continue
-				}
-				requests = append(requests, reconcile.Request{NamespacedName: namespacedName})
-			}
-		}
+		return r.listHTTPRouteByHTTPRoutePolicy(ctx, obj)
 	default:
 		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to BackendTrafficPolicy or HTTPRoutePolicy")
+		return nil
 	}
-	return requests
 }
 
 func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.TranslateContext) error {
@@ -590,36 +498,41 @@ func (r *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, 
 	return terror
 }
 
-func httpRoutePolicyPredicateOnUpdate(c chan event.GenericEvent, kind string) func(e event.UpdateEvent) bool {
-	return func(e event.UpdateEvent) bool {
-		oldPolicy, ok0 := e.ObjectOld.(*v1alpha1.HTTPRoutePolicy)
-		newPolicy, ok1 := e.ObjectNew.(*v1alpha1.HTTPRoutePolicy)
-		if !ok0 || !ok1 {
+func httpRoutePolicyPredicateFuncs(channel chan event.GenericEvent) predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return true
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return true
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldPolicy, ok0 := e.ObjectOld.(*v1alpha1.HTTPRoutePolicy)
+			newPolicy, ok1 := e.ObjectNew.(*v1alpha1.HTTPRoutePolicy)
+			if !ok0 || !ok1 {
+				return false
+			}
+			var discardsRefs = make(map[string]v1alpha2.LocalPolicyTargetReferenceWithSectionName)
+			for _, ref := range oldPolicy.Spec.TargetRefs {
+				key := indexer.GenHTTPRoutePolicyIndexKey(string(ref.Group), string(ref.Kind), e.ObjectOld.GetNamespace(), string(ref.Name), "")
+				discardsRefs[key] = ref
+			}
+			for _, ref := range newPolicy.Spec.TargetRefs {
+				key := indexer.GenHTTPRoutePolicyIndexKey(string(ref.Group), string(ref.Kind), e.ObjectOld.GetNamespace(), string(ref.Name), "")
+				delete(discardsRefs, key)
+			}
+			if len(discardsRefs) > 0 {
+				dump := oldPolicy.DeepCopy()
+				dump.Spec.TargetRefs = make([]v1alpha2.LocalPolicyTargetReferenceWithSectionName, 0, len(discardsRefs))
+				for _, ref := range discardsRefs {
+					dump.Spec.TargetRefs = append(dump.Spec.TargetRefs, ref)
+				}
+				channel <- event.GenericEvent{Object: dump}
+			}
+			return true
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
 			return false
-		}
-		var discardsRefs = make(map[string]v1alpha2.LocalPolicyTargetReferenceWithSectionName)
-		for _, ref := range oldPolicy.Spec.TargetRefs {
-			if string(ref.Kind) != kind {
-				continue
-			}
-			key := indexer.GenHTTPRoutePolicyIndexKey(string(ref.Group), string(ref.Kind), e.ObjectOld.GetNamespace(), string(ref.Name), "")
-			discardsRefs[key] = ref
-		}
-		for _, ref := range newPolicy.Spec.TargetRefs {
-			if string(ref.Kind) != kind {
-				continue
-			}
-			key := indexer.GenHTTPRoutePolicyIndexKey(string(ref.Group), string(ref.Kind), e.ObjectOld.GetNamespace(), string(ref.Name), "")
-			delete(discardsRefs, key)
-		}
-		if len(discardsRefs) > 0 {
-			dump := oldPolicy.DeepCopy()
-			dump.Spec.TargetRefs = make([]v1alpha2.LocalPolicyTargetReferenceWithSectionName, 0, len(discardsRefs))
-			for _, ref := range discardsRefs {
-				dump.Spec.TargetRefs = append(dump.Spec.TargetRefs, ref)
-			}
-			c <- event.GenericEvent{Object: dump}
-		}
-		return true
+		},
 	}
 }

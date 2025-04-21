@@ -256,10 +256,6 @@ func IngressSecretIndexFunc(rawObj client.Object) []string {
 	return secrets
 }
 
-func IngressHTTPRouteIndexFunc(rawObj client.Object) []string {
-	return []string{GenHTTPRoutePolicyIndexKey(networkingv1.GroupName, "Ingress", rawObj.GetNamespace(), rawObj.GetName(), "")}
-}
-
 func GenIndexKeyWithGK(group, kind, namespace, name string) string {
 	gvk := schema.GroupKind{
 		Group: group,

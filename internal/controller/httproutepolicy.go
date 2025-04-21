@@ -89,27 +89,12 @@ func (r *HTTPRouteReconciler) processHTTPRoutePolicies(tctx *provider.TranslateC
 	for _, policies := range checker.policies {
 		for i := range policies {
 			policy := policies[i]
-			r.modifyHTTPRoutePolicyStatus(httpRoute, &policy, status, reason, message)
+			modifyHTTPRoutePolicyStatus(httpRoute.Spec.ParentRefs, &policy, status, reason, message)
 			tctx.StatusUpdaters = append(tctx.StatusUpdaters, &policy)
 		}
 	}
 
 	return nil
-}
-
-func (r *HTTPRouteReconciler) modifyHTTPRoutePolicyStatus(httpRoute *gatewayv1.HTTPRoute, policy *v1alpha1.HTTPRoutePolicy, status bool, reason, message string) {
-	condition := metav1.Condition{
-		Type:               string(v1alpha2.PolicyConditionAccepted),
-		Status:             metav1.ConditionTrue,
-		ObservedGeneration: policy.GetGeneration(),
-		LastTransitionTime: metav1.Time{Time: time.Now()},
-		Reason:             reason,
-		Message:            message,
-	}
-	if !status {
-		condition.Status = metav1.ConditionFalse
-	}
-	_ = SetAncestors(&policy.Status, httpRoute.Spec.ParentRefs, condition)
 }
 
 func (r *IngressReconciler) processHTTPRoutePolicies(tctx *provider.TranslateContext, ingress *networkingv1.Ingress) error {
@@ -131,14 +116,42 @@ func (r *IngressReconciler) processHTTPRoutePolicies(tctx *provider.TranslateCon
 		tctx.HTTPRoutePolicies["*"] = append(tctx.HTTPRoutePolicies["*"], item)
 	}
 
+	var (
+		status  = true
+		reason  = string(v1alpha2.PolicyReasonAccepted)
+		message string
+	)
 	if checker.conflict {
+		status = false
+		reason = string(v1alpha2.PolicyReasonConflicted)
+		message = "HTTPRoutePolicy conflict with others target to the Ingress"
+
 		// clear HTTPRoutePolicies from TranslateContext
 		tctx.HTTPRoutePolicies = make(map[string][]v1alpha1.HTTPRoutePolicy)
 	}
 
-	// todo: handle HTTPRoutePolicy status
+	for i := range list.Items {
+		policy := list.Items[i]
+		modifyHTTPRoutePolicyStatus(tctx.RouteParentRefs, &policy, status, reason, message)
+		tctx.StatusUpdaters = append(tctx.StatusUpdaters, &policy)
+	}
 
 	return nil
+}
+
+func modifyHTTPRoutePolicyStatus(parentRefs []gatewayv1.ParentReference, policy *v1alpha1.HTTPRoutePolicy, status bool, reason, message string) {
+	condition := metav1.Condition{
+		Type:               string(v1alpha2.PolicyConditionAccepted),
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: policy.GetGeneration(),
+		LastTransitionTime: metav1.Time{Time: time.Now()},
+		Reason:             reason,
+		Message:            message,
+	}
+	if !status {
+		condition.Status = metav1.ConditionFalse
+	}
+	_ = SetAncestors(&policy.Status, parentRefs, condition)
 }
 
 type conflictChecker struct {

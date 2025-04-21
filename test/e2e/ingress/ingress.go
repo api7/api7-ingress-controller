@@ -468,6 +468,22 @@ spec:
     - ==
     - http-route-policy-0
 `
+		const httpRoutePolicySpec3 = `
+apiVersion: gateway.apisix.io/v1alpha1
+kind: HTTPRoutePolicy
+metadata:
+  name: http-route-policy-1
+spec:
+  targetRefs:
+  - group: networking.k8s.io
+    kind: Ingress
+    name: default
+  priority: 20
+  vars:
+  - - arg_hrp_name
+    - ==
+    - http-route-policy-0
+`
 		BeforeEach(func() {
 			By("create GatewayProxy")
 			err := s.CreateResourceFromStringWithNamespace(getGatewayProxySpec(), "default")
@@ -494,6 +510,12 @@ spec:
 			By("create HTTPRoutePolicy")
 			err = s.CreateResourceFromString(httpRoutePolicySpec0)
 			Expect(err).NotTo(HaveOccurred(), "creating HTTPRoutePolicy")
+			Eventually(func() string {
+				spec, err := s.GetResourceYaml("HTTPRoutePolicy", "http-route-policy-0")
+				Expect(err).NotTo(HaveOccurred(), "HTTPRoutePolicy status should be True")
+				return spec
+			}).
+				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(ContainSubstring(`status: "True"`))
 
 			By("request the route without vars should be Not Found")
 			Eventually(func() int {
@@ -544,9 +566,20 @@ spec:
 			s.NewAPISIXClient().GET("/get").WithHost("example.com").
 				WithHeader("X-HRP-Name", "http-route-policy-0").Expect().Status(http.StatusOK)
 
+			By("apply conflict HTTPRoutePolicy")
+			err = s.CreateResourceFromString(httpRoutePolicySpec3)
+			Expect(err).NotTo(HaveOccurred(), "creating HTTPRoutePolicy")
+			Eventually(func() string {
+				spec, err := s.GetResourceYaml("HTTPRoutePolicy", "http-route-policy-1")
+				Expect(err).NotTo(HaveOccurred(), "get HTTPRoutePolicy")
+				return spec
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(ContainSubstring("reason: Conflicted"))
+
 			By("delete the HTTPRoutePolicy")
-			err = s.DeleteResource("HTTPRoutePolicy", "http-route-policy-0")
-			Expect(err).NotTo(HaveOccurred(), "deleting HTTPRoutePolicy")
+			for _, name := range []string{"http-route-policy-0", "http-route-policy-1"} {
+				err = s.DeleteResource("HTTPRoutePolicy", name)
+				Expect(err).NotTo(HaveOccurred(), "deleting HTTPRoutePolicy")
+			}
 
 			By("request the route without vars should be OK")
 			Eventually(func() int {
