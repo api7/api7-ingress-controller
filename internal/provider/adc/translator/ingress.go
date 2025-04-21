@@ -105,12 +105,12 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 
 			// get the EndpointSlice of the backend service
 			backendService := path.Backend.Service
-			endpointSlices := tctx.EndpointSlices[types.NamespacedName{
-				Namespace: obj.Namespace,
-				Name:      backendService.Name,
-			}]
-
+			var endpointSlices []discoveryv1.EndpointSlice
 			if backendService != nil {
+				endpointSlices = tctx.EndpointSlices[types.NamespacedName{
+					Namespace: obj.Namespace,
+					Name:      backendService.Name,
+				}]
 				backendRef := convertBackendRef(obj.Namespace, backendService.Name, "Service")
 				t.AttachBackendTrafficPolicyToUpstream(backendRef, tctx.BackendTrafficPolicies, upstream)
 			}
