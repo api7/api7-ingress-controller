@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"strings"
 
-	adctypes "github.com/api7/api7-ingress-controller/api/adc"
-	"github.com/api7/api7-ingress-controller/internal/controller/label"
-	"github.com/api7/api7-ingress-controller/internal/id"
-	"github.com/api7/api7-ingress-controller/internal/provider"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	adctypes "github.com/api7/api7-ingress-controller/api/adc"
+	"github.com/api7/api7-ingress-controller/internal/controller/label"
+	"github.com/api7/api7-ingress-controller/internal/id"
+	"github.com/api7/api7-ingress-controller/internal/provider"
 )
 
 func (t *Translator) translateIngressTLS(ingressTLS *networkingv1.IngressTLS, secret *corev1.Secret, labels map[string]string) (*adctypes.SSL, error) {
@@ -104,12 +105,15 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 
 			// get the EndpointSlice of the backend service
 			backendService := path.Backend.Service
-			endpointSlices := tctx.EndpointSlices[types.NamespacedName{
-				Namespace: obj.Namespace,
-				Name:      backendService.Name,
-			}]
-
-			t.attachBackendTrafficPolicyToUpstream(nil, upstream)
+			var endpointSlices []discoveryv1.EndpointSlice
+			if backendService != nil {
+				endpointSlices = tctx.EndpointSlices[types.NamespacedName{
+					Namespace: obj.Namespace,
+					Name:      backendService.Name,
+				}]
+				backendRef := convertBackendRef(obj.Namespace, backendService.Name, "Service")
+				t.AttachBackendTrafficPolicyToUpstream(backendRef, tctx.BackendTrafficPolicies, upstream)
+			}
 
 			// get the service port configuration
 			var servicePort int32 = 0

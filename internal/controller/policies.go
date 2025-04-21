@@ -14,6 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
@@ -28,6 +30,52 @@ type PolicyTargetKey struct {
 
 func (p PolicyTargetKey) String() string {
 	return p.NsName.String() + "/" + p.GroupKind.String()
+}
+
+func BackendTrafficPolicyPredicateFunc(channel chan event.GenericEvent) predicate.Predicate {
+	return predicate.Funcs{
+		GenericFunc: func(e event.GenericEvent) bool {
+			return false
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return true
+		},
+		CreateFunc: func(e event.CreateEvent) bool {
+			return true
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldObj, ok := e.ObjectOld.(*v1alpha1.BackendTrafficPolicy)
+			newObj, ok2 := e.ObjectNew.(*v1alpha1.BackendTrafficPolicy)
+			if !ok || !ok2 {
+				return false
+			}
+			oldRefs := oldObj.Spec.TargetRefs
+			newRefs := newObj.Spec.TargetRefs
+
+			oldRefMap := make(map[string]v1alpha1.BackendPolicyTargetReferenceWithSectionName)
+			for _, ref := range oldRefs {
+				key := fmt.Sprintf("%s/%s/%s", ref.Group, ref.Kind, ref.Name)
+				oldRefMap[key] = ref
+			}
+
+			for _, ref := range newRefs {
+				key := fmt.Sprintf("%s/%s/%s", ref.Group, ref.Kind, ref.Name)
+				delete(oldRefMap, key)
+			}
+			if len(oldRefMap) > 0 {
+				targetRefs := make([]v1alpha1.BackendPolicyTargetReferenceWithSectionName, 0, len(oldRefs))
+				for _, ref := range oldRefMap {
+					targetRefs = append(targetRefs, ref)
+				}
+				dump := oldObj.DeepCopy()
+				dump.Spec.TargetRefs = targetRefs
+				channel <- event.GenericEvent{
+					Object: dump,
+				}
+			}
+			return true
+		},
+	}
 }
 
 func ProcessBackendTrafficPolicy(
@@ -131,10 +179,7 @@ func SetAncestorStatus(status *v1alpha1.PolicyStatus, ancestorStatus gatewayv1al
 	}
 	condition := ancestorStatus.Conditions[0]
 	for _, c := range status.Ancestors {
-		if c.AncestorRef.Name == ancestorStatus.AncestorRef.Name &&
-			ptr.Equal(c.AncestorRef.Namespace, ancestorStatus.AncestorRef.Namespace) &&
-			ptr.Equal(c.AncestorRef.Group, ancestorStatus.AncestorRef.Group) &&
-			ptr.Equal(c.AncestorRef.Kind, ancestorStatus.AncestorRef.Kind) &&
+		if parentRefValueEqual(ancestorStatus.AncestorRef, c.AncestorRef) &&
 			c.ControllerName == ancestorStatus.ControllerName {
 			if !VerifyConditions(&c.Conditions, condition) {
 				return false
