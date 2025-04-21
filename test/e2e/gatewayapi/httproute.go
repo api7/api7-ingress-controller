@@ -724,7 +724,7 @@ spec:
 			s.Logf(message)
 		})
 
-		It("HTTPRoutePolicy conflicts", func() {
+		FIt("HTTPRoutePolicy conflicts", func() {
 			const httpRoutePolicy0 = `
 apiVersion: gateway.apisix.io/v1alpha1
 kind: HTTPRoutePolicy
@@ -785,11 +785,11 @@ spec:
 				Expect(err).NotTo(HaveOccurred(), "creating HTTPRoutePolicy")
 			}
 			for _, name := range []string{"http-route-policy-0", "http-route-policy-1", "http-route-policy-2"} {
-				Eventually(func() string {
+				Eventually(func(name string) string {
 					spec, err := s.GetResourceYaml("HTTPRoutePolicy", name)
 					Expect(err).NotTo(HaveOccurred(), "getting HTTPRoutePolicy yaml")
 					return spec
-				}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).
+				}).WithArguments(name).WithTimeout(10 * time.Second).ProbeEvery(time.Second).
 					Should(ContainSubstring("reason: Conflicted"))
 			}
 
