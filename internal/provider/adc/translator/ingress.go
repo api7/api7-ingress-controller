@@ -127,10 +127,14 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 				continue
 			}
 			if getService.Spec.Type == corev1.ServiceTypeExternalName {
+				defaultServicePort := 80
+				if servicePort > 0 {
+					defaultServicePort = int(servicePort)
+				}
 				upstream.Nodes = adctypes.UpstreamNodes{
 					{
 						Host:   getService.Spec.ExternalName,
-						Port:   int(servicePort),
+						Port:   defaultServicePort,
 						Weight: 1,
 					},
 				}
