@@ -1,12 +1,15 @@
 package controller
 
 import (
+	"cmp"
 	"context"
 	"time"
 
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
+	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -23,14 +26,33 @@ func (r *HTTPRouteReconciler) processHTTPRoutePolicies(tctx *provider.TranslateC
 			object:   httpRoute,
 			policies: make(map[targetRefKey][]v1alpha1.HTTPRoutePolicy),
 		}
-		listForAllRules v1alpha1.HTTPRoutePolicyList
-		key             = indexer.GenHTTPRoutePolicyIndexKey(gatewayv1.GroupName, "HTTPRoute", httpRoute.GetNamespace(), httpRoute.GetName(), "")
+		list v1alpha1.HTTPRoutePolicyList
+		key  = indexer.GenIndexKeyWithGK(gatewayv1.GroupName, "HTTPRoute", httpRoute.GetNamespace(), httpRoute.GetName())
 	)
-	if err := r.List(context.Background(), &listForAllRules, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
+	if err := r.List(context.Background(), &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
 		return err
 	}
 
-	for _, item := range listForAllRules.Items {
+	tctx.HTTPRoutePolicies = list.Items
+	if len(tctx.HTTPRoutePolicies) == 0 {
+		return nil
+	}
+
+	var conflict = false
+Loop:
+	for _, rule := range httpRoute.Spec.Rules {
+		if rule.Name == nil || *rule.Name == "" {
+			priority := tctx.HTTPRoutePolicies[0].Spec.Priority
+			for _, policy := range tctx.HTTPRoutePolicies {
+				if !ptr.Equal(priority, policy.Spec.Priority) {
+					conflict = true
+					break Loop
+				}
+			}
+		}
+	}
+
+	for _, item := range list.Items {
 		checker.append("", item)
 		tctx.HTTPRoutePolicies["*"] = append(tctx.HTTPRoutePolicies["*"], item)
 	}
@@ -105,7 +127,7 @@ func (r *IngressReconciler) processHTTPRoutePolicies(tctx *provider.TranslateCon
 			conflict: false,
 		}
 		list v1alpha1.HTTPRoutePolicyList
-		key  = indexer.GenHTTPRoutePolicyIndexKey(networkingv1.GroupName, "Ingress", ingress.GetNamespace(), ingress.GetName(), "")
+		key  = indexer.GenIndexKeyWithGK(networkingv1.GroupName, "Ingress", ingress.GetNamespace(), ingress.GetName())
 	)
 	if err := r.List(context.Background(), &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
 		return err
@@ -185,6 +207,32 @@ func (c *conflictChecker) append(sectionName string, policy v1alpha1.HTTPRoutePo
 					break Loop
 				}
 			}
+		}
+	}
+}
+
+func isHTTPRoutePolicyConflictOnHTTPRoute(rules []gatewayv1.HTTPRouteRule, policies []v1alpha1.HTTPRoutePolicy) bool {
+	var m = make(map[targetRefKey]v1alpha1.HTTPRoutePolicy)
+	for _, policy := range policies {
+		for _, ref := range policy.Spec.TargetRefs {
+			var sectionName gatewayv1.SectionName
+			if ref.SectionName != nil {
+				sectionName = *ref.SectionName
+			}
+			key := targetRefKey{
+				Group:       ref.Group,
+				Namespace:   gatewayv1.Namespace(policy.GetNamespace()),
+				Name:        ref.Name,
+				SectionName: sectionName,
+			}
+			m[key] = policy
+		}
+	}
+	for _, rule := range rules {
+		if rule.Name == nil || *rule.Name == "" {
+
+		} else {
+
 		}
 	}
 }
