@@ -26,34 +26,34 @@ var skippedTestsForSSL = []string{
 
 var skippedTestsForTraditionalRoutes = []string{
 	// TODO: Support ReferenceGrant resource
-	tests.HTTPRouteInvalidReferenceGrant.ShortName,
-	tests.HTTPRoutePartiallyInvalidViaInvalidReferenceGrant.ShortName,
-	tests.HTTPRouteReferenceGrant.ShortName,
 	tests.GatewayInvalidTLSConfiguration.ShortName,
+	tests.GatewaySecretInvalidReferenceGrant.ShortName,
 	tests.GatewaySecretMissingReferenceGrant.ShortName,
+	tests.GatewaySecretReferenceGrantAllInNamespace.ShortName,
+	tests.GatewaySecretReferenceGrantSpecific.ShortName,
 	/*
 		tests.GatewayInvalidTLSConfiguration.ShortName,
 		tests.GatewayModifyListeners.ShortName,
 		tests.GatewayWithAttachedRoutes.ShortName,
 	*/
+	tests.HTTPRouteExactPathMatching.ShortName,
 	tests.HTTPRouteHTTPSListener.ShortName,
 	tests.HTTPRouteHeaderMatching.ShortName,
-	tests.HTTPRouteMatching.ShortName,
-	tests.HTTPRouteExactPathMatching.ShortName,
+	tests.HTTPRouteHostnameIntersection.ShortName,
 	tests.HTTPRouteInvalidBackendRefUnknownKind.ShortName,
-	tests.HTTPRouteInvalidNonExistentBackendRef.ShortName,
+	tests.HTTPRouteInvalidCrossNamespaceBackendRef.ShortName,
 	tests.HTTPRouteInvalidCrossNamespaceParentRef.ShortName,
+	tests.HTTPRouteInvalidNonExistentBackendRef.ShortName,
 	tests.HTTPRouteInvalidParentRefNotMatchingSectionName.ShortName,
+	tests.HTTPRouteInvalidReferenceGrant.ShortName,
+	tests.HTTPRouteInvalidReferenceGrant.ShortName,
+	tests.HTTPRouteListenerHostnameMatching.ShortName,
+	tests.HTTPRouteMatching.ShortName,
+	tests.HTTPRouteMatchingAcrossRoutes.ShortName,
+	tests.HTTPRoutePartiallyInvalidViaInvalidReferenceGrant.ShortName,
+	tests.HTTPRouteReferenceGrant.ShortName,
 	tests.HTTPRouteRequestHeaderModifier.ShortName,
 	tests.HTTPRouteWeight.ShortName,
-	tests.HTTPRouteHostnameIntersection.ShortName,
-	tests.HTTPRouteListenerHostnameMatching.ShortName,
-	tests.HTTPRouteMatchingAcrossRoutes.ShortName,
-	tests.GatewaySecretReferenceGrantSpecific.ShortName,
-	tests.GatewaySecretInvalidReferenceGrant.ShortName,
-	tests.GatewaySecretReferenceGrantAllInNamespace.ShortName,
-	tests.HTTPRouteInvalidCrossNamespaceBackendRef.ShortName,
-	tests.HTTPRouteInvalidReferenceGrant.ShortName,
 }
 
 var gatewaySupportedFeatures = []features.FeatureName{
@@ -74,7 +74,8 @@ func TestGatewayAPIConformance(t *testing.T) {
 	opts.CleanupBaseResources = true
 	opts.GatewayClassName = gatewayClassName
 	opts.SupportedFeatures = sets.New(gatewaySupportedFeatures...)
-	opts.SkipTests = append(skippedTestsForSSL, skippedTestsForTraditionalRoutes...)
+	// opts.SkipTests = append(skippedTestsForSSL, skippedTestsForTraditionalRoutes...)
+	opts.SkipTests = skippedTestsForSSL
 	opts.Implementation = conformancev1.Implementation{
 		Organization: "API7",
 		Project:      "api7-ingress-controller",

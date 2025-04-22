@@ -108,7 +108,7 @@ e2e-test:
 
 .PHONY: conformance-test
 conformance-test:
-	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test -v ./test/conformance -tags=conformance
+	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test -v ./test/conformance -tags=conformance -timeout 60m
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter

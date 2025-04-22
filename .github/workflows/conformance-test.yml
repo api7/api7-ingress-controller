@@ -33,6 +33,7 @@ jobs:
           go install sigs.k8s.io/kind@v0.23.0
 
   conformance-test:
+    timeout-minutes: 60
     needs: 
       - prepare
     runs-on: buildjet-2vcpu-ubuntu-2204
