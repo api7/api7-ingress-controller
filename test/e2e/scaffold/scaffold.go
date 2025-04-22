@@ -47,7 +47,7 @@ const (
 	DashboardHost = "localhost"
 	DashboardPort = 7080
 
-	DefaultControllerName = "gateway.api7.io/api7-ingress-controller"
+	DefaultControllerName = "apisix.apache.org/api7-ingress-controller"
 )
 
 type Options struct {

@@ -11,7 +11,7 @@ import (
 
 var _ = Describe("Test GatewayClass", func() {
 	s := scaffold.NewScaffold(&scaffold.Options{
-		ControllerName: "gateway.api7.io/api7-ingress-controller",
+		ControllerName: "apisix.apache.org/api7-ingress-controller",
 	})
 
 	Context("Create GatewayClass", func() {
@@ -21,7 +21,7 @@ kind: GatewayClass
 metadata:
   name: api7
 spec:
-  controllerName: "gateway.api7.io/api7-ingress-controller"
+  controllerName: "apisix.apache.org/api7-ingress-controller"
 `
 
 		var noGatewayClass = `
@@ -30,7 +30,7 @@ kind: GatewayClass
 metadata:
   name: api7-not-accepeted
 spec:
-  controllerName: "gateway.api7.io/not-exist"
+  controllerName: "apisix.apache.org/not-exist"
 `
 		It("Create GatewayClass", func() {
 			By("create default GatewayClass")

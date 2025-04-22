@@ -12,7 +12,7 @@ const (
 	// IngressClass is the default ingress class name, used for Ingress
 	// object's IngressClassName field in Kubernetes clusters version v1.18.0
 	// or higher, or the annotation "kubernetes.io/ingress.class" (deprecated).
-	DefaultControllerName = "gateway.api7.io/api7-ingress-controller"
+	DefaultControllerName = "apisix.apache.org/api7-ingress-controller"
 
 	// DefaultLogLevel is the default log level for apisix-ingress-controller.
 	DefaultLogLevel = "info"
