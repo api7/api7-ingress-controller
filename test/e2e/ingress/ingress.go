@@ -188,8 +188,6 @@ spec:
 		It("Test IngressClass Selection", func() {
 			By("create GatewayProxy")
 			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
-
-			By("create GatewayProxy")
 			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
@@ -212,11 +210,9 @@ spec:
 				Status(200)
 		})
 
-		It("Proxy external service", func() {
+		It("Proxy External Service", func() {
 			By("create GatewayProxy")
 			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
-
-			By("create GatewayProxy")
 			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)

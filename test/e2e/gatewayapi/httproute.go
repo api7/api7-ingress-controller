@@ -465,7 +465,7 @@ spec:
 				Status(404)
 		})
 
-		It("Proxy external service", func() {
+		It("Proxy External Service", func() {
 			By("create HTTPRoute")
 			ResourceApplied("HTTPRoute", "httpbin", httprouteWithExternalName, 1)
 
