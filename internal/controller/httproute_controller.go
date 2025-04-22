@@ -397,13 +397,19 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 			continue
 		}
 
-		var service corev1.Service
-		if err := r.Get(tctx, client.ObjectKey{
+		serviceNS := types.NamespacedName{
 			Namespace: namespace,
 			Name:      name,
-		}, &service); err != nil {
+		}
+
+		var service corev1.Service
+		if err := r.Get(tctx, serviceNS, &service); err != nil {
 			terr = err
 			continue
+		}
+		if service.Spec.Type == corev1.ServiceTypeExternalName {
+			tctx.Services[serviceNS] = &service
+			return nil
 		}
 
 		portExists := false
@@ -417,10 +423,7 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 			terr = fmt.Errorf("port %d not found in service %s", *backend.Port, name)
 			continue
 		}
-		tctx.Services[client.ObjectKey{
-			Namespace: namespace,
-			Name:      name,
-		}] = &service
+		tctx.Services[serviceNS] = &service
 
 		endpointSliceList := new(discoveryv1.EndpointSliceList)
 		if err := r.List(tctx, endpointSliceList,
@@ -434,11 +437,7 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 			continue
 		}
 
-		tctx.EndpointSlices[client.ObjectKey{
-			Namespace: namespace,
-			Name:      name,
-		}] = endpointSliceList.Items
-
+		tctx.EndpointSlices[serviceNS] = endpointSliceList.Items
 	}
 	return terr
 }
