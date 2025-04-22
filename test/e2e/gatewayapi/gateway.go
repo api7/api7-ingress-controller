@@ -27,11 +27,11 @@ func createSecret(s *scaffold.Scaffold, secretName string) {
 
 var _ = Describe("Test Gateway", func() {
 	s := scaffold.NewScaffold(&scaffold.Options{
-		ControllerName: "gateway.api7.io/api7-ingress-controller",
+		ControllerName: "apisix.apache.org/api7-ingress-controller",
 	})
 
 	var gatewayProxyYaml = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
   name: api7-proxy-config
@@ -54,7 +54,7 @@ kind: GatewayClass
 metadata:
   name: api7
 spec:
-  controllerName: "gateway.api7.io/api7-ingress-controller"
+  controllerName: "apisix.apache.org/api7-ingress-controller"
 `
 
 		var defautlGateway = `
@@ -70,7 +70,7 @@ spec:
       port: 80
   infrastructure:
     parametersRef:
-      group: gateway.apisix.io
+      group: apisix.apache.org
       kind: GatewayProxy
       name: api7-proxy-config
 `
@@ -88,7 +88,7 @@ spec:
       port: 80
   infrastructure:
     parametersRef:
-      group: gateway.apisix.io
+      group: apisix.apache.org
       kind: GatewayProxy
       name: api7-proxy-config
 `
@@ -152,7 +152,7 @@ kind: GatewayClass
 metadata:
   name: api7
 spec:
-  controllerName: "gateway.api7.io/api7-ingress-controller"
+  controllerName: "apisix.apache.org/api7-ingress-controller"
 `
 
 			var defaultGateway = fmt.Sprintf(`
@@ -174,7 +174,7 @@ spec:
           name: %s
   infrastructure:
     parametersRef:
-      group: gateway.apisix.io
+      group: apisix.apache.org
       kind: GatewayProxy
       name: api7-proxy-config
 `, host, secretName)
@@ -211,7 +211,7 @@ kind: GatewayClass
 metadata:
   name: api7
 spec:
-  controllerName: "gateway.api7.io/api7-ingress-controller"
+  controllerName: "apisix.apache.org/api7-ingress-controller"
 `
 
 				var defaultGateway = fmt.Sprintf(`
@@ -247,7 +247,7 @@ spec:
         name: %s
   infrastructure:
     parametersRef:
-      group: gateway.apisix.io
+      group: apisix.apache.org
       kind: GatewayProxy
       name: api7-proxy-config
 `, secretName, secretName)
@@ -265,7 +265,7 @@ spec:
 				assert.Nil(GinkgoT(), err, "list tls error")
 				assert.Len(GinkgoT(), tls, 1, "tls number not expect")
 				assert.Equal(GinkgoT(), Cert, tls[0].Cert, "tls cert not expect")
-				assert.Equal(GinkgoT(), tls[0].Labels["k8s/controller-name"], "gateway.api7.io/api7-ingress-controller")
+				assert.Equal(GinkgoT(), tls[0].Labels["k8s/controller-name"], "apisix.apache.org/api7-ingress-controller")
 			})
 		})
 	})

@@ -102,7 +102,7 @@ rules:
   - get
   - update
 - apiGroups:
-  - gateway.apisix.io
+  - apisix.apache.org
   resources:
   - pluginconfigs
   - pluginsconfigs/status

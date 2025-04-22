@@ -1,4 +1,4 @@
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
   name: api7-proxy-config
@@ -21,9 +21,9 @@ kind: IngressClass
 metadata:
   name: api7
 spec:
-  controller: "gateway.apisix.io/api7-ingress-controller"
+  controller: "apisix.apache.org/api7-ingress-controller"
   parameters:
-    apiGroup: "gateway.apisix.io"
+    apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
     name: "api7-proxy-config"
     namespace: "default"

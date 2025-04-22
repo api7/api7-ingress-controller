@@ -37,13 +37,13 @@ spec:
       port: 80
   infrastructure:
     parametersRef:
-      group: gateway.apisix.io
+      group: apisix.apache.org
       kind: GatewayProxy
       name: api7-proxy-config
 `
 
 	var gatewayProxyWithEnabledPlugin = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
   name: api7-proxy-config
@@ -66,7 +66,7 @@ spec:
 `
 
 	var gatewayProxyWithDisabledPlugin = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
   name: api7-proxy-config
@@ -89,7 +89,7 @@ spec:
 `
 	var (
 		gatewayProxyWithPluginMetadata0 = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
   name: api7-proxy-config
@@ -117,7 +117,7 @@ spec:
     }
 `
 		gatewayProxyWithPluginMetadata1 = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
   name: api7-proxy-config
@@ -310,7 +310,7 @@ spec:
 
 	var (
 		gatewayProxyWithInvalidProviderType = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
   name: api7-proxy-config
@@ -319,7 +319,7 @@ spec:
     type: "InvalidType"
 `
 		gatewayProxyWithMissingControlPlane = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
   name: api7-proxy-config
@@ -328,7 +328,7 @@ spec:
     type: "ControlPlane"
 `
 		gatewayProxyWithValidProvider = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
   name: api7-proxy-config

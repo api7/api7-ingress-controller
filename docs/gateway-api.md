@@ -41,7 +41,7 @@ kind: GatewayClass
 metadata:
   name: api7
 spec:
-  controllerName: "gateway.api7.io/api7-ingress-controller"
+  controllerName: "apisix.apache.org/api7-ingress-controller"
 
 ---
 

@@ -15,7 +15,7 @@ var _ = Describe("Test BackendTrafficPolicy base on HTTPRoute", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	var defaultGatewayProxy = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
   name: api7-proxy-config
@@ -53,7 +53,7 @@ spec:
       port: 80
   infrastructure:
     parametersRef:
-      group: gateway.apisix.io
+      group: apisix.apache.org
       kind: GatewayProxy
       name: api7-proxy-config
 `
@@ -82,7 +82,7 @@ spec:
 `
 	Context("Rewrite Upstream Host", func() {
 		var createUpstreamHost = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: BackendTrafficPolicy
 metadata:
   name: httpbin
@@ -96,7 +96,7 @@ spec:
 `
 
 		var updateUpstreamHost = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: BackendTrafficPolicy
 metadata:
   name: httpbin
@@ -147,11 +147,11 @@ spec:
 
 var _ = Describe("Test BackendTrafficPolicy base on Ingress", func() {
 	s := scaffold.NewScaffold(&scaffold.Options{
-		ControllerName: "gateway.api7.io/api7-ingress-controller",
+		ControllerName: "apisix.apache.org/api7-ingress-controller",
 	})
 
 	var defaultGatewayProxy = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
   name: api7-proxy-config
@@ -175,9 +175,9 @@ metadata:
   annotations:
     ingressclass.kubernetes.io/is-default-class: "true"
 spec:
-  controller: "gateway.api7.io/api7-ingress-controller"
+  controller: "apisix.apache.org/api7-ingress-controller"
   parameters:
-    apiGroup: "gateway.apisix.io"
+    apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
     name: "api7-proxy-config"
     namespace: "default"
@@ -220,7 +220,7 @@ spec:
 
 	Context("Rewrite Upstream Host", func() {
 		var createUpstreamHost = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: BackendTrafficPolicy
 metadata:
   name: httpbin
@@ -234,7 +234,7 @@ spec:
 `
 
 		var updateUpstreamHost = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: BackendTrafficPolicy
 metadata:
   name: httpbin

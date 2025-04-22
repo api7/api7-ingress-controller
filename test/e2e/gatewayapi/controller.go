@@ -15,7 +15,7 @@ import (
 var _ = Describe("Check if controller cache gets synced with correct resources", func() {
 
 	var gatewayProxyYaml = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
   name: api7-proxy-config
@@ -55,7 +55,7 @@ spec:
       port: 80
   infrastructure:
     parametersRef:
-      group: gateway.apisix.io
+      group: apisix.apache.org
       kind: GatewayProxy
       name: api7-proxy-config
 `
@@ -120,7 +120,7 @@ metadata:
 	Context("Create resource with first controller", func() {
 		s1 := scaffold.NewScaffold(&scaffold.Options{
 			Name:           "gateway1",
-			ControllerName: "gateway.api7.io/api7-ingress-controller-1",
+			ControllerName: "apisix.apache.org/api7-ingress-controller-1",
 		})
 		var route1 = `
 apiVersion: gateway.networking.k8s.io/v1
@@ -160,13 +160,13 @@ spec:
 			routes, err := s1.DefaultDataplaneResource().Route().List(s1.Context)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(routes).To(HaveLen(1))
-			assert.Equal(GinkgoT(), routes[0].Labels["k8s/controller-name"], "gateway.api7.io/api7-ingress-controller-1")
+			assert.Equal(GinkgoT(), routes[0].Labels["k8s/controller-name"], "apisix.apache.org/api7-ingress-controller-1")
 		})
 	})
 	Context("Create resource with second controller", func() {
 		s2 := scaffold.NewScaffold(&scaffold.Options{
 			Name:           "gateway2",
-			ControllerName: "gateway.api7.io/api7-ingress-controller-2",
+			ControllerName: "apisix.apache.org/api7-ingress-controller-2",
 		})
 		var route2 = `
 apiVersion: gateway.networking.k8s.io/v1
@@ -206,7 +206,7 @@ spec:
 			routes, err := s2.DefaultDataplaneResource().Route().List(s2.Context)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(routes).To(HaveLen(1))
-			assert.Equal(GinkgoT(), routes[0].Labels["k8s/controller-name"], "gateway.api7.io/api7-ingress-controller-2")
+			assert.Equal(GinkgoT(), routes[0].Labels["k8s/controller-name"], "apisix.apache.org/api7-ingress-controller-2")
 		})
 	})
 })

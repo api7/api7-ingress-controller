@@ -107,7 +107,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - gateway.apisix.io
+  - apisix.apache.org
   resources:
   - backendtrafficpolicies
   verbs:
@@ -115,14 +115,14 @@ rules:
   - list
   - watch
 - apiGroups:
-  - gateway.apisix.io
+  - apisix.apache.org
   resources:
   - backendtrafficpolicies/status
   verbs:
   - get
   - update
 - apiGroups:
-  - gateway.apisix.io
+  - apisix.apache.org
   resources:
   - consumers
   verbs:
@@ -130,14 +130,14 @@ rules:
   - list
   - watch
 - apiGroups:
-  - gateway.apisix.io
+  - apisix.apache.org
   resources:
   - consumers/status
   verbs:
   - get
   - update
 - apiGroups:
-  - gateway.apisix.io
+  - apisix.apache.org
   resources:
   - gatewayproxies
   verbs:
@@ -145,7 +145,7 @@ rules:
   - list
   - watch
 - apiGroups:
-    - gateway.apisix.io
+    - apisix.apache.org
   resources:
     - httproutepolicies
   verbs:
@@ -153,14 +153,14 @@ rules:
     - list
     - watch
 - apiGroups:
-    - gateway.apisix.io
+    - apisix.apache.org
   resources:
     - httproutepolicies/status
   verbs:
     - get
     - update
 - apiGroups:
-  - gateway.apisix.io
+  - apisix.apache.org
   resources:
   - httproutepolicies
   verbs:
@@ -168,14 +168,14 @@ rules:
   - list
   - watch
 - apiGroups:
-  - gateway.apisix.io
+  - apisix.apache.org
   resources:
   - httproutepolicies/status
   verbs:
   - get
   - update
 - apiGroups:
-  - gateway.apisix.io
+  - apisix.apache.org
   resources:
   - pluginconfigs
   verbs:
