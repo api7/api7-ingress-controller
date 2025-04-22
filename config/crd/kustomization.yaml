@@ -2,18 +2,18 @@
 # since it depends on service name and namespace that are out of this kustomize package.
 # It should be run by config/default
 resources:
-- bases/gateway.apisix.io_pluginconfigs.yaml
-- bases/gateway.apisix.io_gatewayproxies.yaml
-- bases/gateway.apisix.io_consumers.yaml
-- bases/gateway.apisix.io_backendtrafficpolicies.yaml
-- bases/gateway.apisix.io_httproutepolicies.yaml
+- bases/apisix.apache.org_pluginconfigs.yaml
+- bases/apisix.apache.org_gatewayproxies.yaml
+- bases/apisix.apache.org_consumers.yaml
+- bases/apisix.apache.org_backendtrafficpolicies.yaml
+- bases/apisix.apache.org_httproutepolicies.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:
 - path: patches/consumer_credential_oneof.yaml
   target:
     kind: CustomResourceDefinition
-    name: consumers.gateway.apisix.io
+    name: consumers.apisix.apache.org
     group: apiextensions.k8s.io
     version: v1
 

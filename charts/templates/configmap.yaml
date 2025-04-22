@@ -7,6 +7,6 @@ data:
   config.yaml: |
     log_level: "{{ .Values.logLevel | default "debug" }}"
 
-    controller_name: {{ .Values.controllerName | default "gateway.api7.io/api7-ingress-controller" }}
+    controller_name: {{ .Values.controllerName | default "apisix.apache.org/api7-ingress-controller" }}
 
     leader_election_id: "api7-ingress-controller-leader"

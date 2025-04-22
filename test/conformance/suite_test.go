@@ -7,18 +7,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/retry"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
+	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 )
 
 var gatewayClassName = "api7"
-var controllerName = "gateway.api7.io/api7-ingress-controller"
+var controllerName = "apisix.apache.org/api7-ingress-controller"
 
 var gatewayClass = fmt.Sprintf(`
 apiVersion: gateway.networking.k8s.io/v1
@@ -30,7 +30,7 @@ spec:
 `, gatewayClassName, controllerName)
 
 var gatewayProxyYaml = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
   name: conformance-gateway-proxy
@@ -142,7 +142,7 @@ func TestMain(m *testing.M) {
 	address := svc.Status.LoadBalancer.Ingress[0].IP
 
 	f.DeployIngress(framework.IngressDeployOpts{
-		ControllerName: "gateway.api7.io/api7-ingress-controller",
+		ControllerName: "apisix.apache.org/api7-ingress-controller",
 		AdminKey:       adminKey,
 		AdminTLSVerify: false,
 		Namespace:      namespace,
@@ -203,7 +203,7 @@ func patchGatewaysForConformanceTest(ctx context.Context, k8sClient client.Clien
 			// add infrastructure.parametersRef
 			gateway.Spec.Infrastructure = &gatewayv1.GatewayInfrastructure{
 				ParametersRef: &gatewayv1.LocalParametersReference{
-					Group: "gateway.apisix.io",
+					Group: "apisix.apache.org",
 					Kind:  "GatewayProxy",
 					Name:  "conformance-gateway-proxy",
 				},
