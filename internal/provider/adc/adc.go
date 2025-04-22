@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -16,6 +17,7 @@ import (
 
 	adctypes "github.com/api7/api7-ingress-controller/api/adc"
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
+	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/api7/api7-ingress-controller/internal/controller/label"
 	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/api7-ingress-controller/internal/provider/adc/translator"
@@ -38,6 +40,8 @@ type adcClient struct {
 	configs map[provider.ResourceKind]adcConfig
 	// httproute/consumer/ingress/gateway -> gateway/ingressclass
 	parentRefs map[provider.ResourceKind][]provider.ResourceKind
+
+	syncTimeout time.Duration
 }
 
 type Task struct {
@@ -50,6 +54,7 @@ type Task struct {
 
 func New() (provider.Provider, error) {
 	return &adcClient{
+		syncTimeout: config.ControllerConfig.ExecADCTimeout.Duration,
 		translator: &translator.Translator{},
 		configs:    make(map[provider.ResourceKind]adcConfig),
 		parentRefs: make(map[provider.ResourceKind][]provider.ResourceKind),
@@ -101,7 +106,7 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 
 	// sync delete
 	if len(deleteConfigs) > 0 {
-		err = d.sync(Task{
+		err = d.sync(ctx, Task{
 			Name:          obj.GetName(),
 			Labels:        label.GenLabel(obj),
 			ResourceTypes: resourceTypes,
@@ -113,7 +118,7 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 	}
 
 	// sync update
-	err = d.sync(Task{
+	err = d.sync(ctx, Task{
 		Name:   obj.GetName(),
 		Labels: label.GenLabel(obj),
 		Resources: adctypes.Resources{
@@ -160,7 +165,7 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 
 	configs := d.getConfigs(rk)
 
-	err := d.sync(Task{
+	err := d.sync(ctx, Task{
 		Name:          obj.GetName(),
 		Labels:        labels,
 		ResourceTypes: resourceTypes,
@@ -174,7 +179,7 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 	return nil
 }
 
-func (d *adcClient) sync(task Task) error {
+func (d *adcClient) sync(ctx context.Context, task Task) error {
 	log.Debugw("syncing resources", zap.Any("task", task))
 
 	if len(task.configs) == 0 {
@@ -216,7 +221,7 @@ func (d *adcClient) sync(task Task) error {
 
 	log.Debugw("syncing resources with multiple configs", zap.Any("configs", task.configs))
 	for _, config := range task.configs {
-		if err := d.execADC(config, args); err != nil {
+		if err := d.execADC(ctx, config, args); err != nil {
 			return err
 		}
 	}
@@ -224,7 +229,8 @@ func (d *adcClient) sync(task Task) error {
 	return nil
 }
 
-func (d *adcClient) execADC(config adcConfig, args []string) error {
+func (d *adcClient) execADC(ctx context.Context, config adcConfig, args []string) error {
+	ctxWithTimeout, _ := context.WithTimeout(ctx, config.adc
 	// todo: use adc config
 	serverAddr := d.ServerAddr
 	if config.ServerAddr != "" {
@@ -244,7 +250,7 @@ func (d *adcClient) execADC(config adcConfig, args []string) error {
 	}
 
 	var stdout, stderr bytes.Buffer
-	cmd := exec.Command("adc", args...)
+	cmd := exec.CommandContext(ctxWithTimeout, "adc", args...)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	cmd.Env = append(cmd.Env, os.Environ()...)
