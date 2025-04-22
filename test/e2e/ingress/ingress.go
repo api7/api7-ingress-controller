@@ -28,11 +28,11 @@ func createSecret(s *scaffold.Scaffold, secretName string) {
 
 var _ = Describe("Test Ingress", func() {
 	s := scaffold.NewScaffold(&scaffold.Options{
-		ControllerName: "gateway.api7.io/api7-ingress-controller",
+		ControllerName: "apisix.apache.org/api7-ingress-controller",
 	})
 
 	var gatewayProxyYaml = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
   name: api7-proxy-config
@@ -69,9 +69,9 @@ kind: IngressClass
 metadata:
   name: api7
 spec:
-  controller: "gateway.api7.io/api7-ingress-controller"
+  controller: "apisix.apache.org/api7-ingress-controller"
   parameters:
-    apiGroup: "gateway.apisix.io"
+    apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
     name: "api7-proxy-config"
     namespace: "default"
@@ -130,9 +130,9 @@ metadata:
   annotations:
     ingressclass.kubernetes.io/is-default-class: "true"
 spec:
-  controller: "gateway.api7.io/api7-ingress-controller"
+  controller: "apisix.apache.org/api7-ingress-controller"
   parameters:
-    apiGroup: "gateway.apisix.io"
+    apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
     name: "api7-proxy-config"
     namespace: "default"
@@ -242,7 +242,7 @@ spec:
 
 	Context("IngressClass with GatewayProxy", func() {
 		gatewayProxyYaml := `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
   name: api7-proxy-config
@@ -260,7 +260,7 @@ spec:
 `
 
 		gatewayProxyWithSecretYaml := `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
   name: api7-proxy-config-with-secret
@@ -288,9 +288,9 @@ metadata:
   annotations:
     ingressclass.kubernetes.io/is-default-class: "true"
 spec:
-  controller: "gateway.api7.io/api7-ingress-controller"
+  controller: "apisix.apache.org/api7-ingress-controller"
   parameters:
-    apiGroup: "gateway.apisix.io"
+    apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
     name: "api7-proxy-config"
     namespace: "default"
@@ -303,9 +303,9 @@ kind: IngressClass
 metadata:
   name: api7-with-proxy-secret
 spec:
-  controller: "gateway.api7.io/api7-ingress-controller"
+  controller: "apisix.apache.org/api7-ingress-controller"
   parameters:
-    apiGroup: "gateway.apisix.io"
+    apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
     name: "api7-proxy-config-with-secret"
     namespace: "default"
@@ -423,7 +423,7 @@ stringData:
 	Context("HTTPRoutePolicy for Ingress", func() {
 		getGatewayProxySpec := func() string {
 			return fmt.Sprintf(`
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
   name: api7-proxy-config
@@ -447,9 +447,9 @@ kind: IngressClass
 metadata:
   name: api7
 spec:
-  controller: "gateway.api7.io/api7-ingress-controller"
+  controller: "apisix.apache.org/api7-ingress-controller"
   parameters:
-    apiGroup: "gateway.apisix.io"
+    apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
     name: "api7-proxy-config"
     namespace: "default"
@@ -475,7 +475,7 @@ spec:
               number: 80
 `
 		const httpRoutePolicySpec0 = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: HTTPRoutePolicy
 metadata:
   name: http-route-policy-0
@@ -491,7 +491,7 @@ spec:
     - http-route-policy-0
 `
 		const httpRoutePolicySpec1 = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: HTTPRoutePolicy
 metadata:
   name: http-route-policy-0
@@ -507,7 +507,7 @@ spec:
     - http-route-policy-0
 `
 		const httpRoutePolicySpec2 = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: HTTPRoutePolicy
 metadata:
   name: http-route-policy-0
@@ -523,7 +523,7 @@ spec:
     - http-route-policy-0
 `
 		const httpRoutePolicySpec3 = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: HTTPRoutePolicy
 metadata:
   name: http-route-policy-1

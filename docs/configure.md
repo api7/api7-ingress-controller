@@ -8,9 +8,9 @@ The API7 Ingress Controller is a Kubernetes Ingress Controller that implements t
 log_level: "info"                               # The log level of the API7 Ingress Controller.
                                                 # the default value is "info".
 
-controller_name: gateway.apisix.io/api7-ingress-controller  # The controller name of the API7 Ingress Controller,
+controller_name: apisix.apache.org/api7-ingress-controller  # The controller name of the API7 Ingress Controller,
                                                           # which is used to identify the controller in the GatewayClass.
-                                                          # The default value is "gateway.api7.io/api7-ingress-controller".
+                                                          # The default value is "apisix.apache.org/api7-ingress-controller".
 
 leader_election_id: "api7-ingress-controller-leader" # The leader election ID for the API7 Ingress Controller.
                                                         # The default value is "api7-ingress-controller-leader".
@@ -26,7 +26,7 @@ kind: GatewayClass
 metadata:
   name: api7
 spec:
-  controllerName: "gateway.api7.io/api7-ingress-controller"
+  controllerName: "apisix.apache.org/api7-ingress-controller"
 ```
 
 ### Addresses

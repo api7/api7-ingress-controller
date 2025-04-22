@@ -19,7 +19,7 @@ var _ = Describe("Test HTTPRoute", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	var gatewayProxyYaml = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
   name: api7-proxy-config
@@ -57,7 +57,7 @@ spec:
       port: 80
   infrastructure:
     parametersRef:
-      group: gateway.apisix.io
+      group: apisix.apache.org
       kind: GatewayProxy
       name: api7-proxy-config
 `
@@ -80,7 +80,7 @@ spec:
           name: test-apisix-tls
   infrastructure:
     parametersRef:
-      group: gateway.apisix.io
+      group: apisix.apache.org
       kind: GatewayProxy
       name: api7-proxy-config
 `
@@ -219,7 +219,7 @@ spec:
 		var additionalGatewayClassName string
 
 		var additionalGatewayProxyYaml = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
   name: additional-proxy-config
@@ -251,7 +251,7 @@ spec:
           from: All
   infrastructure:
     parametersRef:
-      group: gateway.apisix.io
+      group: apisix.apache.org
       kind: GatewayProxy
       name: additional-proxy-config
 `
@@ -522,7 +522,7 @@ spec:
       port: 80
 `
 		const httpRoutePolicy = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: HTTPRoutePolicy
 metadata:
   name: http-route-policy-0
@@ -704,7 +704,7 @@ spec:
 
 			By("update HTTPRoutePolicy")
 			const changedHTTPRoutePolicy = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: HTTPRoutePolicy
 metadata:
   name: http-route-policy-0
@@ -747,7 +747,7 @@ spec:
 			Eventually(func() string {
 				_, err := s.GetResourceYaml("HTTPRoutePolicy", "http-route-policy-0")
 				return err.Error()
-			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(ContainSubstring(`httproutepolicies.gateway.apisix.io "http-route-policy-0" not found`))
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(ContainSubstring(`httproutepolicies.apisix.apache.org "http-route-policy-0" not found`))
 			// access the route without additional vars should be OK
 			message := retry.DoWithRetry(s.GinkgoT, "", 10, time.Second, func() (string, error) {
 				statusCode := s.NewAPISIXClient().
@@ -765,7 +765,7 @@ spec:
 
 		It("HTTPRoutePolicy conflicts", func() {
 			const httpRoutePolicy0 = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: HTTPRoutePolicy
 metadata:
   name: http-route-policy-0
@@ -781,7 +781,7 @@ spec:
     - http-route-policy-0
 `
 			const httpRoutePolicy1 = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: HTTPRoutePolicy
 metadata:
   name: http-route-policy-1
@@ -797,7 +797,7 @@ spec:
     - http-route-policy-0
 `
 			const httpRoutePolicy2 = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: HTTPRoutePolicy
 metadata:
   name: http-route-policy-2
@@ -1053,7 +1053,7 @@ spec:
 `
 
 		var echoPlugin = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: PluginConfig
 metadata:
   name: example-plugin-config
@@ -1064,7 +1064,7 @@ spec:
       body: "Hello, World!!"
 `
 		var echoPluginUpdated = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: PluginConfig
 metadata:
   name: example-plugin-config
@@ -1092,7 +1092,7 @@ spec:
     filters:
     - type: ExtensionRef
       extensionRef:
-        group: gateway.apisix.io
+        group: apisix.apache.org
         kind: PluginConfig
         name: example-plugin-config
     backendRefs:

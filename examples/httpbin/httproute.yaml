@@ -3,11 +3,11 @@ kind: GatewayClass
 metadata:
   name: api7
 spec:
-  controllerName: "gateway.apisix.io/api7-ingress-controller"
+  controllerName: "apisix.apache.org/api7-ingress-controller"
 
 ---
 
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
   name: api7-proxy-config
@@ -36,7 +36,7 @@ spec:
     port: 80
   infrastructure:
     parametersRef:
-      group: gateway.apisix.io
+      group: apisix.apache.org
       kind: GatewayProxy
       name: api7-proxy-config
 
