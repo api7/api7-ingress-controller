@@ -17,6 +17,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
@@ -44,6 +45,7 @@ type Framework struct {
 	kubectlOpts *k8s.KubectlOptions
 	clientset   *kubernetes.Clientset
 	restConfig  *rest.Config
+	K8sClient   client.Client
 
 	DB         *gorm.DB
 	RawETCD    *clientv3.Client
@@ -82,6 +84,10 @@ func NewFramework() *Framework {
 	clientset, err := kubernetes.NewForConfig(restCfg)
 	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "creating Kubernetes clientset")
 	f.clientset = clientset
+
+	k8sClient, err := client.New(restCfg, client.Options{})
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "creating controller-runtime client")
+	f.K8sClient = k8sClient
 
 	_framework = f
 
