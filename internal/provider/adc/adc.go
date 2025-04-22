@@ -55,9 +55,9 @@ type Task struct {
 func New() (provider.Provider, error) {
 	return &adcClient{
 		syncTimeout: config.ControllerConfig.ExecADCTimeout.Duration,
-		translator: &translator.Translator{},
-		configs:    make(map[provider.ResourceKind]adcConfig),
-		parentRefs: make(map[provider.ResourceKind][]provider.ResourceKind),
+		translator:  &translator.Translator{},
+		configs:     make(map[provider.ResourceKind]adcConfig),
+		parentRefs:  make(map[provider.ResourceKind][]provider.ResourceKind),
 	}, nil
 }
 
@@ -230,7 +230,8 @@ func (d *adcClient) sync(ctx context.Context, task Task) error {
 }
 
 func (d *adcClient) execADC(ctx context.Context, config adcConfig, args []string) error {
-	ctxWithTimeout, _ := context.WithTimeout(ctx, config.adc
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, d.syncTimeout)
+	defer cancel()
 	// todo: use adc config
 	serverAddr := d.ServerAddr
 	if config.ServerAddr != "" {
