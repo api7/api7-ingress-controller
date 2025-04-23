@@ -2,7 +2,10 @@ name: push on dockerhub
 on: 
   release:
     types: [published]
-      
+  push:
+    branches:
+    - release-v2-dev
+  workflow_dispatch:
 jobs:
   docker:
     runs-on: ubuntu-20.04
