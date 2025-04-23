@@ -5,6 +5,7 @@ on:
   push:
     branches:
     - release-v2-dev
+    - chore/helm
   workflow_dispatch:
 jobs:
   docker:
