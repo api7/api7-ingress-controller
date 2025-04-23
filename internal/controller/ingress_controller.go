@@ -522,15 +522,21 @@ func (r *IngressReconciler) processBackends(tctx *provider.TranslateContext, ing
 func (r *IngressReconciler) processBackendService(tctx *provider.TranslateContext, namespace string, backendService *networkingv1.IngressServiceBackend) error {
 	// get the service
 	var service corev1.Service
-	if err := r.Get(tctx, client.ObjectKey{
+	serviceNS := types.NamespacedName{
 		Namespace: namespace,
 		Name:      backendService.Name,
-	}, &service); err != nil {
+	}
+	if err := r.Get(tctx, serviceNS, &service); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			r.Log.Info("service not found", "namespace", namespace, "name", backendService.Name)
 			return nil
 		}
 		return err
+	}
+
+	if service.Spec.Type == corev1.ServiceTypeExternalName {
+		tctx.Services[serviceNS] = &service
+		return nil
 	}
 
 	// verify if the port exists
@@ -570,16 +576,8 @@ func (r *IngressReconciler) processBackendService(tctx *provider.TranslateContex
 	}
 
 	// save the endpoint slices to the translate context
-	tctx.EndpointSlices[client.ObjectKey{
-		Namespace: namespace,
-		Name:      backendService.Name,
-	}] = endpointSliceList.Items
-
-	tctx.Services[client.ObjectKey{
-		Namespace: namespace,
-		Name:      backendService.Name,
-	}] = &service
-
+	tctx.EndpointSlices[serviceNS] = endpointSliceList.Items
+	tctx.Services[serviceNS] = &service
 	return nil
 }
 

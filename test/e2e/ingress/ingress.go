@@ -158,11 +158,36 @@ spec:
               number: 80
 `
 
+		var ingressWithExternalName = `
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpbin-external-domain
+spec:
+  type: ExternalName
+  externalName: httpbin.org
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api7-ingress-default
+spec:
+  rules:
+  - host: httpbin.external
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: httpbin-external-domain
+            port:
+              number: 80
+`
+
 		It("Test IngressClass Selection", func() {
 			By("create GatewayProxy")
 			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
-
-			By("create GatewayProxy")
 			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
@@ -181,6 +206,31 @@ spec:
 			s.NewAPISIXClient().
 				GET("/get").
 				WithHost("default.example.com").
+				Expect().
+				Status(200)
+		})
+
+		It("Proxy External Service", func() {
+			By("create GatewayProxy")
+			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+			time.Sleep(5 * time.Second)
+
+			By("create Default IngressClass")
+			err = s.CreateResourceFromStringWithNamespace(defaultIngressClass, "")
+			Expect(err).NotTo(HaveOccurred(), "creating Default IngressClass")
+			time.Sleep(5 * time.Second)
+
+			By("create Ingress")
+			err = s.CreateResourceFromString(ingressWithExternalName)
+			Expect(err).NotTo(HaveOccurred(), "creating Ingress without IngressClass")
+			time.Sleep(5 * time.Second)
+
+			By("checking the external service response")
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.external").
 				Expect().
 				Status(200)
 		})
