@@ -365,6 +365,33 @@ spec:
 	})
 
 	Context("HTTPRoute Base", func() {
+		var httprouteWithExternalName = `
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpbin-external-domain
+spec:
+  type: ExternalName
+  externalName: httpbin.org
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin.external
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /get
+    backendRefs:
+    - name: httpbin-external-domain
+      port: 80
+`
 		var exactRouteByGet = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -436,6 +463,18 @@ spec:
 				WithHost("httpbin.example").
 				Expect().
 				Status(404)
+		})
+
+		It("Proxy External Service", func() {
+			By("create HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", httprouteWithExternalName, 1)
+
+			By("checking the external service response")
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.external").
+				Expect().
+				Status(200)
 		})
 	})
 	Context("HTTPRoute Rule Match", func() {

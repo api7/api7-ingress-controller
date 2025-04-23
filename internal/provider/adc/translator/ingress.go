@@ -105,12 +105,7 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 
 			// get the EndpointSlice of the backend service
 			backendService := path.Backend.Service
-			var endpointSlices []discoveryv1.EndpointSlice
 			if backendService != nil {
-				endpointSlices = tctx.EndpointSlices[types.NamespacedName{
-					Namespace: obj.Namespace,
-					Name:      backendService.Name,
-				}]
 				backendRef := convertBackendRef(obj.Namespace, backendService.Name, "Service")
 				t.AttachBackendTrafficPolicyToUpstream(backendRef, tctx.BackendTrafficPolicies, upstream)
 			}
@@ -131,28 +126,39 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 			if getService == nil {
 				continue
 			}
-
-			var getServicePort *corev1.ServicePort
-			for _, port := range getService.Spec.Ports {
-				port := port
-				if servicePort > 0 && port.Port == servicePort {
-					getServicePort = &port
-					break
+			if getService.Spec.Type == corev1.ServiceTypeExternalName {
+				defaultServicePort := 80
+				if servicePort > 0 {
+					defaultServicePort = int(servicePort)
 				}
-				if servicePortName != "" && port.Name == servicePortName {
-					getServicePort = &port
-					break
+				upstream.Nodes = adctypes.UpstreamNodes{
+					{
+						Host:   getService.Spec.ExternalName,
+						Port:   defaultServicePort,
+						Weight: 1,
+					},
 				}
-			}
-
-			// convert the EndpointSlice to upstream nodes
-			if len(endpointSlices) > 0 {
-				upstream.Nodes = t.translateEndpointSliceForIngress(1, endpointSlices, getServicePort)
-			}
-
-			// if there is no upstream node, create a placeholder node
-			if len(upstream.Nodes) == 0 {
-				upstream.Nodes = adctypes.UpstreamNodes{}
+			} else {
+				var getServicePort *corev1.ServicePort
+				for _, port := range getService.Spec.Ports {
+					port := port
+					if servicePort > 0 && port.Port == servicePort {
+						getServicePort = &port
+						break
+					}
+					if servicePortName != "" && port.Name == servicePortName {
+						getServicePort = &port
+						break
+					}
+				}
+				endpointSlices := tctx.EndpointSlices[types.NamespacedName{
+					Namespace: obj.Namespace,
+					Name:      backendService.Name,
+				}]
+				// convert the EndpointSlice to upstream nodes
+				if len(endpointSlices) > 0 {
+					upstream.Nodes = t.translateEndpointSliceForIngress(1, endpointSlices, getServicePort)
+				}
 			}
 
 			service.Upstream = upstream
