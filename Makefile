@@ -164,6 +164,10 @@ linux-build:
 .PHONY: build-image
 build-image: docker-build
 
+.PHONY: build-push-image
+build-push-image: docker-build
+	@docker push ${IMG}
+
 .PHONY: build-multi-arch
 build-multi-arch:
 	@CGO_ENABLED=0 GOARCH=amd64 go build -o bin/api7-ingress-controller_amd64 -ldflags $(GO_LDFLAGS) cmd/main.go
@@ -316,3 +320,9 @@ mv $(1) $(1)-$(3) ;\
 } ;\
 ln -sf $(1)-$(3) $(1)
 endef
+
+helm-build-crds:
+	@echo "build gateway-api standard crds"
+	$(KUSTOMIZE) build github.com/kubernetes-sigs/gateway-api/config/crd\?ref=${GATEAY_API_VERSION} > charts/crds/gwapi-crds.yaml
+	@echo "build apisix ic crds"
+	$(KUSTOMIZE) build config/crd > charts/crds/apisixic-crds.yaml
