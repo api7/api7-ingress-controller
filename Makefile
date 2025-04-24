@@ -164,6 +164,10 @@ linux-build:
 .PHONY: build-image
 build-image: docker-build
 
+.PHONY: build-push-image
+build-push-image: docker-build
+	@docker push ${IMG}
+
 .PHONY: build-multi-arch
 build-multi-arch:
 	@CGO_ENABLED=0 GOARCH=amd64 go build -o bin/api7-ingress-controller_amd64 -ldflags $(GO_LDFLAGS) cmd/main.go
