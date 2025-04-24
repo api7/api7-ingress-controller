@@ -1,4 +1,4 @@
-name: push on dockerhub
+name: push v2-dev on dockerhub
 on:
   release:
     types: [ published ]
