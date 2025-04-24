@@ -140,6 +140,15 @@ kind-load-images: pull-infra-images kind-load-ingress-image
 	@kind load docker-image kennethreitz/httpbin:latest --name $(KIND_NAME) 
 	@kind load docker-image jmalloc/echo-server:latest --name $(KIND_NAME)
 
+.PHONY: kind-load-gateway-image
+kind-load-gateway-image:
+	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev --name $(KIND_NAME) 
+
+.PHONY: kind-load-dashboard-images
+kind-load-dashboard-images:
+	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
+	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
+
 .PHONY: kind-load-ingress-image
 kind-load-ingress-image:
 	@kind load docker-image $(IMG) --name $(KIND_NAME)

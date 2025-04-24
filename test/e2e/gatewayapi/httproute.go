@@ -1394,6 +1394,92 @@ spec:
 		})
 	})
 
+	Context("HTTPRoute with GatewayProxy Update", func() {
+		var additionalGatewayGroupID string
+
+		var exactRouteByGet = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin.example
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /get
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
+
+		var updatedGatewayProxy = `
+apiVersion: apisix.apache.org/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+`
+
+		BeforeEach(beforeEachHTTP)
+
+		It("Should sync HTTPRoute when GatewayProxy is updated", func() {
+			By("create HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 1)
+
+			By("verify HTTPRoute works")
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.example").
+				Expect().
+				Status(200)
+
+			By("create additional gateway group to get new admin key")
+			var err error
+			additionalGatewayGroupID, _, err = s.CreateAdditionalGatewayGroup("gateway-proxy-update")
+			Expect(err).NotTo(HaveOccurred(), "creating additional gateway group")
+
+			resources, exists := s.GetAdditionalGatewayGroup(additionalGatewayGroupID)
+			Expect(exists).To(BeTrue(), "additional gateway group should exist")
+
+			client, err := s.NewAPISIXClientForGatewayGroup(additionalGatewayGroupID)
+			Expect(err).NotTo(HaveOccurred(), "creating APISIX client for additional gateway group")
+
+			By("HTTPRoute not found for additional gateway group")
+			client.
+				GET("/get").
+				WithHost("httpbin.example").
+				Expect().
+				Status(404)
+
+			By("update GatewayProxy with new admin key")
+			updatedProxy := fmt.Sprintf(updatedGatewayProxy, framework.DashboardTLSEndpoint, resources.AdminAPIKey)
+			err = s.CreateResourceFromString(updatedProxy)
+			Expect(err).NotTo(HaveOccurred(), "updating GatewayProxy")
+			time.Sleep(5 * time.Second)
+
+			By("verify HTTPRoute works for additional gateway group")
+			client.
+				GET("/get").
+				WithHost("httpbin.example").
+				Expect().
+				Status(200)
+		})
+	})
+
 	/*
 		Context("HTTPRoute Status Updated", func() {
 		})

@@ -32,10 +32,7 @@ type adcConfig struct {
 type adcClient struct {
 	sync.Mutex
 
-	translator   *translator.Translator
-	ServerAddr   string
-	Token        string
-	GatewayGroup string
+	translator *translator.Translator
 	// gateway/ingressclass -> adcConfig
 	configs map[provider.ResourceKind]adcConfig
 	// httproute/consumer/ingress/gateway -> gateway/ingressclass
@@ -164,6 +161,7 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 	}
 
 	configs := d.getConfigs(rk)
+	defer d.deleteConfigs(rk)
 
 	err := d.sync(ctx, Task{
 		Name:          obj.GetName(),
@@ -175,7 +173,6 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 		return err
 	}
 
-	d.deleteConfigs(rk)
 	return nil
 }
 
@@ -233,14 +230,8 @@ func (d *adcClient) execADC(ctx context.Context, config adcConfig, args []string
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, d.syncTimeout)
 	defer cancel()
 	// todo: use adc config
-	serverAddr := d.ServerAddr
-	if config.ServerAddr != "" {
-		serverAddr = config.ServerAddr
-	}
-	token := d.Token
-	if config.Token != "" {
-		token = config.Token
-	}
+	serverAddr := config.ServerAddr
+	token := config.Token
 
 	adcEnv := []string{
 		"ADC_EXPERIMENTAL_FEATURE_FLAGS=remote-state-file,parallel-backend-request",

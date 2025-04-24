@@ -1,11 +1,13 @@
 package gatewayapi
 
 import (
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
@@ -374,6 +376,91 @@ spec:
 				WithHost("httpbin.org").
 				Expect().
 				Status(401)
+		})
+	})
+
+	Context("Consumer with GatewayProxy Update", func() {
+		var additionalGatewayGroupID string
+
+		var defaultCredential = `
+apiVersion: apisix.apache.org/v1alpha1
+kind: Consumer
+metadata:
+  name: consumer-sample
+spec:
+  gatewayRef:
+    name: api7ee
+  credentials:
+    - type: basic-auth
+      name: basic-auth-sample
+      config:
+        username: sample-user
+        password: sample-password
+`
+		var updatedGatewayProxy = `
+apiVersion: apisix.apache.org/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+`
+
+		BeforeEach(func() {
+			s.ApplyDefaultGatewayResource(defaultGatewayProxy, defaultGatewayClass, defaultGateway, defaultHTTPRoute)
+		})
+
+		It("Should sync consumer when GatewayProxy is updated", func() {
+			s.ResourceApplied("Consumer", "consumer-sample", defaultCredential, 1)
+
+			// verify basic-auth works
+			s.NewAPISIXClient().
+				GET("/get").
+				WithBasicAuth("sample-user", "sample-password").
+				WithHost("httpbin.org").
+				Expect().
+				Status(200)
+
+			By("create additional gateway group to get new admin key")
+			var err error
+			additionalGatewayGroupID, _, err = s.CreateAdditionalGatewayGroup("gateway-proxy-update")
+			Expect(err).NotTo(HaveOccurred(), "creating additional gateway group")
+
+			resources, exists := s.GetAdditionalGatewayGroup(additionalGatewayGroupID)
+			Expect(exists).To(BeTrue(), "additional gateway group should exist")
+
+			client, err := s.NewAPISIXClientForGatewayGroup(additionalGatewayGroupID)
+			Expect(err).NotTo(HaveOccurred(), "creating APISIX client for additional gateway group")
+
+			By("Consumer not found for additional gateway group")
+			client.
+				GET("/get").
+				WithBasicAuth("sample-user", "sample-password").
+				WithHost("httpbin.org").
+				Expect().
+				Status(404)
+
+			By("update GatewayProxy with new admin key")
+			updatedProxy := fmt.Sprintf(updatedGatewayProxy, framework.DashboardTLSEndpoint, resources.AdminAPIKey)
+			err = s.CreateResourceFromString(updatedProxy)
+			Expect(err).NotTo(HaveOccurred(), "updating GatewayProxy")
+			time.Sleep(30 * time.Second)
+
+			By("verify Consumer works for additional gateway group")
+			client.
+				GET("/get").
+				WithBasicAuth("sample-user", "sample-password").
+				WithHost("httpbin.org").
+				Expect().
+				Status(200)
 		})
 	})
 })
