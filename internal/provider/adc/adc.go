@@ -32,6 +32,8 @@ type adcConfig struct {
 type adcClient struct {
 	sync.Mutex
 
+	execLock sync.Mutex
+
 	translator *translator.Translator
 	// gateway/ingressclass -> adcConfig
 	configs map[provider.ResourceKind]adcConfig
@@ -227,6 +229,9 @@ func (d *adcClient) sync(ctx context.Context, task Task) error {
 }
 
 func (d *adcClient) execADC(ctx context.Context, config adcConfig, args []string) error {
+	d.execLock.Lock()
+	defer d.execLock.Unlock()
+
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, d.syncTimeout)
 	defer cancel()
 	// todo: use adc config
