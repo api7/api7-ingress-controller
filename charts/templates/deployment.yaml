@@ -6,19 +6,19 @@ metadata:
   name: {{ .Release.Name }}
   namespace: {{ .Release.Namespace }}
   annotations:
-  {{- range $key, $value := .Values.annotations }}
+  {{- range $key, $value := .Values.deployment.annotations }}
     {{ $key }}: {{ $value | quote }}
   {{- end }}
 spec:
-  replicas: {{ .Values.replicas }}
+  replicas: {{ .Values.deployment.replicas }}
   selector:
     matchLabels:
       {{- include "api7-ingress-controller-manager.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
-        {{- if .Values.podAnnotations }}
-        {{- range $key, $value := $.Values.podAnnotations }}
+        {{- if .Values.deployment.podAnnotations }}
+        {{- range $key, $value := $.Values.deployment.podAnnotations }}
         {{ $key }}: {{ $value | quote }}
         {{- end }}
         {{- end }}
@@ -35,7 +35,7 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
-        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        image: "{{ .Values.deployment.image.repository }}:{{ .Values.deployment.image.tag }}"
         volumeMounts:
         - name: {{ .Release.Name }}-ingress-config
           mountPath: /app/conf/config.yaml
@@ -61,20 +61,20 @@ spec:
             cpu: 10m
             memory: 64Mi
         securityContext:
-          {{- toYaml .Values.podSecurityContext | nindent 10 }}
-      {{- with .Values.nodeSelector }}
+          {{- toYaml .Values.deployment.podSecurityContext | nindent 10 }}
+      {{- with .Values.deployment.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tolerations }}
+      {{- with .Values.deployment.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.affinity }}
+      {{- with .Values.deployment.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.topologySpreadConstraints }}
+      {{- with .Values.deployment.topologySpreadConstraints }}
       topologySpreadConstraints:
         {{- tpl (. | toYaml) $ | nindent 8 }}
       {{- end }}
