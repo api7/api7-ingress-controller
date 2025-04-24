@@ -19,11 +19,3 @@ maintainers:
 # ref: https://artifacthub.io/docs/topics/annotations/helm/
 annotations:
   artifacthub.io/prerelease: "true"
-
-dependencies:
-- name: api7ee3
-  version: ">= 0.17.12"
-  repository: "https://charts.api7.ai"
-- name: gateway
-  version: ">= 0.2.14"
-  repository: "https://charts.api7.ai"

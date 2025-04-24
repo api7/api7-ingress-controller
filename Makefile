@@ -321,7 +321,7 @@ mv $(1) $(1)-$(3) ;\
 ln -sf $(1)-$(3) $(1)
 endef
 
-charts-crds:
+helm-build-crds:
 	@echo "build gateway-api standard crds"
 	$(KUSTOMIZE) build github.com/kubernetes-sigs/gateway-api/config/crd\?ref=${GATEAY_API_VERSION} > charts/crds/gwapi-crds.yaml
 	@echo "build apisix ic crds"
