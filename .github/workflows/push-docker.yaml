@@ -36,4 +36,4 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: '${{ github.event.release.tag_name }}'  # Use the release tag as the image tag
+          tags: 'v2:dev'  # Use the release tag as the image tag
