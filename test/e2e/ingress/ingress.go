@@ -165,7 +165,7 @@ metadata:
   name: httpbin-external-domain
 spec:
   type: ExternalName
-  externalName: httpbin.org
+  externalName: postman-echo.com
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress

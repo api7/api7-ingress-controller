@@ -372,7 +372,7 @@ metadata:
   name: httpbin-external-domain
 spec:
   type: ExternalName
-  externalName: httpbin.org
+  externalName: postman-echo.com
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -465,7 +465,7 @@ spec:
 				Status(404)
 		})
 
-		It("Proxy External Service", func() {
+		FIt("Proxy External Service", func() {
 			By("create HTTPRoute")
 			ResourceApplied("HTTPRoute", "httpbin", httprouteWithExternalName, 1)
 
