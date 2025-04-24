@@ -452,7 +452,7 @@ spec:
 			updatedProxy := fmt.Sprintf(updatedGatewayProxy, framework.DashboardTLSEndpoint, resources.AdminAPIKey)
 			err = s.CreateResourceFromString(updatedProxy)
 			Expect(err).NotTo(HaveOccurred(), "updating GatewayProxy")
-			time.Sleep(30 * time.Second)
+			time.Sleep(5 * time.Second)
 
 			By("verify Consumer works for additional gateway group")
 			client.
