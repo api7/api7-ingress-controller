@@ -36,4 +36,4 @@ jobs:
         BASE_IMAGE_TAG: "debug"
       run: |
         echo "building images..."
-        build-push-multi-arch-image
+        make build-push-multi-arch-image
