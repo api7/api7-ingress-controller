@@ -477,6 +477,7 @@ spec:
 				Status(200)
 		})
 	})
+
 	Context("HTTPRoute Rule Match", func() {
 		var exactRouteByGet = `
 apiVersion: gateway.networking.k8s.io/v1

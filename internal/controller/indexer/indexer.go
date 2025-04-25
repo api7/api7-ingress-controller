@@ -322,10 +322,6 @@ func HTTPRouteExtensionIndexFunc(rawObj client.Object) []string {
 	return keys
 }
 
-// func GenHTTPRoutePolicyIndexKey(group, kind, namespace, name, sectionName string) string {
-// 	return schema.GroupKind{Group: group, Kind: kind}.String() + "/" + client.ObjectKey{Namespace: namespace, Name: name}.String() + "/" + sectionName
-// }
-
 func HTTPRoutePolicyIndexFunc(rawObj client.Object) []string {
 	hrp := rawObj.(*v1alpha1.HTTPRoutePolicy)
 	var keys = make([]string, 0, len(hrp.Spec.TargetRefs))
