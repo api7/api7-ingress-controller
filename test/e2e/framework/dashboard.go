@@ -367,6 +367,7 @@ func (f *Framework) GetDataplaneCertificates(gatewayGroupID string) *v1.Dataplan
 		POST("/api/gateway_groups/"+gatewayGroupID+"/dp_client_certificates").
 		WithBasicAuth("admin", "admin").
 		WithHeader("Content-Type", "application/json").
+		WithBytes([]byte(`{}`)).
 		Expect()
 
 	f.Logger.Logf(f.GinkgoT, "dataplane certificates issuer response: %s", respExp.Body().Raw())

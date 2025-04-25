@@ -14,15 +14,16 @@ import (
 )
 
 const (
-	ServiceIndexRef    = "serviceRefs"
-	ExtensionRef       = "extensionRef"
-	ParametersRef      = "parametersRef"
-	ParentRefs         = "parentRefs"
-	IngressClass       = "ingressClass"
-	SecretIndexRef     = "secretRefs"
-	IngressClassRef    = "ingressClassRef"
-	ConsumerGatewayRef = "consumerGatewayRef"
-	PolicyTargetRefs   = "targetRefs"
+	ServiceIndexRef           = "serviceRefs"
+	ExtensionRef              = "extensionRef"
+	ParametersRef             = "parametersRef"
+	ParentRefs                = "parentRefs"
+	IngressClass              = "ingressClass"
+	SecretIndexRef            = "secretRefs"
+	IngressClassRef           = "ingressClassRef"
+	IngressClassParametersRef = "ingressClassParametersRef"
+	ConsumerGatewayRef        = "consumerGatewayRef"
+	PolicyTargetRefs          = "targetRefs"
 )
 
 func SetupIndexer(mgr ctrl.Manager) error {
@@ -185,6 +186,16 @@ func setupIngressIndexer(mgr ctrl.Manager) error {
 		&networkingv1.IngressClass{},
 		IngressClass,
 		IngressClassIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	// create IngressClassParametersRef index
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&networkingv1.IngressClass{},
+		IngressClassParametersRef,
+		IngressClassParametersRefIndexFunc,
 	); err != nil {
 		return err
 	}
@@ -365,4 +376,20 @@ func BackendTrafficPolicyIndexFunc(rawObj client.Object) []string {
 		)
 	}
 	return keys
+}
+
+func IngressClassParametersRefIndexFunc(rawObj client.Object) []string {
+	ingressClass := rawObj.(*networkingv1.IngressClass)
+	// check if the IngressClass references this gateway proxy
+	if ingressClass.Spec.Parameters != nil &&
+		ingressClass.Spec.Parameters.APIGroup != nil &&
+		*ingressClass.Spec.Parameters.APIGroup == v1alpha1.GroupVersion.Group &&
+		ingressClass.Spec.Parameters.Kind == "GatewayProxy" {
+		ns := ingressClass.GetNamespace()
+		if ingressClass.Spec.Parameters.Namespace != nil {
+			ns = *ingressClass.Spec.Parameters.Namespace
+		}
+		return []string{GenIndexKey(ns, ingressClass.Spec.Parameters.Name)}
+	}
+	return nil
 }

@@ -83,6 +83,9 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.listIngressesByHTTPRoutePolicy),
 			builder.WithPredicates(httpRoutePolicyPredicateFuncs(r.genericEvent)),
 		).
+		Watches(&v1alpha1.GatewayProxy{},
+			handler.EnqueueRequestsFromMapFunc(r.listIngressesForGatewayProxy),
+		).
 		WatchesRawSource(
 			source.Channel(
 				r.genericEvent,
@@ -219,38 +222,8 @@ func (r *IngressReconciler) getIngressClass(obj client.Object) (*networkingv1.In
 
 // checkIngressClass check if the ingress uses the ingress class that we control
 func (r *IngressReconciler) checkIngressClass(obj client.Object) bool {
-	ingress := obj.(*networkingv1.Ingress)
-
-	if ingress.Spec.IngressClassName == nil {
-		// handle the case where IngressClassName is not specified
-		// find all ingress classes and check if any of them is marked as default
-		ingressClassList := &networkingv1.IngressClassList{}
-		if err := r.List(context.Background(), ingressClassList, client.MatchingFields{
-			indexer.IngressClass: config.GetControllerName(),
-		}); err != nil {
-			r.Log.Error(err, "failed to list ingress classes")
-			return false
-		}
-
-		// find the ingress class that is marked as default
-		for _, ic := range ingressClassList.Items {
-			if IsDefaultIngressClass(&ic) && matchesController(ic.Spec.Controller) {
-				log.Debugw("match the default ingress class")
-				return true
-			}
-		}
-
-		log.Debugw("no default ingress class found")
-		return false
-	}
-
-	// check if the ingress class is controlled by us
-	ingressClass := networkingv1.IngressClass{}
-	if err := r.Client.Get(context.Background(), client.ObjectKey{Name: *ingress.Spec.IngressClassName}, &ingressClass); err != nil {
-		return false
-	}
-
-	return matchesController(ingressClass.Spec.Controller)
+	_, err := r.getIngressClass(obj)
+	return err == nil
 }
 
 // matchesIngressController check if the ingress class is controlled by us
@@ -734,4 +707,47 @@ func (r *IngressReconciler) processIngressClassParameters(ctx context.Context, t
 	}
 
 	return nil
+}
+
+// listIngressesForGatewayProxy list all ingresses that use a specific gateway proxy
+func (r *IngressReconciler) listIngressesForGatewayProxy(ctx context.Context, obj client.Object) []reconcile.Request {
+	gatewayProxy, ok := obj.(*v1alpha1.GatewayProxy)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to GatewayProxy")
+		return nil
+	}
+
+	// find all ingress classes that reference this gateway proxy
+	ingressClassList := &networkingv1.IngressClassList{}
+	if err := r.List(ctx, ingressClassList, client.MatchingFields{
+		indexer.IngressClassParametersRef: indexer.GenIndexKey(gatewayProxy.GetNamespace(), gatewayProxy.GetName()),
+	}); err != nil {
+		r.Log.Error(err, "failed to list ingress classes for gateway proxy", "gatewayproxy", gatewayProxy.GetName())
+		return nil
+	}
+
+	var requests []reconcile.Request
+
+	for _, ingressClass := range ingressClassList.Items {
+		requests = append(requests, r.listIngressForIngressClass(ctx, &ingressClass)...)
+	}
+
+	// the requests may contain duplicates, distinct the requests
+	requests = distinctRequests(requests)
+
+	return requests
+}
+
+// distinctRequests distinct the requests
+func distinctRequests(requests []reconcile.Request) []reconcile.Request {
+	uniqueRequests := make(map[string]reconcile.Request)
+	for _, request := range requests {
+		uniqueRequests[request.String()] = request
+	}
+
+	distinctRequests := make([]reconcile.Request, 0, len(uniqueRequests))
+	for _, request := range uniqueRequests {
+		distinctRequests = append(distinctRequests, request)
+	}
+	return distinctRequests
 }

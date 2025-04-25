@@ -50,8 +50,8 @@ type ControlPlaneConfig struct {
 }
 
 type LeaderElection struct {
-	LeaseDuration types.TimeDuration `json:"leaseDuration,omitempty" yaml:"leaseDuration,omitempty"`
-	RenewDeadline types.TimeDuration `json:"renewDeadline,omitempty" yaml:"renewDeadline,omitempty"`
-	RetryPeriod   types.TimeDuration `json:"retryPeriod,omitempty" yaml:"retryPeriod,omitempty"`
+	LeaseDuration types.TimeDuration `json:"lease_duration,omitempty" yaml:"lease_duration,omitempty"`
+	RenewDeadline types.TimeDuration `json:"renew_deadline,omitempty" yaml:"renew_deadline,omitempty"`
+	RetryPeriod   types.TimeDuration `json:"retry_period,omitempty" yaml:"retry_period,omitempty"`
 	Disable       bool               `json:"disable,omitempty" yaml:"disable,omitempty"`
 }

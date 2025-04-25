@@ -82,6 +82,9 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.listHTTPRouteByHTTPRoutePolicy),
 			builder.WithPredicates(httpRoutePolicyPredicateFuncs(r.genericEvent)),
 		).
+		Watches(&v1alpha1.GatewayProxy{},
+			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesForGatewayProxy),
+		).
 		WatchesRawSource(
 			source.Channel(
 				r.genericEvent,
@@ -534,4 +537,49 @@ func httpRoutePolicyPredicateFuncs(channel chan event.GenericEvent) predicate.Pr
 			return false
 		},
 	}
+}
+
+// listHTTPRoutesForGatewayProxy list all HTTPRoute resources that are affected by a given GatewayProxy
+func (r *HTTPRouteReconciler) listHTTPRoutesForGatewayProxy(ctx context.Context, obj client.Object) []reconcile.Request {
+	gatewayProxy, ok := obj.(*v1alpha1.GatewayProxy)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to GatewayProxy")
+		return nil
+	}
+
+	namespace := gatewayProxy.GetNamespace()
+	name := gatewayProxy.GetName()
+
+	// find all gateways that reference this gateway proxy
+	gatewayList := &gatewayv1.GatewayList{}
+	if err := r.List(ctx, gatewayList, client.MatchingFields{
+		indexer.ParametersRef: indexer.GenIndexKey(namespace, name),
+	}); err != nil {
+		r.Log.Error(err, "failed to list gateways for gateway proxy", "gatewayproxy", gatewayProxy.GetName())
+		return nil
+	}
+
+	var requests []reconcile.Request
+
+	// for each gateway, find all HTTPRoute resources that reference it
+	for _, gateway := range gatewayList.Items {
+		httpRouteList := &gatewayv1.HTTPRouteList{}
+		if err := r.List(ctx, httpRouteList, client.MatchingFields{
+			indexer.ParentRefs: indexer.GenIndexKey(gateway.Namespace, gateway.Name),
+		}); err != nil {
+			r.Log.Error(err, "failed to list httproutes for gateway", "gateway", gateway.Name)
+			continue
+		}
+
+		for _, httpRoute := range httpRouteList.Items {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: client.ObjectKey{
+					Namespace: httpRoute.Namespace,
+					Name:      httpRoute.Name,
+				},
+			})
+		}
+	}
+
+	return requests
 }
