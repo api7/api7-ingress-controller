@@ -14,8 +14,6 @@ GATEAY_API_VERSION ?= v1.2.0
 
 DASHBOARD_VERSION ?= dev
 TEST_TIMEOUT ?= 45m
-CHART_DIR ?= $(shell pwd)/charts
-API7EE3_CHART_DIR ?= $(CHART_DIR)/api7ee3
 
 export KUBECONFIG = /tmp/$(KIND_NAME).kubeconfig
 
@@ -106,16 +104,14 @@ kind-e2e-test: kind-up build-image kind-load-images e2e-test
 .PHONY: e2e-test
 e2e-test:
 	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
-	DASHBOARD_VERSION=$(DASHBOARD_VERSION) API7EE3_CHART_DIR=$(API7EE3_CHART_DIR) go test ./test/e2e/ -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)"
+	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test ./test/e2e/ -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)"
 
 .PHONY: download-api7ee3-chart
 download-api7ee3-chart:
-	@mkdir -p $(CHART_DIR)
-	@rm -rf $(API7EE3_CHART_DIR) || true
 	@helm repo add api7 https://charts.api7.ai || true
 	@helm repo update
-	@helm pull api7/api7ee3 --untar --untardir $(CHART_DIR)
-	@echo "Downloaded API7EE3 chart to $(API7EE3_CHART_DIR)"
+	@helm pull api7/api7ee3 --destination "$(shell helm env HELM_REPOSITORY_CACHE)"
+	@echo "Downloaded API7EE3 chart"
 
 .PHONY: conformance-test
 conformance-test:
