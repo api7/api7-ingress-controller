@@ -32,3 +32,5 @@ api7-ingress-controller
 api7-ingress-controller-conformance-report.yaml
 
 *.mdx
+.cursor/
+

@@ -13,7 +13,7 @@ var _ = Describe("Test Consumer", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	var defaultGatewayProxy = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
   name: api7-proxy-config
@@ -51,13 +51,13 @@ spec:
       port: 80
   infrastructure:
     parametersRef:
-      group: gateway.apisix.io
+      group: apisix.apache.org
       kind: GatewayProxy
       name: api7-proxy-config
 `
 
 	var defaultHTTPRoute = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: PluginConfig
 metadata:
   name: auth-plugin-config
@@ -88,7 +88,7 @@ spec:
     filters:
     - type: ExtensionRef
       extensionRef:
-        group: gateway.apisix.io
+        group: apisix.apache.org
         kind: PluginConfig
         name: auth-plugin-config
     backendRefs:
@@ -98,7 +98,7 @@ spec:
 
 	Context("Consumer plugins", func() {
 		var limitCountConsumer = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: Consumer
 metadata:
   name: consumer-sample
@@ -120,7 +120,7 @@ spec:
 `
 
 		var unlimitConsumer = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: Consumer
 metadata:
   name: consumer-sample2
@@ -177,7 +177,7 @@ spec:
 
 	Context("Credential", func() {
 		var defaultCredential = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: Consumer
 metadata:
   name: consumer-sample
@@ -199,7 +199,7 @@ spec:
       config:
         key: sample-key2
 `
-		var updateCredential = `apiVersion: gateway.apisix.io/v1alpha1
+		var updateCredential = `apiVersion: apisix.apache.org/v1alpha1
 kind: Consumer
 metadata:
   name: consumer-sample
@@ -310,7 +310,7 @@ data:
   password: c2FtcGxlLXBhc3N3b3Jk
 `
 		var defaultConsumer = `
-apiVersion: gateway.apisix.io/v1alpha1
+apiVersion: apisix.apache.org/v1alpha1
 kind: Consumer
 metadata:
   name: consumer-sample

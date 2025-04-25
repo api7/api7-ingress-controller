@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.15.0
-  name: backendtrafficpolicies.gateway.apisix.io
+  name: backendtrafficpolicies.apisix.apache.org
 spec:
-  group: gateway.apisix.io
+  group: apisix.apache.org
   names:
     kind: BackendTrafficPolicy
     listKind: BackendTrafficPolicyList

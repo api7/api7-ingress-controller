@@ -12,7 +12,7 @@ metadata:
   name: gatewayproxy-viewer-role
 rules:
 - apiGroups:
-  - gateway.apisix.io
+  - apisix.apache.org
   resources:
   - gatewayproxies
   verbs:
@@ -20,7 +20,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - gateway.apisix.io
+  - apisix.apache.org
   resources:
   - gatewayproxies/status
   verbs:

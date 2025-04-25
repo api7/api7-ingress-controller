@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/api7/gopkg/pkg/log"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/api7/api7-ingress-controller/api/v1alpha1"
-	"github.com/api7/gopkg/pkg/log"
-
 	adctypes "github.com/api7/api7-ingress-controller/api/adc"
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/controller/label"
 	"github.com/api7/api7-ingress-controller/internal/id"
 	"github.com/api7/api7-ingress-controller/internal/provider"
@@ -289,16 +289,33 @@ func (t *Translator) translateEndpointSlice(weight int, endpointSlices []discove
 }
 
 func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref gatewayv1.BackendRef) adctypes.UpstreamNodes {
-	endpointSlices := tctx.EndpointSlices[types.NamespacedName{
-		Namespace: string(*ref.Namespace),
-		Name:      string(ref.Name),
-	}]
-
 	weight := 1
+	port := 80
 	if ref.Weight != nil {
 		weight = int(*ref.Weight)
 	}
+	if ref.Port != nil {
+		port = int(*ref.Port)
+	}
+	key := types.NamespacedName{
+		Namespace: string(*ref.Namespace),
+		Name:      string(ref.Name),
+	}
+	service, ok := tctx.Services[key]
+	if !ok {
+		return adctypes.UpstreamNodes{}
+	}
 
+	if service.Spec.Type == corev1.ServiceTypeExternalName {
+		return adctypes.UpstreamNodes{
+			{
+				Host:   service.Spec.ExternalName,
+				Port:   port,
+				Weight: weight,
+			},
+		}
+	}
+	endpointSlices := tctx.EndpointSlices[key]
 	return t.translateEndpointSlice(weight, endpointSlices)
 }
 

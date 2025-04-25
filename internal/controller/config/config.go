@@ -31,6 +31,7 @@ func NewDefaultConfig() *Config {
 		ProbeAddr:        DefaultProbeAddr,
 		MetricsAddr:      DefaultMetricsAddr,
 		LeaderElection:   NewLeaderElection(),
+		ExecADCTimeout:   types.TimeDuration{Duration: 15 * time.Second},
 	}
 }
 

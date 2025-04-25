@@ -20,14 +20,14 @@ import (
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
 
 // CustomResourceDefinition
-// +kubebuilder:rbac:groups=gateway.apisix.io,resources=pluginconfigs,verbs=get;list;watch
-// +kubebuilder:rbac:groups=gateway.apisix.io,resources=gatewayproxies,verbs=get;list;watch
-// +kubebuilder:rbac:groups=gateway.apisix.io,resources=consumers,verbs=get;list;watch
-// +kubebuilder:rbac:groups=gateway.apisix.io,resources=consumers/status,verbs=get;update
-// +kubebuilder:rbac:groups=gateway.apisix.io,resources=backendtrafficpolicies,verbs=get;list;watch
-// +kubebuilder:rbac:groups=gateway.apisix.io,resources=backendtrafficpolicies/status,verbs=get;update
-// +kubebuilder:rbac:groups=gateway.apisix.io,resources=httproutepolicies,verbs=get;list;watch
-// +kubebuilder:rbac:groups=gateway.apisix.io,resources=httproutepolicies/status,verbs=get;update
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=pluginconfigs,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=gatewayproxies,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=consumers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=consumers/status,verbs=get;update
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=backendtrafficpolicies,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=backendtrafficpolicies/status,verbs=get;update
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=httproutepolicies,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=httproutepolicies/status,verbs=get;update
 
 // GatewayAPI
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses,verbs=get;list;watch;update
