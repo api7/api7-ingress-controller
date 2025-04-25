@@ -7,10 +7,10 @@ controller_name: apisix.apache.org/api7-ingress-controller  # The controller nam
 leader_election_id: "api7-ingress-controller-leader" # The leader election ID for the API7 Ingress Controller.
                                                         # The default value is "api7-ingress-controller-leader".
 leader_election:
-  lease_duration: 15s                   # lease_duration is the duration that non-leader candidates will wait
+  lease_duration: 30s                   # lease_duration is the duration that non-leader candidates will wait
                                         # after observing a leadership renewal until attempting to acquire leadership of a
                                         # leader election.
-  renew_deadline: 10s                   # renew_deadline is the time in seconds that the acting controller
+  renew_deadline: 20s                   # renew_deadline is the time in seconds that the acting controller
                                         # will retry refreshing leadership before giving up.
   retry_period: 2s                      # retry_period is the time in seconds that the acting controller
                                         # will wait between tries of actions with the controller.

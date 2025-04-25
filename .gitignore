@@ -33,6 +33,6 @@ api7-ingress-controller-conformance-report.yaml
 
 *.mdx
 .cursor/
+.env
 
 charts/api7ee3
-

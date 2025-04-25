@@ -37,8 +37,8 @@ func NewDefaultConfig() *Config {
 
 func NewLeaderElection() *LeaderElection {
 	return &LeaderElection{
-		LeaseDuration: types.TimeDuration{Duration: 15 * time.Second},
-		RenewDeadline: types.TimeDuration{Duration: 10 * time.Second},
+		LeaseDuration: types.TimeDuration{Duration: 30 * time.Second},
+		RenewDeadline: types.TimeDuration{Duration: 20 * time.Second},
 		RetryPeriod:   types.TimeDuration{Duration: 2 * time.Second},
 		Disable:       false,
 	}
