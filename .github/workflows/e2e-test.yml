@@ -32,6 +32,12 @@ jobs:
         run: |
           go install sigs.k8s.io/kind@v0.23.0
 
+      - name: Install Helm
+        run: |
+          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+          chmod 700 get_helm.sh
+          ./get_helm.sh
+
   e2e-test:
     needs: 
       - prepare
@@ -71,6 +77,10 @@ jobs:
       - name: Install Gateway API And CRDs
         run: |
           make install
+
+      - name: Download API7EE3 Chart
+        run: |
+          make download-api7ee3-chart
 
       - name: Loading Docker Image to Kind Cluster
         run: |

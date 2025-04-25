@@ -17,7 +17,6 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 
-	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/kube"
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
@@ -273,12 +272,10 @@ func (f *Framework) deploy() {
 	)
 	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "init helm action config")
 
-	chartPathOptions := action.ChartPathOptions{
-		RepoURL: "https://charts.api7.ai",
+	chartPath := os.Getenv("API7EE3_CHART_DIR")
+	if chartPath == "" {
+		panic("env {API7EE3_CHART_DIR} is required")
 	}
-
-	chartPath, err := chartPathOptions.LocateChart("api7ee3", cli.New())
-	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "locate helm chart")
 
 	chart, err := loader.Load(chartPath)
 	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "load helm chart")
@@ -367,6 +364,7 @@ func (f *Framework) GetDataplaneCertificates(gatewayGroupID string) *v1.Dataplan
 		POST("/api/gateway_groups/"+gatewayGroupID+"/dp_client_certificates").
 		WithBasicAuth("admin", "admin").
 		WithHeader("Content-Type", "application/json").
+		WithBytes([]byte(`{}`)).
 		Expect()
 
 	f.Logger.Logf(f.GinkgoT, "dataplane certificates issuer response: %s", respExp.Body().Raw())
