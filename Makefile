@@ -115,7 +115,7 @@ download-api7ee3-chart:
 
 .PHONY: conformance-test
 conformance-test:
-	DASHBOARD_VERSION=$(DASHBOARD_VERSION) API7EE3_CHART_DIR=$(API7EE3_CHART_DIR) go test -v ./test/conformance -tags=conformance
+	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test -v ./test/conformance -tags=conformance
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter
