@@ -22,7 +22,6 @@ import (
 	"runtime"
 	"testing"
 
-	gatewayapisixiov1alpha1 "github.com/api7/api7-ingress-controller/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -31,6 +30,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	gatewayapisixiov1alpha1 "github.com/api7/api7-ingress-controller/api/v1alpha1"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to

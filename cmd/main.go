@@ -17,8 +17,9 @@ limitations under the License.
 package main
 
 import (
-	"github.com/api7/api7-ingress-controller/cmd/root"
 	"github.com/spf13/cobra"
+
+	"github.com/api7/api7-ingress-controller/cmd/root"
 )
 
 func main() {

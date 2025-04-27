@@ -29,9 +29,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/api7/api7-ingress-controller/pkg/dashboard"
-	"github.com/api7/api7-ingress-controller/pkg/utils"
-	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 	"github.com/gavv/httpexpect/v2"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/testing"
@@ -40,6 +37,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	"github.com/api7/api7-ingress-controller/pkg/dashboard"
+	"github.com/api7/api7-ingress-controller/pkg/utils"
+	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 )
 
 const (

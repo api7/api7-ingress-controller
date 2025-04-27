@@ -18,9 +18,10 @@ package cache
 import (
 	"testing"
 
-	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
 	"github.com/hashicorp/go-memdb"
 	"github.com/stretchr/testify/assert"
+
+	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
 )
 
 func TestMemDBCacheRoute(t *testing.T) {

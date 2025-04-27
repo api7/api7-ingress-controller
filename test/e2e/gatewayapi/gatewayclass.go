@@ -3,9 +3,10 @@ package gatewayapi
 import (
 	"time"
 
-	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
 var _ = Describe("Test GatewayClass", func() {

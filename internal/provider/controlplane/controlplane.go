@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/api7/gopkg/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/api7-ingress-controller/internal/provider/controlplane/translator"
 	"github.com/api7/api7-ingress-controller/pkg/dashboard"
-	"github.com/api7/gopkg/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 type dashboardProvider struct {

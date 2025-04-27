@@ -3,11 +3,12 @@ package manager
 import (
 	"context"
 
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+
 	"github.com/api7/api7-ingress-controller/internal/controller"
 	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
 	"github.com/api7/api7-ingress-controller/internal/provider"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 // K8s

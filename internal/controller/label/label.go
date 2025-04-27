@@ -1,8 +1,9 @@
 package label
 
 import (
-	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/api7/api7-ingress-controller/internal/controller/config"
 )
 
 type Label map[string]string

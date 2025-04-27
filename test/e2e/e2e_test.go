@@ -20,13 +20,14 @@ import (
 	"fmt"
 	"testing"
 
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
 	_ "github.com/api7/api7-ingress-controller/test/e2e/adminapi"
 	_ "github.com/api7/api7-ingress-controller/test/e2e/crds"
 	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 	_ "github.com/api7/api7-ingress-controller/test/e2e/gatewayapi"
 	_ "github.com/api7/api7-ingress-controller/test/e2e/ingress"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 // Run e2e tests using the Ginkgo runner.

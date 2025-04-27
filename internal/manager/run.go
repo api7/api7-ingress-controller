@@ -5,9 +5,6 @@ import (
 	"crypto/tls"
 	"os"
 
-	"github.com/api7/api7-ingress-controller/api/v1alpha1"
-	"github.com/api7/api7-ingress-controller/internal/controller/config"
-	"github.com/api7/api7-ingress-controller/internal/provider/adc"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -19,6 +16,10 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
+	"github.com/api7/api7-ingress-controller/internal/controller/config"
+	"github.com/api7/api7-ingress-controller/internal/provider/adc"
 )
 
 var (

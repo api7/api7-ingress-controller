@@ -20,9 +20,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/api7/api7-ingress-controller/internal/controller/config"
-	"github.com/api7/api7-ingress-controller/internal/manager"
-	"github.com/api7/api7-ingress-controller/internal/version"
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/zapr"
 	"github.com/spf13/cobra"
@@ -31,6 +28,10 @@ import (
 	"gopkg.in/yaml.v2"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	"github.com/api7/api7-ingress-controller/internal/controller/config"
+	"github.com/api7/api7-ingress-controller/internal/manager"
+	"github.com/api7/api7-ingress-controller/internal/version"
 )
 
 type GatewayConfigsFlag struct {

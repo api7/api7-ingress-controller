@@ -9,7 +9,6 @@ import (
 	"text/template"
 	"time"
 
-	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
@@ -19,6 +18,8 @@ import (
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/kube"
 	"k8s.io/apimachinery/pkg/util/yaml"
+
+	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
 )
 
 var (
