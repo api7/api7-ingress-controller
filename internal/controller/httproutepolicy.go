@@ -2,8 +2,9 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
+	"slices"
 
+	"github.com/go-logr/logr"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -41,8 +42,6 @@ func (r *HTTPRouteReconciler) processHTTPRoutePolicies(tctx *provider.TranslateC
 			}
 		}
 	}
-	data, _ := json.MarshalIndent(conflicts, "", "  ")
-	r.Log.Info("conflicts policies", "data", string(data))
 
 	for i := range list.Items {
 		var (
@@ -63,6 +62,39 @@ func (r *HTTPRouteReconciler) processHTTPRoutePolicies(tctx *provider.TranslateC
 		modifyHTTPRoutePolicyStatus(httpRoute.Spec.ParentRefs, &policy, status, reason, message)
 		tctx.StatusUpdaters = append(tctx.StatusUpdaters, &policy)
 	}
+
+	return nil
+}
+
+func (r *HTTPRouteReconciler) updateHTTPRouteStatusOnDeleting(nn types.NamespacedName) error {
+	var (
+		list v1alpha1.HTTPRoutePolicyList
+		key  = indexer.GenIndexKeyWithGK(gatewayv1.GroupName, "HTTPRoute", nn.Namespace, nn.Name)
+	)
+	if err := r.List(context.Background(), &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
+		return err
+	}
+	var (
+		objs       = make(map[types.NamespacedName]struct{})
+		parentRefs []gatewayv1.ParentReference
+	)
+	// collect all parentRefs
+	for _, policy := range list.Items {
+		for _, ref := range policy.Spec.TargetRefs {
+			var obj = types.NamespacedName{Namespace: policy.GetNamespace(), Name: string(ref.Name)}
+			if _, ok := objs[obj]; !ok {
+				objs[obj] = struct{}{}
+
+				var httpRoute gatewayv1.HTTPRoute
+				if err := r.Get(context.Background(), obj, &httpRoute); err != nil {
+					continue
+				}
+				parentRefs = append(parentRefs, httpRoute.Spec.ParentRefs...)
+			}
+		}
+	}
+	// delete AncestorRef which is not exist in the all parentRefs for each policy
+	updateDeleteAncestors(r.Client, r.Log, list.Items, parentRefs)
 
 	return nil
 }
@@ -98,6 +130,47 @@ func (r *IngressReconciler) processHTTPRoutePolicies(tctx *provider.TranslateCon
 		modifyHTTPRoutePolicyStatus(tctx.RouteParentRefs, &policy, status, reason, message)
 		tctx.StatusUpdaters = append(tctx.StatusUpdaters, &policy)
 	}
+
+	return nil
+}
+
+func (r *IngressReconciler) updateHTTPRoutePolicyStatusOnDeleting(nn types.NamespacedName) error {
+	var (
+		list v1alpha1.HTTPRoutePolicyList
+		key  = indexer.GenIndexKeyWithGK(networkingv1.GroupName, "Ingress", nn.Namespace, nn.Name)
+	)
+	if err := r.List(context.Background(), &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
+		return err
+	}
+	var (
+		objs       = make(map[types.NamespacedName]struct{})
+		parentRefs []gatewayv1.ParentReference
+	)
+	// collect all parentRefs
+	for _, policy := range list.Items {
+		for _, ref := range policy.Spec.TargetRefs {
+			var obj = types.NamespacedName{Namespace: policy.GetNamespace(), Name: string(ref.Name)}
+			if _, ok := objs[obj]; !ok {
+				objs[obj] = struct{}{}
+
+				var ingress networkingv1.Ingress
+				if err := r.Get(context.Background(), obj, &ingress); err != nil {
+					continue
+				}
+				ingressClass, err := r.getIngressClass(&ingress)
+				if err != nil {
+					continue
+				}
+				parentRefs = append(parentRefs, gatewayv1.ParentReference{
+					Group: ptr.To(gatewayv1.Group(ingressClass.GroupVersionKind().Group)),
+					Kind:  ptr.To(gatewayv1.Kind("IngressClass")),
+					Name:  gatewayv1.ObjectName(ingressClass.Name),
+				})
+			}
+		}
+	}
+	// delete AncestorRef which is not exist in the all parentRefs
+	updateDeleteAncestors(r.Client, r.Log, list.Items, parentRefs)
 
 	return nil
 }
@@ -140,4 +213,21 @@ func findPolicyWhichTargetRefTheRule(ruleName *gatewayv1.SectionName, kind strin
 		}
 	}
 	return
+}
+
+func updateDeleteAncestors(client client.Client, logger logr.Logger, policies []v1alpha1.HTTPRoutePolicy, parentRefs []gatewayv1.ParentReference) {
+	for i := range policies {
+		policy := policies[i]
+		length := len(policy.Status.Ancestors)
+		policy.Status.Ancestors = slices.DeleteFunc(policy.Status.Ancestors, func(status v1alpha2.PolicyAncestorStatus) bool {
+			return !slices.ContainsFunc(parentRefs, func(ref gatewayv1.ParentReference) bool {
+				return parentRefValueEqual(status.AncestorRef, ref)
+			})
+		})
+		if length != len(policy.Status.Ancestors) {
+			if err := client.Status().Update(context.Background(), &policy); err != nil {
+				logger.Error(err, "failed to update HTTPRoutePolicy status")
+			}
+		}
+	}
 }
