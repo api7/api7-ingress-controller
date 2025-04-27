@@ -80,5 +80,11 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Consumer"),
 			Provider: pro,
 		},
+		&controller.IngressClassReconciler{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("IngressClass"),
+			Provider: pro,
+		},
 	}, nil
 }

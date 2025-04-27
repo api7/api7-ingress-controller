@@ -26,6 +26,7 @@ const (
 	KindHTTPRoute    = "HTTPRoute"
 	KindGatewayClass = "GatewayClass"
 	KindIngress      = "Ingress"
+	KindIngressClass = "IngressClass"
 )
 
 const defaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"

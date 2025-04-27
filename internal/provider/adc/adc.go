@@ -87,6 +87,9 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 	case *v1alpha1.Consumer:
 		result, err = d.translator.TranslateConsumerV1alpha1(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "consumer")
+	case *networkingv1.IngressClass:
+		result, err = d.translator.TranslateIngressClass(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, "global_rule", "plugin_metadata")
 	}
 	if err != nil {
 		return err
@@ -154,6 +157,8 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 	case *v1alpha1.Consumer:
 		resourceTypes = append(resourceTypes, "consumer")
 		labels = label.GenLabel(obj)
+	case *networkingv1.IngressClass:
+		// delete all resources
 	}
 
 	rk := provider.ResourceKind{
