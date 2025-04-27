@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"os"
 
+	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
 	"github.com/hashicorp/go-multierror"
 	"github.com/xeipuuv/gojsonschema"
-
-	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
 )
 
 type APISIXSchema struct {

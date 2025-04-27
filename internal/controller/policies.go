@@ -3,6 +3,10 @@ package controller
 import (
 	"fmt"
 
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
+	"github.com/api7/api7-ingress-controller/internal/controller/config"
+	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
+	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,11 +18,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-
-	"github.com/api7/api7-ingress-controller/api/v1alpha1"
-	"github.com/api7/api7-ingress-controller/internal/controller/config"
-	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
-	"github.com/api7/api7-ingress-controller/internal/provider"
 )
 
 type PolicyTargetKey struct {

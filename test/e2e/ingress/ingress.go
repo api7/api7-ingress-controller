@@ -7,12 +7,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/api7/api7-ingress-controller/test/e2e/framework"
+	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/api7/api7-ingress-controller/test/e2e/framework"
-	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
 const _secretName = "test-ingress-tls"

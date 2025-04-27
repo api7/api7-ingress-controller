@@ -18,10 +18,9 @@ import (
 	"context"
 	"encoding/json"
 
-	"go.uber.org/zap"
-
 	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
 	"github.com/api7/gopkg/pkg/log"
+	"go.uber.org/zap"
 )
 
 type pluginMetadataClient struct {

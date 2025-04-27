@@ -5,6 +5,11 @@ import (
 	"fmt"
 	"strings"
 
+	adctypes "github.com/api7/api7-ingress-controller/api/adc"
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
+	"github.com/api7/api7-ingress-controller/internal/controller/label"
+	"github.com/api7/api7-ingress-controller/internal/id"
+	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -13,12 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-
-	adctypes "github.com/api7/api7-ingress-controller/api/adc"
-	"github.com/api7/api7-ingress-controller/api/v1alpha1"
-	"github.com/api7/api7-ingress-controller/internal/controller/label"
-	"github.com/api7/api7-ingress-controller/internal/id"
-	"github.com/api7/api7-ingress-controller/internal/provider"
 )
 
 func (t *Translator) fillPluginsFromHTTPRouteFilters(

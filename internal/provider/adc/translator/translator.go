@@ -1,9 +1,8 @@
 package translator
 
 import (
-	"github.com/go-logr/logr"
-
 	adctypes "github.com/api7/api7-ingress-controller/api/adc"
+	"github.com/go-logr/logr"
 )
 
 type Translator struct {

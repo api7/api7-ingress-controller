@@ -7,14 +7,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/retry"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-
-	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 )
 
 var gatewayClassName = "api7"

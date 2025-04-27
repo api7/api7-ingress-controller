@@ -6,6 +6,11 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
+	"github.com/api7/api7-ingress-controller/internal/controller/config"
+	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
+	"github.com/api7/api7-ingress-controller/internal/provider"
+	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
@@ -24,12 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-
-	"github.com/api7/api7-ingress-controller/api/v1alpha1"
-	"github.com/api7/api7-ingress-controller/internal/controller/config"
-	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
-	"github.com/api7/api7-ingress-controller/internal/provider"
-	"github.com/api7/gopkg/pkg/log"
 )
 
 // IngressReconciler reconciles a Ingress object.

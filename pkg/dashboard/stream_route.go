@@ -18,12 +18,11 @@ import (
 	"context"
 	"encoding/json"
 
-	"go.uber.org/zap"
-
 	"github.com/apache/apisix-ingress-controller/pkg/id"
 	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
 	"github.com/api7/api7-ingress-controller/pkg/dashboard/cache"
 	"github.com/api7/gopkg/pkg/log"
+	"go.uber.org/zap"
 )
 
 type streamRouteClient struct {

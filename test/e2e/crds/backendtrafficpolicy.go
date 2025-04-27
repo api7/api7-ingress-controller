@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-
 	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Test BackendTrafficPolicy base on HTTPRoute", func() {

@@ -342,3 +342,7 @@ helm-build-crds:
 	$(KUSTOMIZE) build github.com/kubernetes-sigs/gateway-api/config/crd\?ref=${GATEAY_API_VERSION} > charts/crds/gwapi-crds.yaml
 	@echo "build apisix ic crds"
 	$(KUSTOMIZE) build config/crd > charts/crds/apisixic-crds.yaml
+
+sort-import:
+	@./scripts/goimports-reviser.sh >/dev/null 2>&1
+.PHONY: sort-import

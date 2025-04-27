@@ -4,15 +4,14 @@ import (
 	"fmt"
 	"strings"
 
-	corev1 "k8s.io/api/core/v1"
-	discoveryv1 "k8s.io/api/discovery/v1"
-	networkingv1 "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/types"
-
 	adctypes "github.com/api7/api7-ingress-controller/api/adc"
 	"github.com/api7/api7-ingress-controller/internal/controller/label"
 	"github.com/api7/api7-ingress-controller/internal/id"
 	"github.com/api7/api7-ingress-controller/internal/provider"
+	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
+	networkingv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 func (t *Translator) translateIngressTLS(ingressTLS *networkingv1.IngressTLS, secret *corev1.Secret, labels map[string]string) (*adctypes.SSL, error) {

@@ -15,9 +15,8 @@
 package scaffold
 
 import (
-	. "github.com/onsi/gomega"
-
 	"github.com/api7/api7-ingress-controller/test/e2e/framework"
+	. "github.com/onsi/gomega"
 )
 
 func (s *Scaffold) deployDataplane() {
