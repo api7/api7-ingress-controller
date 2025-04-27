@@ -253,6 +253,12 @@ spec:
         type: AdminKey
         adminKey:
           value: "%s"
+  plugins:
+  - name: response-rewrite
+    enabled: true
+    config: 
+      headers:
+        X-Proxy-Test: "enabled"
 `
 
 		gatewayProxyWithSecretYaml := `
@@ -274,6 +280,12 @@ spec:
             secretKeyRef:
               name: admin-secret
               key: admin-key
+  plugins:
+  - name: response-rewrite
+    enabled: true
+    config: 
+      headers:
+        X-Proxy-Test: "enabled"
 `
 
 		var ingressClassWithProxy = `
@@ -368,11 +380,12 @@ spec:
 			time.Sleep(5 * time.Second)
 
 			By("verify HTTP request")
-			s.NewAPISIXClient().
+			resp := s.NewAPISIXClient().
 				GET("/get").
 				WithHost("proxy.example.com").
 				Expect().
 				Status(200)
+			resp.Header("X-Proxy-Test").IsEqual("enabled")
 		})
 
 		It("Test IngressClass with GatewayProxy using Secret", func() {
