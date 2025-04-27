@@ -525,11 +525,11 @@ spec:
 
 			serviceResources, err := s.DefaultDataplaneResource().Service().List(context.Background())
 			Expect(err).NotTo(HaveOccurred(), "listing services")
-			Expect(len(serviceResources)).To(Equal(1))
+			Expect(serviceResources).To(HaveLen(1), "checking service length")
 
 			serviceResource := serviceResources[0]
 			nodes := serviceResource.Upstream.Nodes
-			Expect(len(nodes)).To(Equal(1))
+			Expect(nodes).To(HaveLen(1), "checking nodes length")
 			Expect(nodes[0].Port).To(Equal(80))
 		})
 	})
