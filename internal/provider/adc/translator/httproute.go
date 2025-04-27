@@ -305,6 +305,9 @@ func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref ga
 	}
 
 	weight := 1
+	if ref.Weight != nil {
+		weight = int(*ref.Weight)
+	}
 
 	if service.Spec.Type == corev1.ServiceTypeExternalName {
 		port := 80
