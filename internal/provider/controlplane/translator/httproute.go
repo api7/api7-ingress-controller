@@ -167,8 +167,8 @@ func (t *Translator) fillPluginFromHTTPRequestMirrorFilter(plugins v1.Plugins, n
 	}
 
 	var (
-		port int    = 80
-		ns   string = namespace
+		port = 80
+		ns   = namespace
 	)
 	if reqMirror.BackendRef.Port != nil {
 		port = int(*reqMirror.BackendRef.Port)
@@ -273,8 +273,8 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 				backend.Namespace = &namespace
 			}
 			upstream := t.translateBackendRef(tctx, backend.BackendRef)
-			upstream.Labels["name"] = string(backend.BackendRef.Name)
-			upstream.Labels["namespace"] = string(*backend.BackendRef.Namespace)
+			upstream.Labels["name"] = string(backend.Name)
+			upstream.Labels["namespace"] = string(*backend.Namespace)
 			upstreams = append(upstreams, upstream)
 			if len(upstream.Nodes) == 0 {
 				upstream.Nodes = v1.UpstreamNodes{
@@ -389,7 +389,7 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 		}
 	}
 
-	if match.Headers != nil && len(match.Headers) > 0 {
+	if len(match.Headers) > 0 {
 		for _, header := range match.Headers {
 			name := strings.ToLower(string(header.Name))
 			name = strings.ReplaceAll(name, "-", "_")
@@ -420,7 +420,7 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 		}
 	}
 
-	if match.QueryParams != nil && len(match.QueryParams) > 0 {
+	if len(match.QueryParams) > 0 {
 		for _, query := range match.QueryParams {
 			var this []v1.StringOrSlice
 			this = append(this, v1.StringOrSlice{

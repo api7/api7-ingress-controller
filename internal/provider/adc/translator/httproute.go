@@ -180,8 +180,8 @@ func (t *Translator) fillPluginFromHTTPRequestMirrorFilter(plugins adctypes.Plug
 	}
 
 	var (
-		port int    = 80
-		ns   string = namespace
+		port = 80
+		ns   = namespace
 	)
 	if reqMirror.BackendRef.Port != nil {
 		port = int(*reqMirror.BackendRef.Port)
@@ -233,23 +233,24 @@ func (t *Translator) fillPluginFromHTTPRequestRedirectFilter(plugins adctypes.Pl
 }
 
 func (t *Translator) fillHTTPRoutePoliciesForHTTPRoute(tctx *provider.TranslateContext, routes []*adctypes.Route, rule gatewayv1.HTTPRouteRule) {
-	var keys = []string{"*"}
-	if rule.Name != nil {
-		keys = append(keys, string(*rule.Name))
+	var policies []v1alpha1.HTTPRoutePolicy
+	for _, policy := range tctx.HTTPRoutePolicies {
+		for _, ref := range policy.Spec.TargetRefs {
+			if string(ref.Kind) == "HTTPRoute" && (ref.SectionName == nil || *ref.SectionName == "" || ptr.Equal(ref.SectionName, rule.Name)) {
+				policies = append(policies, policy)
+				break
+			}
+		}
 	}
-	t.fillHTTPRoutePolicies(tctx, routes, keys...)
+
+	t.fillHTTPRoutePolicies(routes, policies)
 }
 
 func (t *Translator) fillHTTPRoutePoliciesForIngress(tctx *provider.TranslateContext, routes []*adctypes.Route) {
-	t.fillHTTPRoutePolicies(tctx, routes, "*")
+	t.fillHTTPRoutePolicies(routes, tctx.HTTPRoutePolicies)
 }
 
-func (t *Translator) fillHTTPRoutePolicies(tctx *provider.TranslateContext, routes []*adctypes.Route, ctxKeys ...string) {
-	var policies []v1alpha1.HTTPRoutePolicy
-	for _, key := range ctxKeys {
-		policies = append(policies, tctx.HTTPRoutePolicies[key]...)
-	}
-
+func (t *Translator) fillHTTPRoutePolicies(routes []*adctypes.Route, policies []v1alpha1.HTTPRoutePolicy) {
 	for _, policy := range policies {
 		for _, route := range routes {
 			route.Priority = policy.Spec.Priority

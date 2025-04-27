@@ -100,6 +100,10 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	ingress := new(networkingv1.Ingress)
 	if err := r.Get(ctx, req.NamespacedName, ingress); err != nil {
 		if client.IgnoreNotFound(err) == nil {
+			if err := r.updateHTTPRoutePolicyStatusOnDeleting(req.NamespacedName); err != nil {
+				return ctrl.Result{}, err
+			}
+
 			// Ingress was deleted, clean up corresponding resources
 			ingress.Namespace = req.Namespace
 			ingress.Name = req.Name
@@ -209,7 +213,7 @@ func (r *IngressReconciler) getIngressClass(obj client.Object) (*networkingv1.In
 
 	// if it does not match, check if the ingress class is controlled by us
 	ingressClass := networkingv1.IngressClass{}
-	if err := r.Client.Get(context.Background(), client.ObjectKey{Name: *ingress.Spec.IngressClassName}, &ingressClass); err != nil {
+	if err := r.Get(context.Background(), client.ObjectKey{Name: *ingress.Spec.IngressClassName}, &ingressClass); err != nil {
 		return nil, err
 	}
 

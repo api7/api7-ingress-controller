@@ -533,6 +533,7 @@ spec:
 			Expect(nodes[0].Port).To(Equal(80))
 		})
 	})
+
 	Context("HTTPRoute Rule Match", func() {
 		var exactRouteByGet = `
 apiVersion: gateway.networking.k8s.io/v1
@@ -898,12 +899,18 @@ spec:
 			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 		})
 
-		PIt("HTTPRoutePolicy status changes on HTTPRoute deleting", func() {
+		It("HTTPRoutePolicy status changes on HTTPRoute deleting", func() {
 			By("create HTTPRoute")
 			ResourceApplied("HTTPRoute", "httpbin", varsRoute, 1)
 
 			By("create HTTPRoutePolicy")
 			ResourceApplied("HTTPRoutePolicy", "http-route-policy-0", httpRoutePolicy, 1)
+
+			Eventually(func() string {
+				spec, err := s.GetResourceYaml("HTTPRoutePolicy", "http-route-policy-0")
+				Expect(err).NotTo(HaveOccurred(), "getting HTTPRoutePolicy")
+				return spec
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(ContainSubstring("type: Accepted"))
 
 			By("access dataplane to check the HTTPRoutePolicy")
 			s.NewAPISIXClient().

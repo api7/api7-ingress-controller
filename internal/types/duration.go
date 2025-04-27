@@ -31,7 +31,7 @@ type TimeDuration struct {
 }
 
 func (d *TimeDuration) MarshalJSON() ([]byte, error) {
-	return json.Marshal(d.Duration.String())
+	return json.Marshal(d.String())
 }
 
 func (d *TimeDuration) UnmarshalJSON(data []byte) error {
@@ -55,7 +55,7 @@ func (d *TimeDuration) UnmarshalJSON(data []byte) error {
 }
 
 func (d *TimeDuration) MarshalYAML() (any, error) {
-	return d.Duration.String(), nil
+	return d.String(), nil
 }
 
 func (d *TimeDuration) UnmarshalYAML(unmarshal func(any) error) error {
