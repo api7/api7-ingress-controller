@@ -421,11 +421,12 @@ stringData:
 			time.Sleep(5 * time.Second)
 
 			By("verify HTTP request")
-			s.NewAPISIXClient().
+			resp := s.NewAPISIXClient().
 				GET("/get").
 				WithHost("proxy-secret.example.com").
 				Expect().
 				Status(200)
+			resp.Header("X-Proxy-Test").IsEqual("enabled")
 		})
 	})
 
