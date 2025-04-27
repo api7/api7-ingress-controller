@@ -18,7 +18,6 @@ import (
 	"github.com/onsi/gomega"
 	"golang.org/x/net/html"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/remotecommand"
@@ -53,7 +52,7 @@ func (f *Framework) ListRunningPods(selector string) []corev1.Pod {
 	f.GomegaT.Expect(err).ShouldNot(gomega.HaveOccurred(), "list pod: ", selector)
 	runningPods := make([]corev1.Pod, 0)
 	for _, p := range pods.Items {
-		if p.Status.Phase == corev1.PodRunning && p.ObjectMeta.DeletionTimestamp == nil {
+		if p.Status.Phase == corev1.PodRunning && p.DeletionTimestamp == nil {
 			runningPods = append(runningPods, p)
 		}
 	}
@@ -273,7 +272,7 @@ func (f *Framework) LogoutDashboardByOIDC(logoutPath string, cookies []*http.Coo
 func (f *Framework) GetPodLogs(name string, previous bool) string {
 	reader, err := f.clientset.CoreV1().
 		Pods(_namespace).
-		GetLogs(name, &v1.PodLogOptions{Previous: previous}).
+		GetLogs(name, &corev1.PodLogOptions{Previous: previous}).
 		Stream(context.Background())
 	f.GomegaT.Expect(err).ShouldNot(gomega.HaveOccurred(), "get logs")
 	defer func() {
@@ -305,7 +304,7 @@ func (f *Framework) WaitPodsLog(selector, keyword string, sinceSeconds int64, ti
 		wg.Add(1)
 		go func(p corev1.Pod) {
 			defer wg.Done()
-			opts := v1.PodLogOptions{Follow: true}
+			opts := corev1.PodLogOptions{Follow: true}
 			if sinceSeconds > 0 {
 				opts.SinceSeconds = ptr.To(sinceSeconds)
 			} else {

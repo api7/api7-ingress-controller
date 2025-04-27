@@ -180,8 +180,8 @@ func (t *Translator) fillPluginFromHTTPRequestMirrorFilter(plugins adctypes.Plug
 	}
 
 	var (
-		port int    = 80
-		ns   string = namespace
+		port = 80
+		ns   = namespace
 	)
 	if reqMirror.BackendRef.Port != nil {
 		port = int(*reqMirror.BackendRef.Port)

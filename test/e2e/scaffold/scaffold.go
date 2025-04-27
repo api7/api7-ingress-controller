@@ -32,8 +32,8 @@ import (
 	"github.com/gavv/httpexpect/v2"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/testing"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo/v2" //nolint:staticcheck
+	. "github.com/onsi/gomega"    //nolint:staticcheck
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -550,7 +550,7 @@ func (s *Scaffold) addFinalizers(f func()) {
 func (s *Scaffold) FormatRegistry(workloadTemplate string) string {
 	customRegistry, isExist := os.LookupEnv("REGISTRY")
 	if isExist {
-		return strings.Replace(workloadTemplate, "127.0.0.1:5000", customRegistry, -1)
+		return strings.ReplaceAll(workloadTemplate, "127.0.0.1:5000", customRegistry)
 	} else {
 		return workloadTemplate
 	}
@@ -682,10 +682,11 @@ func (s *Scaffold) createDataplaneTunnels(
 	)
 
 	for _, port := range svc.Spec.Ports {
-		if port.Name == "http" {
+		switch port.Name {
+		case "http":
 			httpNodePort = int(port.NodePort)
 			httpPort = int(port.Port)
-		} else if port.Name == "https" {
+		case "https":
 			httpsNodePort = int(port.NodePort)
 			httpsPort = int(port.Port)
 		}

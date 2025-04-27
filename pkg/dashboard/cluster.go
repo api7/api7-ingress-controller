@@ -63,7 +63,7 @@ var (
 	// ErrRouteNotFound means the [route, ssl, upstream] was not found.
 	ErrNotFound = cache.ErrNotFound
 
-	_errReadOnClosedResBody = errors.New("http: read on closed response body")
+	errReadOnClosedResBody = errors.New("http: read on closed response body")
 )
 
 // ClusterOptions contains parameters to customize APISIX client.
@@ -128,10 +128,14 @@ func newCluster(ctx context.Context, o *ClusterOptions) (Cluster, error) {
 	if err != nil {
 		return nil, err
 	}
-	if u.Port() == "" {
-		if u.Scheme == "http" {
+
+	switch u.Scheme {
+	case "http":
+		if u.Port() == "" {
 			u.Host = u.Host + ":80"
-		} else if u.Scheme == "https" {
+		}
+	case "https":
+		if u.Port() == "" {
 			u.Host = u.Host + ":443"
 		}
 	}
@@ -698,7 +702,7 @@ func (c *cluster) deleteResource(ctx context.Context, url, resource string) erro
 func drainBody(r io.ReadCloser, url string) {
 	_, err := io.Copy(io.Discard, r)
 	if err != nil {
-		if err.Error() != _errReadOnClosedResBody.Error() {
+		if err.Error() != errReadOnClosedResBody.Error() {
 			log.Warnw("failed to drain body (read)",
 				zap.String("url", url),
 				zap.Error(err),

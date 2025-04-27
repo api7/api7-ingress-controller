@@ -171,7 +171,8 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 
 			uris := []string{path.Path}
 			if path.PathType != nil {
-				if *path.PathType == networkingv1.PathTypePrefix {
+				switch *path.PathType {
+				case networkingv1.PathTypePrefix:
 					// As per the specification of Ingress path matching rule:
 					// if the last element of the path is a substring of the
 					// last element in request path, it is not a match, e.g. /foo/bar
@@ -188,7 +189,7 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 						prefix += "/*"
 					}
 					uris = append(uris, prefix)
-				} else if *path.PathType == networkingv1.PathTypeImplementationSpecific {
+				case networkingv1.PathTypeImplementationSpecific:
 					uris = []string{"/*"}
 				}
 			}
