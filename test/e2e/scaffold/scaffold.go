@@ -689,8 +689,6 @@ func (s *Scaffold) createDataplaneTunnels(
 		case "https":
 			httpsNodePort = int(port.NodePort)
 			httpsPort = int(port.Port)
-		default:
-			return nil, nil, fmt.Errorf("unknown port name: %s", port.Name)
 		}
 	}
 
