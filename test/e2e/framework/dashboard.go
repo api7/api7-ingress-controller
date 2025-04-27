@@ -16,8 +16,8 @@ import (
 	"golang.org/x/net/html"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
-
 	"helm.sh/helm/v3/pkg/cli"
+
 	"helm.sh/helm/v3/pkg/kube"
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
@@ -273,19 +273,15 @@ func (f *Framework) deploy() {
 	)
 	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "init helm action config")
 
-	chartPathOptions := action.ChartPathOptions{
-		RepoURL: "https://charts.api7.ai",
-	}
+	install := action.NewInstall(actionConfig)
+	install.Namespace = f.kubectlOpts.Namespace
+	install.ReleaseName = "api7ee3"
 
-	chartPath, err := chartPathOptions.LocateChart("api7ee3", cli.New())
+	chartPath, err := install.ChartPathOptions.LocateChart("api7/api7ee3", cli.New())
 	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "locate helm chart")
 
 	chart, err := loader.Load(chartPath)
 	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "load helm chart")
-
-	install := action.NewInstall(actionConfig)
-	install.Namespace = f.kubectlOpts.Namespace
-	install.ReleaseName = "api7ee3"
 
 	buf := bytes.NewBuffer(nil)
 	_ = valuesTemplate.Execute(buf, map[string]any{

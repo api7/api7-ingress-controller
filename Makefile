@@ -106,6 +106,13 @@ e2e-test:
 	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
 	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test ./test/e2e/ -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)"
 
+.PHONY: download-api7ee3-chart
+download-api7ee3-chart:
+	@helm repo add api7 https://charts.api7.ai || true
+	@helm repo update
+	@helm pull api7/api7ee3 --destination "$(shell helm env HELM_REPOSITORY_CACHE)"
+	@echo "Downloaded API7EE3 chart"
+
 .PHONY: conformance-test
 conformance-test:
 	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test -v ./test/conformance -tags=conformance
