@@ -277,7 +277,7 @@ func (f *Framework) deploy() {
 	install.Namespace = f.kubectlOpts.Namespace
 	install.ReleaseName = "api7ee3"
 
-	chartPath, err := install.ChartPathOptions.LocateChart("api7/api7ee3", cli.New())
+	chartPath, err := install.LocateChart("api7/api7ee3", cli.New())
 	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "locate helm chart")
 
 	chart, err := loader.Load(chartPath)

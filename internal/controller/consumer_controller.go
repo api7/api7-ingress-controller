@@ -307,7 +307,7 @@ func (r *ConsumerReconciler) checkGatewayRef(object client.Object) bool {
 		return false
 	}
 	gatewayClass := &gatewayv1.GatewayClass{}
-	if err := r.Client.Get(context.Background(), client.ObjectKey{Name: string(gateway.Spec.GatewayClassName)}, gatewayClass); err != nil {
+	if err := r.Get(context.Background(), client.ObjectKey{Name: string(gateway.Spec.GatewayClassName)}, gatewayClass); err != nil {
 		r.Log.Error(err, "failed to get gateway class", "gateway", gateway.GetName(), "gatewayclass", gateway.Spec.GatewayClassName)
 		return false
 	}

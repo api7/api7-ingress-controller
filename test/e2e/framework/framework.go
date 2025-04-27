@@ -10,8 +10,8 @@ import (
 
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/logger"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo/v2" //nolint:staticcheck
+	. "github.com/onsi/gomega"    //nolint:staticcheck
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"gorm.io/gorm"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"

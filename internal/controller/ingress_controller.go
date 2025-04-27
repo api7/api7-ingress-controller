@@ -209,7 +209,7 @@ func (r *IngressReconciler) getIngressClass(obj client.Object) (*networkingv1.In
 
 	// if it does not match, check if the ingress class is controlled by us
 	ingressClass := networkingv1.IngressClass{}
-	if err := r.Client.Get(context.Background(), client.ObjectKey{Name: *ingress.Spec.IngressClassName}, &ingressClass); err != nil {
+	if err := r.Get(context.Background(), client.ObjectKey{Name: *ingress.Spec.IngressClassName}, &ingressClass); err != nil {
 		return nil, err
 	}
 

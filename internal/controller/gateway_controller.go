@@ -208,7 +208,7 @@ func (r *GatewayReconciler) listGatewayForGatewayClass(ctx context.Context, gate
 func (r *GatewayReconciler) checkGatewayClass(obj client.Object) bool {
 	gateway := obj.(*gatewayv1.Gateway)
 	gatewayClass := &gatewayv1.GatewayClass{}
-	if err := r.Client.Get(context.Background(), client.ObjectKey{Name: string(gateway.Spec.GatewayClassName)}, gatewayClass); err != nil {
+	if err := r.Get(context.Background(), client.ObjectKey{Name: string(gateway.Spec.GatewayClassName)}, gatewayClass); err != nil {
 		r.Log.Error(err, "failed to get gateway class", "gateway", gateway.GetName(), "gatewayclass", gateway.Spec.GatewayClassName)
 		return false
 	}
