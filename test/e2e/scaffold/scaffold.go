@@ -828,7 +828,7 @@ func (s *Scaffold) CreateNewGatewayGroupWithIngress() string {
 }
 
 // Logf 日志输出函数
-func (s *Scaffold) Logf(format string, args ...interface{}) {
+func (s *Scaffold) Logf(format string, args ...any) {
 	// 这里实现日志输出逻辑
 	s.Framework.Logf(format, args...)
 }

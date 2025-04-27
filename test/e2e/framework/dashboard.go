@@ -306,7 +306,7 @@ func (f *Framework) deploy() {
 	})
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-	vals := make(map[string]interface{})
+	vals := make(map[string]any)
 	gomega.Expect(yaml.Unmarshal(valuesBuf.Bytes(), &vals)).NotTo(gomega.HaveOccurred())
 
 	_, err = install.Run(chartObj, vals)
