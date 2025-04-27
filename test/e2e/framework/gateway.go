@@ -7,7 +7,7 @@ import (
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/gruntwork-io/terratest/modules/k8s"
-	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega" //nolint:staticcheck
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

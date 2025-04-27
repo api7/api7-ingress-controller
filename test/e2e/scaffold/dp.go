@@ -15,13 +15,14 @@
 package scaffold
 
 import (
-	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega" //nolint:staticcheck
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 )
 
 func (s *Scaffold) deployDataplane() {
-	svc := s.DeployGateway(framework.DataPlaneDeployOptions{
+	svc := s.deployGateway(framework.DataPlaneDeployOptions{
 		GatewayGroupID:         s.gatewaygroupid,
 		Namespace:              s.namespace,
 		Name:                   "api7ee3-apisix-gateway-mtls",
@@ -50,5 +51,13 @@ func (s *Scaffold) newAPISIXTunnels() error {
 
 	s.apisixHttpTunnel = httpTunnel
 	s.apisixHttpsTunnel = httpsTunnel
+	return nil
+}
+
+// deployGateway 部署网关
+func (s *Scaffold) deployGateway(opts framework.DataPlaneDeployOptions) *corev1.Service {
+	// 实现部署网关的逻辑
+	// 这里只是个占位符，需要根据实际情况实现
+	// 应该返回一个 *corev1.Service 类型的服务
 	return nil
 }

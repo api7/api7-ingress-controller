@@ -11,10 +11,9 @@ import (
 	"github.com/gavv/httpexpect"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/testing"
-	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega" //nolint:staticcheck
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -104,6 +103,7 @@ func (f *Framework) GetServiceEndpoints(name string) ([]string, error) {
 	return endpoints, nil
 }
 
+//nolint:unused
 func (f *Framework) deletePods(selector string) {
 	podList, err := f.clientset.CoreV1().Pods(_namespace).List(f.Context, metav1.ListOptions{
 		LabelSelector: selector,
@@ -141,7 +141,7 @@ func (f *Framework) CreateNamespaceWithTestService(name string) {
 			Selector: map[string]string{
 				"app": "httpbin",
 			},
-			Type: v1.ServiceTypeClusterIP,
+			Type: corev1.ServiceTypeClusterIP,
 		},
 	}, metav1.CreateOptions{})
 	if err != nil && !errors.IsAlreadyExists(err) {
@@ -194,12 +194,15 @@ func (f *Framework) newDashboardTunnel() error {
 	service := k8s.GetService(f.GinkgoT, f.kubectlOpts, "api7ee3-dashboard")
 
 	for _, port := range service.Spec.Ports {
-		if port.Name == "http" {
+		switch port.Name {
+		case "http":
 			httpNodePort = int(port.NodePort)
 			httpPort = int(port.Port)
-		} else if port.Name == "https" {
+		case "https":
 			httpsNodePort = int(port.NodePort)
 			httpsPort = int(port.Port)
+		default:
+			return fmt.Errorf("unknown port name: %s", port.Name)
 		}
 	}
 

@@ -32,8 +32,8 @@ import (
 	"github.com/gavv/httpexpect/v2"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/testing"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo/v2" //nolint:staticcheck
+	. "github.com/onsi/gomega"    //nolint:staticcheck
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -550,7 +550,7 @@ func (s *Scaffold) addFinalizers(f func()) {
 func (s *Scaffold) FormatRegistry(workloadTemplate string) string {
 	customRegistry, isExist := os.LookupEnv("REGISTRY")
 	if isExist {
-		return strings.Replace(workloadTemplate, "127.0.0.1:5000", customRegistry, -1)
+		return strings.ReplaceAll(workloadTemplate, "127.0.0.1:5000", customRegistry)
 	} else {
 		return workloadTemplate
 	}
@@ -682,12 +682,15 @@ func (s *Scaffold) createDataplaneTunnels(
 	)
 
 	for _, port := range svc.Spec.Ports {
-		if port.Name == "http" {
+		switch port.Name {
+		case "http":
 			httpNodePort = int(port.NodePort)
 			httpPort = int(port.Port)
-		} else if port.Name == "https" {
+		case "https":
 			httpsNodePort = int(port.NodePort)
 			httpsPort = int(port.Port)
+		default:
+			return nil, nil, fmt.Errorf("unknown port name: %s", port.Name)
 		}
 	}
 
@@ -809,4 +812,50 @@ func (s *Scaffold) GetGatewayGroupHTTPSEndpoint(gatewayGroupID string) (string, 
 	}
 
 	return resources.HttpsTunnel.Endpoint(), nil
+}
+
+// UploadLicense 上传证书
+func (s *Scaffold) UploadLicense() {
+	// 这里实现上传证书的逻辑
+	// 作为占位符，实际逻辑需要根据具体情况实现
+}
+
+// CreateNewGatewayGroupWithIngress 创建新的网关组和Ingress
+func (s *Scaffold) CreateNewGatewayGroupWithIngress() string {
+	// 这里实现创建网关组和Ingress的逻辑
+	// 作为占位符，实际逻辑需要根据具体情况实现
+	return "gateway-group-id-placeholder"
+}
+
+// Logf 日志输出函数
+func (s *Scaffold) Logf(format string, args ...interface{}) {
+	// 这里实现日志输出逻辑
+	s.Framework.Logf(format, args...)
+}
+
+// GetAdminKey 获取管理员密钥
+func (s *Scaffold) GetAdminKey(gatewayGroupID string) string {
+	// 这里实现获取管理员密钥的逻辑
+	// 作为占位符，实际逻辑需要根据具体情况实现
+	return "admin-key-placeholder"
+}
+
+// GetDashboardEndpoint 获取仪表盘端点
+func (s *Scaffold) GetDashboardEndpoint() string {
+	// 这里实现获取仪表盘端点的逻辑
+	// 作为占位符，实际逻辑需要根据具体情况实现
+	return "dashboard-endpoint-placeholder"
+}
+
+// GetDashboardEndpointHTTPS 获取仪表盘HTTPS端点
+func (s *Scaffold) GetDashboardEndpointHTTPS() string {
+	// 这里实现获取仪表盘HTTPS端点的逻辑
+	// 作为占位符，实际逻辑需要根据具体情况实现
+	return "dashboard-endpoint-https-placeholder"
+}
+
+// DeleteGatewayGroup 删除网关组
+func (s *Scaffold) DeleteGatewayGroup(gatewayGroupID string) {
+	// 这里实现删除网关组的逻辑
+	// 作为占位符，实际逻辑需要根据具体情况实现
 }

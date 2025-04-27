@@ -76,7 +76,7 @@ func (srv *fakeAPISIXConsumerSrv) ServeHTTP(w http.ResponseWriter, r *http.Reque
 					Value: srv.consumer[key],
 				},
 			}
-			resp.fakeGetCreateItem.Value = srv.consumer[key]
+			resp.Value = srv.consumer[key]
 			w.WriteHeader(http.StatusOK)
 			data, _ := json.Marshal(resp)
 			_, _ = w.Write(data)

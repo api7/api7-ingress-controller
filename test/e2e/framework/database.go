@@ -52,6 +52,7 @@ const (
 	mysqlDSN     = "mysql://root:changeme@tcp(mysql:3306)/api7ee"
 )
 
+//nolint:unused
 func getDSN() string {
 	switch _db {
 	case postgres:
