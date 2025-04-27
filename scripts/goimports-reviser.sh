@@ -7,5 +7,7 @@ go install github.com/incu6us/goimports-reviser/v3@latest
 PROJECT_NAME=github.com/api7/api7-ingress-controller
 
 find . -name '*.go' -print0 | while IFS= read -r -d '' file; do
-  goimports-reviser -project-name "$PROJECT_NAME" "$file"
+  if [ "$file" != "./cmd/root/root.go" ]; then
+    goimports-reviser -project-name "$PROJECT_NAME" "$file"
+  fi
 done

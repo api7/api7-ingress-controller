@@ -20,18 +20,24 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/api7/gopkg/pkg/log"
-	"github.com/go-logr/zapr"
-	"github.com/spf13/cobra"
-	"go.uber.org/zap"
+	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
+	// to ensure that exec-entrypoint and run can make use of them.
+
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/yaml.v2"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+
+	"github.com/go-logr/zapr"
+	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	// +kubebuilder:scaffold:imports
 
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/api7/api7-ingress-controller/internal/manager"
 	"github.com/api7/api7-ingress-controller/internal/version"
+	"github.com/api7/gopkg/pkg/log"
 )
 
 type GatewayConfigsFlag struct {
