@@ -201,8 +201,6 @@ func (f *Framework) newDashboardTunnel() error {
 		case "https":
 			httpsNodePort = int(port.NodePort)
 			httpsPort = int(port.Port)
-		default:
-			return fmt.Errorf("unknown port name: %s", port.Name)
 		}
 	}
 

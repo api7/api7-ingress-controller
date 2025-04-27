@@ -2,30 +2,24 @@ package framework
 
 import (
 	"bytes"
-	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
-	"os/exec"
 	"text/template"
 	"time"
 
 	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/google/uuid"
-	"github.com/onsi/gomega"
+	. "github.com/onsi/gomega"
 	"golang.org/x/net/html"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/cli"
 
 	"helm.sh/helm/v3/pkg/kube"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/util/yaml"
-
-	testutils "github.com/api7/api7-ingress-controller/test/utils"
 )
 
 var (
@@ -204,6 +198,10 @@ dp_manager_configuration:
   database:
     dsn: {{ .DSN }}
 prometheus:
+  server:
+    persistence:
+      enabled: false
+postgresql:
 {{- if ne .DB "postgres" }}
   builtin: false
 {{- end }}
@@ -273,70 +271,44 @@ func (f *Framework) deploy() {
 		"memory",
 		debug,
 	)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "init helm action config")
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "init helm action config")
 
 	install := action.NewInstall(actionConfig)
 	install.Namespace = f.kubectlOpts.Namespace
 	install.ReleaseName = "api7ee3"
-	install.Wait = true
-	install.Version = dashboardVersion
-	install.Timeout = 600 * time.Second
 
 	chartPath, err := install.LocateChart("api7/api7ee3", cli.New())
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "locate helm chart")
 
-	chartObj, err := loader.Load(chartPath)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	chart, err := loader.Load(chartPath)
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "load helm chart")
 
-	dsn := fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		"api7ee3-postgresql", 5432, "postgres", "postgres", "api7",
-	)
-	DB := "postgres"
-
-	valuesBuf := &bytes.Buffer{}
-	err = valuesTemplate.Execute(valuesBuf, struct {
-		Tag string
-		DSN string
-		DB  string
-	}{
-		Tag: dashboardVersion,
-		DSN: dsn,
-		DB:  DB,
+	buf := bytes.NewBuffer(nil)
+	_ = valuesTemplate.Execute(buf, map[string]any{
+		"DB":  _db,
+		"DSN": getDSN(),
+		"Tag": dashboardVersion,
 	})
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-	vals := make(map[string]any)
-	gomega.Expect(yaml.Unmarshal(valuesBuf.Bytes(), &vals)).NotTo(gomega.HaveOccurred())
-
-	_, err = install.Run(chartObj, vals)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-	err = f.ExecuteWithRetry(func() error {
-		cmd := exec.Command("kubectl", "get", "service", "api7ee3-dashboard", "-n", f.DeployNamespace())
-		_, err := testutils.Run(cmd)
-		return err
-	}, f.DeployNamespace())
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	var v map[string]any
+	err = yaml.Unmarshal(buf.Bytes(), &v)
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "unmarshal values")
+	_, err = install.Run(chart, v)
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "install dashboard")
 
 	err = f.ensureService("api7ee3-dashboard", _namespace, 1)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "ensuring dashboard service")
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "ensuring dashboard service")
 
 	err = f.ensureService("api7-postgresql", _namespace, 1)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "ensuring postgres service")
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "ensuring postgres service")
 
 	err = f.ensureService("api7-prometheus-server", _namespace, 1)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "ensuring prometheus-server service")
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "ensuring prometheus-server service")
 }
 
 func (f *Framework) initDashboard() {
-	// Wait for dashboard to be ready
-	err := f.ExecuteWithRetry(func() error {
-		cmd := exec.Command("kubectl", "get", "service", "api7ee3-dashboard", "-n", f.DeployNamespace())
-		_, err := testutils.Run(cmd)
-		return err
-	}, f.DeployNamespace())
-	f.GomegaT.Expect(err).ShouldNot(gomega.HaveOccurred(), "waiting for dashboard to be ready")
+	f.deletePods("app.kubernetes.io/name=api7ee3")
+	time.Sleep(5 * time.Second)
 }
 
 // ParseHTML will parse the doc from login page and generate a map contains id and action.
@@ -387,44 +359,23 @@ func (f *Framework) GetTokenFromDashboard(gatewayGroupID string) (string, error)
 }
 
 func (f *Framework) GetDataplaneCertificates(gatewayGroupID string) *v1.DataplaneCertificate {
-	req, err := http.NewRequest(
-		http.MethodGet,
-		fmt.Sprintf("http://127.0.0.1:%d/dashboard/api/gateway-groups/%s/dataplane-certificates",
-			f.ProxyPort(),
-			gatewayGroupID,
-		),
-		nil,
-	)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-	client := http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			f.Logf("failed to close response body: %v", err)
-		}
-	}()
-
-	body, err := io.ReadAll(resp.Body)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-	f.Logger.Logf(f.GinkgoT, "dataplane certificates issuer response: %s", string(body))
-
 	respExp := f.DashboardHTTPClient().
 		POST("/api/gateway_groups/"+gatewayGroupID+"/dp_client_certificates").
 		WithBasicAuth("admin", "admin").
 		WithHeader("Content-Type", "application/json").
-		WithBytes(body).
+		WithBytes([]byte(`{}`)).
 		Expect()
 
+	f.Logger.Logf(f.GinkgoT, "dataplane certificates issuer response: %s", respExp.Body().Raw())
+
 	respExp.Status(200).Body().Contains("certificate").Contains("private_key").Contains("ca_certificate")
+	body := respExp.Body().Raw()
 
 	var dpCertResp struct {
 		Value v1.DataplaneCertificate `json:"value"`
 	}
-	err = json.Unmarshal(body, &dpCertResp)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	err := json.Unmarshal([]byte(body), &dpCertResp)
+	Expect(err).ToNot(HaveOccurred())
 
 	return &dpCertResp.Value
 }
@@ -441,7 +392,7 @@ func (s *Framework) GetAdminKey(gatewayGroupID string) string {
 
 	var response responseCreateGateway
 	err := json.Unmarshal([]byte(body), &response)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "unmarshal response")
+	Expect(err).ToNot(HaveOccurred(), "unmarshal response")
 	return response.Value.Key
 }
 
@@ -457,12 +408,12 @@ func (f *Framework) DeleteGatewayGroup(gatewayGroupID string) {
 	// unmarshal into responseCreateGateway
 	var response responseCreateGateway
 	err := json.Unmarshal([]byte(body), &response)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 }
 
 func (f *Framework) CreateNewGatewayGroupWithIngress() string {
 	gid, err := f.CreateNewGatewayGroupWithIngressE()
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 	return gid
 }
 
@@ -497,35 +448,4 @@ func (f *Framework) CreateNewGatewayGroupWithIngressE() (string, error) {
 		return "", fmt.Errorf("error creating gateway group: %s", response.ErrorMsg)
 	}
 	return response.Value.ID, nil
-}
-
-// ExecuteWithRetry executes the given function with retry logic
-func (f *Framework) ExecuteWithRetry(fn func() error, namespace string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	return wait.PollUntilContextTimeout(
-		ctx,
-		1*time.Second,
-		30*time.Second,
-		false,
-		func(ctx context.Context) (bool, error) {
-			err := fn()
-			if err != nil {
-				f.Logf("Error executing function, retrying: %v", err)
-				return false, nil
-			}
-			return true, nil
-		},
-	)
-}
-
-// DeployNamespace returns the namespace used for deployment
-func (f *Framework) DeployNamespace() string {
-	return "api7-ee-e2e"
-}
-
-// ProxyPort returns the proxy port
-func (f *Framework) ProxyPort() int {
-	return 9080
 }
