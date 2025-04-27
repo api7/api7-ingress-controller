@@ -647,7 +647,7 @@ func (r *IngressReconciler) processIngressClassParameters(ctx context.Context, t
 
 	parameters := ingressClass.Spec.Parameters
 	// check if the parameters reference GatewayProxy
-	if parameters.APIGroup != nil && *parameters.APIGroup == v1alpha1.GroupVersion.Group && parameters.Kind == "GatewayProxy" {
+	if parameters.APIGroup != nil && *parameters.APIGroup == v1alpha1.GroupVersion.Group && parameters.Kind == KindGatewayProxy {
 		ns := ingress.GetNamespace()
 		if parameters.Namespace != nil {
 			ns = *parameters.Namespace

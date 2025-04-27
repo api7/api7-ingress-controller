@@ -27,6 +27,7 @@ const (
 	KindGatewayClass = "GatewayClass"
 	KindIngress      = "Ingress"
 	KindIngressClass = "IngressClass"
+	KindGatewayProxy = "GatewayProxy"
 )
 
 const defaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
@@ -783,7 +784,7 @@ func ProcessGatewayProxy(r client.Client, tctx *provider.TranslateContext, gatew
 
 	ns := gateway.GetNamespace()
 	paramRef := infra.ParametersRef
-	if string(paramRef.Group) == v1alpha1.GroupVersion.Group && string(paramRef.Kind) == "GatewayProxy" {
+	if string(paramRef.Group) == v1alpha1.GroupVersion.Group && string(paramRef.Kind) == KindGatewayProxy {
 		gatewayProxy := &v1alpha1.GatewayProxy{}
 		if err := r.Get(context.Background(), client.ObjectKey{
 			Namespace: ns,

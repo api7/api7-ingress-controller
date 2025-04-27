@@ -129,7 +129,7 @@ func (r *IngressClassReconciler) processInfrastructure(tctx *provider.TranslateC
 
 	if ingressClass.Spec.Parameters.APIGroup == nil ||
 		*ingressClass.Spec.Parameters.APIGroup != v1alpha1.GroupVersion.Group ||
-		ingressClass.Spec.Parameters.Kind != "GatewayProxy" {
+		ingressClass.Spec.Parameters.Kind != KindGatewayProxy {
 		return nil
 	}
 
