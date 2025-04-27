@@ -118,7 +118,7 @@ conformance-test:
 	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test -v ./test/conformance -tags=conformance
 
 .PHONY: lint
-lint: golangci-lint ## Run golangci-lint linter
+lint: sort-import golangci-lint ## Run golangci-lint linter
 	$(GOLANGCI_LINT) run
 
 .PHONY: lint-fix
