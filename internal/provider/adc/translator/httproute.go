@@ -265,13 +265,19 @@ func (t *Translator) fillHTTPRoutePolicies(tctx *provider.TranslateContext, rout
 	}
 }
 
-func (t *Translator) translateEndpointSlice(weight int, endpointSlices []discoveryv1.EndpointSlice) adctypes.UpstreamNodes {
+func (t *Translator) translateEndpointSlice(portName *string, weight int, endpointSlices []discoveryv1.EndpointSlice) adctypes.UpstreamNodes {
 	var nodes adctypes.UpstreamNodes
 	if len(endpointSlices) == 0 {
 		return nodes
 	}
 	for _, endpointSlice := range endpointSlices {
+		if portName != nil && len(nodes) > 0 {
+			break
+		}
 		for _, port := range endpointSlice.Ports {
+			if portName != nil && !ptr.Equal(portName, port.Name) {
+				continue
+			}
 			for _, endpoint := range endpointSlice.Endpoints {
 				for _, addr := range endpoint.Addresses {
 					node := adctypes.UpstreamNode{
@@ -289,14 +295,6 @@ func (t *Translator) translateEndpointSlice(weight int, endpointSlices []discove
 }
 
 func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref gatewayv1.BackendRef) adctypes.UpstreamNodes {
-	weight := 1
-	port := 80
-	if ref.Weight != nil {
-		weight = int(*ref.Weight)
-	}
-	if ref.Port != nil {
-		port = int(*ref.Port)
-	}
 	key := types.NamespacedName{
 		Namespace: string(*ref.Namespace),
 		Name:      string(ref.Name),
@@ -306,7 +304,13 @@ func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref ga
 		return adctypes.UpstreamNodes{}
 	}
 
+	weight := 1
+
 	if service.Spec.Type == corev1.ServiceTypeExternalName {
+		port := 80
+		if ref.Port != nil {
+			port = int(*ref.Port)
+		}
 		return adctypes.UpstreamNodes{
 			{
 				Host:   service.Spec.ExternalName,
@@ -315,8 +319,22 @@ func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref ga
 			},
 		}
 	}
+
+	var portName *string
+	if ref.Port != nil {
+		for _, p := range service.Spec.Ports {
+			if int(p.Port) == int(*ref.Port) {
+				portName = ptr.To(p.Name)
+				break
+			}
+		}
+		if portName == nil {
+			return adctypes.UpstreamNodes{}
+		}
+	}
+
 	endpointSlices := tctx.EndpointSlices[key]
-	return t.translateEndpointSlice(weight, endpointSlices)
+	return t.translateEndpointSlice(portName, weight, endpointSlices)
 }
 
 func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRoute *gatewayv1.HTTPRoute) (*TranslateResult, error) {
