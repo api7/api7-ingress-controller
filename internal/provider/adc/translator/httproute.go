@@ -272,9 +272,6 @@ func (t *Translator) translateEndpointSlice(portName *string, weight int, endpoi
 		return nodes
 	}
 	for _, endpointSlice := range endpointSlices {
-		if portName != nil && len(nodes) > 0 {
-			break
-		}
 		for _, port := range endpointSlice.Ports {
 			if portName != nil && !ptr.Equal(portName, port.Name) {
 				continue
@@ -288,6 +285,9 @@ func (t *Translator) translateEndpointSlice(portName *string, weight int, endpoi
 					}
 					nodes = append(nodes, node)
 				}
+			}
+			if portName != nil {
+				break
 			}
 		}
 	}
