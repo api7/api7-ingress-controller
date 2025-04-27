@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/go-logr/logr"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -12,6 +11,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
+	"github.com/api7/api7-ingress-controller/internal/controller/config"
 )
 
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses,verbs=get;list;watch;update

@@ -19,11 +19,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 	. "github.com/onsi/ginkgo/v2" //nolint:staticcheck
 	. "github.com/onsi/gomega"    //nolint:staticcheck
 
 	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
+	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
 )
 
 var _ = PDescribe("Test Dashboard admin-api sdk", func() {

@@ -3,9 +3,6 @@ package controller
 import (
 	"context"
 
-	"github.com/api7/api7-ingress-controller/api/v1alpha1"
-	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
-	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -20,6 +17,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
+	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
+	"github.com/api7/api7-ingress-controller/internal/provider"
 )
 
 // ConsumerReconciler  reconciles a Gateway object.

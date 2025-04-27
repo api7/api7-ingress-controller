@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
@@ -29,7 +30,6 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
 	"github.com/api7/api7-ingress-controller/internal/provider"
-	"github.com/api7/gopkg/pkg/log"
 )
 
 // IngressReconciler reconciles a Ingress object.

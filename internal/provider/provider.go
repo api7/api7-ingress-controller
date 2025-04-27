@@ -5,10 +5,9 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
-	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 )
