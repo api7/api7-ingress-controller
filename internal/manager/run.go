@@ -15,13 +15,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/api7/api7-ingress-controller/internal/provider/adc"
-	v1 "github.com/api7/api7-ingress-controller/internal/webhook/v1"
+	webhookv1 "github.com/api7/api7-ingress-controller/internal/webhook/v1"
 )
 
 var (
@@ -65,11 +64,6 @@ func Run(ctx context.Context, logger logr.Logger) error {
 	webhookServer := webhook.NewServer(webhook.Options{
 		TLSOpts: tlsOpts,
 	})
-
-	handler := admission.HandlerFunc(func(ctx context.Context, request admission.Request) admission.Response {
-		return admission.Response{}
-	})
-	webhookServer.Register("/validate/gatewayclass", &admission.Webhook{Handler: handler})
 
 	// Metrics endpoint is enabled in 'config/default/kustomization.yaml'. The Metrics options configure the server.
 	// More info:
@@ -145,7 +139,7 @@ func Run(ctx context.Context, logger logr.Logger) error {
 			return err
 		}
 	}
-	if err = v1.SetupGatewayClassWebhookWithManager(mgr); err != nil {
+	if err = webhookv1.SetupGatewayClassWebhookWithManager(mgr); err != nil {
 		return err
 	}
 

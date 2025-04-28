@@ -66,7 +66,7 @@ spec:
 			Expect(gcyaml).To(ContainSubstring("message: Waiting for controller"), "checking GatewayClass condition message")
 		})
 
-		FIt("Delete GatewayClass", func() {
+		It("Delete GatewayClass", func() {
 			By("create default GatewayClass")
 			err := s.CreateResourceFromStringWithNamespace(defautlGatewayClass, "")
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
@@ -77,7 +77,7 @@ spec:
 			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(ContainSubstring(`status: "True"`))
 
 			By("create a Gateway")
-			err = s.CreateResourceFromStringWithNamespace(defaultGateway, "")
+			err = s.CreateResourceFromString(defaultGateway)
 			Expect(err).NotTo(HaveOccurred(), "creating Gateway")
 			time.Sleep(time.Second)
 
