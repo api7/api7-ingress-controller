@@ -3,6 +3,7 @@ package framework
 import (
 	"bytes"
 	_ "embed"
+	"log"
 	"text/template"
 	"time"
 
@@ -43,6 +44,7 @@ func (f *Framework) DeployIngress(opts IngressDeployOpts) {
 
 	kubectlOpts := k8s.NewKubectlOptions("", "", opts.Namespace)
 
+	log.Printf("manifests/ingress.yaml: %s\n", buf.String())
 	k8s.KubectlApplyFromString(f.GinkgoT, kubectlOpts, buf.String())
 
 	err = WaitPodsAvailable(f.GinkgoT, kubectlOpts, metav1.ListOptions{

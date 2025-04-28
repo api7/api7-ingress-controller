@@ -9,14 +9,16 @@ import (
 	"text/template"
 	"time"
 
-	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
-	"github.com/api7/gopkg/pkg/log"
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
 	"golang.org/x/net/html"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/cli"
+	"k8s.io/utils/ptr"
+
+	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
+	"github.com/api7/gopkg/pkg/log"
 
 	"helm.sh/helm/v3/pkg/kube"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -265,8 +267,10 @@ func (f *Framework) deploy() {
 	kubeConfigPath := os.Getenv("KUBECONFIG")
 	actionConfig := new(action.Configuration)
 
+	kubeconfig := kube.GetConfig(kubeConfigPath, "", f.kubectlOpts.Namespace)
+	kubeconfig.Insecure = ptr.To(true)
 	err := actionConfig.Init(
-		kube.GetConfig(kubeConfigPath, "", f.kubectlOpts.Namespace),
+		kubeconfig,
 		f.kubectlOpts.Namespace,
 		"memory",
 		debug,
