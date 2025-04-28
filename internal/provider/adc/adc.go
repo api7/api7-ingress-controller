@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/api7/gopkg/pkg/log"
 	"go.uber.org/zap"
 	networkingv1 "k8s.io/api/networking/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -21,7 +22,6 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/controller/label"
 	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/api7-ingress-controller/internal/provider/adc/translator"
-	"github.com/api7/gopkg/pkg/log"
 )
 
 type adcConfig struct {

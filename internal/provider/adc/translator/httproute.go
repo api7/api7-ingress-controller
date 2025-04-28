@@ -233,23 +233,24 @@ func (t *Translator) fillPluginFromHTTPRequestRedirectFilter(plugins adctypes.Pl
 }
 
 func (t *Translator) fillHTTPRoutePoliciesForHTTPRoute(tctx *provider.TranslateContext, routes []*adctypes.Route, rule gatewayv1.HTTPRouteRule) {
-	var keys = []string{"*"}
-	if rule.Name != nil {
-		keys = append(keys, string(*rule.Name))
+	var policies []v1alpha1.HTTPRoutePolicy
+	for _, policy := range tctx.HTTPRoutePolicies {
+		for _, ref := range policy.Spec.TargetRefs {
+			if string(ref.Kind) == "HTTPRoute" && (ref.SectionName == nil || *ref.SectionName == "" || ptr.Equal(ref.SectionName, rule.Name)) {
+				policies = append(policies, policy)
+				break
+			}
+		}
 	}
-	t.fillHTTPRoutePolicies(tctx, routes, keys...)
+
+	t.fillHTTPRoutePolicies(routes, policies)
 }
 
 func (t *Translator) fillHTTPRoutePoliciesForIngress(tctx *provider.TranslateContext, routes []*adctypes.Route) {
-	t.fillHTTPRoutePolicies(tctx, routes, "*")
+	t.fillHTTPRoutePolicies(routes, tctx.HTTPRoutePolicies)
 }
 
-func (t *Translator) fillHTTPRoutePolicies(tctx *provider.TranslateContext, routes []*adctypes.Route, ctxKeys ...string) {
-	var policies []v1alpha1.HTTPRoutePolicy
-	for _, key := range ctxKeys {
-		policies = append(policies, tctx.HTTPRoutePolicies[key]...)
-	}
-
+func (t *Translator) fillHTTPRoutePolicies(routes []*adctypes.Route, policies []v1alpha1.HTTPRoutePolicy) {
 	for _, policy := range policies {
 		for _, route := range routes {
 			route.Priority = policy.Spec.Priority
@@ -265,13 +266,16 @@ func (t *Translator) fillHTTPRoutePolicies(tctx *provider.TranslateContext, rout
 	}
 }
 
-func (t *Translator) translateEndpointSlice(weight int, endpointSlices []discoveryv1.EndpointSlice) adctypes.UpstreamNodes {
+func (t *Translator) translateEndpointSlice(portName *string, weight int, endpointSlices []discoveryv1.EndpointSlice) adctypes.UpstreamNodes {
 	var nodes adctypes.UpstreamNodes
 	if len(endpointSlices) == 0 {
 		return nodes
 	}
 	for _, endpointSlice := range endpointSlices {
 		for _, port := range endpointSlice.Ports {
+			if portName != nil && !ptr.Equal(portName, port.Name) {
+				continue
+			}
 			for _, endpoint := range endpointSlice.Endpoints {
 				for _, addr := range endpoint.Addresses {
 					node := adctypes.UpstreamNode{
@@ -282,6 +286,9 @@ func (t *Translator) translateEndpointSlice(weight int, endpointSlices []discove
 					nodes = append(nodes, node)
 				}
 			}
+			if portName != nil {
+				break
+			}
 		}
 	}
 
@@ -289,14 +296,6 @@ func (t *Translator) translateEndpointSlice(weight int, endpointSlices []discove
 }
 
 func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref gatewayv1.BackendRef) adctypes.UpstreamNodes {
-	weight := 1
-	port := 80
-	if ref.Weight != nil {
-		weight = int(*ref.Weight)
-	}
-	if ref.Port != nil {
-		port = int(*ref.Port)
-	}
 	key := types.NamespacedName{
 		Namespace: string(*ref.Namespace),
 		Name:      string(ref.Name),
@@ -306,7 +305,16 @@ func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref ga
 		return adctypes.UpstreamNodes{}
 	}
 
+	weight := 1
+	if ref.Weight != nil {
+		weight = int(*ref.Weight)
+	}
+
 	if service.Spec.Type == corev1.ServiceTypeExternalName {
+		port := 80
+		if ref.Port != nil {
+			port = int(*ref.Port)
+		}
 		return adctypes.UpstreamNodes{
 			{
 				Host:   service.Spec.ExternalName,
@@ -315,8 +323,22 @@ func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref ga
 			},
 		}
 	}
+
+	var portName *string
+	if ref.Port != nil {
+		for _, p := range service.Spec.Ports {
+			if int(p.Port) == int(*ref.Port) {
+				portName = ptr.To(p.Name)
+				break
+			}
+		}
+		if portName == nil {
+			return adctypes.UpstreamNodes{}
+		}
+	}
+
 	endpointSlices := tctx.EndpointSlices[key]
-	return t.translateEndpointSlice(weight, endpointSlices)
+	return t.translateEndpointSlice(portName, weight, endpointSlices)
 }
 
 func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRoute *gatewayv1.HTTPRoute) (*TranslateResult, error) {

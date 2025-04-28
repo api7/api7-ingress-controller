@@ -7,11 +7,13 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/slices"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -98,6 +100,9 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	hr := new(gatewayv1.HTTPRoute)
 	if err := r.Get(ctx, req.NamespacedName, hr); err != nil {
 		if client.IgnoreNotFound(err) == nil {
+			if err := r.updateHTTPRoutePolicyStatusOnDeleting(req.NamespacedName); err != nil {
+				return ctrl.Result{}, err
+			}
 			hr.Namespace = req.Namespace
 			hr.Name = req.Name
 
@@ -514,21 +519,14 @@ func httpRoutePolicyPredicateFuncs(channel chan event.GenericEvent) predicate.Pr
 			if !ok0 || !ok1 {
 				return false
 			}
-			var discardsRefs = make(map[string]v1alpha2.LocalPolicyTargetReferenceWithSectionName)
-			for _, ref := range oldPolicy.Spec.TargetRefs {
-				key := indexer.GenHTTPRoutePolicyIndexKey(string(ref.Group), string(ref.Kind), e.ObjectOld.GetNamespace(), string(ref.Name), "")
-				discardsRefs[key] = ref
-			}
-			for _, ref := range newPolicy.Spec.TargetRefs {
-				key := indexer.GenHTTPRoutePolicyIndexKey(string(ref.Group), string(ref.Kind), e.ObjectOld.GetNamespace(), string(ref.Name), "")
-				delete(discardsRefs, key)
-			}
+			discardsRefs := slices.DeleteFunc(oldPolicy.Spec.TargetRefs, func(oldRef v1alpha2.LocalPolicyTargetReferenceWithSectionName) bool {
+				return slices.ContainsFunc(newPolicy.Spec.TargetRefs, func(newRef v1alpha2.LocalPolicyTargetReferenceWithSectionName) bool {
+					return oldRef.LocalPolicyTargetReference == newRef.LocalPolicyTargetReference && ptr.Equal(oldRef.SectionName, newRef.SectionName)
+				})
+			})
 			if len(discardsRefs) > 0 {
 				dump := oldPolicy.DeepCopy()
-				dump.Spec.TargetRefs = make([]v1alpha2.LocalPolicyTargetReferenceWithSectionName, 0, len(discardsRefs))
-				for _, ref := range discardsRefs {
-					dump.Spec.TargetRefs = append(dump.Spec.TargetRefs, ref)
-				}
+				dump.Spec.TargetRefs = discardsRefs
 				channel <- event.GenericEvent{Object: dump}
 			}
 			return true
