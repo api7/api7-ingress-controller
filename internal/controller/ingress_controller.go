@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
@@ -29,7 +30,6 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
 	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
 	"github.com/api7/api7-ingress-controller/internal/provider"
-	"github.com/api7/gopkg/pkg/log"
 )
 
 // IngressReconciler reconciles a Ingress object.
@@ -100,6 +100,10 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	ingress := new(networkingv1.Ingress)
 	if err := r.Get(ctx, req.NamespacedName, ingress); err != nil {
 		if client.IgnoreNotFound(err) == nil {
+			if err := r.updateHTTPRoutePolicyStatusOnDeleting(req.NamespacedName); err != nil {
+				return ctrl.Result{}, err
+			}
+
 			// Ingress was deleted, clean up corresponding resources
 			ingress.Namespace = req.Namespace
 			ingress.Name = req.Name
@@ -209,7 +213,7 @@ func (r *IngressReconciler) getIngressClass(obj client.Object) (*networkingv1.In
 
 	// if it does not match, check if the ingress class is controlled by us
 	ingressClass := networkingv1.IngressClass{}
-	if err := r.Client.Get(context.Background(), client.ObjectKey{Name: *ingress.Spec.IngressClassName}, &ingressClass); err != nil {
+	if err := r.Get(context.Background(), client.ObjectKey{Name: *ingress.Spec.IngressClassName}, &ingressClass); err != nil {
 		return nil, err
 	}
 
@@ -647,7 +651,7 @@ func (r *IngressReconciler) processIngressClassParameters(ctx context.Context, t
 
 	parameters := ingressClass.Spec.Parameters
 	// check if the parameters reference GatewayProxy
-	if parameters.APIGroup != nil && *parameters.APIGroup == v1alpha1.GroupVersion.Group && parameters.Kind == "GatewayProxy" {
+	if parameters.APIGroup != nil && *parameters.APIGroup == v1alpha1.GroupVersion.Group && parameters.Kind == KindGatewayProxy {
 		ns := ingress.GetNamespace()
 		if parameters.Namespace != nil {
 			ns = *parameters.Namespace

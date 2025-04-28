@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/api7/gopkg/pkg/log"
 	"go.uber.org/zap"
 	networkingv1 "k8s.io/api/networking/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -21,7 +22,6 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/controller/label"
 	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/api7-ingress-controller/internal/provider/adc/translator"
-	"github.com/api7/gopkg/pkg/log"
 )
 
 type adcConfig struct {
@@ -87,6 +87,9 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 	case *v1alpha1.Consumer:
 		result, err = d.translator.TranslateConsumerV1alpha1(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "consumer")
+	case *networkingv1.IngressClass:
+		result, err = d.translator.TranslateIngressClass(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, "global_rule", "plugin_metadata")
 	}
 	if err != nil {
 		return err
@@ -154,6 +157,8 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 	case *v1alpha1.Consumer:
 		resourceTypes = append(resourceTypes, "consumer")
 		labels = label.GenLabel(obj)
+	case *networkingv1.IngressClass:
+		// delete all resources
 	}
 
 	rk := provider.ResourceKind{

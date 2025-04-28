@@ -22,27 +22,22 @@ import (
 	"strings"
 	"time"
 
-	"github.com/api7/api7-ingress-controller/pkg/dashboard"
-	apisix "github.com/api7/api7-ingress-controller/pkg/dashboard"
-	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/retry"
 	"github.com/gruntwork-io/terratest/modules/testing"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo/v2" //nolint:staticcheck
+	. "github.com/onsi/gomega"    //nolint:staticcheck
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/api7/api7-ingress-controller/pkg/dashboard"
+	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 )
 
 // CreateResourceFromString creates resource from a loaded yaml string.
 func (s *Scaffold) CreateResourceFromString(yaml string) error {
-	err := k8s.KubectlApplyFromStringE(s.t, s.kubectlOptions, yaml)
-	// if the error raised, it may be a &shell.ErrWithCmdOutput, which is useless in debug
-	if err != nil {
-		err = fmt.Errorf(err.Error())
-	}
-	return err
+	return k8s.KubectlApplyFromStringE(s.t, s.kubectlOptions, yaml)
 }
 
 func (s *Scaffold) DeleteResourceFromString(yaml string) error {
@@ -138,7 +133,7 @@ func (s *Scaffold) NewAPISIX() (dashboard.Dashboard, error) {
 	return dashboard.NewClient()
 }
 
-func (s *Scaffold) ClusterClient() (apisix.Cluster, error) {
+func (s *Scaffold) ClusterClient() (dashboard.Cluster, error) {
 	u := url.URL{
 		Scheme: "http",
 		Host:   "localhost:7080",
@@ -148,7 +143,7 @@ func (s *Scaffold) ClusterClient() (apisix.Cluster, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = cli.AddCluster(context.Background(), &apisix.ClusterOptions{
+	err = cli.AddCluster(context.Background(), &dashboard.ClusterOptions{
 		BaseURL:        u.String(),
 		ControllerName: s.opts.ControllerName,
 		Labels:         map[string]string{"k8s/controller-name": s.opts.ControllerName},

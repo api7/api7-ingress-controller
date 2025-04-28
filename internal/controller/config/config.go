@@ -9,8 +9,9 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/api7/api7-ingress-controller/internal/types"
 	"gopkg.in/yaml.v2"
+
+	"github.com/api7/api7-ingress-controller/internal/types"
 )
 
 var (

@@ -42,6 +42,12 @@ func SetupIndexer(mgr ctrl.Manager) error {
 	if err := setupBackendTrafficPolicyIndexer(mgr); err != nil {
 		return err
 	}
+	if err := setupIngressClassIndexer(mgr); err != nil {
+		return err
+	}
+	if err := setupGatewayProxyIndexer(mgr); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -149,6 +155,63 @@ func setupHTTPRouteIndexer(mgr ctrl.Manager) error {
 	return nil
 }
 
+func setupIngressClassIndexer(mgr ctrl.Manager) error {
+	// create IngressClass index
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&networkingv1.IngressClass{},
+		IngressClass,
+		IngressClassIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	// create IngressClassParametersRef index
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&networkingv1.IngressClass{},
+		IngressClassParametersRef,
+		IngressClassParametersRefIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func setupGatewayProxyIndexer(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.GatewayProxy{},
+		SecretIndexRef,
+		GatewayProxySecretIndexFunc,
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
+func GatewayProxySecretIndexFunc(rawObj client.Object) []string {
+	gatewayProxy := rawObj.(*v1alpha1.GatewayProxy)
+	secretKeys := make([]string, 0)
+
+	// Check if provider is ControlPlane type and has AdminKey auth
+	if gatewayProxy.Spec.Provider != nil &&
+		gatewayProxy.Spec.Provider.Type == v1alpha1.ProviderTypeControlPlane &&
+		gatewayProxy.Spec.Provider.ControlPlane != nil &&
+		gatewayProxy.Spec.Provider.ControlPlane.Auth.Type == v1alpha1.AuthTypeAdminKey &&
+		gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey != nil &&
+		gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom != nil &&
+		gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
+
+		ref := gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef
+		ns := gatewayProxy.GetNamespace()
+		key := GenIndexKey(ns, ref.Name)
+		secretKeys = append(secretKeys, key)
+	}
+	return secretKeys
+}
+
 func setupIngressIndexer(mgr ctrl.Manager) error {
 	// create IngressClass index
 	if err := mgr.GetFieldIndexer().IndexField(
@@ -176,26 +239,6 @@ func setupIngressIndexer(mgr ctrl.Manager) error {
 		&networkingv1.Ingress{},
 		SecretIndexRef,
 		IngressSecretIndexFunc,
-	); err != nil {
-		return err
-	}
-
-	// create IngressClass index
-	if err := mgr.GetFieldIndexer().IndexField(
-		context.Background(),
-		&networkingv1.IngressClass{},
-		IngressClass,
-		IngressClassIndexFunc,
-	); err != nil {
-		return err
-	}
-
-	// create IngressClassParametersRef index
-	if err := mgr.GetFieldIndexer().IndexField(
-		context.Background(),
-		&networkingv1.IngressClass{},
-		IngressClassParametersRef,
-		IngressClassParametersRefIndexFunc,
 	); err != nil {
 		return err
 	}
@@ -333,19 +376,16 @@ func HTTPRouteExtensionIndexFunc(rawObj client.Object) []string {
 	return keys
 }
 
-func GenHTTPRoutePolicyIndexKey(group, kind, namespace, name, sectionName string) string {
-	return schema.GroupKind{Group: group, Kind: kind}.String() + "/" + client.ObjectKey{Namespace: namespace, Name: name}.String() + "/" + sectionName
-}
-
 func HTTPRoutePolicyIndexFunc(rawObj client.Object) []string {
 	hrp := rawObj.(*v1alpha1.HTTPRoutePolicy)
 	var keys = make([]string, 0, len(hrp.Spec.TargetRefs))
+	var m = make(map[string]struct{})
 	for _, ref := range hrp.Spec.TargetRefs {
-		var sectionName string
-		if ref.SectionName != nil {
-			sectionName = string(*ref.SectionName)
+		key := GenIndexKeyWithGK(string(ref.Group), string(ref.Kind), hrp.GetNamespace(), string(ref.Name))
+		if _, ok := m[key]; !ok {
+			m[key] = struct{}{}
+			keys = append(keys, key)
 		}
-		keys = append(keys, GenHTTPRoutePolicyIndexKey(string(ref.Group), string(ref.Kind), hrp.GetNamespace(), string(ref.Name), sectionName))
 	}
 	return keys
 }

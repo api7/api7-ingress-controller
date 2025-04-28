@@ -3,11 +3,11 @@ package translator
 import (
 	"encoding/json"
 
-	"github.com/api7/api7-ingress-controller/api/adc"
+	"k8s.io/apimachinery/pkg/types"
+
 	adctypes "github.com/api7/api7-ingress-controller/api/adc"
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/provider"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 func (t *Translator) TranslateConsumerV1alpha1(tctx *provider.TranslateContext, consumerV *v1alpha1.Consumer) (*TranslateResult, error) {
@@ -22,7 +22,7 @@ func (t *Translator) TranslateConsumerV1alpha1(tctx *provider.TranslateContext, 
 	}
 	credentials := make([]adctypes.Credential, 0, len(consumerV.Spec.Credentials))
 	for _, credentialSpec := range consumerV.Spec.Credentials {
-		credential := adc.Credential{}
+		credential := adctypes.Credential{}
 		credential.Name = credentialSpec.Name
 		credential.Type = credentialSpec.Type
 		if credentialSpec.SecretRef != nil {

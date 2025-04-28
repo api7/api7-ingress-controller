@@ -1,6 +1,7 @@
 package gatewayapi
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -411,6 +412,47 @@ spec:
     - name: httpbin-service-e2e-test
       port: 80
 `
+		var invalidBackendPort = `
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpbin-multiple-port
+spec:
+  selector:
+    app: httpbin-deployment-e2e-test
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 80
+    - name: invalid
+      port: 10031
+      protocol: TCP
+      targetPort: 10031
+    - name: http2
+      port: 8080
+      protocol: TCP
+      targetPort: 80
+  type: ClusterIP
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin.example
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /get
+    backendRefs:
+    - name: httpbin-multiple-port
+      port: 80
+`
 
 		BeforeEach(beforeEachHTTP)
 
@@ -476,7 +518,22 @@ spec:
 				Expect().
 				Status(200)
 		})
+
+		It("Match Port", func() {
+			By("create HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", invalidBackendPort, 1)
+
+			serviceResources, err := s.DefaultDataplaneResource().Service().List(context.Background())
+			Expect(err).NotTo(HaveOccurred(), "listing services")
+			Expect(serviceResources).To(HaveLen(1), "checking service length")
+
+			serviceResource := serviceResources[0]
+			nodes := serviceResource.Upstream.Nodes
+			Expect(nodes).To(HaveLen(1), "checking nodes length")
+			Expect(nodes[0].Port).To(Equal(80))
+		})
 	})
+
 	Context("HTTPRoute Rule Match", func() {
 		var exactRouteByGet = `
 apiVersion: gateway.networking.k8s.io/v1
@@ -842,12 +899,18 @@ spec:
 			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 		})
 
-		PIt("HTTPRoutePolicy status changes on HTTPRoute deleting", func() {
+		It("HTTPRoutePolicy status changes on HTTPRoute deleting", func() {
 			By("create HTTPRoute")
 			ResourceApplied("HTTPRoute", "httpbin", varsRoute, 1)
 
 			By("create HTTPRoutePolicy")
 			ResourceApplied("HTTPRoutePolicy", "http-route-policy-0", httpRoutePolicy, 1)
+
+			Eventually(func() string {
+				spec, err := s.GetResourceYaml("HTTPRoutePolicy", "http-route-policy-0")
+				Expect(err).NotTo(HaveOccurred(), "getting HTTPRoutePolicy")
+				return spec
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(ContainSubstring("type: Accepted"))
 
 			By("access dataplane to check the HTTPRoutePolicy")
 			s.NewAPISIXClient().

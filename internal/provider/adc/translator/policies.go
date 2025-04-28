@@ -1,13 +1,12 @@
 package translator
 
 import (
-	"github.com/api7/api7-ingress-controller/api/adc"
-	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	adctypes "github.com/api7/api7-ingress-controller/api/adc"
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 )
 
 func convertBackendRef(namespace, name, kind string) gatewayv1.BackendRef {
@@ -53,13 +52,13 @@ func (t *Translator) attachBackendTrafficPolicyToUpstream(policy *v1alpha1.Backe
 	}
 	if policy.Spec.Timeout != nil {
 		upstream.Timeout = &adctypes.Timeout{
-			Connect: int(policy.Spec.Timeout.Connect.Duration.Seconds()),
-			Read:    int(policy.Spec.Timeout.Read.Duration.Seconds()),
-			Send:    int(policy.Spec.Timeout.Send.Duration.Seconds()),
+			Connect: int(policy.Spec.Timeout.Connect.Seconds()),
+			Read:    int(policy.Spec.Timeout.Read.Seconds()),
+			Send:    int(policy.Spec.Timeout.Send.Seconds()),
 		}
 	}
 	if policy.Spec.LoadBalancer != nil {
-		upstream.Type = adc.UpstreamType(policy.Spec.LoadBalancer.Type)
+		upstream.Type = adctypes.UpstreamType(policy.Spec.LoadBalancer.Type)
 		upstream.HashOn = policy.Spec.LoadBalancer.HashOn
 		upstream.Key = policy.Spec.LoadBalancer.Key
 	}

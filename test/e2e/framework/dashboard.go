@@ -9,19 +9,17 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/api7/gopkg/pkg/log"
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
 	"golang.org/x/net/html"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/cli"
-	"k8s.io/utils/ptr"
-
-	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
-	"github.com/api7/gopkg/pkg/log"
-
 	"helm.sh/helm/v3/pkg/kube"
 	"k8s.io/apimachinery/pkg/util/yaml"
+
+	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
 )
 
 var (
@@ -267,10 +265,8 @@ func (f *Framework) deploy() {
 	kubeConfigPath := os.Getenv("KUBECONFIG")
 	actionConfig := new(action.Configuration)
 
-	kubeconfig := kube.GetConfig(kubeConfigPath, "", f.kubectlOpts.Namespace)
-	kubeconfig.Insecure = ptr.To(true)
 	err := actionConfig.Init(
-		kubeconfig,
+		kube.GetConfig(kubeConfigPath, "", f.kubectlOpts.Namespace),
 		f.kubectlOpts.Namespace,
 		"memory",
 		debug,
@@ -281,7 +277,7 @@ func (f *Framework) deploy() {
 	install.Namespace = f.kubectlOpts.Namespace
 	install.ReleaseName = "api7ee3"
 
-	chartPath, err := install.ChartPathOptions.LocateChart("api7/api7ee3", cli.New())
+	chartPath, err := install.LocateChart("api7/api7ee3", cli.New())
 	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "locate helm chart")
 
 	chart, err := loader.Load(chartPath)

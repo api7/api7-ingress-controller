@@ -253,6 +253,12 @@ spec:
         type: AdminKey
         adminKey:
           value: "%s"
+  plugins:
+  - name: response-rewrite
+    enabled: true
+    config: 
+      headers:
+        X-Proxy-Test: "enabled"
 `
 
 		gatewayProxyWithSecretYaml := `
@@ -274,6 +280,12 @@ spec:
             secretKeyRef:
               name: admin-secret
               key: admin-key
+  plugins:
+  - name: response-rewrite
+    enabled: true
+    config: 
+      headers:
+        X-Proxy-Test: "enabled"
 `
 
 		var ingressClassWithProxy = `
@@ -368,11 +380,12 @@ spec:
 			time.Sleep(5 * time.Second)
 
 			By("verify HTTP request")
-			s.NewAPISIXClient().
+			resp := s.NewAPISIXClient().
 				GET("/get").
 				WithHost("proxy.example.com").
 				Expect().
 				Status(200)
+			resp.Header("X-Proxy-Test").IsEqual("enabled")
 		})
 
 		It("Test IngressClass with GatewayProxy using Secret", func() {
@@ -408,11 +421,12 @@ stringData:
 			time.Sleep(5 * time.Second)
 
 			By("verify HTTP request")
-			s.NewAPISIXClient().
+			resp := s.NewAPISIXClient().
 				GET("/get").
 				WithHost("proxy-secret.example.com").
 				Expect().
 				Status(200)
+			resp.Header("X-Proxy-Test").IsEqual("enabled")
 		})
 	})
 
@@ -636,6 +650,47 @@ spec:
 				return s.NewAPISIXClient().GET("/get").WithHost("example.com").Expect().Raw().StatusCode
 			}).
 				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+		})
+
+		It("HTTPRoutePolicy status changes on Ingress deleting", func() {
+			By("create Ingress")
+			err := s.CreateResourceFromString(ingressSpec)
+			Expect(err).NotTo(HaveOccurred(), "creating Ingress")
+
+			By("create HTTPRoutePolicy")
+			err = s.CreateResourceFromString(httpRoutePolicySpec0)
+			Expect(err).NotTo(HaveOccurred(), "creating HTTPRoutePolicy")
+			Eventually(func() string {
+				spec, err := s.GetResourceYaml("HTTPRoutePolicy", "http-route-policy-0")
+				Expect(err).NotTo(HaveOccurred(), "HTTPRoutePolicy status should be True")
+				return spec
+			}).
+				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(ContainSubstring(`status: "True"`))
+
+			By("request the route without vars should be Not Found")
+			Eventually(func() int {
+				return s.NewAPISIXClient().GET("/get").WithHost("example.com").Expect().Raw().StatusCode
+			}).
+				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
+
+			By("request the route with the correct vars should be OK")
+			s.NewAPISIXClient().GET("/get").WithHost("example.com").
+				WithHeader("X-HRP-Name", "http-route-policy-0").Expect().Status(http.StatusOK)
+
+			By("delete ingress")
+			err = s.DeleteResource("Ingress", "default")
+			Expect(err).NotTo(HaveOccurred(), "delete Ingress")
+			Eventually(func() int {
+				return s.NewAPISIXClient().GET("/get").WithHost("example.com").
+					WithHeader("X-HRP-Name", "http-route-policy-0").Expect().Raw().StatusCode
+			}).
+				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
+
+			Eventually(func() string {
+				spec, err := s.GetResourceYaml("HTTPRoutePolicy", "http-route-policy-0")
+				Expect(err).NotTo(HaveOccurred(), "getting HTTPRoutePolicy")
+				return spec
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).ShouldNot(ContainSubstring("ancestorRef:"))
 		})
 	})
 
