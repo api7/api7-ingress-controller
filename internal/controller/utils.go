@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/api7/api7-ingress-controller/api/v1alpha1"
-	"github.com/api7/api7-ingress-controller/internal/controller/config"
-	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/samber/lo"
 	"go.uber.org/zap"
@@ -19,6 +16,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
+	"github.com/api7/api7-ingress-controller/internal/controller/config"
+	"github.com/api7/api7-ingress-controller/internal/provider"
 )
 
 const (
@@ -26,6 +27,8 @@ const (
 	KindHTTPRoute    = "HTTPRoute"
 	KindGatewayClass = "GatewayClass"
 	KindIngress      = "Ingress"
+	KindIngressClass = "IngressClass"
+	KindGatewayProxy = "GatewayProxy"
 )
 
 const defaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
@@ -782,7 +785,7 @@ func ProcessGatewayProxy(r client.Client, tctx *provider.TranslateContext, gatew
 
 	ns := gateway.GetNamespace()
 	paramRef := infra.ParametersRef
-	if string(paramRef.Group) == v1alpha1.GroupVersion.Group && string(paramRef.Kind) == "GatewayProxy" {
+	if string(paramRef.Group) == v1alpha1.GroupVersion.Group && string(paramRef.Kind) == KindGatewayProxy {
 		gatewayProxy := &v1alpha1.GatewayProxy{}
 		if err := r.Get(context.Background(), client.ObjectKey{
 			Namespace: ns,

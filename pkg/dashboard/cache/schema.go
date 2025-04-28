@@ -19,8 +19,9 @@ import (
 	"fmt"
 	"strings"
 
-	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
 	"github.com/hashicorp/go-memdb"
+
+	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
 )
 
 var (

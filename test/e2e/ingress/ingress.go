@@ -165,7 +165,7 @@ metadata:
   name: httpbin-external-domain
 spec:
   type: ExternalName
-  externalName: httpbin.org
+  externalName: postman-echo.com
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -253,6 +253,12 @@ spec:
         type: AdminKey
         adminKey:
           value: "%s"
+  plugins:
+  - name: response-rewrite
+    enabled: true
+    config: 
+      headers:
+        X-Proxy-Test: "enabled"
 `
 
 		gatewayProxyWithSecretYaml := `
@@ -274,6 +280,12 @@ spec:
             secretKeyRef:
               name: admin-secret
               key: admin-key
+  plugins:
+  - name: response-rewrite
+    enabled: true
+    config: 
+      headers:
+        X-Proxy-Test: "enabled"
 `
 
 		var ingressClassWithProxy = `
@@ -368,11 +380,12 @@ spec:
 			time.Sleep(5 * time.Second)
 
 			By("verify HTTP request")
-			s.NewAPISIXClient().
+			resp := s.NewAPISIXClient().
 				GET("/get").
 				WithHost("proxy.example.com").
 				Expect().
 				Status(200)
+			resp.Header("X-Proxy-Test").IsEqual("enabled")
 		})
 
 		It("Test IngressClass with GatewayProxy using Secret", func() {
@@ -408,11 +421,12 @@ stringData:
 			time.Sleep(5 * time.Second)
 
 			By("verify HTTP request")
-			s.NewAPISIXClient().
+			resp := s.NewAPISIXClient().
 				GET("/get").
 				WithHost("proxy-secret.example.com").
 				Expect().
 				Status(200)
+			resp.Header("X-Proxy-Test").IsEqual("enabled")
 		})
 	})
 
@@ -636,6 +650,159 @@ spec:
 				return s.NewAPISIXClient().GET("/get").WithHost("example.com").Expect().Raw().StatusCode
 			}).
 				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+		})
+
+		It("HTTPRoutePolicy status changes on Ingress deleting", func() {
+			By("create Ingress")
+			err := s.CreateResourceFromString(ingressSpec)
+			Expect(err).NotTo(HaveOccurred(), "creating Ingress")
+
+			By("create HTTPRoutePolicy")
+			err = s.CreateResourceFromString(httpRoutePolicySpec0)
+			Expect(err).NotTo(HaveOccurred(), "creating HTTPRoutePolicy")
+			Eventually(func() string {
+				spec, err := s.GetResourceYaml("HTTPRoutePolicy", "http-route-policy-0")
+				Expect(err).NotTo(HaveOccurred(), "HTTPRoutePolicy status should be True")
+				return spec
+			}).
+				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(ContainSubstring(`status: "True"`))
+
+			By("request the route without vars should be Not Found")
+			Eventually(func() int {
+				return s.NewAPISIXClient().GET("/get").WithHost("example.com").Expect().Raw().StatusCode
+			}).
+				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
+
+			By("request the route with the correct vars should be OK")
+			s.NewAPISIXClient().GET("/get").WithHost("example.com").
+				WithHeader("X-HRP-Name", "http-route-policy-0").Expect().Status(http.StatusOK)
+
+			By("delete ingress")
+			err = s.DeleteResource("Ingress", "default")
+			Expect(err).NotTo(HaveOccurred(), "delete Ingress")
+			Eventually(func() int {
+				return s.NewAPISIXClient().GET("/get").WithHost("example.com").
+					WithHeader("X-HRP-Name", "http-route-policy-0").Expect().Raw().StatusCode
+			}).
+				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
+
+			Eventually(func() string {
+				spec, err := s.GetResourceYaml("HTTPRoutePolicy", "http-route-policy-0")
+				Expect(err).NotTo(HaveOccurred(), "getting HTTPRoutePolicy")
+				return spec
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).ShouldNot(ContainSubstring("ancestorRef:"))
+		})
+	})
+
+	Context("Ingress with GatewayProxy Update", func() {
+		var additionalGatewayGroupID string
+
+		var ingressClass = `
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: api7-ingress-class
+spec:
+  controller: "apisix.apache.org/api7-ingress-controller"
+  parameters:
+    apiGroup: "apisix.apache.org"
+    kind: "GatewayProxy"
+    name: "api7-proxy-config"
+    namespace: "default"
+    scope: "Namespace"
+`
+		var ingress = `
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api7-ingress
+spec:
+  ingressClassName: api7-ingress-class
+  rules:
+  - host: ingress.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: httpbin-service-e2e-test
+            port:
+              number: 80
+`
+		var updatedGatewayProxy = `
+apiVersion: apisix.apache.org/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+  namespace: default
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+`
+
+		BeforeEach(func() {
+			By("create GatewayProxy")
+			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+			time.Sleep(5 * time.Second)
+
+			By("create IngressClass")
+			err = s.CreateResourceFromStringWithNamespace(ingressClass, "")
+			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
+			time.Sleep(5 * time.Second)
+		})
+
+		It("Should sync Ingress when GatewayProxy is updated", func() {
+			By("create Ingress")
+			err := s.CreateResourceFromString(ingress)
+			Expect(err).NotTo(HaveOccurred(), "creating Ingress")
+			time.Sleep(5 * time.Second)
+
+			By("verify Ingress works")
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("ingress.example.com").
+				Expect().
+				Status(200)
+
+			By("create additional gateway group to get new admin key")
+			additionalGatewayGroupID, _, err = s.CreateAdditionalGatewayGroup("gateway-proxy-update")
+			Expect(err).NotTo(HaveOccurred(), "creating additional gateway group")
+
+			client, err := s.NewAPISIXClientForGatewayGroup(additionalGatewayGroupID)
+			Expect(err).NotTo(HaveOccurred(), "creating APISIX client for additional gateway group")
+
+			By("Ingress not found for additional gateway group")
+			client.
+				GET("/get").
+				WithHost("ingress.example.com").
+				Expect().
+				Status(404)
+
+			resources, exists := s.GetAdditionalGatewayGroup(additionalGatewayGroupID)
+			Expect(exists).To(BeTrue(), "additional gateway group should exist")
+
+			By("update GatewayProxy with new admin key")
+			updatedProxy := fmt.Sprintf(updatedGatewayProxy, framework.DashboardTLSEndpoint, resources.AdminAPIKey)
+			err = s.CreateResourceFromStringWithNamespace(updatedProxy, "default")
+			Expect(err).NotTo(HaveOccurred(), "updating GatewayProxy")
+			time.Sleep(5 * time.Second)
+
+			By("verify Ingress works for additional gateway group")
+			client.
+				GET("/get").
+				WithHost("ingress.example.com").
+				Expect().
+				Status(200)
 		})
 	})
 })

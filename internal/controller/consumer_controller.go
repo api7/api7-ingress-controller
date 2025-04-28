@@ -3,9 +3,6 @@ package controller
 import (
 	"context"
 
-	"github.com/api7/api7-ingress-controller/api/v1alpha1"
-	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
-	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -20,6 +17,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
+	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
+	"github.com/api7/api7-ingress-controller/internal/provider"
 )
 
 // ConsumerReconciler  reconciles a Gateway object.
@@ -61,6 +62,9 @@ func (r *ConsumerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Watches(&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.listConsumersForSecret),
+		).
+		Watches(&v1alpha1.GatewayProxy{},
+			handler.EnqueueRequestsFromMapFunc(r.listConsumersForGatewayProxy),
 		).
 		Complete(r)
 }
@@ -112,6 +116,49 @@ func (r *ConsumerReconciler) listConsumersForGateway(ctx context.Context, obj cl
 			},
 		})
 	}
+	return requests
+}
+
+func (r *ConsumerReconciler) listConsumersForGatewayProxy(ctx context.Context, obj client.Object) []reconcile.Request {
+	gatewayProxy, ok := obj.(*v1alpha1.GatewayProxy)
+	if !ok {
+		r.Log.Error(nil, "failed to convert to GatewayProxy", "object", obj)
+		return nil
+	}
+
+	namespace := gatewayProxy.GetNamespace()
+	name := gatewayProxy.GetName()
+
+	// find all gateways that reference this gateway proxy
+	gatewayList := &gatewayv1.GatewayList{}
+	if err := r.List(ctx, gatewayList, client.MatchingFields{
+		indexer.ParametersRef: indexer.GenIndexKey(namespace, name),
+	}); err != nil {
+		r.Log.Error(err, "failed to list gateways for gateway proxy", "gatewayproxy", gatewayProxy.GetName())
+		return nil
+	}
+
+	var requests []reconcile.Request
+
+	for _, gateway := range gatewayList.Items {
+		consumerList := &v1alpha1.ConsumerList{}
+		if err := r.List(ctx, consumerList, client.MatchingFields{
+			indexer.ConsumerGatewayRef: indexer.GenIndexKey(gateway.Namespace, gateway.Name),
+		}); err != nil {
+			r.Log.Error(err, "failed to list consumers for gateway", "gateway", gateway.Name)
+			continue
+		}
+
+		for _, consumer := range consumerList.Items {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: client.ObjectKey{
+					Namespace: consumer.Namespace,
+					Name:      consumer.Name,
+				},
+			})
+		}
+	}
+
 	return requests
 }
 
@@ -261,7 +308,7 @@ func (r *ConsumerReconciler) checkGatewayRef(object client.Object) bool {
 		return false
 	}
 	gatewayClass := &gatewayv1.GatewayClass{}
-	if err := r.Client.Get(context.Background(), client.ObjectKey{Name: string(gateway.Spec.GatewayClassName)}, gatewayClass); err != nil {
+	if err := r.Get(context.Background(), client.ObjectKey{Name: string(gateway.Spec.GatewayClassName)}, gatewayClass); err != nil {
 		r.Log.Error(err, "failed to get gateway class", "gateway", gateway.GetName(), "gatewayclass", gateway.Spec.GatewayClassName)
 		return false
 	}

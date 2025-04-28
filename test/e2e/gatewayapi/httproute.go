@@ -1,6 +1,7 @@
 package gatewayapi
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -372,7 +373,7 @@ metadata:
   name: httpbin-external-domain
 spec:
   type: ExternalName
-  externalName: httpbin.org
+  externalName: postman-echo.com
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -409,6 +410,47 @@ spec:
         value: /get
     backendRefs:
     - name: httpbin-service-e2e-test
+      port: 80
+`
+		var invalidBackendPort = `
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpbin-multiple-port
+spec:
+  selector:
+    app: httpbin-deployment-e2e-test
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 80
+    - name: invalid
+      port: 10031
+      protocol: TCP
+      targetPort: 10031
+    - name: http2
+      port: 8080
+      protocol: TCP
+      targetPort: 80
+  type: ClusterIP
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin.example
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /get
+    backendRefs:
+    - name: httpbin-multiple-port
       port: 80
 `
 
@@ -476,7 +518,22 @@ spec:
 				Expect().
 				Status(200)
 		})
+
+		It("Match Port", func() {
+			By("create HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", invalidBackendPort, 1)
+
+			serviceResources, err := s.DefaultDataplaneResource().Service().List(context.Background())
+			Expect(err).NotTo(HaveOccurred(), "listing services")
+			Expect(serviceResources).To(HaveLen(1), "checking service length")
+
+			serviceResource := serviceResources[0]
+			nodes := serviceResource.Upstream.Nodes
+			Expect(nodes).To(HaveLen(1), "checking nodes length")
+			Expect(nodes[0].Port).To(Equal(80))
+		})
 	})
+
 	Context("HTTPRoute Rule Match", func() {
 		var exactRouteByGet = `
 apiVersion: gateway.networking.k8s.io/v1
@@ -842,12 +899,18 @@ spec:
 			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 		})
 
-		PIt("HTTPRoutePolicy status changes on HTTPRoute deleting", func() {
+		It("HTTPRoutePolicy status changes on HTTPRoute deleting", func() {
 			By("create HTTPRoute")
 			ResourceApplied("HTTPRoute", "httpbin", varsRoute, 1)
 
 			By("create HTTPRoutePolicy")
 			ResourceApplied("HTTPRoutePolicy", "http-route-policy-0", httpRoutePolicy, 1)
+
+			Eventually(func() string {
+				spec, err := s.GetResourceYaml("HTTPRoutePolicy", "http-route-policy-0")
+				Expect(err).NotTo(HaveOccurred(), "getting HTTPRoutePolicy")
+				return spec
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(ContainSubstring("type: Accepted"))
 
 			By("access dataplane to check the HTTPRoutePolicy")
 			s.NewAPISIXClient().
@@ -1391,6 +1454,92 @@ spec:
 				}
 			}
 			Expect(hitHttpbinCnt - hitNginxCnt).To(Equal(100))
+		})
+	})
+
+	Context("HTTPRoute with GatewayProxy Update", func() {
+		var additionalGatewayGroupID string
+
+		var exactRouteByGet = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin.example
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /get
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
+
+		var updatedGatewayProxy = `
+apiVersion: apisix.apache.org/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+`
+
+		BeforeEach(beforeEachHTTP)
+
+		It("Should sync HTTPRoute when GatewayProxy is updated", func() {
+			By("create HTTPRoute")
+			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 1)
+
+			By("verify HTTPRoute works")
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.example").
+				Expect().
+				Status(200)
+
+			By("create additional gateway group to get new admin key")
+			var err error
+			additionalGatewayGroupID, _, err = s.CreateAdditionalGatewayGroup("gateway-proxy-update")
+			Expect(err).NotTo(HaveOccurred(), "creating additional gateway group")
+
+			resources, exists := s.GetAdditionalGatewayGroup(additionalGatewayGroupID)
+			Expect(exists).To(BeTrue(), "additional gateway group should exist")
+
+			client, err := s.NewAPISIXClientForGatewayGroup(additionalGatewayGroupID)
+			Expect(err).NotTo(HaveOccurred(), "creating APISIX client for additional gateway group")
+
+			By("HTTPRoute not found for additional gateway group")
+			client.
+				GET("/get").
+				WithHost("httpbin.example").
+				Expect().
+				Status(404)
+
+			By("update GatewayProxy with new admin key")
+			updatedProxy := fmt.Sprintf(updatedGatewayProxy, framework.DashboardTLSEndpoint, resources.AdminAPIKey)
+			err = s.CreateResourceFromString(updatedProxy)
+			Expect(err).NotTo(HaveOccurred(), "updating GatewayProxy")
+			time.Sleep(5 * time.Second)
+
+			By("verify HTTPRoute works for additional gateway group")
+			client.
+				GET("/get").
+				WithHost("httpbin.example").
+				Expect().
+				Status(200)
 		})
 	})
 

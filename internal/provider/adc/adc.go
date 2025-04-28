@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/api7/gopkg/pkg/log"
 	"go.uber.org/zap"
 	networkingv1 "k8s.io/api/networking/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -21,7 +22,6 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/controller/label"
 	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/api7-ingress-controller/internal/provider/adc/translator"
-	"github.com/api7/gopkg/pkg/log"
 )
 
 type adcConfig struct {
@@ -34,10 +34,7 @@ type adcClient struct {
 
 	execLock sync.Mutex
 
-	translator   *translator.Translator
-	ServerAddr   string
-	Token        string
-	GatewayGroup string
+	translator *translator.Translator
 	// gateway/ingressclass -> adcConfig
 	configs map[provider.ResourceKind]adcConfig
 	// httproute/consumer/ingress/gateway -> gateway/ingressclass
@@ -90,6 +87,9 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 	case *v1alpha1.Consumer:
 		result, err = d.translator.TranslateConsumerV1alpha1(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "consumer")
+	case *networkingv1.IngressClass:
+		result, err = d.translator.TranslateIngressClass(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, "global_rule", "plugin_metadata")
 	}
 	if err != nil {
 		return err
@@ -157,6 +157,8 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 	case *v1alpha1.Consumer:
 		resourceTypes = append(resourceTypes, "consumer")
 		labels = label.GenLabel(obj)
+	case *networkingv1.IngressClass:
+		// delete all resources
 	}
 
 	rk := provider.ResourceKind{
@@ -166,6 +168,7 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 	}
 
 	configs := d.getConfigs(rk)
+	defer d.deleteConfigs(rk)
 
 	err := d.sync(ctx, Task{
 		Name:          obj.GetName(),
@@ -177,7 +180,6 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 		return err
 	}
 
-	d.deleteConfigs(rk)
 	return nil
 }
 
@@ -238,14 +240,8 @@ func (d *adcClient) execADC(ctx context.Context, config adcConfig, args []string
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, d.syncTimeout)
 	defer cancel()
 	// todo: use adc config
-	serverAddr := d.ServerAddr
-	if config.ServerAddr != "" {
-		serverAddr = config.ServerAddr
-	}
-	token := d.Token
-	if config.Token != "" {
-		token = config.Token
-	}
+	serverAddr := config.ServerAddr
+	token := config.Token
 
 	adcEnv := []string{
 		"ADC_EXPERIMENTAL_FEATURE_FLAGS=remote-state-file,parallel-backend-request",
