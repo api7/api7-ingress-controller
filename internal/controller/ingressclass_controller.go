@@ -4,9 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/api7/api7-ingress-controller/api/v1alpha1"
-	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
-	"github.com/api7/api7-ingress-controller/internal/provider"
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -19,6 +16,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	"github.com/api7/api7-ingress-controller/api/v1alpha1"
+	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
+	"github.com/api7/api7-ingress-controller/internal/provider"
 )
 
 // IngressClassReconciler reconciles a IngressClass object.
@@ -43,6 +44,10 @@ func (r *IngressClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&v1alpha1.GatewayProxy{},
 			handler.EnqueueRequestsFromMapFunc(r.listIngressClassesForGatewayProxy),
+		).
+		Watches(
+			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.listIngressClassesForSecret),
 		).
 		Complete(r)
 }
@@ -120,6 +125,50 @@ func (r *IngressClassReconciler) listIngressClassesForGatewayProxy(ctx context.C
 		})
 	}
 	return recs
+}
+
+func (r *IngressClassReconciler) listIngressClassesForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
+	secret, ok := obj.(*corev1.Secret)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to Secret")
+		return nil
+	}
+
+	// 1. list gateway proxies by secret
+	gatewayProxyList := &v1alpha1.GatewayProxyList{}
+	if err := r.List(ctx, gatewayProxyList, client.MatchingFields{
+		indexer.SecretIndexRef: indexer.GenIndexKey(secret.GetNamespace(), secret.GetName()),
+	}); err != nil {
+		r.Log.Error(err, "failed to list gateway proxies by secret", "secret", secret.GetName())
+		return nil
+	}
+
+	// 2. list ingress classes by gateway proxies
+	requests := make([]reconcile.Request, 0)
+	for _, gatewayProxy := range gatewayProxyList.Items {
+		ingressClassList := &networkingv1.IngressClassList{}
+		if err := r.List(ctx, ingressClassList, client.MatchingFields{
+			indexer.IngressClassParametersRef: indexer.GenIndexKey(gatewayProxy.GetNamespace(), gatewayProxy.GetName()),
+		}); err != nil {
+			r.Log.Error(err, "failed to list ingress classes by secret", "secret", secret.GetName())
+			return nil
+		}
+		for _, ingressClass := range ingressClassList.Items {
+			if !r.matchesController(&ingressClass) {
+				continue
+			}
+			requests = append(requests, reconcile.Request{
+				NamespacedName: client.ObjectKey{
+					Name:      ingressClass.GetName(),
+					Namespace: ingressClass.GetNamespace(),
+				},
+			})
+		}
+	}
+
+	requests = distinctRequests(requests)
+
+	return requests
 }
 
 func (r *IngressClassReconciler) processInfrastructure(tctx *provider.TranslateContext, ingressClass *networkingv1.IngressClass) error {
