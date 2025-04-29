@@ -75,7 +75,7 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				}
 			}
 			if len(gateways) > 0 {
-				r.Eventf(gc, "Warning", "DeletionBlocked", "the GatewayClass is still in using by Gateways: %v", gateways)
+				r.Eventf(gc, "Warning", "DeletionBlocked", "the GatewayClass is still used by Gateways: %v", gateways)
 				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 			} else {
 				controllerutil.RemoveFinalizer(gc, FinalizerGatewayClassProtection)
