@@ -488,8 +488,8 @@ func (s *Scaffold) afterEach() {
 	err := k8s.DeleteNamespaceE(s.t, s.kubectlOptions, s.namespace)
 	Expect(err).NotTo(HaveOccurred(), "deleting namespace "+s.namespace)
 
-	for _, f := range s.finalizers {
-		runWithRecover(f)
+	for i := len(s.finalizers) - 1; i >= 0; i-- {
+		runWithRecover(s.finalizers[i])
 	}
 
 	// Wait for a while to prevent the worker node being overwhelming

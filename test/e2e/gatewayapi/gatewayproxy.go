@@ -207,7 +207,7 @@ spec:
 		time.Sleep(5 * time.Second)
 
 		By("Create Gateway with GatewayProxy")
-		err = s.CreateResourceFromString(fmt.Sprintf(gatewayWithProxy, gatewayClassName))
+		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewayWithProxy, gatewayClassName), s.CurrentNamespace())
 		Expect(err).NotTo(HaveOccurred(), "creating Gateway with GatewayProxy")
 		time.Sleep(5 * time.Second)
 
@@ -220,9 +220,9 @@ spec:
 
 	AfterEach(func() {
 		By("Clean up resources")
-		_ = s.DeleteResourceFromString(fmt.Sprintf(gatewayProxyWithEnabledPlugin, framework.DashboardTLSEndpoint, s.AdminKey()))
 		_ = s.DeleteResourceFromString(fmt.Sprintf(httpRouteForTest, "api7"))
 		_ = s.DeleteResourceFromString(fmt.Sprintf(gatewayWithProxy, gatewayClassName))
+		_ = s.DeleteResourceFromString(fmt.Sprintf(gatewayProxyWithEnabledPlugin, framework.DashboardTLSEndpoint, s.AdminKey()))
 	})
 
 	Context("Test Gateway with enabled GatewayProxy plugin", func() {
