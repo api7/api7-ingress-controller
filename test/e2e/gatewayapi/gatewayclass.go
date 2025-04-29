@@ -77,7 +77,7 @@ spec:
 			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(ContainSubstring(`status: "True"`))
 
 			By("create a Gateway")
-			err = s.CreateResourceFromString(defaultGateway)
+			err = s.CreateResourceFromStringWithNamespace(defaultGateway, s.CurrentNamespace())
 			Expect(err).NotTo(HaveOccurred(), "creating Gateway")
 			time.Sleep(time.Second)
 
