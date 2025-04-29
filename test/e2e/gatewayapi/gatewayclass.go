@@ -94,7 +94,7 @@ spec:
 				ContainSubstring("Warning"),
 				ContainSubstring("DeletionBlocked"),
 				ContainSubstring("gatewayclass-controller"),
-				ContainSubstring("the GatewayClass is still in using by Gateways"),
+				ContainSubstring("the GatewayClass is still used by Gateways"),
 			))
 
 			By("delete the Gateway")
