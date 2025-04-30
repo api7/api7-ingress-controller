@@ -28,9 +28,6 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/provider"
 )
 
-// +kubebuilder:rbac:groups="",resources=events,verbs=get;list;watch;update
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;update
-
 // GatewayReconciler reconciles a Gateway object.
 type GatewayReconciler struct { //nolint:revive
 	client.Client

@@ -13,11 +13,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
 )
+
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 
 type SecretReconciler struct {
 	client.Client
@@ -38,8 +37,7 @@ func (r *SecretReconciler) SetupWithManager(mgr manager.Manager) error {
 				return r.Log
 			},
 		}).
-		For(&corev1.Secret{}). //builder.WithPredicates(r.predicateFuncs()),
-
+		For(&corev1.Secret{}).
 		Complete(r)
 }
 
@@ -54,23 +52,4 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		},
 	}
 	return ctrl.Result{}, nil
-}
-
-func (r *SecretReconciler) predicateFuncs() predicate.Funcs {
-	predicateFuncs := predicate.NewPredicateFuncs(func(object client.Object) bool {
-		if _, ok := object.(*corev1.Secret); !ok {
-			return false
-		}
-		key := indexer.GenIndexKey(object.GetNamespace(), object.GetName())
-		refs, err := r.Indexer.ByIndex("referent", key)
-		if err != nil {
-			r.Log.Error(err, "failed to check whether secret referred", "namespace", object.GetNamespace(), "name", object.GetName())
-			return false
-		}
-		return len(refs) > 0
-	})
-	predicateFuncs.DeleteFunc = func(_ event.DeleteEvent) bool {
-		return true
-	}
-	return predicateFuncs
 }
