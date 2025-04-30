@@ -17,6 +17,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
+	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
 )
 
 const (
@@ -61,20 +62,18 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	} else {
 		if controllerutil.ContainsFinalizer(gc, FinalizerGatewayClassProtection) {
 			var gatewayList gatewayv1.GatewayList
-			if err := r.List(ctx, &gatewayList); err != nil {
+			if err := r.List(ctx, &gatewayList, client.MatchingFields{indexer.GatewayClassIndexRef: gc.Name}); err != nil {
 				r.Log.Error(err, "failed to list gateways")
 				return ctrl.Result{}, err
 			}
-			var gateways []types.NamespacedName
-			for _, gateway := range gatewayList.Items {
-				if string(gateway.Spec.GatewayClassName) == gc.GetName() {
+			if len(gatewayList.Items) > 0 {
+				var gateways []types.NamespacedName
+				for _, item := range gatewayList.Items {
 					gateways = append(gateways, types.NamespacedName{
-						Namespace: gateway.GetNamespace(),
-						Name:      gateway.GetName(),
+						Namespace: item.GetNamespace(),
+						Name:      item.GetName(),
 					})
 				}
-			}
-			if len(gateways) > 0 {
 				r.Eventf(gc, "Warning", "DeletionBlocked", "the GatewayClass is still used by Gateways: %v", gateways)
 				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 			} else {
