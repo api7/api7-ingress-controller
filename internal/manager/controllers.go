@@ -86,5 +86,9 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("IngressClass"),
 			Provider: pro,
 		},
+		&controller.SecretReconciler{
+			Client: mgr.GetClient(),
+			Log:    ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Secret"),
+		},
 	}, nil
 }
