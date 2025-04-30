@@ -3,6 +3,8 @@ package controller
 import (
 	"context"
 	"fmt"
+	"path"
+	"reflect"
 	"strings"
 
 	"github.com/api7/gopkg/pkg/log"
@@ -29,6 +31,7 @@ const (
 	KindIngress      = "Ingress"
 	KindIngressClass = "IngressClass"
 	KindGatewayProxy = "GatewayProxy"
+	KindSecret       = "Secret"
 )
 
 const defaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
@@ -838,4 +841,15 @@ func ProcessGatewayProxy(r client.Client, tctx *provider.TranslateContext, gatew
 	}
 
 	return nil
+}
+
+// FullTypeName returns the fully qualified name of the type of the given value.
+func FullTypeName(a any) string {
+	typeOf := reflect.TypeOf(a)
+	pkgPath := typeOf.PkgPath()
+	name := typeOf.String()
+	if typeOf.Kind() == reflect.Ptr {
+		pkgPath = typeOf.Elem().PkgPath()
+	}
+	return path.Join(path.Dir(pkgPath), name)
 }
