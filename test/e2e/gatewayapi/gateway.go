@@ -196,7 +196,7 @@ spec:
 		})
 
 		Context("Gateway SSL with and without hostname", func() {
-			FIt("Check if SSL resource was created and updated", func() {
+			It("Check if SSL resource was created and updated", func() {
 				By("create GatewayProxy")
 				gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
 				err := s.CreateResourceFromString(gatewayProxy)
