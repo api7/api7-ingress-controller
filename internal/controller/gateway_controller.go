@@ -65,11 +65,6 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewaysForSecret),
-			builder.WithPredicates(
-				predicate.NewPredicateFuncs(func(_ client.Object) bool {
-					return true
-				}),
-			),
 		).
 		Complete(r)
 }
