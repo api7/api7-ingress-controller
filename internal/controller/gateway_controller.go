@@ -2,10 +2,10 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
-	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,10 +19,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/api7/gopkg/pkg/log"
+
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
 	"github.com/api7/api7-ingress-controller/internal/provider"
 )
+
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 
 // GatewayReconciler reconciles a Gateway object.
 type GatewayReconciler struct { //nolint:revive
@@ -58,10 +62,21 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&v1alpha1.GatewayProxy{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewaysForGatewayProxy),
 		).
+		Watches(
+			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.listGatewaysForSecret),
+			builder.WithPredicates(
+				predicate.NewPredicateFuncs(func(_ client.Object) bool {
+					return true
+				}),
+			),
+		).
 		Complete(r)
 }
 
 func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	r.Log.Info("request Reconcile")
+
 	gateway := new(gatewayv1.Gateway)
 	if err := r.Get(ctx, req.NamespacedName, gateway); err != nil {
 		if client.IgnoreNotFound(err) == nil {
@@ -295,6 +310,36 @@ func (r *GatewayReconciler) listGatewaysForHTTPRoute(ctx context.Context, obj cl
 	return recs
 }
 
+func (r *GatewayReconciler) listGatewaysForSecret(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
+	secret, ok := obj.(*corev1.Secret)
+	if !ok {
+		r.Log.Error(
+			errors.New("unexpected object type"),
+			"Secret watch predicate received unexpected object type",
+			"expected", FullTypeName(new(corev1.Secret)), "found", FullTypeName(obj),
+		)
+		return nil
+	}
+	r.Log.Info("listGatewaysForSecret, secret", "namespace", secret.GetNamespace(), "name", secret.GetName())
+	var gatewayList gatewayv1.GatewayList
+	if err := r.List(ctx, &gatewayList, client.MatchingFields{
+		indexer.SecretIndexRef: indexer.GenIndexKey(secret.GetNamespace(), secret.GetName()),
+	}); err != nil {
+		r.Log.Error(err, "failed to list gateways")
+		return nil
+	}
+	for _, gateway := range gatewayList.Items {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Namespace: gateway.GetNamespace(),
+				Name:      gateway.GetName(),
+			},
+		})
+	}
+	r.Log.Info("listGatewaysForSecret", "requests", requests)
+	return requests
+}
+
 func (r *GatewayReconciler) processInfrastructure(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway) error {
 	rk := provider.ResourceKind{
 		Kind:      gateway.Kind,
@@ -316,12 +361,12 @@ func (r *GatewayReconciler) processListenerConfig(tctx *provider.TranslateContex
 			if ref.Namespace != nil {
 				ns = string(*ref.Namespace)
 			}
-			if ref.Kind != nil && *ref.Kind == gatewayv1.Kind("Secret") {
+			if ref.Kind != nil && *ref.Kind == "Secret" {
 				if err := r.Get(context.Background(), client.ObjectKey{
 					Namespace: ns,
 					Name:      string(ref.Name),
 				}, &secret); err != nil {
-					log.Error(err, "failed to get secret", "namespace", ns, "name", string(ref.Name))
+					log.Error(err, "failed to get secret", "namespace", ns, "name", ref.Name)
 					SetGatewayListenerConditionProgrammed(gateway, string(listener.Name), false, err.Error())
 					SetGatewayListenerConditionResolvedRefs(gateway, string(listener.Name), false, err.Error())
 					break

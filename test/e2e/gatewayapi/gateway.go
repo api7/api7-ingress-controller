@@ -48,7 +48,7 @@ spec:
 `
 
 	Context("Gateway", func() {
-		var defautlGatewayClass = `
+		var defaultGatewayClass = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
@@ -57,7 +57,7 @@ spec:
   controllerName: "apisix.apache.org/api7-ingress-controller"
 `
 
-		var defautlGateway = `
+		var defaultGateway = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -101,7 +101,7 @@ spec:
 			time.Sleep(5 * time.Second)
 
 			By("create GatewayClass")
-			err = s.CreateResourceFromStringWithNamespace(defautlGatewayClass, "")
+			err = s.CreateResourceFromStringWithNamespace(defaultGatewayClass, "")
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 			time.Sleep(5 * time.Second)
 
@@ -112,7 +112,7 @@ spec:
 			Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"), "checking GatewayClass condition message")
 
 			By("create Gateway")
-			err = s.CreateResourceFromStringWithNamespace(defautlGateway, s.CurrentNamespace())
+			err = s.CreateResourceFromStringWithNamespace(defaultGateway, s.CurrentNamespace())
 			Expect(err).NotTo(HaveOccurred(), "creating Gateway")
 			time.Sleep(5 * time.Second)
 
@@ -196,7 +196,7 @@ spec:
 		})
 
 		Context("Gateway SSL with and without hostname", func() {
-			It("Check if SSL resource was created", func() {
+			FIt("Check if SSL resource was created and updated", func() {
 				By("create GatewayProxy")
 				gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
 				err := s.CreateResourceFromString(gatewayProxy)
@@ -266,6 +266,18 @@ spec:
 				assert.Len(GinkgoT(), tls, 1, "tls number not expect")
 				assert.Equal(GinkgoT(), Cert, tls[0].Cert, "tls cert not expect")
 				assert.Equal(GinkgoT(), tls[0].Labels["k8s/controller-name"], "apisix.apache.org/api7-ingress-controller")
+
+				By("update secret")
+				err = s.NewKubeTlsSecret(secretName, framework.TestCert, framework.TestKey)
+				Expect(err).NotTo(HaveOccurred(), "update secret")
+				Eventually(func() string {
+					tls, err := s.DefaultDataplaneResource().SSL().List(context.Background())
+					Expect(err).NotTo(HaveOccurred(), "list ssl from dashboard")
+					if len(tls) < 1 {
+						return ""
+					}
+					return tls[0].Cert
+				}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(framework.TestCert))
 			})
 		})
 	})

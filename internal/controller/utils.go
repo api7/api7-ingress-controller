@@ -3,9 +3,10 @@ package controller
 import (
 	"context"
 	"fmt"
+	"path"
+	"reflect"
 	"strings"
 
-	"github.com/api7/gopkg/pkg/log"
 	"github.com/samber/lo"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
@@ -16,6 +17,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
+	"github.com/api7/gopkg/pkg/log"
 
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
@@ -838,4 +841,15 @@ func ProcessGatewayProxy(r client.Client, tctx *provider.TranslateContext, gatew
 	}
 
 	return nil
+}
+
+// FullTypeName returns the fully qualified name of the type of the given value.
+func FullTypeName(a any) string {
+	typeOf := reflect.TypeOf(a)
+	pkgPath := typeOf.PkgPath()
+	name := typeOf.String()
+	if typeOf.Kind() == reflect.Ptr {
+		pkgPath = typeOf.Elem().PkgPath()
+	}
+	return path.Join(path.Dir(pkgPath), name)
 }
