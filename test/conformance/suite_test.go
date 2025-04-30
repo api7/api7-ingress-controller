@@ -63,6 +63,7 @@ func deleteNamespace(kubectl *k8s.KubectlOptions) {
 		"gateway-conformance-infra",
 		"gateway-conformance-web-backend",
 		"gateway-conformance-app-backend",
+		"api7ee-conformance-test",
 	}
 
 	for _, ns := range namespacesToDelete {
