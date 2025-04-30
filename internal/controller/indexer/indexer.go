@@ -24,6 +24,7 @@ const (
 	IngressClassParametersRef = "ingressClassParametersRef"
 	ConsumerGatewayRef        = "consumerGatewayRef"
 	PolicyTargetRefs          = "targetRefs"
+	GatewayClassIndexRef      = "gatewayClassRef"
 )
 
 func SetupIndexer(mgr ctrl.Manager) error {
@@ -189,6 +190,17 @@ func setupGatewayProxyIndexer(mgr ctrl.Manager) error {
 		return err
 	}
 	return nil
+}
+
+func setupGatewayClassIndexer(mgr ctrl.Manager) error {
+	return mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&gatewayv1.Gateway{},
+		GatewayClassIndexRef,
+		func(obj client.Object) (requests []string) {
+			return []string{string(obj.(*gatewayv1.Gateway).Spec.GatewayClassName)}
+		},
+	)
 }
 
 func GatewayProxySecretIndexFunc(rawObj client.Object) []string {
