@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -42,7 +43,15 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				predicate.NewPredicateFuncs(r.checkGatewayClass),
 			),
 		).
-		WithEventFilter(predicate.GenerationChangedPredicate{}).
+		WithEventFilter(
+			predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				predicate.NewPredicateFuncs(func(obj client.Object) bool {
+					_, ok := obj.(*corev1.Secret)
+					return ok
+				}),
+			),
+		).
 		Watches(
 			&gatewayv1.GatewayClass{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewayForGatewayClass),
@@ -57,6 +66,10 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&v1alpha1.GatewayProxy{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewaysForGatewayProxy),
+		).
+		Watches(
+			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.listGatewaysForSecret),
 		).
 		Complete(r)
 }
@@ -295,6 +308,34 @@ func (r *GatewayReconciler) listGatewaysForHTTPRoute(ctx context.Context, obj cl
 	return recs
 }
 
+func (r *GatewayReconciler) listGatewaysForSecret(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
+	secret, ok := obj.(*corev1.Secret)
+	if !ok {
+		r.Log.Error(
+			errors.New("unexpected object type"),
+			"Secret watch predicate received unexpected object type",
+			"expected", FullTypeName(new(corev1.Secret)), "found", FullTypeName(obj),
+		)
+		return nil
+	}
+	var gatewayList gatewayv1.GatewayList
+	if err := r.List(ctx, &gatewayList, client.MatchingFields{
+		indexer.SecretIndexRef: indexer.GenIndexKey(secret.GetNamespace(), secret.GetName()),
+	}); err != nil {
+		r.Log.Error(err, "failed to list gateways")
+		return nil
+	}
+	for _, gateway := range gatewayList.Items {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Namespace: gateway.GetNamespace(),
+				Name:      gateway.GetName(),
+			},
+		})
+	}
+	return requests
+}
+
 func (r *GatewayReconciler) processInfrastructure(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway) error {
 	rk := provider.ResourceKind{
 		Kind:      gateway.Kind,
@@ -316,12 +357,12 @@ func (r *GatewayReconciler) processListenerConfig(tctx *provider.TranslateContex
 			if ref.Namespace != nil {
 				ns = string(*ref.Namespace)
 			}
-			if ref.Kind != nil && *ref.Kind == gatewayv1.Kind("Secret") {
+			if ref.Kind != nil && *ref.Kind == KindSecret {
 				if err := r.Get(context.Background(), client.ObjectKey{
 					Namespace: ns,
 					Name:      string(ref.Name),
 				}, &secret); err != nil {
-					log.Error(err, "failed to get secret", "namespace", ns, "name", string(ref.Name))
+					log.Error(err, "failed to get secret", "namespace", ns, "name", ref.Name)
 					SetGatewayListenerConditionProgrammed(gateway, string(listener.Name), false, err.Error())
 					SetGatewayListenerConditionResolvedRefs(gateway, string(listener.Name), false, err.Error())
 					break

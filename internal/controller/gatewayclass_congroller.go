@@ -3,16 +3,24 @@ package controller
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/go-logr/logr"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/api7/api7-ingress-controller/internal/controller/config"
+)
+
+const (
+	FinalizerGatewayClassProtection = "apisix.apache.org/gc-protection"
 )
 
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses,verbs=get;list;watch;update
@@ -23,11 +31,13 @@ type GatewayClassReconciler struct { //nolint:revive
 	client.Client
 	Scheme *runtime.Scheme
 
+	record.EventRecorder
 	Log logr.Logger
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.EventRecorder = mgr.GetEventRecorderFor("gatewayclass-controller")
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.GatewayClass{}).
 		WithEventFilter(predicate.NewPredicateFuncs(r.GatewayClassFilter)).
@@ -39,6 +49,43 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	gc := new(gatewayv1.GatewayClass)
 	if err := r.Get(ctx, req.NamespacedName, gc); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	if gc.GetDeletionTimestamp().IsZero() {
+		if !controllerutil.ContainsFinalizer(gc, FinalizerGatewayClassProtection) {
+			controllerutil.AddFinalizer(gc, FinalizerGatewayClassProtection)
+			if err := r.Update(ctx, gc); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	} else {
+		if controllerutil.ContainsFinalizer(gc, FinalizerGatewayClassProtection) {
+			var gatewayList gatewayv1.GatewayList
+			if err := r.List(ctx, &gatewayList); err != nil {
+				r.Log.Error(err, "failed to list gateways")
+				return ctrl.Result{}, err
+			}
+			var gateways []types.NamespacedName
+			for _, gateway := range gatewayList.Items {
+				if string(gateway.Spec.GatewayClassName) == gc.GetName() {
+					gateways = append(gateways, types.NamespacedName{
+						Namespace: gateway.GetNamespace(),
+						Name:      gateway.GetName(),
+					})
+				}
+			}
+			if len(gateways) > 0 {
+				r.Eventf(gc, "Warning", "DeletionBlocked", "the GatewayClass is still used by Gateways: %v", gateways)
+				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+			} else {
+				controllerutil.RemoveFinalizer(gc, FinalizerGatewayClassProtection)
+				if err := r.Update(ctx, gc); err != nil {
+					return ctrl.Result{}, err
+				}
+			}
+		}
+
+		return ctrl.Result{}, nil
 	}
 
 	condition := meta.Condition{
