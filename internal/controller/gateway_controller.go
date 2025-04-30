@@ -26,8 +26,6 @@ import (
 	"github.com/api7/api7-ingress-controller/internal/provider"
 )
 
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
-
 // GatewayReconciler reconciles a Gateway object.
 type GatewayReconciler struct { //nolint:revive
 	client.Client
@@ -46,7 +44,15 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				predicate.NewPredicateFuncs(r.checkGatewayClass),
 			),
 		).
-		WithEventFilter(predicate.GenerationChangedPredicate{}).
+		WithEventFilter(
+			predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				predicate.NewPredicateFuncs(func(obj client.Object) bool {
+					_, ok := obj.(*corev1.Secret)
+					return ok
+				}),
+			),
+		).
 		Watches(
 			&gatewayv1.GatewayClass{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewayForGatewayClass),
@@ -70,8 +76,6 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	r.Log.Info("request Reconcile")
-
 	gateway := new(gatewayv1.Gateway)
 	if err := r.Get(ctx, req.NamespacedName, gateway); err != nil {
 		if client.IgnoreNotFound(err) == nil {
@@ -315,7 +319,6 @@ func (r *GatewayReconciler) listGatewaysForSecret(ctx context.Context, obj clien
 		)
 		return nil
 	}
-	r.Log.Info("listGatewaysForSecret, secret", "namespace", secret.GetNamespace(), "name", secret.GetName())
 	var gatewayList gatewayv1.GatewayList
 	if err := r.List(ctx, &gatewayList, client.MatchingFields{
 		indexer.SecretIndexRef: indexer.GenIndexKey(secret.GetNamespace(), secret.GetName()),
@@ -331,7 +334,6 @@ func (r *GatewayReconciler) listGatewaysForSecret(ctx context.Context, obj clien
 			},
 		})
 	}
-	r.Log.Info("listGatewaysForSecret", "requests", requests)
 	return requests
 }
 
@@ -356,7 +358,7 @@ func (r *GatewayReconciler) processListenerConfig(tctx *provider.TranslateContex
 			if ref.Namespace != nil {
 				ns = string(*ref.Namespace)
 			}
-			if ref.Kind != nil && *ref.Kind == "Secret" {
+			if ref.Kind != nil && *ref.Kind == KindSecret {
 				if err := r.Get(context.Background(), client.ObjectKey{
 					Namespace: ns,
 					Name:      string(ref.Name),

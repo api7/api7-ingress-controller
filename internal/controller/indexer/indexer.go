@@ -2,7 +2,6 @@ package indexer
 
 import (
 	"context"
-	"log"
 
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -335,7 +334,6 @@ func GatewaySecretIndexFunc(rawObj client.Object) (keys []string) {
 			}
 		}
 	}
-	log.Printf("GatewaySecretIndexFunc keys: %v", keys)
 	return keys
 }
 

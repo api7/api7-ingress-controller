@@ -32,6 +32,7 @@ const (
 	KindIngress      = "Ingress"
 	KindIngressClass = "IngressClass"
 	KindGatewayProxy = "GatewayProxy"
+	KindSecret       = "Secret"
 )
 
 const defaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
