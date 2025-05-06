@@ -35,7 +35,6 @@ GOBIN=$(shell go env GOPATH)/bin
 else
 GOBIN=$(shell go env GOBIN)
 endif
-
 GOOS ?= linux
 GOARCH ?= amd64
 
