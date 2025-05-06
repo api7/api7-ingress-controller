@@ -24,6 +24,7 @@ const (
 	IngressClassParametersRef = "ingressClassParametersRef"
 	ConsumerGatewayRef        = "consumerGatewayRef"
 	PolicyTargetRefs          = "targetRefs"
+	GatewayClassIndexRef      = "gatewayClassRef"
 )
 
 func SetupIndexer(mgr ctrl.Manager) error {
@@ -36,6 +37,7 @@ func SetupIndexer(mgr ctrl.Manager) error {
 		setupIngressClassIndexer,
 		setupGatewayProxyIndexer,
 		setupGatewaySecretIndex,
+		setupGatewayClassIndexer,
 	} {
 		if err := setup(mgr); err != nil {
 			return err
@@ -190,6 +192,17 @@ func setupGatewaySecretIndex(mgr ctrl.Manager) error {
 		&gatewayv1.Gateway{},
 		SecretIndexRef,
 		GatewaySecretIndexFunc,
+	)
+}
+
+func setupGatewayClassIndexer(mgr ctrl.Manager) error {
+	return mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&gatewayv1.Gateway{},
+		GatewayClassIndexRef,
+		func(obj client.Object) (requests []string) {
+			return []string{string(obj.(*gatewayv1.Gateway).Spec.GatewayClassName)}
+		},
 	)
 }
 
