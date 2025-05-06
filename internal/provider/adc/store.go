@@ -169,10 +169,10 @@ func (s *Store) GetResources(name string) (*adctypes.Resources, error) {
 	var globalrule adctypes.GlobalRule
 	var metadata adctypes.PluginMetadata
 	if global, ok := s.globalruleMap[name]; ok {
-		globalrule = *global.DeepCopy()
+		globalrule = global.DeepCopy()
 	}
 	if meta, ok := s.pluginMetadataMap[name]; ok {
-		metadata = *meta.DeepCopy()
+		metadata = meta.DeepCopy()
 	}
 	consumers, _ := targetCache.ListConsumers()
 	services, _ := targetCache.ListServices()

@@ -43,12 +43,8 @@ func (t *Translator) TranslateGateway(tctx *provider.TranslateContext, obj *gate
 		return result, nil
 	}
 
-	globalRules := adctypes.GlobalRule{
-		Plugins: make(adctypes.Plugins),
-	}
-	pluginMetadata := adctypes.PluginMetadata{
-		Plugins: make(adctypes.Plugins),
-	}
+	globalRules := make(adctypes.GlobalRule)
+	pluginMetadata := make(adctypes.PluginMetadata)
 	// apply plugins from GatewayProxy to global rules
 	t.fillPluginsFromGatewayProxy(globalRules, &gatewayProxy)
 	t.fillPluginMetadataFromGatewayProxy(pluginMetadata, &gatewayProxy)
@@ -206,7 +202,7 @@ func (t *Translator) fillPluginsFromGatewayProxy(plugins adctypes.GlobalRule, ga
 		}
 
 		log.Debugw("fill plugin from gateway proxy", zap.String("plugin", pluginName), zap.Any("config", pluginConfig))
-		plugins.Plugins[pluginName] = pluginConfig
+		plugins[pluginName] = pluginConfig
 	}
 }
 
@@ -221,6 +217,6 @@ func (t *Translator) fillPluginMetadataFromGatewayProxy(pluginMetadata adctypes.
 			continue
 		}
 		log.Debugw("fill plugin_metadata for gateway proxy", zap.String("plugin", pluginName), zap.Any("config", pluginConfig))
-		pluginMetadata.Plugins[pluginName] = pluginConfig
+		pluginMetadata[pluginName] = pluginConfig
 	}
 }

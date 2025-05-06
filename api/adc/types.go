@@ -83,14 +83,20 @@ type Resources struct {
 	SSLs           []*SSL           `json:"ssls,omitempty" yaml:"ssls,omitempty"`
 }
 
-// +k8s:deepcopy-gen=true
-type GlobalRule struct {
-	Plugins `json:"plugins,omitempty" yaml:"plugins,omitempty"`
+type GlobalRule Plugins
+
+func (g *GlobalRule) DeepCopy() GlobalRule {
+	original := Plugins(*g)
+	copied := original.DeepCopy()
+	return GlobalRule(copied)
 }
 
-// +k8s:deepcopy-gen=true
-type PluginMetadata struct {
-	Plugins `json:"plugins,omitempty" yaml:"plugins,omitempty"`
+type PluginMetadata Plugins
+
+func (p *PluginMetadata) DeepCopy() PluginMetadata {
+	original := Plugins(*p)
+	copied := original.DeepCopy()
+	return PluginMetadata(copied)
 }
 
 // +k8s:deepcopy-gen=true

@@ -49,14 +49,10 @@ func NewMemDBCache() (Cache, error) {
 
 func (c *dbCache) Insert(obj any) error {
 	switch t := obj.(type) {
-	case *types.Route:
-		return c.InsertRoute(t)
 	case *types.SSL:
 		return c.InsertSSL(t)
 	case *types.Service:
 		return c.InsertService(t)
-	case *types.GlobalRule:
-		return c.InsertGlobalRule(t)
 	case *types.Consumer:
 		return c.InsertConsumer(t)
 	default:
@@ -72,8 +68,6 @@ func (c *dbCache) Delete(obj any) error {
 		return c.DeleteSSL(t)
 	case *types.Service:
 		return c.DeleteService(t)
-	case *types.GlobalRule:
-		return c.DeleteGlobalRule(t)
 	case *types.Consumer:
 		return c.DeleteConsumer(t)
 	default:
@@ -92,10 +86,6 @@ func (c *dbCache) InsertSSL(ssl *types.SSL) error {
 
 func (c *dbCache) InsertService(u *types.Service) error {
 	return c.insert("service", u.DeepCopy())
-}
-
-func (c *dbCache) InsertGlobalRule(gr *types.GlobalRule) error {
-	return c.insert("global_rule", gr.DeepCopy())
 }
 
 func (c *dbCache) InsertConsumer(consumer *types.Consumer) error {
@@ -134,14 +124,6 @@ func (c *dbCache) GetService(id string) (*types.Service, error) {
 		return nil, err
 	}
 	return obj.(*types.Service).DeepCopy(), nil
-}
-
-func (c *dbCache) GetGlobalRule(id string) (*types.GlobalRule, error) {
-	obj, err := c.get("global_rule", id)
-	if err != nil {
-		return nil, err
-	}
-	return obj.(*types.GlobalRule).DeepCopy(), nil
 }
 
 func (c *dbCache) GetConsumer(username string) (*types.Consumer, error) {
@@ -212,18 +194,6 @@ func (c *dbCache) ListServices(opts ...ListOption) ([]*types.Service, error) {
 	return services, nil
 }
 
-func (c *dbCache) ListGlobalRules(opts ...ListOption) ([]*types.GlobalRule, error) {
-	raws, err := c.list("global_rule", opts...)
-	if err != nil {
-		return nil, err
-	}
-	globalRules := make([]*types.GlobalRule, 0, len(raws))
-	for _, raw := range raws {
-		globalRules = append(globalRules, raw.(*types.GlobalRule).DeepCopy())
-	}
-	return globalRules, nil
-}
-
 func (c *dbCache) ListConsumers(opts ...ListOption) ([]*types.Consumer, error) {
 	raws, err := c.list("consumer", opts...)
 	if err != nil {
@@ -269,14 +239,6 @@ func (c *dbCache) DeleteSSL(ssl *types.SSL) error {
 
 func (c *dbCache) DeleteService(u *types.Service) error {
 	return c.delete("service", u)
-}
-
-func (c *dbCache) DeleteStreamRoute(sr *types.StreamRoute) error {
-	return c.delete("stream_route", sr)
-}
-
-func (c *dbCache) DeleteGlobalRule(gr *types.GlobalRule) error {
-	return c.delete("global_rule", gr)
 }
 
 func (c *dbCache) DeleteConsumer(consumer *types.Consumer) error {
