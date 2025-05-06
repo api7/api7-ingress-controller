@@ -38,7 +38,7 @@ var skippedTestsForTraditionalRoutes = []string{
 	tests.HTTPRouteListenerHostnameMatching.ShortName,
 
 	// tests.HTTPRouteMatching.ShortName,
-	tests.HTTPRouteMatchingAcrossRoutes.ShortName,
+	// tests.HTTPRouteMatchingAcrossRoutes.ShortName,
 
 	tests.GatewayInvalidTLSConfiguration.ShortName,
 	tests.HTTPRouteInvalidBackendRefUnknownKind.ShortName,

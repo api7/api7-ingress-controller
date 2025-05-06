@@ -3,6 +3,7 @@ package translator
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/api7/gopkg/pkg/log"
@@ -341,6 +342,33 @@ func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref ga
 	return t.translateEndpointSlice(portName, weight, endpointSlices)
 }
 
+// calculateMatchPriority calculate the priority of HTTPRouteMatch, according to the Gateway API specification
+// the higher the return value, the higher the priority
+func calculateMatchPriority(match *gatewayv1.HTTPRouteMatch) int64 {
+	var score int64 = 0
+
+	// 1. Exact path matches have the highest priority
+	if match.Path != nil && match.Path.Type != nil && *match.Path.Type == gatewayv1.PathMatchExact {
+		score += 10000
+	} else if match.Path != nil && match.Path.Type != nil && *match.Path.Type == gatewayv1.PathMatchPathPrefix && match.Path.Value != nil {
+		// 2. Prefix path matches, the longer the string, the higher the priority
+		score += 1000 + int64(len(*match.Path.Value))
+	}
+
+	// 3. Method matching
+	if match.Method != nil {
+		score += 100
+	}
+
+	// 4. Header matching, the more headers, the higher the priority
+	score += int64(len(match.Headers) * 10)
+
+	// 5. Query parameter matching, the more query parameters, the higher the priority
+	score += int64(len(match.QueryParams))
+
+	return score
+}
+
 func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRoute *gatewayv1.HTTPRoute) (*TranslateResult, error) {
 	result := &TranslateResult{}
 
@@ -388,6 +416,11 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 					},
 				},
 			}
+		} else {
+			// Sort the matches by priority
+			sort.Slice(matches, func(a, b int) bool {
+				return calculateMatchPriority(&matches[a]) > calculateMatchPriority(&matches[b])
+			})
 		}
 
 		routes := []*adctypes.Route{}
@@ -402,6 +435,11 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 			route.ID = id.GenID(name)
 			route.Labels = labels
 			route.EnableWebsocket = ptr.To(true)
+
+			// Set the route priority
+			priority := calculateMatchPriority(&match)
+			route.Priority = &priority
+
 			routes = append(routes, route)
 		}
 		t.fillHTTPRoutePoliciesForHTTPRoute(tctx, routes, rule)
