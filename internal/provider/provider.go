@@ -15,6 +15,7 @@ import (
 type Provider interface {
 	Update(context.Context, *TranslateContext, client.Object) error
 	Delete(context.Context, client.Object) error
+	Sync(context.Context) error
 }
 
 type ResourceKind struct {

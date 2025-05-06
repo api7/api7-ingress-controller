@@ -35,6 +35,7 @@ type Config struct {
 	SecureMetrics    bool               `json:"secure_metrics" yaml:"secure_metrics"`
 	LeaderElection   *LeaderElection    `json:"leader_election" yaml:"leader_election"`
 	ExecADCTimeout   types.TimeDuration `json:"exec_adc_timeout" yaml:"exec_adc_timeout"`
+	ProviderConfig   ProviderConfig     `json:"provider" yaml:"provider"`
 }
 
 type GatewayConfig struct {
@@ -54,4 +55,9 @@ type LeaderElection struct {
 	RenewDeadline types.TimeDuration `json:"renew_deadline,omitempty" yaml:"renew_deadline,omitempty"`
 	RetryPeriod   types.TimeDuration `json:"retry_period,omitempty" yaml:"retry_period,omitempty"`
 	Disable       bool               `json:"disable,omitempty" yaml:"disable,omitempty"`
+}
+
+type ProviderConfig struct {
+	SyncPeriod    types.TimeDuration `json:"sync_period" yaml:"sync_period"`
+	InitSyncDelay types.TimeDuration `json:"init_sync_delay" yaml:"init_sync_delay"`
 }
