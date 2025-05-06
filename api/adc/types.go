@@ -418,9 +418,9 @@ type RewriteConfig struct {
 }
 
 type Headers struct {
-	Set    map[string]string `json:"set" yaml:"set"`
-	Add    map[string]string `json:"add" yaml:"add"`
-	Remove []string          `json:"remove" yaml:"remove"`
+	Set    map[string]string `json:"set,omitempty" yaml:"set,omitempty"`
+	Add    map[string]string `json:"add,omitempty" yaml:"add,omitempty"`
+	Remove []string          `json:"remove,omitempty" yaml:"remove,omitempty"`
 }
 
 // ResponseRewriteConfig is the rule config for response-rewrite plugin.

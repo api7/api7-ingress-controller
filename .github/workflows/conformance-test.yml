@@ -39,6 +39,7 @@ jobs:
           ./get_helm.sh
 
   conformance-test:
+    timeout-minutes: 60
     needs: 
       - prepare
     runs-on: buildjet-2vcpu-ubuntu-2204

@@ -26,34 +26,25 @@ var skippedTestsForSSL = []string{
 
 var skippedTestsForTraditionalRoutes = []string{
 	// TODO: Support ReferenceGrant resource
+	tests.GatewaySecretInvalidReferenceGrant.ShortName,
+	tests.GatewaySecretMissingReferenceGrant.ShortName,
+	tests.HTTPRouteInvalidCrossNamespaceBackendRef.ShortName,
 	tests.HTTPRouteInvalidReferenceGrant.ShortName,
 	tests.HTTPRoutePartiallyInvalidViaInvalidReferenceGrant.ShortName,
 	tests.HTTPRouteReferenceGrant.ShortName,
-	tests.GatewayInvalidTLSConfiguration.ShortName,
-	tests.GatewaySecretMissingReferenceGrant.ShortName,
-	/*
-		tests.GatewayInvalidTLSConfiguration.ShortName,
-		tests.GatewayModifyListeners.ShortName,
-		tests.GatewayWithAttachedRoutes.ShortName,
-	*/
-	tests.HTTPRouteHTTPSListener.ShortName,
-	tests.HTTPRouteHeaderMatching.ShortName,
-	tests.HTTPRouteMatching.ShortName,
-	tests.HTTPRouteExactPathMatching.ShortName,
-	tests.HTTPRouteInvalidBackendRefUnknownKind.ShortName,
-	tests.HTTPRouteInvalidNonExistentBackendRef.ShortName,
-	tests.HTTPRouteInvalidCrossNamespaceParentRef.ShortName,
-	tests.HTTPRouteInvalidParentRefNotMatchingSectionName.ShortName,
-	tests.HTTPRouteRequestHeaderModifier.ShortName,
-	tests.HTTPRouteWeight.ShortName,
+
+	// TODO: HTTPRoute hostname intersection and listener hostname matching
 	tests.HTTPRouteHostnameIntersection.ShortName,
 	tests.HTTPRouteListenerHostnameMatching.ShortName,
+
+	tests.HTTPRouteMatching.ShortName,
 	tests.HTTPRouteMatchingAcrossRoutes.ShortName,
-	tests.GatewaySecretReferenceGrantSpecific.ShortName,
-	tests.GatewaySecretInvalidReferenceGrant.ShortName,
-	tests.GatewaySecretReferenceGrantAllInNamespace.ShortName,
-	tests.HTTPRouteInvalidCrossNamespaceBackendRef.ShortName,
-	tests.HTTPRouteInvalidReferenceGrant.ShortName,
+
+	tests.GatewayInvalidTLSConfiguration.ShortName,
+	tests.HTTPRouteInvalidBackendRefUnknownKind.ShortName,
+	tests.HTTPRouteInvalidCrossNamespaceParentRef.ShortName,
+	tests.HTTPRouteInvalidNonExistentBackendRef.ShortName,
+	tests.HTTPRouteInvalidParentRefNotMatchingSectionName.ShortName,
 }
 
 var gatewaySupportedFeatures = []features.FeatureName{
