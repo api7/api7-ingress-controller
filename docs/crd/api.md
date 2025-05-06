@@ -414,7 +414,21 @@ ProviderType defines the type of provider
 _Appears in:_
 - [GatewayProxyProvider](#gatewayproxyprovider)
 
+#### SecretKeySelector
 
+
+SecretKeySelector defines a reference to a specific key within a Secret
+
+
+
+| Field | Description |
+| --- | --- |
+| `name` _string_ | Name is the name of the secret |
+| `key` _string_ | Key is the key in the secret |
+
+
+_Appears in:_
+- [AdminKeyValueFrom](#adminkeyvaluefrom)
 
 #### SecretReference
 

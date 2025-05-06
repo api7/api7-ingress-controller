@@ -361,7 +361,8 @@ generate-crd-docs: manifests ## Generate CRD reference documentation in a single
 		--config=$(CRD_DOCS_CONFIG) \
 		--renderer=markdown \
 		--templates-dir=./docs/template \
-		--output-path=$(CRD_DOCS_OUTPUT)
+		--output-path=$(CRD_DOCS_OUTPUT) \
+		--max-depth=100
 	@echo "CRD reference documentation generated at $(CRD_DOCS_OUTPUT)"
 
 .PHONY: generate-crd-docs-grouped
