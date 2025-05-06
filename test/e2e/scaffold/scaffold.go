@@ -811,3 +811,7 @@ func (s *Scaffold) GetGatewayGroupHTTPSEndpoint(gatewayGroupID string) (string, 
 
 	return resources.HttpsTunnel.Endpoint(), nil
 }
+
+func (s *Scaffold) CurrentGatewayGroupID() string {
+	return s.gatewaygroupid
+}

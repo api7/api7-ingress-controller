@@ -207,7 +207,7 @@ spec:
 		time.Sleep(5 * time.Second)
 
 		By("Create Gateway with GatewayProxy")
-		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewayWithProxy, gatewayClassName), s.CurrentNamespace())
+		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewayWithProxy, gatewayClassName), s.Namespace())
 		Expect(err).NotTo(HaveOccurred(), "creating Gateway with GatewayProxy")
 		time.Sleep(5 * time.Second)
 

@@ -40,7 +40,15 @@ func (r *IngressClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				predicate.NewPredicateFuncs(r.matchesController),
 			),
 		).
-		WithEventFilter(predicate.GenerationChangedPredicate{}).
+		WithEventFilter(
+			predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				predicate.NewPredicateFuncs(func(obj client.Object) bool {
+					_, ok := obj.(*corev1.Secret)
+					return ok
+				}),
+			),
+		).
 		Watches(
 			&v1alpha1.GatewayProxy{},
 			handler.EnqueueRequestsFromMapFunc(r.listIngressClassesForGatewayProxy),

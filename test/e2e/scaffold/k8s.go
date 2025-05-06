@@ -129,10 +129,6 @@ func (s *Scaffold) DeleteResourceFromStringWithNamespace(yaml, namespace string)
 	return k8s.KubectlDeleteFromStringE(s.t, s.kubectlOptions, yaml)
 }
 
-func (s *Scaffold) CurrentNamespace() string {
-	return s.kubectlOptions.Namespace
-}
-
 func (s *Scaffold) NewAPISIX() (dashboard.Dashboard, error) {
 	return dashboard.NewClient()
 }
@@ -272,7 +268,7 @@ func (s *Scaffold) ApplyDefaultGatewayResource(
 	)
 
 	By("create Gateway")
-	err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defaultGateway, gatewayClassName), s.CurrentNamespace())
+	err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defaultGateway, gatewayClassName), s.Namespace())
 	Expect(err).NotTo(HaveOccurred(), "creating Gateway")
 	time.Sleep(5 * time.Second)
 

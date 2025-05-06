@@ -2,6 +2,7 @@ package ingress
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"strings"
@@ -803,6 +804,152 @@ spec:
 				WithHost("ingress.example.com").
 				Expect().
 				Status(200)
+		})
+	})
+
+	Context("GatewayProxy reference Secret", func() {
+		const secretSpec = `
+apiVersion: v1
+kind: Secret
+metadata:
+  name: control-plane-secret
+data:
+  admin-key: %s
+`
+		const gatewayProxySpec = `
+apiVersion: apisix.apache.org/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          valueFrom:
+            secretKeyRef:
+              name: control-plane-secret
+              key: admin-key
+`
+		const ingressClassSpec = `
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: api7-ingress-class
+spec:
+  controller: "apisix.apache.org/api7-ingress-controller"
+  parameters:
+    apiGroup: "apisix.apache.org"
+    kind: "GatewayProxy"
+    name: "api7-proxy-config"
+    namespace: %s
+    scope: "Namespace"
+`
+		const ingressSpec = `
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api7-ingress
+spec:
+  ingressClassName: api7-ingress-class
+  rules:
+  - host: ingress.example.com
+    http:
+      paths:
+      - path: /get
+        pathType: Prefix
+        backend:
+          service:
+            name: httpbin-service-e2e-test
+            port:
+              number: 80
+`
+		const ingressSpec2 = `
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api7-ingress
+spec:
+  ingressClassName: api7-ingress-class
+  rules:
+  - host: ingress.example.com
+    http:
+      paths:
+      - path: /put
+        pathType: Prefix
+        backend:
+          service:
+            name: httpbin-service-e2e-test
+            port:
+              number: 80
+`
+		var (
+			err error
+		)
+
+		It("GatewayProxy reference Secret", func() {
+			By("create Secret")
+			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(secretSpec, base64.StdEncoding.EncodeToString([]byte(s.AdminKey()))), s.Namespace())
+			Expect(err).NotTo(HaveOccurred(), "creating secret")
+
+			By("create GatewayProxy")
+			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewayProxySpec, framework.DashboardTLSEndpoint), s.Namespace())
+			Expect(err).NotTo(HaveOccurred(), "creating gateway proxy")
+
+			By("create IngressClass")
+			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(ingressClassSpec, s.Namespace()), s.Namespace())
+			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
+
+			By("creat Ingress")
+			err = s.CreateResourceFromStringWithNamespace(ingressSpec, s.Namespace())
+			Expect(err).NotTo(HaveOccurred(), "creating Ingress")
+
+			By("verify Ingress works")
+			Eventually(func() int {
+				return s.NewAPISIXClient().
+					GET("/get").
+					WithHost("ingress.example.com").
+					Expect().Raw().StatusCode
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).
+				Should(Equal(http.StatusOK))
+
+			// update gateway group admin-key
+			adminKey := s.GetAdminKey(s.CurrentGatewayGroupID())
+
+			// should fail to request provider service and get 401 because the admin-key is changed
+			By("create Ingress")
+			err = s.CreateResourceFromStringWithNamespace(ingressSpec2, s.Namespace())
+			s.WaitControllerManagerLog("Request failed with status code 401", 0, 10*time.Second)
+
+			// the new Ingress should not work consistently
+			Consistently(func() int {
+				return s.NewAPISIXClient().
+					GET("/put").
+					WithHost("ingress.example.com").
+					Expect().Raw().StatusCode
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).
+				Should(Equal(http.StatusNotFound))
+
+			By("update secret")
+			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(secretSpec, base64.StdEncoding.EncodeToString([]byte(adminKey))), s.Namespace())
+			Expect(err).NotTo(HaveOccurred(), "creating secret")
+
+			By("create Ingress again")
+			err = s.CreateResourceFromStringWithNamespace(ingressSpec2, s.Namespace())
+			Expect(err).NotTo(HaveOccurred(), "creating Ingress with path prefix /put")
+
+			By("verify Ingress works")
+			Eventually(func() int {
+				return s.NewAPISIXClient().
+					PUT("/put").
+					WithHost("ingress.example.com").
+					Expect().Raw().StatusCode
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).
+				Should(Equal(http.StatusOK))
 		})
 	})
 })

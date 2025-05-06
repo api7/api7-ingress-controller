@@ -2,6 +2,7 @@ package gatewayapi
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -311,6 +312,15 @@ data:
   username: c2FtcGxlLXVzZXI=
   password: c2FtcGxlLXBhc3N3b3Jk
 `
+		const basicAuthSecret2 = `
+apiVersion: v1
+kind: Secret
+metadata:
+  name: basic-auth-secret
+data:
+  username: c2FtcGxlLXVzZXI=
+  password: c2FtcGxlLXBhc3N3b3JkLW5ldw==
+`
 		var defaultConsumer = `
 apiVersion: apisix.apache.org/v1alpha1
 kind: Consumer
@@ -357,6 +367,29 @@ spec:
 				WithHost("httpbin.org").
 				Expect().
 				Status(200)
+
+			// update basic-auth password
+			err = s.CreateResourceFromString(basicAuthSecret2)
+			Expect(err).NotTo(HaveOccurred(), "creating basic-auth secret")
+
+			// use the old password will get 401
+			Eventually(func() int {
+				return s.NewAPISIXClient().
+					GET("/get").
+					WithBasicAuth("sample-user", "sample-password").
+					WithHost("httpbin.org").
+					Expect().
+					Raw().StatusCode
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).
+				Should(Equal(http.StatusUnauthorized))
+
+			// use the new password will get 200
+			s.NewAPISIXClient().
+				GET("/get").
+				WithBasicAuth("sample-user", "sample-password-new").
+				WithHost("httpbin.org").
+				Expect().
+				Status(http.StatusOK)
 
 			By("delete consumer")
 			err = s.DeleteResourceFromString(defaultConsumer)
