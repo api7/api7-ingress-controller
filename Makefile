@@ -361,6 +361,7 @@ generate-crd-docs: manifests ## Generate CRD reference documentation in a single
 		--source-path=./api \
 		--config=$(CRD_DOCS_CONFIG) \
 		--renderer=markdown \
+		--templates-dir=./docs/template \
 		--output-path=$(CRD_DOCS_OUTPUT)
 	@echo "CRD reference documentation generated at $(CRD_DOCS_OUTPUT)"
 
@@ -372,6 +373,7 @@ generate-crd-docs-grouped: manifests ## Generate CRD reference documentation gro
 		--source-path=./api \
 		--config=$(CRD_DOCS_CONFIG) \
 		--renderer=markdown \
+		--templates-dir=./docs/template \
 		--output-path=docs/crd/groups \
 		--output-mode=group
 	@echo "CRD reference documentation generated in docs/crd/groups directory"
