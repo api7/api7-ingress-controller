@@ -3,6 +3,7 @@ package translator
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/api7/gopkg/pkg/log"
@@ -341,6 +342,33 @@ func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref ga
 	return t.translateEndpointSlice(portName, weight, endpointSlices)
 }
 
+// calculateMatchPriority calculate the priority of HTTPRouteMatch, according to the Gateway API specification
+// the higher the return value, the higher the priority
+func calculateMatchPriority(match *gatewayv1.HTTPRouteMatch) int64 {
+	var score int64 = 0
+
+	// 1. Exact path matches have the highest priority
+	if match.Path != nil && match.Path.Type != nil && *match.Path.Type == gatewayv1.PathMatchExact {
+		score += 10000
+	} else if match.Path != nil && match.Path.Type != nil && *match.Path.Type == gatewayv1.PathMatchPathPrefix && match.Path.Value != nil {
+		// 2. Prefix path matches, the longer the string, the higher the priority
+		score += 1000 + int64(len(*match.Path.Value))
+	}
+
+	// 3. Method matching
+	if match.Method != nil {
+		score += 100
+	}
+
+	// 4. Header matching, the more headers, the higher the priority
+	score += int64(len(match.Headers) * 10)
+
+	// 5. Query parameter matching, the more query parameters, the higher the priority
+	score += int64(len(match.QueryParams))
+
+	return score
+}
+
 func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRoute *gatewayv1.HTTPRoute) (*TranslateResult, error) {
 	result := &TranslateResult{}
 
@@ -388,6 +416,11 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 					},
 				},
 			}
+		} else {
+			// Sort the matches by priority
+			sort.Slice(matches, func(a, b int) bool {
+				return calculateMatchPriority(&matches[a]) > calculateMatchPriority(&matches[b])
+			})
 		}
 
 		routes := []*adctypes.Route{}
@@ -402,6 +435,11 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 			route.ID = id.GenID(name)
 			route.Labels = labels
 			route.EnableWebsocket = ptr.To(true)
+
+			// Set the route priority
+			priority := calculateMatchPriority(&match)
+			route.Priority = &priority
+
 			routes = append(routes, route)
 		}
 		t.fillHTTPRoutePoliciesForHTTPRoute(tctx, routes, rule)
@@ -422,7 +460,14 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 		case gatewayv1.PathMatchExact:
 			route.Uris = []string{*match.Path.Value}
 		case gatewayv1.PathMatchPathPrefix:
-			route.Uris = []string{*match.Path.Value + "*"}
+			pathValue := *match.Path.Value
+			route.Uris = []string{pathValue}
+
+			if strings.HasSuffix(pathValue, "/") {
+				route.Uris = append(route.Uris, pathValue+"*")
+			} else {
+				route.Uris = append(route.Uris, pathValue+"/*")
+			}
 		case gatewayv1.PathMatchRegularExpression:
 			var this []adctypes.StringOrSlice
 			this = append(this, adctypes.StringOrSlice{
@@ -439,6 +484,11 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 		default:
 			return nil, errors.New("unknown path match type " + string(*match.Path.Type))
 		}
+	} else {
+		/* If no matches are specified, the default is a prefix
+		path match on "/", which has the effect of matching every
+		HTTP request. */
+		route.Uris = []string{"/", "/*"}
 	}
 
 	if len(match.Headers) > 0 {
@@ -451,7 +501,12 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 				StrVal: "http_" + name,
 			})
 
-			switch *header.Type {
+			matchType := gatewayv1.HeaderMatchExact
+			if header.Type != nil {
+				matchType = *header.Type
+			}
+
+			switch matchType {
 			case gatewayv1.HeaderMatchExact:
 				this = append(this, adctypes.StringOrSlice{
 					StrVal: "==",
@@ -461,7 +516,7 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 					StrVal: "~~",
 				})
 			default:
-				return nil, errors.New("unknown header match type " + string(*header.Type))
+				return nil, errors.New("unknown header match type " + string(matchType))
 			}
 
 			this = append(this, adctypes.StringOrSlice{
@@ -479,7 +534,12 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 				StrVal: "arg_" + strings.ToLower(fmt.Sprintf("%v", query.Name)),
 			})
 
-			switch *query.Type {
+			queryType := gatewayv1.QueryParamMatchExact
+			if query.Type != nil {
+				queryType = *query.Type
+			}
+
+			switch queryType {
 			case gatewayv1.QueryParamMatchExact:
 				this = append(this, adctypes.StringOrSlice{
 					StrVal: "==",
@@ -489,7 +549,7 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 					StrVal: "~~",
 				})
 			default:
-				return nil, errors.New("unknown query match type " + string(*query.Type))
+				return nil, errors.New("unknown query match type " + string(queryType))
 			}
 
 			this = append(this, adctypes.StringOrSlice{
