@@ -422,7 +422,14 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 		case gatewayv1.PathMatchExact:
 			route.Uris = []string{*match.Path.Value}
 		case gatewayv1.PathMatchPathPrefix:
-			route.Uris = []string{*match.Path.Value + "*"}
+			pathValue := *match.Path.Value
+			route.Uris = []string{pathValue}
+
+			if strings.HasSuffix(pathValue, "/") {
+				route.Uris = append(route.Uris, pathValue+"*")
+			} else {
+				route.Uris = append(route.Uris, pathValue+"/*")
+			}
 		case gatewayv1.PathMatchRegularExpression:
 			var this []adctypes.StringOrSlice
 			this = append(this, adctypes.StringOrSlice{
@@ -439,6 +446,11 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 		default:
 			return nil, errors.New("unknown path match type " + string(*match.Path.Type))
 		}
+	} else {
+		/* If no matches are specified, the default is a prefix
+		path match on "/", which has the effect of matching every
+		HTTP request. */
+		route.Uris = []string{"/", "/*"}
 	}
 
 	if len(match.Headers) > 0 {
@@ -451,7 +463,12 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 				StrVal: "http_" + name,
 			})
 
-			switch *header.Type {
+			matchType := gatewayv1.HeaderMatchExact
+			if header.Type != nil {
+				matchType = *header.Type
+			}
+
+			switch matchType {
 			case gatewayv1.HeaderMatchExact:
 				this = append(this, adctypes.StringOrSlice{
 					StrVal: "==",
@@ -461,7 +478,7 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 					StrVal: "~~",
 				})
 			default:
-				return nil, errors.New("unknown header match type " + string(*header.Type))
+				return nil, errors.New("unknown header match type " + string(matchType))
 			}
 
 			this = append(this, adctypes.StringOrSlice{
@@ -479,7 +496,12 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 				StrVal: "arg_" + strings.ToLower(fmt.Sprintf("%v", query.Name)),
 			})
 
-			switch *query.Type {
+			queryType := gatewayv1.QueryParamMatchExact
+			if query.Type != nil {
+				queryType = *query.Type
+			}
+
+			switch queryType {
 			case gatewayv1.QueryParamMatchExact:
 				this = append(this, adctypes.StringOrSlice{
 					StrVal: "==",
@@ -489,7 +511,7 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 					StrVal: "~~",
 				})
 			default:
-				return nil, errors.New("unknown query match type " + string(*query.Type))
+				return nil, errors.New("unknown query match type " + string(queryType))
 			}
 
 			this = append(this, adctypes.StringOrSlice{
