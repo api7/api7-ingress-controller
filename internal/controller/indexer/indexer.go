@@ -24,29 +24,24 @@ const (
 	IngressClassParametersRef = "ingressClassParametersRef"
 	ConsumerGatewayRef        = "consumerGatewayRef"
 	PolicyTargetRefs          = "targetRefs"
+	GatewayClassIndexRef      = "gatewayClassRef"
 )
 
 func SetupIndexer(mgr ctrl.Manager) error {
-	if err := setupGatewayIndexer(mgr); err != nil {
-		return err
-	}
-	if err := setupHTTPRouteIndexer(mgr); err != nil {
-		return err
-	}
-	if err := setupIngressIndexer(mgr); err != nil {
-		return err
-	}
-	if err := setupConsumerIndexer(mgr); err != nil {
-		return err
-	}
-	if err := setupBackendTrafficPolicyIndexer(mgr); err != nil {
-		return err
-	}
-	if err := setupIngressClassIndexer(mgr); err != nil {
-		return err
-	}
-	if err := setupGatewayProxyIndexer(mgr); err != nil {
-		return err
+	for _, setup := range []func(ctrl.Manager) error{
+		setupGatewayIndexer,
+		setupHTTPRouteIndexer,
+		setupIngressIndexer,
+		setupConsumerIndexer,
+		setupBackendTrafficPolicyIndexer,
+		setupIngressClassIndexer,
+		setupGatewayProxyIndexer,
+		setupGatewaySecretIndex,
+		setupGatewayClassIndexer,
+	} {
+		if err := setup(mgr); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -191,6 +186,26 @@ func setupGatewayProxyIndexer(mgr ctrl.Manager) error {
 	return nil
 }
 
+func setupGatewaySecretIndex(mgr ctrl.Manager) error {
+	return mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&gatewayv1.Gateway{},
+		SecretIndexRef,
+		GatewaySecretIndexFunc,
+	)
+}
+
+func setupGatewayClassIndexer(mgr ctrl.Manager) error {
+	return mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&gatewayv1.Gateway{},
+		GatewayClassIndexRef,
+		func(obj client.Object) (requests []string) {
+			return []string{string(obj.(*gatewayv1.Gateway).Spec.GatewayClassName)}
+		},
+	)
+}
+
 func GatewayProxySecretIndexFunc(rawObj client.Object) []string {
 	gatewayProxy := rawObj.(*v1alpha1.GatewayProxy)
 	secretKeys := make([]string, 0)
@@ -308,6 +323,31 @@ func IngressSecretIndexFunc(rawObj client.Object) []string {
 		secrets = append(secrets, key)
 	}
 	return secrets
+}
+
+func GatewaySecretIndexFunc(rawObj client.Object) (keys []string) {
+	gateway := rawObj.(*gatewayv1.Gateway)
+	var m = make(map[string]struct{})
+	for _, listener := range gateway.Spec.Listeners {
+		if listener.TLS == nil || len(listener.TLS.CertificateRefs) == 0 {
+			continue
+		}
+		for _, ref := range listener.TLS.CertificateRefs {
+			if ref.Kind == nil || *ref.Kind != "Secret" {
+				continue
+			}
+			namespace := gateway.GetNamespace()
+			if ref.Namespace != nil {
+				namespace = string(*ref.Namespace)
+			}
+			key := GenIndexKey(namespace, string(ref.Name))
+			if _, ok := m[key]; !ok {
+				m[key] = struct{}{}
+				keys = append(keys, key)
+			}
+		}
+	}
+	return keys
 }
 
 func GenIndexKeyWithGK(group, kind, namespace, name string) string {

@@ -125,7 +125,7 @@ spec:
 		Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"), "checking GatewayClass condition message")
 
 		By("create Gateway")
-		err = s.CreateResourceFromString(fmt.Sprintf(defaultGateway, gatewayClassName))
+		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defaultGateway, gatewayClassName), s.CurrentNamespace())
 		Expect(err).NotTo(HaveOccurred(), "creating Gateway")
 		time.Sleep(5 * time.Second)
 
@@ -158,7 +158,7 @@ spec:
 		Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"), "checking GatewayClass condition message")
 
 		By("create Gateway")
-		err = s.CreateResourceFromString(fmt.Sprintf(defaultGatewayHTTPS, gatewayClassName))
+		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defaultGatewayHTTPS, gatewayClassName), s.CurrentNamespace())
 		Expect(err).NotTo(HaveOccurred(), "creating Gateway")
 		time.Sleep(5 * time.Second)
 

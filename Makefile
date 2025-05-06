@@ -15,6 +15,12 @@ GATEAY_API_VERSION ?= v1.2.0
 DASHBOARD_VERSION ?= dev
 TEST_TIMEOUT ?= 45m
 
+# CRD Reference Documentation
+CRD_REF_DOCS_VERSION ?= v0.1.0
+CRD_REF_DOCS ?= $(LOCALBIN)/crd-ref-docs
+CRD_DOCS_CONFIG ?= docs/crd/config.yaml
+CRD_DOCS_OUTPUT ?= docs/crd/api.md
+
 export KUBECONFIG = /tmp/$(KIND_NAME).kubeconfig
 
 # go 
@@ -29,7 +35,6 @@ GOBIN=$(shell go env GOPATH)/bin
 else
 GOBIN=$(shell go env GOBIN)
 endif
-
 GOOS ?= linux
 GOARCH ?= amd64
 
@@ -115,7 +120,7 @@ download-api7ee3-chart:
 
 .PHONY: conformance-test
 conformance-test:
-	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test -v ./test/conformance -tags=conformance
+	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test -v ./test/conformance -tags=conformance -timeout 60m
 
 .PHONY: lint
 lint: sort-import golangci-lint ## Run golangci-lint linter
@@ -346,3 +351,29 @@ helm-build-crds:
 sort-import:
 	@./scripts/goimports-reviser.sh >/dev/null 2>&1
 .PHONY: sort-import
+
+.PHONY: generate-crd-docs
+generate-crd-docs: manifests ## Generate CRD reference documentation in a single file
+	@mkdir -p $(dir $(CRD_DOCS_OUTPUT))
+	@echo "Generating CRD reference documentation"
+	@$(CRD_REF_DOCS) \
+		--source-path=./api \
+		--config=$(CRD_DOCS_CONFIG) \
+		--renderer=markdown \
+		--templates-dir=./docs/template \
+		--output-path=$(CRD_DOCS_OUTPUT) \
+		--max-depth=100
+	@echo "CRD reference documentation generated at $(CRD_DOCS_OUTPUT)"
+
+.PHONY: generate-crd-docs-grouped
+generate-crd-docs-grouped: manifests ## Generate CRD reference documentation grouped by API group
+	@mkdir -p docs/crd/groups
+	@echo "Generating CRD reference documentation (grouped by API)"
+	@$(CRD_REF_DOCS) \
+		--source-path=./api \
+		--config=$(CRD_DOCS_CONFIG) \
+		--renderer=markdown \
+		--templates-dir=./docs/template \
+		--output-path=docs/crd/groups \
+		--output-mode=group
+	@echo "CRD reference documentation generated in docs/crd/groups directory"
