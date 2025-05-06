@@ -23,8 +23,12 @@ func (t *Translator) TranslateIngressClass(tctx *provider.TranslateContext, obj 
 		return result, nil
 	}
 
-	globalRules := adctypes.GlobalRule{}
-	pluginMetadata := adctypes.PluginMetadata{}
+	globalRules := adctypes.GlobalRule{
+		Plugins: make(adctypes.Plugins),
+	}
+	pluginMetadata := adctypes.PluginMetadata{
+		Plugins: make(adctypes.Plugins),
+	}
 	// apply plugins from GatewayProxy to global rules
 	t.fillPluginsFromGatewayProxy(globalRules, &gatewayProxy)
 	t.fillPluginMetadataFromGatewayProxy(pluginMetadata, &gatewayProxy)

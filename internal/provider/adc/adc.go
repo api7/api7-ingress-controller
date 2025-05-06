@@ -122,7 +122,13 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 			return err
 		}
 		for _, config := range deleteConfigs {
-			d.store.Delete(config.Name, resourceTypes, label.GenLabel(obj))
+			if err := d.store.Delete(config.Name, resourceTypes, label.GenLabel(obj)); err != nil {
+				log.Errorw("failed to delete resources from store",
+					zap.String("name", config.Name),
+					zap.Error(err),
+				)
+				return err
+			}
 		}
 	}
 
@@ -185,8 +191,16 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 	defer d.deleteConfigs(rk)
 
 	for _, config := range configs {
-		d.store.Delete(config.Name, resourceTypes, labels)
+		if err := d.store.Delete(config.Name, resourceTypes, labels); err != nil {
+			log.Errorw("failed to delete resources from store",
+				zap.String("name", config.Name),
+				zap.Error(err),
+			)
+			return err
+		}
 	}
+
+	log.Debugw("successfully deleted resources from store", zap.Any("object", obj))
 
 	err := d.sync(ctx, Task{
 		Name:          obj.GetName(),

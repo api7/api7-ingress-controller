@@ -3,10 +3,11 @@ package adc
 import (
 	"sync"
 
+	"github.com/api7/gopkg/pkg/log"
+
 	adctypes "github.com/api7/api7-ingress-controller/api/adc"
 	label "github.com/api7/api7-ingress-controller/internal/controller/label"
 	"github.com/api7/api7-ingress-controller/internal/provider/adc/cache"
-	"github.com/api7/gopkg/pkg/log"
 )
 
 type Store struct {
