@@ -2,6 +2,7 @@ package ingress
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"strings"
@@ -803,6 +804,147 @@ spec:
 				WithHost("ingress.example.com").
 				Expect().
 				Status(200)
+		})
+	})
+
+	Context("GatewayProxy reference Secret", func() {
+		const secretSpec = `
+apiVersion: v1
+kind: Secret
+metadata:
+  name: control-plane-secret
+data:
+  admin-key: %s
+`
+		const gatewayProxySpec = `
+apiVersion: apisix.apache.org/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: api7-proxy-config
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          valueFrom:
+            secretKeyRef:
+              name: control-plane-secret
+              key: admin-key
+  plugins:
+  - name: response-rewrite
+    enabled: true
+    config: 
+      headers:
+        X-Proxy-Test: "enabled"
+`
+		const ingressClassSpec = `
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: api7-ingress-class
+spec:
+  controller: "apisix.apache.org/api7-ingress-controller"
+  parameters:
+    apiGroup: "apisix.apache.org"
+    kind: "GatewayProxy"
+    name: "api7-proxy-config"
+    namespace: %s
+    scope: "Namespace"
+`
+		const ingressSpec = `
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api7-ingress
+spec:
+  ingressClassName: api7-ingress-class
+  rules:
+  - host: ingress.example.com
+    http:
+      paths:
+      - path: /get
+        pathType: Prefix
+        backend:
+          service:
+            name: httpbin-service-e2e-test
+            port:
+              number: 80
+`
+		var (
+			additionalGatewayGroupID string
+			err                      error
+		)
+
+		It("GatewayProxy reference Secret", func() {
+			By("create Secret")
+			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(secretSpec, base64.StdEncoding.EncodeToString([]byte(s.AdminKey()))), s.Namespace())
+			Expect(err).NotTo(HaveOccurred(), "creating secret")
+
+			By("create GatewayProxy")
+			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewayProxySpec, framework.DashboardTLSEndpoint), s.Namespace())
+			Expect(err).NotTo(HaveOccurred(), "creating gateway proxy")
+
+			By("create IngressClass")
+			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(ingressClassSpec, s.Namespace()), s.Namespace())
+			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
+
+			By("creat Ingress")
+			err = s.CreateResourceFromStringWithNamespace(ingressSpec, s.Namespace())
+			Expect(err).NotTo(HaveOccurred(), "creating Ingress")
+
+			By("verify Ingress works")
+			Eventually(func() int {
+				return s.NewAPISIXClient().
+					GET("/get").
+					WithHost("ingress.example.com").
+					Expect().Raw().StatusCode
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).
+				Should(Equal(http.StatusOK))
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("ingress.example.com").
+				Expect().Header("X-Proxy-Test").IsEqual("enabled")
+
+			By("create additional gateway group to get new admin key")
+			additionalGatewayGroupID, _, err = s.CreateAdditionalGatewayGroup("gateway-proxy-update")
+			Expect(err).NotTo(HaveOccurred(), "creating additional gateway group")
+
+			client, err := s.NewAPISIXClientForGatewayGroup(additionalGatewayGroupID)
+			Expect(err).NotTo(HaveOccurred(), "creating APISIX client for additional gateway group")
+
+			By("Ingress not found for additional gateway group")
+			client.
+				GET("/get").
+				WithHost("ingress.example.com").
+				Expect().
+				Status(http.StatusNotFound)
+
+			resources, exists := s.GetAdditionalGatewayGroup(additionalGatewayGroupID)
+			Expect(exists).To(BeTrue(), "additional gateway group should exist")
+
+			By("update secret")
+			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(secretSpec, base64.StdEncoding.EncodeToString([]byte(resources.AdminAPIKey))), s.Namespace())
+			Expect(err).NotTo(HaveOccurred(), "creating secret")
+
+			By("verify Ingress works for additional gateway group")
+			Eventually(func() int {
+				return client.
+					GET("/get").
+					WithHost("ingress.example.com").
+					Expect().Raw().StatusCode
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).
+				Should(Equal(http.StatusOK))
+			Eventually(func() string {
+				return client.
+					GET("/get").
+					WithHost("ingress.example.com").
+					Expect().Raw().Header.Get("X-Proxy-Test")
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).
+				Should(Equal("enabled"))
 		})
 	})
 })

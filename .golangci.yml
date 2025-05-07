@@ -24,6 +24,8 @@ linters:
     revive:
       rules:
         - name: comment-spacings
+    lll:
+      line-length: 160
   exclusions:
     generated: lax
     rules:

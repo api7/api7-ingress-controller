@@ -356,7 +356,31 @@ func (r *IngressReconciler) listIngressesBySecret(ctx context.Context, obj clien
 			})
 		}
 	}
-	return requests
+
+	gatewayProxyList := &v1alpha1.GatewayProxyList{}
+	if err := r.List(ctx, gatewayProxyList, client.MatchingFields{
+		indexer.SecretIndexRef: indexer.GenIndexKey(secret.GetNamespace(), secret.GetName()),
+	}); err != nil {
+		r.Log.Error(err, "failed to list gateway proxies by secret", "secret", secret.GetName())
+		return nil
+	}
+
+	for _, gatewayProxy := range gatewayProxyList.Items {
+		var (
+			ingressClassList networkingv1.IngressClassList
+			indexKey         = indexer.GenIndexKey(gatewayProxy.GetNamespace(), gatewayProxy.GetName())
+			matchingFields   = client.MatchingFields{indexer.IngressClassParametersRef: indexKey}
+		)
+		if err := r.List(ctx, &ingressClassList, matchingFields); err != nil {
+			r.Log.Error(err, "failed to list ingress classes for gateway proxy", "gatewayproxy", indexKey)
+			continue
+		}
+		for _, ingressClass := range ingressClassList.Items {
+			requests = append(requests, r.listIngressForIngressClass(ctx, &ingressClass)...)
+		}
+	}
+
+	return distinctRequests(requests)
 }
 
 func (r *IngressReconciler) listIngressForBackendTrafficPolicy(ctx context.Context, obj client.Object) (requests []reconcile.Request) {

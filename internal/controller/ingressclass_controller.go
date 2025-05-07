@@ -40,7 +40,15 @@ func (r *IngressClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				predicate.NewPredicateFuncs(r.matchesController),
 			),
 		).
-		WithEventFilter(predicate.GenerationChangedPredicate{}).
+		WithEventFilter(
+			predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				predicate.NewPredicateFuncs(func(obj client.Object) bool {
+					_, ok := obj.(*corev1.Secret)
+					return ok
+				}),
+			),
+		).
 		Watches(
 			&v1alpha1.GatewayProxy{},
 			handler.EnqueueRequestsFromMapFunc(r.listIngressClassesForGatewayProxy),
@@ -146,29 +154,10 @@ func (r *IngressClassReconciler) listIngressClassesForSecret(ctx context.Context
 	// 2. list ingress classes by gateway proxies
 	requests := make([]reconcile.Request, 0)
 	for _, gatewayProxy := range gatewayProxyList.Items {
-		ingressClassList := &networkingv1.IngressClassList{}
-		if err := r.List(ctx, ingressClassList, client.MatchingFields{
-			indexer.IngressClassParametersRef: indexer.GenIndexKey(gatewayProxy.GetNamespace(), gatewayProxy.GetName()),
-		}); err != nil {
-			r.Log.Error(err, "failed to list ingress classes by secret", "secret", secret.GetName())
-			return nil
-		}
-		for _, ingressClass := range ingressClassList.Items {
-			if !r.matchesController(&ingressClass) {
-				continue
-			}
-			requests = append(requests, reconcile.Request{
-				NamespacedName: client.ObjectKey{
-					Name:      ingressClass.GetName(),
-					Namespace: ingressClass.GetNamespace(),
-				},
-			})
-		}
+		requests = append(requests, r.listIngressClassesForGatewayProxy(ctx, &gatewayProxy)...)
 	}
 
-	requests = distinctRequests(requests)
-
-	return requests
+	return distinctRequests(requests)
 }
 
 func (r *IngressClassReconciler) processInfrastructure(tctx *provider.TranslateContext, ingressClass *networkingv1.IngressClass) error {
