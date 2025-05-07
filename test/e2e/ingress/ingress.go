@@ -834,6 +834,12 @@ spec:
             secretKeyRef:
               name: control-plane-secret
               key: admin-key
+  plugins:
+  - name: response-rewrite
+    enabled: true
+    config: 
+      headers:
+        X-Proxy-Test: "enabled"
 `
 		const ingressClassSpec = `
 apiVersion: networking.k8s.io/v1
@@ -898,6 +904,10 @@ spec:
 					Expect().Raw().StatusCode
 			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).
 				Should(Equal(http.StatusOK))
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("ingress.example.com").
+				Expect().Header("X-Proxy-Test").IsEqual("enabled")
 
 			By("create additional gateway group to get new admin key")
 			additionalGatewayGroupID, _, err = s.CreateAdditionalGatewayGroup("gateway-proxy-update")
@@ -928,6 +938,13 @@ spec:
 					Expect().Raw().StatusCode
 			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).
 				Should(Equal(http.StatusOK))
+			Eventually(func() string {
+				return client.
+					GET("/get").
+					WithHost("ingress.example.com").
+					Expect().Raw().Header.Get("X-Proxy-Test")
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).
+				Should(Equal("enabled"))
 		})
 	})
 })
