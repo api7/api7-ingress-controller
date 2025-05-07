@@ -13,7 +13,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -135,23 +134,6 @@ func isGenerated(fset *token.FileSet, file *ast.File) bool {
 		}
 	}
 	return false
-}
-
-func loadIgnoreFiles() []string {
-	const cfgfile = ".licenserc.json"
-	byts, err := os.ReadFile(cfgfile)
-	if err != nil {
-		return nil
-	}
-	var config struct {
-		Ignore []string `json:"ignore"`
-	}
-	err = json.Unmarshal(byts, &config)
-	if err != nil {
-		fmt.Println(fmt.Errorf("fail to parse %s", cfgfile))
-		os.Exit(1)
-	}
-	return config.Ignore
 }
 
 func main() {
