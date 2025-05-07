@@ -1,3 +1,15 @@
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package ingress
 
 import (
@@ -171,7 +183,7 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: api7-ingress-default
+  name: api7-ingress-external
 spec:
   rules:
   - host: httpbin.external
@@ -234,6 +246,63 @@ spec:
 				WithHost("httpbin.external").
 				Expect().
 				Status(200)
+		})
+
+		It("Delete Ingress during restart", func() {
+			By("create GatewayProxy")
+			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+			time.Sleep(5 * time.Second)
+
+			By("create Default IngressClass")
+			err = s.CreateResourceFromStringWithNamespace(defaultIngressClass, "")
+			Expect(err).NotTo(HaveOccurred(), "creating Default IngressClass")
+			time.Sleep(5 * time.Second)
+
+			By("create Ingress with ExternalName")
+			err = s.CreateResourceFromString(ingressWithExternalName)
+			Expect(err).NotTo(HaveOccurred(), "creating Ingress without IngressClass")
+			time.Sleep(5 * time.Second)
+
+			By("create Ingress")
+			err = s.CreateResourceFromString(defaultIngress)
+			Expect(err).NotTo(HaveOccurred(), "creating Ingress without IngressClass")
+			time.Sleep(5 * time.Second)
+
+			By("checking the external service response")
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.external").
+				Expect().
+				Status(200)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("default.example.com").
+				Expect().
+				Status(200)
+
+			s.ScaleIngress(0)
+
+			By("delete Ingress")
+			err = s.DeleteResourceFromString(defaultIngress)
+			Expect(err).NotTo(HaveOccurred(), "deleting Ingress without IngressClass")
+
+			s.ScaleIngress(1)
+			time.Sleep(1 * time.Minute)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.external").
+				Expect().
+				Status(200)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("default.example.com").
+				Expect().
+				Status(404)
 		})
 	})
 

@@ -1,3 +1,15 @@
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package gatewayapi
 
 import (
@@ -412,6 +424,25 @@ spec:
     - name: httpbin-service-e2e-test
       port: 80
 `
+		var exactRouteByGet2 = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin2
+spec:
+  parentRefs:
+  - name: api7ee
+  hostnames:
+  - httpbin2.example
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /get
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
 		var invalidBackendPort = `
 apiVersion: v1
 kind: Service
@@ -531,6 +562,47 @@ spec:
 			nodes := serviceResource.Upstream.Nodes
 			Expect(nodes).To(HaveLen(1), "checking nodes length")
 			Expect(nodes[0].Port).To(Equal(80))
+		})
+
+		It("Delete HTTPRoute during restart", func() {
+			By("create HTTPRoute httpbin")
+			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 1)
+
+			By("create HTTPRoute httpbin2")
+			ResourceApplied("HTTPRoute", "httpbin2", exactRouteByGet2, 1)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.example").
+				Expect().
+				Status(200)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin2.example").
+				Expect().
+				Status(200)
+
+			s.ScaleIngress(0)
+
+			By("delete HTTPRoute httpbin2")
+			err := s.DeleteResource("HTTPRoute", "httpbin2")
+			Expect(err).NotTo(HaveOccurred(), "deleting HTTPRoute httpbin2")
+
+			s.ScaleIngress(1)
+			time.Sleep(1 * time.Minute)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.example").
+				Expect().
+				Status(200)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin2.example").
+				Expect().
+				Status(404)
 		})
 	})
 

@@ -1,3 +1,15 @@
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package translator
 
 import (
@@ -43,8 +55,8 @@ func (t *Translator) TranslateGateway(tctx *provider.TranslateContext, obj *gate
 		return result, nil
 	}
 
-	globalRules := adctypes.Plugins{}
-	pluginMetadata := adctypes.Plugins{}
+	globalRules := make(adctypes.GlobalRule)
+	pluginMetadata := make(adctypes.PluginMetadata)
 	// apply plugins from GatewayProxy to global rules
 	t.fillPluginsFromGatewayProxy(globalRules, &gatewayProxy)
 	t.fillPluginMetadataFromGatewayProxy(pluginMetadata, &gatewayProxy)
@@ -183,7 +195,7 @@ func extractKubeSecretKeyPair(s *corev1.Secret, hasPrivateKey bool) (cert []byte
 }
 
 // fillPluginsFromGatewayProxy fill plugins from GatewayProxy to given plugins
-func (t *Translator) fillPluginsFromGatewayProxy(plugins adctypes.Plugins, gatewayProxy *v1alpha1.GatewayProxy) {
+func (t *Translator) fillPluginsFromGatewayProxy(plugins adctypes.GlobalRule, gatewayProxy *v1alpha1.GatewayProxy) {
 	if gatewayProxy == nil {
 		return
 	}
@@ -206,7 +218,7 @@ func (t *Translator) fillPluginsFromGatewayProxy(plugins adctypes.Plugins, gatew
 	}
 }
 
-func (t *Translator) fillPluginMetadataFromGatewayProxy(pluginMetadata adctypes.Plugins, gatewayProxy *v1alpha1.GatewayProxy) {
+func (t *Translator) fillPluginMetadataFromGatewayProxy(pluginMetadata adctypes.PluginMetadata, gatewayProxy *v1alpha1.GatewayProxy) {
 	if gatewayProxy == nil {
 		return
 	}

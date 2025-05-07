@@ -1,3 +1,15 @@
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package adc
 
 import (
@@ -60,6 +72,11 @@ const (
 	PassHostRewrite = "rewrite"
 )
 
+type Object interface {
+	GetLabels() map[string]string
+}
+
+// +k8s:deepcopy-gen=true
 type Metadata struct {
 	ID     string            `json:"id,omitempty" yaml:"id,omitempty"`
 	Name   string            `json:"name,omitempty" yaml:"name,omitempty"`
@@ -67,15 +84,34 @@ type Metadata struct {
 	Labels map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
 }
 
+func (m *Metadata) GetLabels() map[string]string { return m.Labels }
+
 type Resources struct {
 	ConsumerGroups []*ConsumerGroup `json:"consumer_groups,omitempty" yaml:"consumer_groups,omitempty"`
 	Consumers      []*Consumer      `json:"consumers,omitempty" yaml:"consumers,omitempty"`
-	GlobalRules    Plugins          `json:"global_rules,omitempty" yaml:"global_rules,omitempty"`
-	PluginMetadata Plugins          `json:"plugin_metadata,omitempty" yaml:"plugin_metadata,omitempty"`
+	GlobalRules    GlobalRule       `json:"global_rules,omitempty" yaml:"global_rules,omitempty"`
+	PluginMetadata PluginMetadata   `json:"plugin_metadata,omitempty" yaml:"plugin_metadata,omitempty"`
 	Services       []*Service       `json:"services,omitempty" yaml:"services,omitempty"`
 	SSLs           []*SSL           `json:"ssls,omitempty" yaml:"ssls,omitempty"`
 }
 
+type GlobalRule Plugins
+
+func (g *GlobalRule) DeepCopy() GlobalRule {
+	original := Plugins(*g)
+	copied := original.DeepCopy()
+	return GlobalRule(copied)
+}
+
+type PluginMetadata Plugins
+
+func (p *PluginMetadata) DeepCopy() PluginMetadata {
+	original := Plugins(*p)
+	copied := original.DeepCopy()
+	return PluginMetadata(copied)
+}
+
+// +k8s:deepcopy-gen=true
 type ConsumerGroup struct {
 	Metadata  `json:",inline" yaml:",inline"`
 	Consumers []Consumer `json:"consumers,omitempty" yaml:"consumers,omitempty"`
@@ -83,6 +119,7 @@ type ConsumerGroup struct {
 	Plugins   Plugins    `json:"plugins" yaml:"plugins"`
 }
 
+// +k8s:deepcopy-gen=true
 type Consumer struct {
 	Credentials []Credential      `json:"credentials,omitempty" yaml:"credentials,omitempty"`
 	Description string            `json:"description,omitempty" yaml:"description,omitempty"`
@@ -91,13 +128,15 @@ type Consumer struct {
 	Username    string            `json:"username" yaml:"username"`
 }
 
+// +k8s:deepcopy-gen=true
 type Credential struct {
 	Metadata `json:",inline" yaml:",inline"`
 
-	Config map[string]any `json:"config" yaml:"config"`
-	Type   string         `json:"type" yaml:"type"`
+	Config Plugins `json:"config" yaml:"config"`
+	Type   string  `json:"type" yaml:"type"`
 }
 
+// +k8s:deepcopy-gen=true
 type Service struct {
 	Metadata `json:",inline" yaml:",inline"`
 
@@ -110,6 +149,7 @@ type Service struct {
 	Upstream        *Upstream      `json:"upstream,omitempty" yaml:"upstream,omitempty"`
 }
 
+// +k8s:deepcopy-gen=true
 type Route struct {
 	Metadata `json:",inline" yaml:",inline"`
 
@@ -131,6 +171,7 @@ type Timeout struct {
 	Send    int `json:"send"`
 }
 
+// +k8s:deepcopy-gen=true
 type StreamRoute struct {
 	Description string            `json:"description,omitempty"`
 	ID          string            `json:"id,omitempty"`
@@ -143,6 +184,7 @@ type StreamRoute struct {
 	Sni         string            `json:"sni,omitempty"`
 }
 
+// +k8s:deepcopy-gen=true
 type Upstream struct {
 	Metadata `json:",inline" yaml:",inline"`
 
@@ -159,6 +201,7 @@ type Upstream struct {
 	UpstreamHost string        `json:"upstream_host,omitempty" yaml:"upstream_host,omitempty"`
 }
 
+// +k8s:deepcopy-gen=true
 type TLSClass struct {
 	ClientCERT   string `json:"client_cert,omitempty"`
 	ClientCERTID string `json:"client_cert_id,omitempty"`
@@ -166,6 +209,7 @@ type TLSClass struct {
 	Verify       *bool  `json:"verify,omitempty"`
 }
 
+// +k8s:deepcopy-gen=true
 type SSL struct {
 	Metadata `json:",inline" yaml:",inline"`
 
@@ -176,11 +220,13 @@ type SSL struct {
 	Type         *SSLType      `json:"type,omitempty" yaml:"type,omitempty"`
 }
 
+// +k8s:deepcopy-gen=true
 type Certificate struct {
 	Certificate string `json:"certificate" yaml:"certificate"`
 	Key         string `json:"key" yaml:"key"`
 }
 
+// +k8s:deepcopy-gen=true
 type ClientClass struct {
 	CA               string   `json:"ca" yaml:"ca"`
 	Depth            *int64   `json:"depth,omitempty" yaml:"depth,omitempty"`
@@ -517,6 +563,7 @@ func (vars *Vars) UnmarshalJSON(p []byte) error {
 
 // StringOrSlice represents a string or a string slice.
 // TODO Do not use interface{} to avoid the reflection overheads.
+// +k8s:deepcopy-gen=true
 type StringOrSlice struct {
 	StrVal   string          `json:"-"`
 	SliceVal []StringOrSlice `json:"-"`

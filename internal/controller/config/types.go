@@ -1,3 +1,15 @@
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package config
 
 import (
@@ -35,6 +47,7 @@ type Config struct {
 	SecureMetrics    bool               `json:"secure_metrics" yaml:"secure_metrics"`
 	LeaderElection   *LeaderElection    `json:"leader_election" yaml:"leader_election"`
 	ExecADCTimeout   types.TimeDuration `json:"exec_adc_timeout" yaml:"exec_adc_timeout"`
+	ProviderConfig   ProviderConfig     `json:"provider" yaml:"provider"`
 }
 
 type GatewayConfig struct {
@@ -54,4 +67,9 @@ type LeaderElection struct {
 	RenewDeadline types.TimeDuration `json:"renew_deadline,omitempty" yaml:"renew_deadline,omitempty"`
 	RetryPeriod   types.TimeDuration `json:"retry_period,omitempty" yaml:"retry_period,omitempty"`
 	Disable       bool               `json:"disable,omitempty" yaml:"disable,omitempty"`
+}
+
+type ProviderConfig struct {
+	SyncPeriod    types.TimeDuration `json:"sync_period" yaml:"sync_period"`
+	InitSyncDelay types.TimeDuration `json:"init_sync_delay" yaml:"init_sync_delay"`
 }
