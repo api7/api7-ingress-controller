@@ -341,6 +341,8 @@ func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref ga
 	return t.translateEndpointSlice(portName, weight, endpointSlices)
 }
 
+// calculateHTTPRoutePriority calculates the priority of the HTTP route.
+// ref: https://github.com/Kong/kubernetes-ingress-controller/blob/57472721319e2c63e56cb8540425257e8e02520f/internal/dataplane/translator/subtranslator/httproute_atc.go#L279-L296
 func calculateHTTPRoutePriority(match *gatewayv1.HTTPRouteMatch, ruleIndex int) uint64 {
 	const (
 		// ExactPathShiftBits assigns bit 34 to mark if the match is exact path match.
