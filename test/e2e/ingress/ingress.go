@@ -868,27 +868,9 @@ spec:
             port:
               number: 80
 `
-		const ingressSpec2 = `
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: api7-ingress
-spec:
-  ingressClassName: api7-ingress-class
-  rules:
-  - host: ingress.example.com
-    http:
-      paths:
-      - path: /put
-        pathType: Prefix
-        backend:
-          service:
-            name: httpbin-service-e2e-test
-            port:
-              number: 80
-`
 		var (
-			err error
+			additionalGatewayGroupID string
+			err                      error
 		)
 
 		It("GatewayProxy reference Secret", func() {
@@ -917,35 +899,31 @@ spec:
 			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).
 				Should(Equal(http.StatusOK))
 
-			// update gateway group admin-key
-			adminKey := s.GetAdminKey(s.CurrentGatewayGroupID())
+			By("create additional gateway group to get new admin key")
+			additionalGatewayGroupID, _, err = s.CreateAdditionalGatewayGroup("gateway-proxy-update")
+			Expect(err).NotTo(HaveOccurred(), "creating additional gateway group")
 
-			// should fail to request provider service and get 401 because the admin-key is changed
-			By("create Ingress")
-			err = s.CreateResourceFromStringWithNamespace(ingressSpec2, s.Namespace())
-			s.WaitControllerManagerLog("Request failed with status code 401", 0, 10*time.Second)
+			client, err := s.NewAPISIXClientForGatewayGroup(additionalGatewayGroupID)
+			Expect(err).NotTo(HaveOccurred(), "creating APISIX client for additional gateway group")
 
-			// the new Ingress should not work consistently
-			Consistently(func() int {
-				return s.NewAPISIXClient().
-					GET("/put").
-					WithHost("ingress.example.com").
-					Expect().Raw().StatusCode
-			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).
-				Should(Equal(http.StatusNotFound))
+			By("Ingress not found for additional gateway group")
+			client.
+				GET("/get").
+				WithHost("ingress.example.com").
+				Expect().
+				Status(http.StatusNotFound)
+
+			resources, exists := s.GetAdditionalGatewayGroup(additionalGatewayGroupID)
+			Expect(exists).To(BeTrue(), "additional gateway group should exist")
 
 			By("update secret")
-			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(secretSpec, base64.StdEncoding.EncodeToString([]byte(adminKey))), s.Namespace())
+			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(secretSpec, base64.StdEncoding.EncodeToString([]byte(resources.AdminAPIKey))), s.Namespace())
 			Expect(err).NotTo(HaveOccurred(), "creating secret")
 
-			By("create Ingress again")
-			err = s.CreateResourceFromStringWithNamespace(ingressSpec2, s.Namespace())
-			Expect(err).NotTo(HaveOccurred(), "creating Ingress with path prefix /put")
-
-			By("verify Ingress works")
+			By("verify Ingress works for additional gateway group")
 			Eventually(func() int {
-				return s.NewAPISIXClient().
-					PUT("/put").
+				return client.
+					GET("/get").
 					WithHost("ingress.example.com").
 					Expect().Raw().StatusCode
 			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).
