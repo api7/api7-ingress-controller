@@ -122,7 +122,7 @@ func Run(ctx context.Context, logger logr.Logger) error {
 		return err
 	}
 
-	providier, err := adc.New()
+	provider, err := adc.New()
 	if err != nil {
 		setupLog.Error(err, "unable to create provider")
 		return err
@@ -133,7 +133,7 @@ func Run(ctx context.Context, logger logr.Logger) error {
 		initalSyncDelay := config.ControllerConfig.ProviderConfig.InitSyncDelay.Duration
 		time.AfterFunc(initalSyncDelay, func() {
 			setupLog.Info("trying to initialize provider")
-			if err := providier.Sync(ctx); err != nil {
+			if err := provider.Sync(ctx); err != nil {
 				setupLog.Error(err, "unable to sync resources to provider")
 				return
 			}
@@ -149,7 +149,7 @@ func Run(ctx context.Context, logger logr.Logger) error {
 			select {
 			case <-ticker.C:
 				setupLog.Info("trying to sync resources to provider")
-				if err := providier.Sync(ctx); err != nil {
+				if err := provider.Sync(ctx); err != nil {
 					setupLog.Error(err, "unable to sync resources to provider")
 					return
 				}
@@ -160,7 +160,7 @@ func Run(ctx context.Context, logger logr.Logger) error {
 	}()
 
 	setupLog.Info("setting up controllers")
-	controllers, err := setupControllers(ctx, mgr, providier)
+	controllers, err := setupControllers(ctx, mgr, provider)
 	if err != nil {
 		setupLog.Error(err, "unable to set up controllers")
 		return err
