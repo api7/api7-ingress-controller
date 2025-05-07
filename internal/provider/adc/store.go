@@ -15,7 +15,7 @@ type Store struct {
 	globalruleMap     map[string]adctypes.GlobalRule
 	pluginMetadataMap map[string]adctypes.PluginMetadata
 
-	mux *sync.Mutex
+	sync.Mutex
 }
 
 func NewStore() *Store {
@@ -23,13 +23,12 @@ func NewStore() *Store {
 		cacheMap:          make(map[string]cache.Cache),
 		globalruleMap:     make(map[string]adctypes.GlobalRule),
 		pluginMetadataMap: make(map[string]adctypes.PluginMetadata),
-		mux:               &sync.Mutex{},
 	}
 }
 
 func (s *Store) Insert(name string, resourceTypes []string, resources adctypes.Resources, Labels map[string]string) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
+	s.Lock()
+	defer s.Unlock()
 	targetCache, ok := s.cacheMap[name]
 	if !ok {
 		db, err := cache.NewMemDBCache()
@@ -105,8 +104,8 @@ func (s *Store) Insert(name string, resourceTypes []string, resources adctypes.R
 }
 
 func (s *Store) Delete(name string, resourceTypes []string, Labels map[string]string) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
+	s.Lock()
+	defer s.Unlock()
 	targetCache, ok := s.cacheMap[name]
 	if !ok {
 		return nil
@@ -160,8 +159,8 @@ func (s *Store) Delete(name string, resourceTypes []string, Labels map[string]st
 }
 
 func (s *Store) GetResources(name string) (*adctypes.Resources, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
+	s.Lock()
+	defer s.Unlock()
 	targetCache, ok := s.cacheMap[name]
 	if !ok {
 		return nil, nil
