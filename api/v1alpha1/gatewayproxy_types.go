@@ -48,7 +48,7 @@ const (
 // GatewayProxyProvider defines the provider configuration for GatewayProxy
 // +kubebuilder:validation:XValidation:rule="self.type == 'ControlPlane' ? has(self.controlPlane) : true",message="controlPlane must be specified when type is ControlPlane"
 type GatewayProxyProvider struct {
-	// Type 1111 specifies the type of provider
+	// Type specifies the type of provider
 	// +kubebuilder:validation:Required
 	Type ProviderType `json:"type"`
 
