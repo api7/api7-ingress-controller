@@ -1,4 +1,17 @@
 repos:
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.5.5
+    hooks:
+      - id: insert-license
+        files: \.go$
+        exclude: zz_generated\.deepcopy\.go$
+        args:
+          - --license-filepath
+          - LICENSE
+          - --comment-style
+          - //
+          - --use-current-year
+          - --no-extra-eol
   - repo: local
     hooks:
       - id: go-mod-tidy
