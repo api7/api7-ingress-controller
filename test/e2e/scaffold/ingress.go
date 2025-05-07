@@ -11,5 +11,17 @@ func (s *Scaffold) deployIngress() {
 		AdminTLSVerify: false,
 		Namespace:      s.namespace,
 		AdminEnpoint:   framework.DashboardTLSEndpoint,
+		Replicas:       1,
+	})
+}
+
+func (s *Scaffold) ScaleIngress(replicas int) {
+	s.DeployIngress(framework.IngressDeployOpts{
+		ControllerName: s.opts.ControllerName,
+		AdminKey:       s.AdminKey(),
+		AdminTLSVerify: false,
+		Namespace:      s.namespace,
+		AdminEnpoint:   framework.DashboardTLSEndpoint,
+		Replicas:       replicas,
 	})
 }

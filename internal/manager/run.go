@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"os"
+	"time"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -121,14 +122,45 @@ func Run(ctx context.Context, logger logr.Logger) error {
 		return err
 	}
 
-	pro, err := adc.New()
+	provider, err := adc.New()
 	if err != nil {
 		setupLog.Error(err, "unable to create provider")
 		return err
 	}
 
+	go func() {
+		setupLog.Info("starting provider sync")
+		initalSyncDelay := config.ControllerConfig.ProviderConfig.InitSyncDelay.Duration
+		time.AfterFunc(initalSyncDelay, func() {
+			setupLog.Info("trying to initialize provider")
+			if err := provider.Sync(ctx); err != nil {
+				setupLog.Error(err, "unable to sync resources to provider")
+				return
+			}
+		})
+
+		syncPeriod := config.ControllerConfig.ProviderConfig.SyncPeriod.Duration
+		if syncPeriod < 1 {
+			return
+		}
+		ticker := time.NewTicker(syncPeriod)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				setupLog.Info("trying to sync resources to provider")
+				if err := provider.Sync(ctx); err != nil {
+					setupLog.Error(err, "unable to sync resources to provider")
+					return
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
 	setupLog.Info("setting up controllers")
-	controllers, err := setupControllers(ctx, mgr, pro)
+	controllers, err := setupControllers(ctx, mgr, provider)
 	if err != nil {
 		setupLog.Error(err, "unable to set up controllers")
 		return err

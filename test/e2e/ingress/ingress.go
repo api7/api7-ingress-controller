@@ -171,7 +171,7 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: api7-ingress-default
+  name: api7-ingress-external
 spec:
   rules:
   - host: httpbin.external
@@ -234,6 +234,63 @@ spec:
 				WithHost("httpbin.external").
 				Expect().
 				Status(200)
+		})
+
+		It("Delete Ingress during restart", func() {
+			By("create GatewayProxy")
+			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+			time.Sleep(5 * time.Second)
+
+			By("create Default IngressClass")
+			err = s.CreateResourceFromStringWithNamespace(defaultIngressClass, "")
+			Expect(err).NotTo(HaveOccurred(), "creating Default IngressClass")
+			time.Sleep(5 * time.Second)
+
+			By("create Ingress with ExternalName")
+			err = s.CreateResourceFromString(ingressWithExternalName)
+			Expect(err).NotTo(HaveOccurred(), "creating Ingress without IngressClass")
+			time.Sleep(5 * time.Second)
+
+			By("create Ingress")
+			err = s.CreateResourceFromString(defaultIngress)
+			Expect(err).NotTo(HaveOccurred(), "creating Ingress without IngressClass")
+			time.Sleep(5 * time.Second)
+
+			By("checking the external service response")
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.external").
+				Expect().
+				Status(200)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("default.example.com").
+				Expect().
+				Status(200)
+
+			s.ScaleIngress(0)
+
+			By("delete Ingress")
+			err = s.DeleteResourceFromString(defaultIngress)
+			Expect(err).NotTo(HaveOccurred(), "deleting Ingress without IngressClass")
+
+			s.ScaleIngress(1)
+			time.Sleep(1 * time.Minute)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.external").
+				Expect().
+				Status(200)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("default.example.com").
+				Expect().
+				Status(404)
 		})
 	})
 

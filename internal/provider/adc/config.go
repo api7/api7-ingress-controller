@@ -29,6 +29,7 @@ func (d *adcClient) getConfigsForGatewayProxy(tctx *provider.TranslateContext, g
 
 	endpoint := endpoints[0]
 	config := adcConfig{
+		Name:       types.NamespacedName{Namespace: gatewayProxy.Namespace, Name: gatewayProxy.Name}.String(),
 		ServerAddr: endpoint,
 	}
 

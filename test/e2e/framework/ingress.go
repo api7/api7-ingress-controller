@@ -33,6 +33,7 @@ type IngressDeployOpts struct {
 	Namespace      string
 	AdminEnpoint   string
 	StatusAddress  string
+	Replicas       int
 }
 
 func (f *Framework) DeployIngress(opts IngressDeployOpts) {

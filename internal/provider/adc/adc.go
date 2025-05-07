@@ -25,6 +25,7 @@ import (
 )
 
 type adcConfig struct {
+	Name       string
 	ServerAddr string
 	Token      string
 }
@@ -41,6 +42,8 @@ type adcClient struct {
 	parentRefs map[provider.ResourceKind][]provider.ResourceKind
 
 	syncTimeout time.Duration
+
+	store *Store
 }
 
 type Task struct {
@@ -57,6 +60,7 @@ func New() (provider.Provider, error) {
 		translator:  &translator.Translator{},
 		configs:     make(map[provider.ResourceKind]adcConfig),
 		parentRefs:  make(map[provider.ResourceKind][]provider.ResourceKind),
+		store:       NewStore(),
 	}, nil
 }
 
@@ -117,27 +121,43 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		if err != nil {
 			return err
 		}
+		for _, config := range deleteConfigs {
+			if err := d.store.Delete(config.Name, resourceTypes, label.GenLabel(obj)); err != nil {
+				log.Errorw("failed to delete resources from store",
+					zap.String("name", config.Name),
+					zap.Error(err),
+				)
+				return err
+			}
+		}
+	}
+
+	resources := adctypes.Resources{
+		GlobalRules:    result.GlobalRules,
+		PluginMetadata: result.PluginMetadata,
+		Services:       result.Services,
+		SSLs:           result.SSL,
+		Consumers:      result.Consumers,
+	}
+
+	for _, config := range configs {
+		if err := d.store.Insert(config.Name, resourceTypes, resources, label.GenLabel(obj)); err != nil {
+			log.Errorw("failed to insert resources into store",
+				zap.String("name", config.Name),
+				zap.Error(err),
+			)
+			return err
+		}
 	}
 
 	// sync update
-	err = d.sync(ctx, Task{
-		Name:   obj.GetName(),
-		Labels: label.GenLabel(obj),
-		Resources: adctypes.Resources{
-			GlobalRules:    result.GlobalRules,
-			PluginMetadata: result.PluginMetadata,
-			Services:       result.Services,
-			SSLs:           result.SSL,
-			Consumers:      result.Consumers,
-		},
+	return d.sync(ctx, Task{
+		Name:          obj.GetName(),
+		Labels:        label.GenLabel(obj),
+		Resources:     resources,
 		ResourceTypes: resourceTypes,
 		configs:       configs,
 	})
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
@@ -170,6 +190,18 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 	configs := d.getConfigs(rk)
 	defer d.deleteConfigs(rk)
 
+	for _, config := range configs {
+		if err := d.store.Delete(config.Name, resourceTypes, labels); err != nil {
+			log.Errorw("failed to delete resources from store",
+				zap.String("name", config.Name),
+				zap.Error(err),
+			)
+			return err
+		}
+	}
+
+	log.Debugw("successfully deleted resources from store", zap.Any("object", obj))
+
 	err := d.sync(ctx, Task{
 		Name:          obj.GetName(),
 		Labels:        labels,
@@ -178,6 +210,40 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 	})
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (d *adcClient) Sync(ctx context.Context) error {
+	log.Debug("syncing all resources")
+
+	if len(d.configs) == 0 {
+		return nil
+	}
+
+	cfg := map[string]adcConfig{}
+	for _, config := range d.configs {
+		cfg[config.Name] = config
+	}
+
+	for name, config := range cfg {
+		resources, err := d.store.GetResources(name)
+		if err != nil {
+			return err
+		}
+		if resources == nil {
+			continue
+		}
+
+		err = d.sync(ctx, Task{
+			Name:      name + "-sync",
+			configs:   []adcConfig{config},
+			Resources: *resources,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
