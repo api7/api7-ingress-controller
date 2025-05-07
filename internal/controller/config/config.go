@@ -33,6 +33,10 @@ func NewDefaultConfig() *Config {
 		MetricsAddr:      DefaultMetricsAddr,
 		LeaderElection:   NewLeaderElection(),
 		ExecADCTimeout:   types.TimeDuration{Duration: 15 * time.Second},
+		ProviderConfig: ProviderConfig{
+			SyncPeriod:    types.TimeDuration{Duration: 0},
+			InitSyncDelay: types.TimeDuration{Duration: 20 * time.Minute},
+		},
 	}
 }
 

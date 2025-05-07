@@ -43,8 +43,8 @@ func (t *Translator) TranslateGateway(tctx *provider.TranslateContext, obj *gate
 		return result, nil
 	}
 
-	globalRules := adctypes.Plugins{}
-	pluginMetadata := adctypes.Plugins{}
+	globalRules := make(adctypes.GlobalRule)
+	pluginMetadata := make(adctypes.PluginMetadata)
 	// apply plugins from GatewayProxy to global rules
 	t.fillPluginsFromGatewayProxy(globalRules, &gatewayProxy)
 	t.fillPluginMetadataFromGatewayProxy(pluginMetadata, &gatewayProxy)
@@ -183,7 +183,7 @@ func extractKubeSecretKeyPair(s *corev1.Secret, hasPrivateKey bool) (cert []byte
 }
 
 // fillPluginsFromGatewayProxy fill plugins from GatewayProxy to given plugins
-func (t *Translator) fillPluginsFromGatewayProxy(plugins adctypes.Plugins, gatewayProxy *v1alpha1.GatewayProxy) {
+func (t *Translator) fillPluginsFromGatewayProxy(plugins adctypes.GlobalRule, gatewayProxy *v1alpha1.GatewayProxy) {
 	if gatewayProxy == nil {
 		return
 	}
@@ -206,7 +206,7 @@ func (t *Translator) fillPluginsFromGatewayProxy(plugins adctypes.Plugins, gatew
 	}
 }
 
-func (t *Translator) fillPluginMetadataFromGatewayProxy(pluginMetadata adctypes.Plugins, gatewayProxy *v1alpha1.GatewayProxy) {
+func (t *Translator) fillPluginMetadataFromGatewayProxy(pluginMetadata adctypes.PluginMetadata, gatewayProxy *v1alpha1.GatewayProxy) {
 	if gatewayProxy == nil {
 		return
 	}

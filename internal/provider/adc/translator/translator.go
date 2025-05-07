@@ -13,7 +13,7 @@ type TranslateResult struct {
 	Routes         []*adctypes.Route
 	Services       []*adctypes.Service
 	SSL            []*adctypes.SSL
-	GlobalRules    adctypes.Plugins
-	PluginMetadata adctypes.Plugins
+	GlobalRules    adctypes.GlobalRule
+	PluginMetadata adctypes.PluginMetadata
 	Consumers      []*adctypes.Consumer
 }
