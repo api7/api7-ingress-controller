@@ -13,10 +13,9 @@
 package translator
 
 import (
+	"github.com/api7/gopkg/pkg/log"
 	"go.uber.org/zap"
 	networkingv1 "k8s.io/api/networking/v1"
-
-	"github.com/api7/gopkg/pkg/log"
 
 	adctypes "github.com/api7/api7-ingress-controller/api/adc"
 	"github.com/api7/api7-ingress-controller/internal/provider"

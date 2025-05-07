@@ -22,12 +22,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/api7/gopkg/pkg/log"
 	"go.uber.org/zap"
 	networkingv1 "k8s.io/api/networking/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-
-	"github.com/api7/gopkg/pkg/log"
 
 	adctypes "github.com/api7/api7-ingress-controller/api/adc"
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"

@@ -15,9 +15,8 @@ package dashboard
 import (
 	"context"
 
-	"go.uber.org/zap"
-
 	"github.com/api7/gopkg/pkg/log"
+	"go.uber.org/zap"
 )
 
 type pluginClient struct {

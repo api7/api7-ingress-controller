@@ -26,6 +26,14 @@ jobs:
 
       - name: 🛩️ golangci-lint
         run: make lint
+
+  check-copyright:
+    name: Check Copyright
+    runs-on: ubuntu-latest
+    steps:
+      - name: ©️ check copyright
+        run: check-copyright
+
   crd-docs-check:
     name: Check CRD Docs
     runs-on: ubuntu-latest

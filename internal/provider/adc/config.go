@@ -16,10 +16,9 @@ import (
 	"errors"
 	"slices"
 
+	"github.com/api7/gopkg/pkg/log"
 	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/types"
-
-	"github.com/api7/gopkg/pkg/log"
 
 	"github.com/api7/api7-ingress-controller/api/v1alpha1"
 	"github.com/api7/api7-ingress-controller/internal/provider"

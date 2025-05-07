@@ -19,6 +19,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/api7/gopkg/pkg/log"
 	"github.com/gavv/httpexpect"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/testing"
@@ -33,8 +34,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/utils/ptr"
-
-	"github.com/api7/gopkg/pkg/log"
 )
 
 // buildRestConfig builds the rest.Config object from kubeconfig filepath and

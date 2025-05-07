@@ -27,11 +27,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/api7/gopkg/pkg/log"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/util/wait"
-
-	"github.com/api7/gopkg/pkg/log"
 
 	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
 	"github.com/api7/api7-ingress-controller/pkg/dashboard/cache"
