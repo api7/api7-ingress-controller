@@ -15,7 +15,6 @@ package translator
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/api7/gopkg/pkg/log"
@@ -354,31 +353,61 @@ func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref ga
 	return t.translateEndpointSlice(portName, weight, endpointSlices)
 }
 
-// calculateMatchPriority calculate the priority of HTTPRouteMatch, according to the Gateway API specification
-// the higher the return value, the higher the priority
-func calculateMatchPriority(match *gatewayv1.HTTPRouteMatch) int64 {
-	var score int64 = 0
+// calculateHTTPRoutePriority calculates the priority of the HTTP route.
+// ref: https://github.com/Kong/kubernetes-ingress-controller/blob/57472721319e2c63e56cb8540425257e8e02520f/internal/dataplane/translator/subtranslator/httproute_atc.go#L279-L296
+func calculateHTTPRoutePriority(match *gatewayv1.HTTPRouteMatch, ruleIndex int) uint64 {
+	const (
+		// ExactPathShiftBits assigns bit 34 to mark if the match is exact path match.
+		ExactPathShiftBits = 34
+		// PathLengthShiftBits assigns bits 23-32 to path length. (max length = 1024, but must start with /)
+		PathLengthShiftBits = 23
+		// MethodMatchShiftBits assigns bit 22 to mark if method is specified.
+		MethodMatchShiftBits = 22
+		// HeaderNumberShiftBits assign bits 17-21 to number of headers. (max number of headers = 16)
+		HeaderNumberShiftBits = 17
+		// QueryParamNumberShiftBits makes bits 12-16 used for number of query params (max number of query params = 16)
+		QueryParamNumberShiftBits = 12
+		// RuleIndexShiftBits assigns bits 7-11 to rule index. (max number of rules = 16)
+		RuleIndexShiftBits = 7
+	)
 
-	// 1. Exact path matches have the highest priority
+	var priority uint64 = 0
+
+	// ExactPathShiftBits
 	if match.Path != nil && match.Path.Type != nil && *match.Path.Type == gatewayv1.PathMatchExact {
-		score += 10000
-	} else if match.Path != nil && match.Path.Type != nil && *match.Path.Type == gatewayv1.PathMatchPathPrefix && match.Path.Value != nil {
-		// 2. Prefix path matches, the longer the string, the higher the priority
-		score += 1000 + int64(len(*match.Path.Value))
+		priority |= (1 << ExactPathShiftBits)
 	}
 
-	// 3. Method matching
+	// PathLengthShiftBits
+	// max length of path is 1024, but path must start with /, so we use PathLength-1 to fill the bits.
+	if match.Path != nil && match.Path.Value != nil {
+		pathLength := len(*match.Path.Value)
+		if pathLength > 0 {
+			priority |= (uint64(pathLength-1) << PathLengthShiftBits)
+		}
+	}
+
+	// MethodMatchShiftBits
 	if match.Method != nil {
-		score += 100
+		priority |= (1 << MethodMatchShiftBits)
 	}
 
-	// 4. Header matching, the more headers, the higher the priority
-	score += int64(len(match.Headers) * 10)
+	// HeaderNumberShiftBits
+	headerCount := len(match.Headers)
+	priority |= (uint64(headerCount) << HeaderNumberShiftBits)
 
-	// 5. Query parameter matching, the more query parameters, the higher the priority
-	score += int64(len(match.QueryParams))
+	// QueryParamNumberShiftBits
+	queryParamCount := len(match.QueryParams)
+	priority |= (uint64(queryParamCount) << QueryParamNumberShiftBits)
 
-	return score
+	// RuleIndexShiftBits
+	index := 16 - ruleIndex
+	if index < 0 {
+		index = 0
+	}
+	priority |= (uint64(index) << RuleIndexShiftBits)
+
+	return priority
 }
 
 func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRoute *gatewayv1.HTTPRoute) (*TranslateResult, error) {
@@ -393,7 +422,7 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 
 	labels := label.GenLabel(httpRoute)
 
-	for i, rule := range rules {
+	for ruleIndex, rule := range rules {
 		upstream := adctypes.NewDefaultUpstream()
 		for _, backend := range rule.BackendRefs {
 			if backend.Namespace == nil {
@@ -410,7 +439,7 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 		service := adctypes.NewDefaultService()
 		service.Labels = labels
 
-		service.Name = adctypes.ComposeServiceNameWithRule(httpRoute.Namespace, httpRoute.Name, fmt.Sprintf("%d", i))
+		service.Name = adctypes.ComposeServiceNameWithRule(httpRoute.Namespace, httpRoute.Name, fmt.Sprintf("%d", ruleIndex))
 		service.ID = id.GenID(service.Name)
 		service.Hosts = hosts
 		service.Upstream = upstream
@@ -428,11 +457,6 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 					},
 				},
 			}
-		} else {
-			// Sort the matches by priority
-			sort.Slice(matches, func(a, b int) bool {
-				return calculateMatchPriority(&matches[a]) > calculateMatchPriority(&matches[b])
-			})
 		}
 
 		routes := []*adctypes.Route{}
@@ -442,15 +466,15 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 				return nil, err
 			}
 
-			name := adctypes.ComposeRouteName(httpRoute.Namespace, httpRoute.Name, fmt.Sprintf("%d-%d", i, j))
+			name := adctypes.ComposeRouteName(httpRoute.Namespace, httpRoute.Name, fmt.Sprintf("%d-%d", ruleIndex, j))
 			route.Name = name
 			route.ID = id.GenID(name)
 			route.Labels = labels
 			route.EnableWebsocket = ptr.To(true)
 
 			// Set the route priority
-			priority := calculateMatchPriority(&match)
-			route.Priority = &priority
+			priority := calculateHTTPRoutePriority(&match, ruleIndex)
+			route.Priority = ptr.To(int64(priority))
 
 			routes = append(routes, route)
 		}
