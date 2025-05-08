@@ -163,9 +163,10 @@ func (s *Store) Delete(name string, resourceTypes []string, Labels map[string]st
 			delete(s.globalruleMap, name)
 		case "plugin_metadata":
 			delete(s.pluginMetadataMap, name)
-		default:
-			delete(s.cacheMap, name)
 		}
+	}
+	if len(resourceTypes) == 0 {
+		delete(s.cacheMap, name)
 	}
 	return nil
 }
