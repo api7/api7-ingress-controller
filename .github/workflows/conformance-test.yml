@@ -99,6 +99,11 @@ jobs:
         continue-on-error: true
         run: |
           make conformance-test
+      
+      - name: Get Logs from api7-ingress-controller
+        shell: bash
+        run: |
+          kubectl logs -n api7ee-conformance-test -l app=api7-ingress-controller
 
       - name: Upload Gateway API Conformance Report
         if: ${{ github.event_name == 'push' }}
