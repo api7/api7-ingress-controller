@@ -103,6 +103,7 @@ jobs:
       - name: Get Logs from api7-ingress-controller
         shell: bash
         run: |
+          export KUBECONFIG=/tmp/api7-ingress-cluster.kubeconfig
           kubectl logs -n api7ee-conformance-test -l app=api7-ingress-controller
 
       - name: Upload Gateway API Conformance Report

@@ -46,6 +46,7 @@ type IngressDeployOpts struct {
 	AdminEnpoint   string
 	StatusAddress  string
 	Replicas       int
+	InitSyncDelay  time.Duration
 }
 
 func (f *Framework) DeployIngress(opts IngressDeployOpts) {
