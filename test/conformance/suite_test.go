@@ -130,12 +130,12 @@ func TestMain(m *testing.M) {
 	k8s.CreateNamespace(GinkgoT(), kubectl, namespace)
 	defer k8s.DeleteNamespace(GinkgoT(), kubectl, namespace)
 
-	gatewayGouopId := f.CreateNewGatewayGroupWithIngress()
-	adminKey := f.GetAdminKey(gatewayGouopId)
+	gatewayGroupId := f.CreateNewGatewayGroupWithIngress()
+	adminKey := f.GetAdminKey(gatewayGroupId)
 
 	svc := f.DeployGateway(framework.DataPlaneDeployOptions{
 		Namespace:              namespace,
-		GatewayGroupID:         gatewayGouopId,
+		GatewayGroupID:         gatewayGroupId,
 		DPManagerEndpoint:      framework.DPManagerTLSEndpoint,
 		SetEnv:                 true,
 		SSLKey:                 framework.TestKey,

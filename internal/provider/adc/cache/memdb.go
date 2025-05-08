@@ -15,10 +15,9 @@ package cache
 import (
 	"errors"
 
+	"github.com/api7/gopkg/pkg/log"
 	"github.com/hashicorp/go-memdb"
 	"go.uber.org/zap"
-
-	"github.com/api7/gopkg/pkg/log"
 
 	types "github.com/api7/api7-ingress-controller/api/adc"
 )
