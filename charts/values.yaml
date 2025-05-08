@@ -41,9 +41,9 @@ config:
   certFile: ""
   keyFile: ""
   logLevel: "info"
-  controllerName: apisix.apache.org/api7-ingress-controller
+  controllerName: apisix.apache.org/apisix-ingress-controller
   leaderElection:
-    id: "api7-ingress-controller-leader"
+    id: "apisix-ingress-controller-leader"
     leaseDuration: "15s"
     renewDeadline: "10s"
     retryPeriod: "2s"

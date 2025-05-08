@@ -59,7 +59,7 @@ func (f *GatewayConfigsFlag) Type() string {
 }
 
 func NewRootCmd() *cobra.Command {
-	root := newAPI7IngressController()
+	root := newAPISIXIngressController()
 	root.AddCommand(newVersionCmd())
 	return root
 }
@@ -68,12 +68,12 @@ func newVersionCmd() *cobra.Command {
 	var long bool
 	cmd := &cobra.Command{
 		Use:   "version",
-		Short: "version for api7-ingress-controller",
+		Short: "version for apisix-ingress-controller",
 		Run: func(cmd *cobra.Command, _ []string) {
 			if long {
 				fmt.Print(version.Long())
 			} else {
-				fmt.Printf("api7-ingress-controller version %s\n", version.Short())
+				fmt.Printf("apisix-ingress-controller version %s\n", version.Short())
 			}
 		},
 	}
@@ -83,13 +83,13 @@ func newVersionCmd() *cobra.Command {
 
 }
 
-func newAPI7IngressController() *cobra.Command {
+func newAPISIXIngressController() *cobra.Command {
 	cfg := config.ControllerConfig
 	var configPath string
 
 	cmd := &cobra.Command{
-		Use:     "api7-ingress-controller [command]",
-		Long:    "Yet another Ingress controller for Kubernetes using api7ee Gateway as the high performance reverse proxy.",
+		Use:     "apisix-ingress-controller [command]",
+		Long:    "Yet another Ingress controller for Kubernetes using APISIX Gateway as the high performance reverse proxy.",
 		Version: version.Short(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if configPath != "" {
@@ -141,12 +141,12 @@ func newAPI7IngressController() *cobra.Command {
 		"config-path",
 		"c",
 		"",
-		"configuration file path for api7-ingress-controller",
+		"configuration file path for apisix-ingress-controller",
 	)
 	cmd.Flags().StringVar(&cfg.MetricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
 	cmd.Flags().StringVar(&cfg.ProbeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	cmd.Flags().StringVar(&cfg.LogLevel, "log-level", config.DefaultLogLevel, "The log level for api7-ingress-controller")
+	cmd.Flags().StringVar(&cfg.LogLevel, "log-level", config.DefaultLogLevel, "The log level for apisix-ingress-controller")
 	cmd.Flags().StringVar(&cfg.ControllerName,
 		"controller-name",
 		config.DefaultControllerName,

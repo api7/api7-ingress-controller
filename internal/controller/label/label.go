@@ -34,7 +34,7 @@ func GenLabel(client client.Object, args ...string) Label {
 	label[LabelNamespace] = client.GetNamespace()
 	label[LabelName] = client.GetName()
 	label[LabelControllerName] = config.ControllerConfig.ControllerName
-	label[LabelManagedBy] = "api7-ingress-controller"
+	label[LabelManagedBy] = "apisix-ingress-controller"
 	for i := 0; i < len(args); i += 2 {
 		label[args[i]] = args[i+1]
 	}

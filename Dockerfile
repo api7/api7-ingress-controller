@@ -22,8 +22,8 @@ ARG TARGETARCH
 WORKDIR /app
 
 COPY --from=deps /bin/adc /bin/adc
-COPY ./bin/api7-ingress-controller_${TARGETARCH} ./api7-ingress-controller
+COPY ./bin/apisix-ingress-controller_${TARGETARCH} ./apisix-ingress-controller
 COPY ./config/samples/config.yaml ./conf/config.yaml
 
-ENTRYPOINT ["/app/api7-ingress-controller"]
+ENTRYPOINT ["/app/apisix-ingress-controller"]
 CMD ["-c", "/app/conf/config.yaml"]

@@ -41,14 +41,14 @@ func createSecret(s *scaffold.Scaffold, secretName string) {
 
 var _ = Describe("Test Ingress", func() {
 	s := scaffold.NewScaffold(&scaffold.Options{
-		ControllerName: "apisix.apache.org/api7-ingress-controller",
+		ControllerName: "apisix.apache.org/apisix-ingress-controller",
 	})
 
 	var gatewayProxyYaml = `
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config
+  name: apisix-proxy-config
   namespace: default
 spec:
   provider:
@@ -80,13 +80,13 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
 metadata:
-  name: api7
+  name: apisix
 spec:
-  controller: "apisix.apache.org/api7-ingress-controller"
+  controller: "apisix.apache.org/apisix-ingress-controller"
   parameters:
     apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
-    name: "api7-proxy-config"
+    name: "apisix-proxy-config"
     namespace: "default"
     scope: "Namespace"
 `
@@ -95,9 +95,9 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: api7-ingress-tls
+  name: apisix-ingress-tls
 spec:
-  ingressClassName: api7
+  ingressClassName: apisix
   tls:
   - hosts:
     - %s
@@ -139,15 +139,15 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
 metadata:
-  name: api7-default
+  name: apisix-default
   annotations:
     ingressclass.kubernetes.io/is-default-class: "true"
 spec:
-  controller: "apisix.apache.org/api7-ingress-controller"
+  controller: "apisix.apache.org/apisix-ingress-controller"
   parameters:
     apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
-    name: "api7-proxy-config"
+    name: "apisix-proxy-config"
     namespace: "default"
     scope: "Namespace"
 `
@@ -156,7 +156,7 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: api7-ingress-default
+  name: apisix-ingress-default
 spec:
   rules:
   - host: default.example.com
@@ -183,7 +183,7 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: api7-ingress-external
+  name: apisix-ingress-external
 spec:
   rules:
   - host: httpbin.external
@@ -311,7 +311,7 @@ spec:
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config
+  name: apisix-proxy-config
   namespace: default
 spec:
   provider:
@@ -335,7 +335,7 @@ spec:
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config-with-secret
+  name: apisix-proxy-config-with-secret
   namespace: default
 spec:
   provider:
@@ -362,15 +362,15 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
 metadata:
-  name: api7-with-proxy
+  name: apisix-with-proxy
   annotations:
     ingressclass.kubernetes.io/is-default-class: "true"
 spec:
-  controller: "apisix.apache.org/api7-ingress-controller"
+  controller: "apisix.apache.org/apisix-ingress-controller"
   parameters:
     apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
-    name: "api7-proxy-config"
+    name: "apisix-proxy-config"
     namespace: "default"
     scope: "Namespace"
 `
@@ -379,13 +379,13 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
 metadata:
-  name: api7-with-proxy-secret
+  name: apisix-with-proxy-secret
 spec:
-  controller: "apisix.apache.org/api7-ingress-controller"
+  controller: "apisix.apache.org/apisix-ingress-controller"
   parameters:
     apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
-    name: "api7-proxy-config-with-secret"
+    name: "apisix-proxy-config-with-secret"
     namespace: "default"
     scope: "Namespace"
 `
@@ -394,9 +394,9 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: api7-ingress-with-proxy
+  name: apisix-ingress-with-proxy
 spec:
-  ingressClassName: api7-with-proxy
+  ingressClassName: apisix-with-proxy
   rules:
   - host: proxy.example.com
     http:
@@ -414,9 +414,9 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: api7-ingress-with-proxy-secret
+  name: apisix-ingress-with-proxy-secret
 spec:
-  ingressClassName: api7-with-proxy-secret
+  ingressClassName: apisix-with-proxy-secret
   rules:
   - host: proxy-secret.example.com
     http:
@@ -506,7 +506,7 @@ stringData:
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config
+  name: apisix-proxy-config
   namespace: default
 spec:
   provider:
@@ -525,13 +525,13 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
 metadata:
-  name: api7
+  name: apisix
 spec:
-  controller: "apisix.apache.org/api7-ingress-controller"
+  controller: "apisix.apache.org/apisix-ingress-controller"
   parameters:
     apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
-    name: "api7-proxy-config"
+    name: "apisix-proxy-config"
     namespace: "default"
     scope: "Namespace"
 `
@@ -541,7 +541,7 @@ kind: Ingress
 metadata:
   name: default
 spec:
-  ingressClassName: api7
+  ingressClassName: apisix
   rules:
   - host: example.com
     http:
@@ -771,13 +771,13 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
 metadata:
-  name: api7-ingress-class
+  name: apisix-ingress-class
 spec:
-  controller: "apisix.apache.org/api7-ingress-controller"
+  controller: "apisix.apache.org/apisix-ingress-controller"
   parameters:
     apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
-    name: "api7-proxy-config"
+    name: "apisix-proxy-config"
     namespace: "default"
     scope: "Namespace"
 `
@@ -785,9 +785,9 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: api7-ingress
+  name: apisix-ingress
 spec:
-  ingressClassName: api7-ingress-class
+  ingressClassName: apisix-ingress-class
   rules:
   - host: ingress.example.com
     http:
@@ -804,7 +804,7 @@ spec:
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config
+  name: apisix-proxy-config
   namespace: default
 spec:
   provider:
@@ -889,7 +889,7 @@ data:
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config
+  name: apisix-proxy-config
 spec:
   provider:
     type: ControlPlane
@@ -914,13 +914,13 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
 metadata:
-  name: api7-ingress-class
+  name: apisix-ingress-class
 spec:
-  controller: "apisix.apache.org/api7-ingress-controller"
+  controller: "apisix.apache.org/apisix-ingress-controller"
   parameters:
     apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
-    name: "api7-proxy-config"
+    name: "apisix-proxy-config"
     namespace: %s
     scope: "Namespace"
 `
@@ -928,9 +928,9 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: api7-ingress
+  name: apisix-ingress
 spec:
-  ingressClassName: api7-ingress-class
+  ingressClassName: apisix-ingress-class
   rules:
   - host: ingress.example.com
     http:

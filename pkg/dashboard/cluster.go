@@ -54,7 +54,7 @@ var (
 	ErrFunctionDisabled = errors.New("function disabled")
 
 	DefaultLabelsManagedBy map[string]string = map[string]string{
-		"managed-by": "api7-ingress-controller",
+		"managed-by": "apisix-ingress-controller",
 	}
 
 	// ErrRouteNotFound means the [route, ssl, upstream] was not found.
@@ -342,7 +342,7 @@ func (c *cluster) HasSynced(ctx context.Context) error {
 		return ctx.Err()
 	case <-c.cacheSynced:
 		if c.cacheSyncErr != nil {
-			// See https://github.com/apache/api7-ingress-controller/issues/448
+			// See https://github.com/apache/apisix-ingress-controller/issues/448
 			// for more details.
 			return c.cacheSyncErr
 		}

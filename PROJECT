@@ -5,7 +5,7 @@
 domain: github.com
 layout:
 - go.kubebuilder.io/v4
-projectName: api7-ingress-controller
+projectName: apisix-ingress-controller
 repo: github.com/api7/api7-ingress-controller
 resources:
 - api:

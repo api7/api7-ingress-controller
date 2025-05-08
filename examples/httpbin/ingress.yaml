@@ -1,7 +1,7 @@
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config
+  name: apisix-proxy-config
   namespace: default
 spec:
   provider:
@@ -19,13 +19,13 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
 metadata:
-  name: api7
+  name: apisix
 spec:
-  controller: "apisix.apache.org/api7-ingress-controller"
+  controller: "apisix.apache.org/apisix-ingress-controller"
   parameters:
     apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
-    name: "api7-proxy-config"
+    name: "apisix-proxy-config"
     namespace: "default"
     scope: "Namespace"
 
@@ -34,9 +34,9 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: api7-ingress
+  name: apisix-ingress
 spec:
-  ingressClassName: api7
+  ingressClassName: apisix
   rules:
   - host: httpbin.example.com
     http:

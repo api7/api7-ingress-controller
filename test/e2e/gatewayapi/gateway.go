@@ -39,14 +39,14 @@ func createSecret(s *scaffold.Scaffold, secretName string) {
 
 var _ = Describe("Test Gateway", func() {
 	s := scaffold.NewScaffold(&scaffold.Options{
-		ControllerName: "apisix.apache.org/api7-ingress-controller",
+		ControllerName: "apisix.apache.org/apisix-ingress-controller",
 	})
 
 	var gatewayProxyYaml = `
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config
+  name: apisix-proxy-config
 spec:
   provider:
     type: ControlPlane
@@ -64,18 +64,18 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
-  name: api7
+  name: apisix
 spec:
-  controllerName: "apisix.apache.org/api7-ingress-controller"
+  controllerName: "apisix.apache.org/apisix-ingress-controller"
 `
 
 		var defaultGateway = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: api7ee
+  name: apisix
 spec:
-  gatewayClassName: api7
+  gatewayClassName: apisix
   listeners:
     - name: http1
       protocol: HTTP
@@ -84,16 +84,16 @@ spec:
     parametersRef:
       group: apisix.apache.org
       kind: GatewayProxy
-      name: api7-proxy-config
+      name: apisix-proxy-config
 `
 
 		var noClassGateway = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: api7ee-not-class
+  name: apisix-not-class
 spec:
-  gatewayClassName: api7-not-exist
+  gatewayClassName: apisix-not-exist
   listeners:
     - name: http1
       protocol: HTTP
@@ -102,7 +102,7 @@ spec:
     parametersRef:
       group: apisix.apache.org
       kind: GatewayProxy
-      name: api7-proxy-config
+      name: apisix-proxy-config
 `
 
 		It("Create Gateway", func() {
@@ -118,10 +118,10 @@ spec:
 			time.Sleep(5 * time.Second)
 
 			By("check GatewayClass condition")
-			gcyaml, err := s.GetResourceYaml("GatewayClass", "api7")
+			gcyaml, err := s.GetResourceYaml("GatewayClass", "apisix")
 			Expect(err).NotTo(HaveOccurred(), "getting GatewayClass yaml")
 			Expect(gcyaml).To(ContainSubstring(`status: "True"`), "checking GatewayClass condition status")
-			Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"), "checking GatewayClass condition message")
+			Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the apisix-ingress-controller"), "checking GatewayClass condition message")
 
 			By("create Gateway")
 			err = s.CreateResourceFromStringWithNamespace(defaultGateway, s.
@@ -130,10 +130,10 @@ spec:
 			time.Sleep(5 * time.Second)
 
 			By("check Gateway condition")
-			gwyaml, err := s.GetResourceYaml("Gateway", "api7ee")
+			gwyaml, err := s.GetResourceYaml("Gateway", "apisix")
 			Expect(err).NotTo(HaveOccurred(), "getting Gateway yaml")
 			Expect(gwyaml).To(ContainSubstring(`status: "True"`), "checking Gateway condition status")
-			Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the api7-ingress-controller"), "checking Gateway condition message")
+			Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the apisix-ingress-controller"), "checking Gateway condition message")
 
 			By("create Gateway with not accepted GatewayClass")
 			err = s.CreateResourceFromStringWithNamespace(noClassGateway, s.Namespace())
@@ -141,7 +141,7 @@ spec:
 			time.Sleep(5 * time.Second)
 
 			By("check Gateway condition")
-			gwyaml, err = s.GetResourceYaml("Gateway", "api7ee-not-class")
+			gwyaml, err = s.GetResourceYaml("Gateway", "apisix-not-class")
 			Expect(err).NotTo(HaveOccurred(), "getting Gateway yaml")
 			Expect(gwyaml).To(ContainSubstring(`status: Unknown`), "checking Gateway condition status")
 		})
@@ -163,18 +163,18 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
-  name: api7
+  name: apisix
 spec:
-  controllerName: "apisix.apache.org/api7-ingress-controller"
+  controllerName: "apisix.apache.org/apisix-ingress-controller"
 `
 
 			var defaultGateway = fmt.Sprintf(`
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: api7ee
+  name: apisix
 spec:
-  gatewayClassName: api7
+  gatewayClassName: apisix
   listeners:
     - name: http1
       protocol: HTTPS
@@ -189,7 +189,7 @@ spec:
     parametersRef:
       group: apisix.apache.org
       kind: GatewayProxy
-      name: api7-proxy-config
+      name: apisix-proxy-config
 `, host, secretName)
 			By("create GatewayClass")
 			err = s.CreateResourceFromStringWithNamespace(defaultGatewayClass, "")
@@ -222,9 +222,9 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
-  name: api7
+  name: apisix
 spec:
-  controllerName: "apisix.apache.org/api7-ingress-controller"
+  controllerName: "apisix.apache.org/apisix-ingress-controller"
 `
 
 				var defaultGateway = fmt.Sprintf(`
@@ -233,7 +233,7 @@ kind: Gateway
 metadata:
   name: same-namespace-with-https-listener
 spec:
-  gatewayClassName: api7
+  gatewayClassName: apisix
   listeners:
   - name: https
     port: 443
@@ -262,7 +262,7 @@ spec:
     parametersRef:
       group: apisix.apache.org
       kind: GatewayProxy
-      name: api7-proxy-config
+      name: apisix-proxy-config
 `, secretName, secretName)
 				By("create GatewayClass")
 				err = s.CreateResourceFromStringWithNamespace(defaultGatewayClass, "")
@@ -278,7 +278,7 @@ spec:
 				assert.Nil(GinkgoT(), err, "list tls error")
 				assert.Len(GinkgoT(), tls, 1, "tls number not expect")
 				assert.Equal(GinkgoT(), Cert, tls[0].Cert, "tls cert not expect")
-				assert.Equal(GinkgoT(), tls[0].Labels["k8s/controller-name"], "apisix.apache.org/api7-ingress-controller")
+				assert.Equal(GinkgoT(), tls[0].Labels["k8s/controller-name"], "apisix.apache.org/apisix-ingress-controller")
 
 				By("update secret")
 				err = s.NewKubeTlsSecret(secretName, framework.TestCert, framework.TestKey)
