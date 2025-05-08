@@ -160,7 +160,7 @@ func TestMain(m *testing.M) {
 		Namespace:      namespace,
 		AdminEnpoint:   framework.DashboardTLSEndpoint,
 		StatusAddress:  address,
-		InitSyncDelay:  1 * time.Minute,
+		InitSyncDelay:  30 * time.Minute,
 	})
 
 	defaultGatewayProxyOpts = GatewayProxyOpts{
