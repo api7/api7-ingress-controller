@@ -1,8 +1,8 @@
-# api7-ingress-controller
+# apisix-ingress-controller
 
 ## Description
 
-The API7 Ingress Controller allows you to run the API7 Gateway as a Kubernetes Ingress to handle inbound traffic for a Kubernetes cluster. It dynamically configures and manages the API7 Gateway using Gateway API resources.
+The APISIX Ingress Controller allows you to run the APISIX Gateway as a Kubernetes Ingress to handle inbound traffic for a Kubernetes cluster. It dynamically configures and manages the API7 Gateway using Gateway API resources.
 
 ## Document
 

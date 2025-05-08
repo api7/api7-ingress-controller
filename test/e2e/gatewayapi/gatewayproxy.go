@@ -40,7 +40,7 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: api7
+  name: apisix
 spec:
   gatewayClassName: %s
   listeners:
@@ -51,14 +51,14 @@ spec:
     parametersRef:
       group: apisix.apache.org
       kind: GatewayProxy
-      name: api7-proxy-config
+      name: apisix-proxy-config
 `
 
 	var gatewayProxyWithEnabledPlugin = `
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config
+  name: apisix-proxy-config
 spec:
   provider:
     type: ControlPlane
@@ -81,7 +81,7 @@ spec:
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config
+  name: apisix-proxy-config
 spec:
   provider:
     type: ControlPlane
@@ -104,7 +104,7 @@ spec:
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config
+  name: apisix-proxy-config
 spec:
   provider:
     type: ControlPlane
@@ -132,7 +132,7 @@ spec:
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config
+  name: apisix-proxy-config
 spec:
   provider:
     type: ControlPlane
@@ -202,7 +202,7 @@ spec:
 
 	BeforeEach(func() {
 		By("Create GatewayClass")
-		gatewayClassName = fmt.Sprintf("api7-%d", time.Now().Unix())
+		gatewayClassName = fmt.Sprintf("apisix-%d", time.Now().Unix())
 		err := s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defaultGatewayClass, gatewayClassName, s.GetControllerName()), "")
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 		time.Sleep(5 * time.Second)
@@ -211,7 +211,7 @@ spec:
 		gcYaml, err := s.GetResourceYaml("GatewayClass", gatewayClassName)
 		Expect(err).NotTo(HaveOccurred(), "getting GatewayClass yaml")
 		Expect(gcYaml).To(ContainSubstring(`status: "True"`), "checking GatewayClass condition status")
-		Expect(gcYaml).To(ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"), "checking GatewayClass condition message")
+		Expect(gcYaml).To(ContainSubstring("message: the gatewayclass has been accepted by the apisix-ingress-controller"), "checking GatewayClass condition message")
 
 		By("Create GatewayProxy with enabled plugin")
 		err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxyWithEnabledPlugin, framework.DashboardTLSEndpoint, s.AdminKey()))
@@ -224,15 +224,15 @@ spec:
 		time.Sleep(5 * time.Second)
 
 		By("check Gateway condition")
-		gwyaml, err := s.GetResourceYaml("Gateway", "api7")
+		gwyaml, err := s.GetResourceYaml("Gateway", "apisix")
 		Expect(err).NotTo(HaveOccurred(), "getting Gateway yaml")
 		Expect(gwyaml).To(ContainSubstring(`status: "True"`), "checking Gateway condition status")
-		Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the api7-ingress-controller"), "checking Gateway condition message")
+		Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the apisix-ingress-controller"), "checking Gateway condition message")
 	})
 
 	AfterEach(func() {
 		By("Clean up resources")
-		_ = s.DeleteResourceFromString(fmt.Sprintf(httpRouteForTest, "api7"))
+		_ = s.DeleteResourceFromString(fmt.Sprintf(httpRouteForTest, "apisix"))
 		_ = s.DeleteResourceFromString(fmt.Sprintf(gatewayWithProxy, gatewayClassName))
 		_ = s.DeleteResourceFromString(fmt.Sprintf(gatewayProxyWithEnabledPlugin, framework.DashboardTLSEndpoint, s.AdminKey()))
 	})
@@ -240,7 +240,7 @@ spec:
 	Context("Test Gateway with enabled GatewayProxy plugin", func() {
 		It("Should apply plugin configuration when enabled", func() {
 			By("Create HTTPRoute for Gateway with GatewayProxy")
-			resourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
+			resourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "apisix"), 1)
 
 			By("Check if the plugin is applied")
 			resp := s.NewAPISIXClient().
@@ -257,7 +257,7 @@ spec:
 			time.Sleep(5 * time.Second)
 
 			By("Create HTTPRoute for Gateway with GatewayProxy")
-			resourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
+			resourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "apisix"), 1)
 
 			By("Check if the plugin is not applied")
 			resp = s.NewAPISIXClient().
@@ -282,7 +282,7 @@ spec:
 			time.Sleep(5 * time.Second)
 
 			By("Create HTTPRoute for Gateway with GatewayProxy")
-			resourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "api7"), 1)
+			resourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "apisix"), 1)
 
 			By("Check PluginMetadata working")
 			s.NewAPISIXClient().
@@ -325,7 +325,7 @@ spec:
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config
+  name: apisix-proxy-config
 spec:
   provider:
     type: "InvalidType"
@@ -334,7 +334,7 @@ spec:
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config
+  name: apisix-proxy-config
 spec:
   provider:
     type: "ControlPlane"
@@ -343,7 +343,7 @@ spec:
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config
+  name: apisix-proxy-config
 spec:
   provider:
     type: "ControlPlane"
@@ -385,7 +385,7 @@ spec:
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy with valid provider")
 
 			Eventually(func() string {
-				gpYaml, err := s.GetResourceYaml("GatewayProxy", "api7-proxy-config")
+				gpYaml, err := s.GetResourceYaml("GatewayProxy", "apisix-proxy-config")
 				Expect(err).NotTo(HaveOccurred(), "getting GatewayProxy yaml")
 				return gpYaml
 			}).WithTimeout(8*time.Second).ProbeEvery(2*time.Second).

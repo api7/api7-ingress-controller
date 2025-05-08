@@ -28,8 +28,8 @@ import (
 	"github.com/api7/api7-ingress-controller/test/e2e/framework"
 )
 
-var gatewayClassName = "api7"
-var controllerName = "apisix.apache.org/api7-ingress-controller"
+var gatewayClassName = "apisix"
+var controllerName = "apisix.apache.org/apisix-ingress-controller"
 
 var gatewayClass = fmt.Sprintf(`
 apiVersion: gateway.networking.k8s.io/v1
@@ -74,7 +74,7 @@ func deleteNamespace(kubectl *k8s.KubectlOptions) {
 		"gateway-conformance-infra",
 		"gateway-conformance-web-backend",
 		"gateway-conformance-app-backend",
-		"api7ee-conformance-test",
+		"apisix-conformance-test",
 	}
 
 	for _, ns := range namespacesToDelete {
@@ -123,19 +123,19 @@ func TestMain(m *testing.M) {
 	kubectl := k8s.NewKubectlOptions("", "", "default")
 	deleteNamespace(kubectl)
 
-	namespace := "api7ee-conformance-test"
+	namespace := "apisix-conformance-test"
 
 	k8s.KubectlApplyFromString(GinkgoT(), kubectl, gatewayClass)
 	defer k8s.KubectlDeleteFromString(GinkgoT(), kubectl, gatewayClass)
 	k8s.CreateNamespace(GinkgoT(), kubectl, namespace)
 	defer k8s.DeleteNamespace(GinkgoT(), kubectl, namespace)
 
-	gatewayGouopId := f.CreateNewGatewayGroupWithIngress()
-	adminKey := f.GetAdminKey(gatewayGouopId)
+	gatewayGroupId := f.CreateNewGatewayGroupWithIngress()
+	adminKey := f.GetAdminKey(gatewayGroupId)
 
 	svc := f.DeployGateway(framework.DataPlaneDeployOptions{
 		Namespace:              namespace,
-		GatewayGroupID:         gatewayGouopId,
+		GatewayGroupID:         gatewayGroupId,
 		DPManagerEndpoint:      framework.DPManagerTLSEndpoint,
 		SetEnv:                 true,
 		SSLKey:                 framework.TestKey,
@@ -154,7 +154,7 @@ func TestMain(m *testing.M) {
 	address := svc.Status.LoadBalancer.Ingress[0].IP
 
 	f.DeployIngress(framework.IngressDeployOpts{
-		ControllerName: "apisix.apache.org/api7-ingress-controller",
+		ControllerName: "apisix.apache.org/apisix-ingress-controller",
 		AdminKey:       adminKey,
 		AdminTLSVerify: false,
 		Namespace:      namespace,

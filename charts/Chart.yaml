@@ -1,6 +1,6 @@
 apiVersion: v2
-name: api7-ingress-controller-manager
-description: Api7 Ingress Controller for Kubernetes
+name: apisix-ingress-controller-manager
+description: APISIX Ingress Controller for Kubernetes
 icon: https://apache.org/logos/res/apisix/apisix.png
 keywords:
   - ingress
@@ -11,7 +11,7 @@ type: application
 version: 0.1.0
 appVersion: 2.0.0
 sources:
-  - https://github.com/api7/api7-ingress-controller
+  - https://github.com/apache/apisix-ingress-controller
 maintainers:
   - name: AlinsRan
   - name: Revolyssup

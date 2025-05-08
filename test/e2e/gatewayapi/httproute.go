@@ -35,7 +35,7 @@ var _ = Describe("Test HTTPRoute", func() {
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config
+  name: apisix-proxy-config
 spec:
   provider:
     type: ControlPlane
@@ -61,7 +61,7 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: api7ee
+  name: apisix
 spec:
   gatewayClassName: %s
   listeners:
@@ -72,13 +72,13 @@ spec:
     parametersRef:
       group: apisix.apache.org
       kind: GatewayProxy
-      name: api7-proxy-config
+      name: apisix-proxy-config
 `
 	var defaultGatewayHTTPS = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: api7ee
+  name: apisix
 spec:
   gatewayClassName: %s
   listeners:
@@ -95,7 +95,7 @@ spec:
     parametersRef:
       group: apisix.apache.org
       kind: GatewayProxy
-      name: api7-proxy-config
+      name: apisix-proxy-config
 `
 
 	var ResourceApplied = func(resourType, resourceName, resourceRaw string, observedGeneration int) {
@@ -125,7 +125,7 @@ spec:
 		time.Sleep(5 * time.Second)
 
 		By("create GatewayClass")
-		gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
+		gatewayClassName := fmt.Sprintf("apisix-%d", time.Now().Unix())
 		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewayClassYaml, gatewayClassName, s.GetControllerName()), "")
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 		time.Sleep(5 * time.Second)
@@ -134,7 +134,7 @@ spec:
 		gcyaml, err := s.GetResourceYaml("GatewayClass", gatewayClassName)
 		Expect(err).NotTo(HaveOccurred(), "getting GatewayClass yaml")
 		Expect(gcyaml).To(ContainSubstring(`status: "True"`), "checking GatewayClass condition status")
-		Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"), "checking GatewayClass condition message")
+		Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the apisix-ingress-controller"), "checking GatewayClass condition message")
 
 		By("create Gateway")
 		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defaultGateway, gatewayClassName), s.Namespace())
@@ -142,10 +142,10 @@ spec:
 		time.Sleep(5 * time.Second)
 
 		By("check Gateway condition")
-		gwyaml, err := s.GetResourceYaml("Gateway", "api7ee")
+		gwyaml, err := s.GetResourceYaml("Gateway", "apisix")
 		Expect(err).NotTo(HaveOccurred(), "getting Gateway yaml")
 		Expect(gwyaml).To(ContainSubstring(`status: "True"`), "checking Gateway condition status")
-		Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the api7-ingress-controller"), "checking Gateway condition message")
+		Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the apisix-ingress-controller"), "checking Gateway condition message")
 	}
 
 	var beforeEachHTTPS = func() {
@@ -158,7 +158,7 @@ spec:
 		secretName := _secretName
 		createSecret(s, secretName)
 		By("create GatewayClass")
-		gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
+		gatewayClassName := fmt.Sprintf("apisix-%d", time.Now().Unix())
 		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewayClassYaml, gatewayClassName, s.GetControllerName()), "")
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 		time.Sleep(5 * time.Second)
@@ -167,7 +167,7 @@ spec:
 		gcyaml, err := s.GetResourceYaml("GatewayClass", gatewayClassName)
 		Expect(err).NotTo(HaveOccurred(), "getting GatewayClass yaml")
 		Expect(gcyaml).To(ContainSubstring(`status: "True"`), "checking GatewayClass condition status")
-		Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"), "checking GatewayClass condition message")
+		Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the apisix-ingress-controller"), "checking GatewayClass condition message")
 
 		By("create Gateway")
 		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defaultGatewayHTTPS, gatewayClassName), s.Namespace())
@@ -175,10 +175,10 @@ spec:
 		time.Sleep(5 * time.Second)
 
 		By("check Gateway condition")
-		gwyaml, err := s.GetResourceYaml("Gateway", "api7ee")
+		gwyaml, err := s.GetResourceYaml("Gateway", "apisix")
 		Expect(err).NotTo(HaveOccurred(), "getting Gateway yaml")
 		Expect(gwyaml).To(ContainSubstring(`status: "True"`), "checking Gateway condition status")
-		Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the api7-ingress-controller"), "checking Gateway condition message")
+		Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the apisix-ingress-controller"), "checking Gateway condition message")
 	}
 	Context("HTTPRoute with HTTPS Gateway", func() {
 		var exactRouteByGet = `
@@ -188,7 +188,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - api6.com
   rules:
@@ -277,7 +277,7 @@ metadata:
   name: multi-gateway-route
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
     namespace: %s
   - name: additional-gateway
     namespace: %s
@@ -308,7 +308,7 @@ spec:
 			Expect(exists).To(BeTrue(), "additional gateway group should exist")
 
 			By("Create additional GatewayClass")
-			additionalGatewayClassName = fmt.Sprintf("api7-%d", time.Now().Unix())
+			additionalGatewayClassName = fmt.Sprintf("apisix-%d", time.Now().Unix())
 			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewayClassYaml, additionalGatewayClassName, s.GetControllerName()), "")
 			Expect(err).NotTo(HaveOccurred(), "creating additional GatewayClass")
 			time.Sleep(5 * time.Second)
@@ -316,7 +316,7 @@ spec:
 			gcyaml, err := s.GetResourceYaml("GatewayClass", additionalGatewayClassName)
 			Expect(err).NotTo(HaveOccurred(), "getting additional GatewayClass yaml")
 			Expect(gcyaml).To(ContainSubstring(`status: "True"`), "checking additional GatewayClass condition status")
-			Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"), "checking additional GatewayClass condition message")
+			Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the apisix-ingress-controller"), "checking additional GatewayClass condition message")
 
 			additionalGatewayProxy := fmt.Sprintf(additionalGatewayProxyYaml, framework.DashboardTLSEndpoint, resources.AdminAPIKey)
 			err = s.CreateResourceFromStringWithNamespace(additionalGatewayProxy, additionalNamespace)
@@ -393,7 +393,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - httpbin.external
   rules:
@@ -412,7 +412,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - httpbin.example
   rules:
@@ -431,7 +431,7 @@ metadata:
   name: httpbin2
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - httpbin2.example
   rules:
@@ -472,7 +472,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - httpbin.example
   rules:
@@ -527,7 +527,7 @@ spec:
 				Status(200)
 
 			By("delete Gateway")
-			err := s.DeleteResource("Gateway", "api7ee")
+			err := s.DeleteResource("Gateway", "apisix")
 			Expect(err).NotTo(HaveOccurred(), "deleting Gateway")
 			time.Sleep(5 * time.Second)
 
@@ -614,7 +614,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - httpbin.example
   rules:
@@ -633,7 +633,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - httpbin.example
   rules:
@@ -682,7 +682,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - httpbin.example
   rules:
@@ -702,7 +702,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - httpbin.example
   rules:
@@ -1035,7 +1035,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - httpbin.example
   rules:
@@ -1066,7 +1066,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - httpbin.example
   rules:
@@ -1097,7 +1097,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - httpbin.example
   rules:
@@ -1119,7 +1119,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - httpbin.example
   rules:
@@ -1141,7 +1141,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - httpbin.example
   rules:
@@ -1167,7 +1167,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - httpbin.example
   rules:
@@ -1216,7 +1216,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - httpbin.example
   rules:
@@ -1339,7 +1339,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - httpbin.example
   rules:
@@ -1440,7 +1440,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - httpbin.example
   rules:
@@ -1463,7 +1463,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - httpbin.example
   rules:
@@ -1539,7 +1539,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - httpbin.example
   rules:
@@ -1556,7 +1556,7 @@ spec:
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config
+  name: apisix-proxy-config
 spec:
   provider:
     type: ControlPlane

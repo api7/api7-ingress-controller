@@ -5,8 +5,8 @@ kind: ServiceAccount
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: api7-ingress
-  name: api7-ingress-controller-manager
+    app.kubernetes.io/name: apisix-ingress
+  name: apisix-ingress-controller-manager
   namespace: {{ .Namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -14,8 +14,8 @@ kind: Role
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: api7-ingress
-  name: api7-ingress-leader-election-role
+    app.kubernetes.io/name: apisix-ingress
+  name: apisix-ingress-leader-election-role
   namespace: {{ .Namespace }}
 rules:
 - apiGroups:
@@ -53,7 +53,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: api7-ingress-manager-role
+  name: apisix-ingress-manager-role
 rules:
 - apiGroups:
   - ""
@@ -257,7 +257,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: api7-ingress-metrics-auth-role
+  name: apisix-ingress-metrics-auth-role
 rules:
 - apiGroups:
   - authentication.k8s.io
@@ -275,7 +275,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: api7-ingress-metrics-reader
+  name: apisix-ingress-metrics-reader
 rules:
 - nonResourceURLs:
   - /metrics
@@ -287,16 +287,16 @@ kind: RoleBinding
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: api7-ingress
-  name: api7-ingress-leader-election-rolebinding
+    app.kubernetes.io/name: apisix-ingress
+  name: apisix-ingress-leader-election-rolebinding
   namespace: {{ .Namespace }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: api7-ingress-leader-election-role
+  name: apisix-ingress-leader-election-role
 subjects:
 - kind: ServiceAccount
-  name: api7-ingress-controller-manager
+  name: apisix-ingress-controller-manager
   namespace: {{ .Namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -304,28 +304,28 @@ kind: ClusterRoleBinding
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: api7-ingress
-  name: api7-ingress-manager-rolebinding
+    app.kubernetes.io/name: apisix-ingress
+  name: apisix-ingress-manager-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: api7-ingress-manager-role
+  name: apisix-ingress-manager-role
 subjects:
 - kind: ServiceAccount
-  name: api7-ingress-controller-manager
+  name: apisix-ingress-controller-manager
   namespace: {{ .Namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: api7-ingress-metrics-auth-rolebinding
+  name: apisix-ingress-metrics-auth-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: api7-ingress-metrics-auth-role
+  name: apisix-ingress-metrics-auth-role
 subjects:
 - kind: ServiceAccount
-  name: api7-ingress-controller-manager
+  name: apisix-ingress-controller-manager
   namespace: {{ .Namespace }}
 ---
 
@@ -337,9 +337,9 @@ data:
   config.yaml: |
     log_level: "debug"
 
-    controller_name: {{ .ControllerName | default "apisix.apache.org/api7-ingress-controller" }}
+    controller_name: {{ .ControllerName | default "apisix.apache.org/apisix-ingress-controller" }}
 
-    leader_election_id: "api7-ingress-controller-leader"
+    leader_election_id: "apisix-ingress-controller-leader"
     provider:
       sync_period: 0s
                                         # The period between two consecutive syncs.
@@ -352,9 +352,9 @@ kind: Service
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: api7-ingress
+    app.kubernetes.io/name: apisix-ingress
     control-plane: controller-manager
-  name: api7-ingress-controller-manager-metrics-service
+  name: apisix-ingress-controller-manager-metrics-service
   namespace: {{ .Namespace }}
 spec:
   ports:
@@ -370,23 +370,23 @@ kind: Deployment
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: api7-ingress
-    app: api7-ingress-controller
+    app.kubernetes.io/name: apisix-ingress
+    app: apisix-ingress-controller
     control-plane: controller-manager
-  name: api7-ingress-controller-manager
+  name: apisix-ingress-controller-manager
   namespace: {{ .Namespace }}
 spec:
   replicas: {{ .Replicas | default 1 }}
   selector:
     matchLabels:
-      app: api7-ingress-controller
+      app: apisix-ingress-controller
       control-plane: controller-manager
   template:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: manager
       labels:
-        app: api7-ingress-controller
+        app: apisix-ingress-controller
         control-plane: controller-manager
     spec:
       containers:
@@ -433,5 +433,5 @@ spec:
       - name: ingress-config
         configMap:
           name: ingress-config
-      serviceAccountName: api7-ingress-controller-manager
+      serviceAccountName: apisix-ingress-controller-manager
       terminationGracePeriodSeconds: 10

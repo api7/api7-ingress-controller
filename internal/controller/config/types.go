@@ -19,12 +19,12 @@ import (
 const (
 	// IngressAPISIXLeader is the default election id for the controller
 	// leader election.
-	DefaultLeaderElectionID = "api7-ingress-gateway-leader"
+	DefaultLeaderElectionID = "apisix-ingress-gateway-leader"
 
 	// IngressClass is the default ingress class name, used for Ingress
 	// object's IngressClassName field in Kubernetes clusters version v1.18.0
 	// or higher, or the annotation "kubernetes.io/ingress.class" (deprecated).
-	DefaultControllerName = "apisix.apache.org/api7-ingress-controller"
+	DefaultControllerName = "apisix.apache.org/apisix-ingress-controller"
 
 	// DefaultLogLevel is the default log level for apisix-ingress-controller.
 	DefaultLogLevel = "info"

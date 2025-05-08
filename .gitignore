@@ -28,8 +28,8 @@ go.work
 
 dist
 .tmp
-api7-ingress-controller
-api7-ingress-controller-conformance-report.yaml
+apisix-ingress-controller
+apisix-ingress-controller-conformance-report.yaml
 
 *.mdx
 .cursor/

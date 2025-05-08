@@ -57,7 +57,7 @@ func IsDefaultIngressClass(obj client.Object) bool {
 }
 
 func acceptedMessage(kind string) string {
-	return fmt.Sprintf("the %s has been accepted by the api7-ingress-controller", kind)
+	return fmt.Sprintf("the %s has been accepted by the apisix-ingress-controller", kind)
 }
 
 func MergeCondition(conditions []metav1.Condition, newCondition metav1.Condition) []metav1.Condition {

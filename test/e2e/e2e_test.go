@@ -34,6 +34,6 @@ func TestE2E(t *testing.T) {
 	BeforeSuite(f.BeforeSuite)
 	AfterSuite(f.AfterSuite)
 
-	_, _ = fmt.Fprintf(GinkgoWriter, "Starting api7-ingress suite\n")
+	_, _ = fmt.Fprintf(GinkgoWriter, "Starting apisix-ingress suite\n")
 	RunSpecs(t, "e2e suite")
 }

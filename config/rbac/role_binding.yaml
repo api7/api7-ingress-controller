@@ -2,13 +2,13 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   labels:
-    app.kubernetes.io/name: api7-ingress
+    app.kubernetes.io/name: apisix-ingress
     app.kubernetes.io/managed-by: kustomize
   name: manager-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: api7-ingress-manager-role
+  name: apisix-ingress-manager-role
 subjects:
 - kind: ServiceAccount
   name: controller-manager

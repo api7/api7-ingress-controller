@@ -12,7 +12,7 @@ body:
         Prior to opening the issue, please make sure that you:
 
         - Use English to communicate.
-        - Search the [open issues](https://github.com/apache/api7-ingress-controller/issues) to avoid duplicating the issue.
+        - Search the [open issues](https://github.com/apache/apisix-ingress-controller/issues) to avoid duplicating the issue.
   - type: textarea
     id: issue-faced
     attributes:
@@ -46,7 +46,7 @@ body:
       label: Environment
       description: Share your environment details. Reports without proper environment details will likely be closed.
       value: |
-        - APISIX Ingress controller version (run `api7-ingress-controller version --long`)
+        - APISIX Ingress controller version (run `apisix-ingress-controller version --long`)
         - Kubernetes cluster version (run `kubectl version`)
         - OS version if running APISIX Ingress controller in a bare-metal environment (run `uname -a`)
     validations:

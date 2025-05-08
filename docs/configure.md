@@ -1,19 +1,19 @@
 # Configure
 
-The API7 Ingress Controller is a Kubernetes Ingress Controller that implements the Gateway API. This document describes how to configure the API7 Ingress Controller.
+The APISIX Ingress Controller is a Kubernetes Ingress Controller that implements the Gateway API. This document describes how to configure the APISIX Ingress Controller.
 
 ## Example
 
 ```yaml
-log_level: "info"                               # The log level of the API7 Ingress Controller.
+log_level: "info"                               # The log level of the APISIX Ingress Controller.
                                                 # the default value is "info".
 
-controller_name: apisix.apache.org/api7-ingress-controller  # The controller name of the API7 Ingress Controller,
+controller_name: apisix.apache.org/apisix-ingress-controller  # The controller name of the APISIX Ingress Controller,
                                                           # which is used to identify the controller in the GatewayClass.
-                                                          # The default value is "apisix.apache.org/api7-ingress-controller".
+                                                          # The default value is "apisix.apache.org/apisix-ingress-controller".
 
-leader_election_id: "api7-ingress-controller-leader" # The leader election ID for the API7 Ingress Controller.
-                                                        # The default value is "api7-ingress-controller-leader".
+leader_election_id: "apisix-ingress-controller-leader" # The leader election ID for the APISIX Ingress Controller.
+                                                        # The default value is "apisix-ingress-controller-leader".
 ```
 
 ### Controller Name
@@ -24,9 +24,9 @@ The `controller_name` field is used to identify the `controllerName` in the Gate
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
-  name: api7
+  name: apisix
 spec:
-  controllerName: "apisix.apache.org/api7-ingress-controller"
+  controllerName: "apisix.apache.org/apisix-ingress-controller"
 ```
 
 ### Addresses
@@ -39,7 +39,7 @@ apiVersion: gateway.networking.k8s.io/v1
   metadata:
     name: gateway1
   spec:
-    gatewayClassName: api7
+    gatewayClassName: apisix
     listeners:
     - name: http
       port: 80

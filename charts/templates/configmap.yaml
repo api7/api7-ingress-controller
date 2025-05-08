@@ -11,9 +11,9 @@ data:
 
     log_level: {{ .Values.config.logLevel | default "info" }}
 
-    controller_name: {{ .Values.config.controllerName | default "apisix.apache.org/api7-ingress-controller" }}
+    controller_name: {{ .Values.config.controllerName | default "apisix.apache.org/apisix-ingress-controller" }}
     
-    leader_election_id: {{ .Values.config.leaderElection.id | default "api7-ingress-controller-leader" }}
+    leader_election_id: {{ .Values.config.leaderElection.id | default "apisix-ingress-controller-leader" }}
     
     leader_election:
       

@@ -2,8 +2,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   labels:
-    {{- include "api7-ingress-controller-manager.labels" . | nindent 4 }}
-  name: {{ .Release.Name }}-api7-ingress-leader-election-role
+    {{- include "apisix-ingress-controller-manager.labels" . | nindent 4 }}
+  name: {{ .Release.Name }}-apisix-ingress-leader-election-role
   namespace: {{ .Release.Namespace }}
 rules:
 - apiGroups:

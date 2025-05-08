@@ -103,22 +103,22 @@ jobs:
       - name: Get Logs from api7-ingress-controller
         shell: bash
         run: |
-          export KUBECONFIG=/tmp/api7-ingress-cluster.kubeconfig
-          kubectl logs -n api7ee-conformance-test -l app=api7-ingress-controller
+          export KUBECONFIG=/tmp/apisix-ingress-cluster.kubeconfig
+          kubectl logs -n apisix-conformance-test -l app=apisix-ingress-controller
 
       - name: Upload Gateway API Conformance Report
         if: ${{ github.event_name == 'push' }}
         uses: actions/upload-artifact@v4
         with:
-          name: api7-ingress-controller-conformance-report.yaml
-          path: api7-ingress-controller-conformance-report.yaml
+          name: apisix-ingress-controller-conformance-report.yaml
+          path: apisix-ingress-controller-conformance-report.yaml
 
       - name: Format Conformance Test Report
         if: ${{ github.event_name == 'pull_request' }}
         run: |
           echo '# conformance test report' > report.md
           echo '```yaml' >> report.md
-          cat api7-ingress-controller-conformance-report.yaml >> report.md
+          cat apisix-ingress-controller-conformance-report.yaml >> report.md
           echo '```' >> report.md
 
       - name: Report Conformance Test Result to PR Comment

@@ -2,7 +2,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: api7-ingress-manager-role
+  name: apisix-ingress-manager-role
 rules:
 - apiGroups:
   - ""

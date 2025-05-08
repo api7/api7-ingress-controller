@@ -44,7 +44,7 @@ const (
 	DashboardHost = "localhost"
 	DashboardPort = 7080
 
-	DefaultControllerName = "apisix.apache.org/api7-ingress-controller"
+	DefaultControllerName = "apisix.apache.org/apisix-ingress-controller"
 )
 
 type Options struct {
@@ -469,7 +469,7 @@ func (s *Scaffold) afterEach() {
 			_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "describe", "pods")
 		}
 
-		output := s.GetDeploymentLogs("api7-ingress-controller")
+		output := s.GetDeploymentLogs("apisix-ingress-controller")
 		if output != "" {
 			_, _ = fmt.Fprintln(GinkgoWriter, output)
 		}
