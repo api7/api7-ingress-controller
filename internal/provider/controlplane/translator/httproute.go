@@ -23,10 +23,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
-	"github.com/api7/api7-ingress-controller/internal/controller/label"
-	"github.com/api7/api7-ingress-controller/internal/id"
-	"github.com/api7/api7-ingress-controller/internal/provider"
+	v1 "github.com/apache/apisix-ingress-controller/api/dashboard/v1"
+	"github.com/apache/apisix-ingress-controller/internal/controller/label"
+	"github.com/apache/apisix-ingress-controller/internal/id"
+	"github.com/apache/apisix-ingress-controller/internal/provider"
 )
 
 func (t *Translator) fillPluginsFromHTTPRouteFilters(

@@ -13,7 +13,7 @@
 package config
 
 import (
-	"github.com/api7/api7-ingress-controller/internal/types"
+	"github.com/apache/apisix-ingress-controller/internal/types"
 )
 
 const (

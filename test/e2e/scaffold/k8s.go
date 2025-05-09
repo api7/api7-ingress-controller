@@ -29,8 +29,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/api7/api7-ingress-controller/pkg/dashboard"
-	"github.com/api7/api7-ingress-controller/test/e2e/framework"
+	"github.com/apache/apisix-ingress-controller/pkg/dashboard"
+	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 )
 
 // CreateResourceFromString creates resource from a loaded yaml string.

@@ -23,7 +23,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/api7/api7-ingress-controller/internal/types"
+	"github.com/apache/apisix-ingress-controller/internal/types"
 )
 
 var (

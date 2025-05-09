@@ -30,9 +30,9 @@ import (
 
 	// +kubebuilder:scaffold:imports
 
-	"github.com/api7/api7-ingress-controller/internal/controller/config"
-	"github.com/api7/api7-ingress-controller/internal/manager"
-	"github.com/api7/api7-ingress-controller/internal/version"
+	"github.com/apache/apisix-ingress-controller/internal/controller/config"
+	"github.com/apache/apisix-ingress-controller/internal/manager"
+	"github.com/apache/apisix-ingress-controller/internal/version"
 	"github.com/api7/gopkg/pkg/log"
 )
 

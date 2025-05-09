@@ -13,7 +13,7 @@
 package cache
 
 import (
-	types "github.com/api7/api7-ingress-controller/api/adc"
+	types "github.com/apache/apisix-ingress-controller/api/adc"
 )
 
 type Cache interface {
