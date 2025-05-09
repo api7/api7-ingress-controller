@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/nettest"
 
-	v1 "github.com/api7/api7-ingress-controller/api/dashboard/v1"
+	v1 "github.com/apache/apisix-ingress-controller/api/dashboard/v1"
 )
 
 type fakeAPISIXConsumerSrv struct {

@@ -28,8 +28,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/api7/api7-ingress-controller/internal/controller/config"
-	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
+	"github.com/apache/apisix-ingress-controller/internal/controller/config"
+	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 )
 
 const (
@@ -104,7 +104,7 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		Status:             meta.ConditionTrue,
 		Reason:             string(gatewayv1.GatewayClassReasonAccepted),
 		ObservedGeneration: gc.Generation,
-		Message:            "the gatewayclass has been accepted by the api7-ingress-controller",
+		Message:            "the gatewayclass has been accepted by the apisix-ingress-controller",
 		LastTransitionTime: meta.Now(),
 	}
 

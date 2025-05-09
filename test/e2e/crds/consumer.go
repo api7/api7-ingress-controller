@@ -20,8 +20,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/api7/api7-ingress-controller/test/e2e/framework"
-	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
+	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
+	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
 var _ = Describe("Test Consumer", func() {
@@ -31,7 +31,7 @@ var _ = Describe("Test Consumer", func() {
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config
+  name: apisix-proxy-config
 spec:
   provider:
     type: ControlPlane
@@ -57,7 +57,7 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: api7ee
+  name: apisix
 spec:
   gatewayClassName: %s
   listeners:
@@ -68,7 +68,7 @@ spec:
     parametersRef:
       group: apisix.apache.org
       kind: GatewayProxy
-      name: api7-proxy-config
+      name: apisix-proxy-config
 `
 
 	var defaultHTTPRoute = `
@@ -92,7 +92,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - "httpbin.org"
   rules:
@@ -119,7 +119,7 @@ metadata:
   name: consumer-sample
 spec:
   gatewayRef:
-    name: api7ee
+    name: apisix
   credentials:
     - type: key-auth
       name: key-auth-sample
@@ -141,7 +141,7 @@ metadata:
   name: consumer-sample2
 spec:
   gatewayRef:
-    name: api7ee
+    name: apisix
   credentials:
     - type: key-auth
       name: key-auth-sample
@@ -198,7 +198,7 @@ metadata:
   name: consumer-sample
 spec:
   gatewayRef:
-    name: api7ee
+    name: apisix
   credentials:
     - type: basic-auth
       name: basic-auth-sample
@@ -220,7 +220,7 @@ metadata:
   name: consumer-sample
 spec:
   gatewayRef:
-    name: api7ee
+    name: apisix
   credentials:
     - type: basic-auth
       name: basic-auth-sample
@@ -340,7 +340,7 @@ metadata:
   name: consumer-sample
 spec:
   gatewayRef:
-    name: api7ee
+    name: apisix
   credentials:
     - type: basic-auth
       name: basic-auth-sample
@@ -434,7 +434,7 @@ metadata:
   name: consumer-sample
 spec:
   gatewayRef:
-    name: api7ee
+    name: apisix
   credentials:
     - type: basic-auth
       name: basic-auth-sample
@@ -446,7 +446,7 @@ spec:
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config
+  name: apisix-proxy-config
 spec:
   provider:
     type: ControlPlane

@@ -415,7 +415,7 @@ func NewDefaultService() *Service {
 	return &Service{
 		Metadata: Metadata{
 			Labels: map[string]string{
-				"managed-by": "api7-ingress-controller",
+				"managed-by": "apisix-ingress-controller",
 			},
 		},
 		Plugins: make(Plugins),
@@ -440,9 +440,9 @@ func NewDefaultUpstream() *Upstream {
 func NewDefaultRoute() *Route {
 	return &Route{
 		Metadata: Metadata{
-			Desc: "Created by api7-ingress-controller, DO NOT modify it manually",
+			Desc: "Created by apisix-ingress-controller, DO NOT modify it manually",
 			Labels: map[string]string{
-				"managed-by": "api7-ingress-controller",
+				"managed-by": "apisix-ingress-controller",
 			},
 		},
 	}

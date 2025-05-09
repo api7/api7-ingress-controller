@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    {{- include "api7-ingress-controller-manager.labels" . | nindent 4 }}
+    {{- include "apisix-ingress-controller-manager.labels" . | nindent 4 }}
   name: {{ .Release.Name }}
   namespace: {{ .Release.Namespace }}
   annotations:
@@ -13,7 +13,7 @@ spec:
   replicas: {{ .Values.deployment.replicas }}
   selector:
     matchLabels:
-      {{- include "api7-ingress-controller-manager.selectorLabels" . | nindent 6 }}
+      {{- include "apisix-ingress-controller-manager.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
@@ -23,7 +23,7 @@ spec:
         {{- end }}
         {{- end }}
       labels:
-        {{- include "api7-ingress-controller-manager.selectorLabels" . | nindent 8 }}
+        {{- include "apisix-ingress-controller-manager.selectorLabels" . | nindent 8 }}
     spec:
       containers:
       - env:

@@ -35,16 +35,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	"github.com/api7/api7-ingress-controller/pkg/dashboard"
-	"github.com/api7/api7-ingress-controller/pkg/utils"
-	"github.com/api7/api7-ingress-controller/test/e2e/framework"
+	"github.com/apache/apisix-ingress-controller/pkg/dashboard"
+	"github.com/apache/apisix-ingress-controller/pkg/utils"
+	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 )
 
 const (
 	DashboardHost = "localhost"
 	DashboardPort = 7080
 
-	DefaultControllerName = "apisix.apache.org/api7-ingress-controller"
+	DefaultControllerName = "apisix.apache.org/apisix-ingress-controller"
 )
 
 type Options struct {
@@ -469,7 +469,7 @@ func (s *Scaffold) afterEach() {
 			_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "describe", "pods")
 		}
 
-		output := s.GetDeploymentLogs("api7-ingress-controller")
+		output := s.GetDeploymentLogs("apisix-ingress-controller")
 		if output != "" {
 			_, _ = fmt.Fprintln(GinkgoWriter, output)
 		}

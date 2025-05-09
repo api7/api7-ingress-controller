@@ -31,9 +31,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/api7/api7-ingress-controller/api/v1alpha1"
-	"github.com/api7/api7-ingress-controller/internal/controller/config"
-	"github.com/api7/api7-ingress-controller/internal/provider"
+	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
+	"github.com/apache/apisix-ingress-controller/internal/controller/config"
+	"github.com/apache/apisix-ingress-controller/internal/provider"
 )
 
 const (
@@ -57,7 +57,7 @@ func IsDefaultIngressClass(obj client.Object) bool {
 }
 
 func acceptedMessage(kind string) string {
-	return fmt.Sprintf("the %s has been accepted by the api7-ingress-controller", kind)
+	return fmt.Sprintf("the %s has been accepted by the apisix-ingress-controller", kind)
 }
 
 func MergeCondition(conditions []metav1.Condition, newCondition metav1.Condition) []metav1.Condition {

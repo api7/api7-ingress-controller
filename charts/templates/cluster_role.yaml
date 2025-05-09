@@ -1,7 +1,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ .Release.Name }}-api7-ingress-manager-role
+  name: {{ .Release.Name }}-apisix-ingress-manager-role
 rules:
 - apiGroups:
   - ""
@@ -191,7 +191,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ .Release.Name }}-api7-ingress-metrics-auth-role
+  name: {{ .Release.Name }}-apisix-ingress-metrics-auth-role
 rules:
 - apiGroups:
   - authentication.k8s.io
@@ -209,7 +209,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ .Release.Name }}-api7-ingress-metrics-reader
+  name: {{ .Release.Name }}-apisix-ingress-metrics-reader
 rules:
 - nonResourceURLs:
   - /metrics

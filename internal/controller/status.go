@@ -19,7 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	"github.com/api7/api7-ingress-controller/internal/provider"
+	"github.com/apache/apisix-ingress-controller/internal/provider"
 )
 
 const (

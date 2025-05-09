@@ -1,4 +1,4 @@
-module github.com/api7/api7-ingress-controller
+module github.com/apache/apisix-ingress-controller
 
 go 1.22.0
 
@@ -6,7 +6,6 @@ toolchain go1.22.5
 
 require (
 	github.com/Masterminds/sprig/v3 v3.2.3
-	github.com/apache/apisix-ingress-controller v1.8.2
 	github.com/api7/gopkg v0.2.1-0.20230601092738-0f3730f9b57a
 	github.com/gavv/httpexpect v2.0.0+incompatible
 	github.com/gavv/httpexpect/v2 v2.16.0

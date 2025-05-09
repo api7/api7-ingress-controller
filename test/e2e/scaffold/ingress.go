@@ -13,7 +13,7 @@
 package scaffold
 
 import (
-	"github.com/api7/api7-ingress-controller/test/e2e/framework"
+	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 )
 
 func (s *Scaffold) deployIngress() {

@@ -3,7 +3,7 @@
 
 Gateway API is dedicated to achieving expressive and scalable Kubernetes service networking through various custom resources.
 
-By supporting Gateway API, the API7 Ingress controller can realize richer functions, including Gateway management, multi-cluster support, and other features. It is also possible to manage running instances of the API7 gateway through Gateway API resource management.
+By supporting Gateway API, the APISIX Ingress controller can realize richer functions, including Gateway management, multi-cluster support, and other features. It is also possible to manage running instances of the APISIX gateway through Gateway API resource management.
 
 ## Concepts
 
@@ -39,19 +39,19 @@ The following example demonstrates how to configure an HTTPRoute resource to rou
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
-  name: api7
+  name: apisix
 spec:
-  controllerName: "apisix.apache.org/api7-ingress-controller"
+  controllerName: "apisix.apache.org/apisix-ingress-controller"
 
 ---
 
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: api7ee
+  name: apisix
   namespace: default
 spec:
-  gatewayClassName: api7
+  gatewayClassName: apisix
   listeners:
   - name: http
     protocol: HTTP
@@ -65,7 +65,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - backends.example
   rules:

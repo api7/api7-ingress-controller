@@ -19,8 +19,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/api7/api7-ingress-controller/test/e2e/framework"
-	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
+	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
+	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
 var _ = Describe("Test BackendTrafficPolicy base on HTTPRoute", func() {
@@ -30,7 +30,7 @@ var _ = Describe("Test BackendTrafficPolicy base on HTTPRoute", func() {
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config
+  name: apisix-proxy-config
 spec:
   provider:
     type: ControlPlane
@@ -56,7 +56,7 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: api7ee
+  name: apisix
 spec:
   gatewayClassName: %s
   listeners:
@@ -67,7 +67,7 @@ spec:
     parametersRef:
       group: apisix.apache.org
       kind: GatewayProxy
-      name: api7-proxy-config
+      name: apisix-proxy-config
 `
 
 	var defaultHTTPRoute = `
@@ -77,7 +77,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: api7ee
+  - name: apisix
   hostnames:
   - "httpbin.org"
   rules:
@@ -159,14 +159,14 @@ spec:
 
 var _ = Describe("Test BackendTrafficPolicy base on Ingress", func() {
 	s := scaffold.NewScaffold(&scaffold.Options{
-		ControllerName: "apisix.apache.org/api7-ingress-controller",
+		ControllerName: "apisix.apache.org/apisix-ingress-controller",
 	})
 
 	var defaultGatewayProxy = `
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config
+  name: apisix-proxy-config
   namespace: default
 spec:
   provider:
@@ -183,15 +183,15 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
 metadata:
-  name: api7-default
+  name: apisix-default
   annotations:
     ingressclass.kubernetes.io/is-default-class: "true"
 spec:
-  controller: "apisix.apache.org/api7-ingress-controller"
+  controller: "apisix.apache.org/apisix-ingress-controller"
   parameters:
     apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
-    name: "api7-proxy-config"
+    name: "apisix-proxy-config"
     namespace: "default"
     scope: "Namespace"
 `
@@ -200,7 +200,7 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: api7-ingress-default
+  name: apisix-ingress-default
 spec:
   rules:
   - host: httpbin.org

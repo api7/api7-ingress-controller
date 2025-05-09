@@ -9,7 +9,7 @@ IMG ?= api7/api7-ingress-controller:$(IMAGE_TAG)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.30.0
 
-KIND_NAME ?= api7-ingress-cluster
+KIND_NAME ?= apisix-ingress-cluster
 GATEAY_API_VERSION ?= v1.2.0
 
 DASHBOARD_VERSION ?= dev
@@ -24,9 +24,9 @@ CRD_DOCS_OUTPUT ?= docs/crd/api.md
 export KUBECONFIG = /tmp/$(KIND_NAME).kubeconfig
 
 # go 
-VERSYM="github.com/api7/api7-ingress-controller/internal/version._buildVersion"
-GITSHASYM="github.com/api7/api7-ingress-controller/internal/version._buildGitRevision"
-BUILDOSSYM="github.com/api7/api7-ingress-controller/internal/version._buildOS"
+VERSYM="github.com/apache/apisix-ingress-controller/internal/version._buildVersion"
+GITSHASYM="github.com/apache/apisix-ingress-controller/internal/version._buildGitRevision"
+BUILDOSSYM="github.com/apache/apisix-ingress-controller/internal/version._buildOS"
 GO_LDFLAGS ?= "-X=$(VERSYM)=$(VERSION) -X=$(GITSHASYM)=$(GITSHA) -X=$(BUILDOSSYM)=$(OSNAME)/$(OSARCH)"
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
@@ -84,7 +84,7 @@ help: ## Display this help.
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=api7-ingress-manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) rbac:roleName=apisix-ingress-manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -169,7 +169,7 @@ kind-load-ingress-image:
 pull-infra-images:
 	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev
 	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION) 
-	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION) 
+	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)
 	@docker pull kennethreitz/httpbin:latest
 	@docker pull jmalloc/echo-server:latest
 
@@ -177,10 +177,10 @@ pull-infra-images:
 
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.
-	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 go build -o bin/api7-ingress-controller_$(GOARCH) -ldflags $(GO_LDFLAGS) cmd/main.go
+	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 go build -o bin/apisix-ingress-controller_$(GOARCH) -ldflags $(GO_LDFLAGS) cmd/main.go
 
 linux-build:
-	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o bin/api7-ingress-controller -ldflags $(GO_LDFLAGS) cmd/main.go
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o bin/apisix-ingress-controller -ldflags $(GO_LDFLAGS) cmd/main.go
 
 .PHONY: build-image
 build-image: docker-build
@@ -191,8 +191,8 @@ build-push-image: docker-build
 
 .PHONY: build-multi-arch
 build-multi-arch:
-	@CGO_ENABLED=0 GOARCH=amd64 go build -o bin/api7-ingress-controller_amd64 -ldflags $(GO_LDFLAGS) cmd/main.go
-	@CGO_ENABLED=0 GOARCH=arm64 go build -o bin/api7-ingress-controller_arm64 -ldflags $(GO_LDFLAGS) cmd/main.go
+	@CGO_ENABLED=0 GOARCH=amd64 go build -o bin/apisix-ingress-controller_amd64 -ldflags $(GO_LDFLAGS) cmd/main.go
+	@CGO_ENABLED=0 GOARCH=arm64 go build -o bin/apisix-ingress-controller_arm64 -ldflags $(GO_LDFLAGS) cmd/main.go
 
 .PHONY: build-multi-arch-image
 build-multi-arch-image: build-multi-arch
@@ -229,10 +229,10 @@ PLATFORMS ?= linux/arm64,linux/amd64,linux/s390x,linux/ppc64le
 docker-buildx: ## Build and push docker image for the manager for cross-platform support
 	# copy existing Dockerfile and insert --platform=${BUILDPLATFORM} into Dockerfile.cross, and preserve the original Dockerfile
 	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
-	- $(CONTAINER_TOOL) buildx create --name api7-ingress-builder
-	$(CONTAINER_TOOL) buildx use api7-ingress-builder
+	- $(CONTAINER_TOOL) buildx create --name apisix-ingress-builder
+	$(CONTAINER_TOOL) buildx use apisix-ingress-builder
 	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${IMG} -f Dockerfile.cross .
-	- $(CONTAINER_TOOL) buildx rm api7-ingress-builder
+	- $(CONTAINER_TOOL) buildx rm apisix-ingress-builder
 	rm Dockerfile.cross
 
 .PHONY: build-installer

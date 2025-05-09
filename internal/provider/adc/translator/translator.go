@@ -15,7 +15,7 @@ package translator
 import (
 	"github.com/go-logr/logr"
 
-	adctypes "github.com/api7/api7-ingress-controller/api/adc"
+	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 )
 
 type Translator struct {

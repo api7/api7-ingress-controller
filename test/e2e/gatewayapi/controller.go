@@ -20,8 +20,8 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/api7/api7-ingress-controller/test/e2e/framework"
-	"github.com/api7/api7-ingress-controller/test/e2e/scaffold"
+	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
+	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
 var _ = Describe("Check if controller cache gets synced with correct resources", func() {
@@ -30,7 +30,7 @@ var _ = Describe("Check if controller cache gets synced with correct resources",
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-  name: api7-proxy-config
+  name: apisix-proxy-config
 spec:
   provider:
     type: ControlPlane
@@ -69,7 +69,7 @@ spec:
     parametersRef:
       group: apisix.apache.org
       kind: GatewayProxy
-      name: api7-proxy-config
+      name: apisix-proxy-config
 `
 
 	var ResourceApplied = func(s *scaffold.Scaffold, resourType, resourceName, ns, resourceRaw string, observedGeneration int) {
@@ -106,7 +106,7 @@ metadata:
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 		time.Sleep(5 * time.Second)
 
-		gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
+		gatewayClassName := fmt.Sprintf("apisix-%d", time.Now().Unix())
 		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defautlGatewayClass, gatewayClassName, gatewayName, s.GetControllerName()), gatewayName)
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 		time.Sleep(10 * time.Second)
@@ -115,7 +115,7 @@ metadata:
 		gcyaml, err := s.GetResourceYamlFromNamespace("GatewayClass", gatewayClassName, gatewayName)
 		Expect(err).NotTo(HaveOccurred(), "getting GatewayClass yaml")
 		Expect(gcyaml).To(ContainSubstring(`status: "True"`), "checking GatewayClass condition status")
-		Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"), "checking GatewayClass condition message")
+		Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the apisix-ingress-controller"), "checking GatewayClass condition message")
 
 		By("create Gateway")
 		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defautlGateway, gatewayName, gatewayName, gatewayClassName), gatewayName)
@@ -126,13 +126,13 @@ metadata:
 		gwyaml, err := s.GetResourceYamlFromNamespace("Gateway", gatewayName, gatewayName)
 		Expect(err).NotTo(HaveOccurred(), "getting Gateway yaml")
 		Expect(gwyaml).To(ContainSubstring(`status: "True"`), "checking Gateway condition status")
-		Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the api7-ingress-controller"), "checking Gateway condition message")
+		Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the apisix-ingress-controller"), "checking Gateway condition message")
 	}
 
 	Context("Create resource with first controller", func() {
 		s1 := scaffold.NewScaffold(&scaffold.Options{
 			Name:           "gateway1",
-			ControllerName: "apisix.apache.org/api7-ingress-controller-1",
+			ControllerName: "apisix.apache.org/apisix-ingress-controller-1",
 		})
 		var route1 = `
 apiVersion: gateway.networking.k8s.io/v1
@@ -172,13 +172,13 @@ spec:
 			routes, err := s1.DefaultDataplaneResource().Route().List(s1.Context)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(routes).To(HaveLen(1))
-			assert.Equal(GinkgoT(), routes[0].Labels["k8s/controller-name"], "apisix.apache.org/api7-ingress-controller-1")
+			assert.Equal(GinkgoT(), routes[0].Labels["k8s/controller-name"], "apisix.apache.org/apisix-ingress-controller-1")
 		})
 	})
 	Context("Create resource with second controller", func() {
 		s2 := scaffold.NewScaffold(&scaffold.Options{
 			Name:           "gateway2",
-			ControllerName: "apisix.apache.org/api7-ingress-controller-2",
+			ControllerName: "apisix.apache.org/apisix-ingress-controller-2",
 		})
 		var route2 = `
 apiVersion: gateway.networking.k8s.io/v1
@@ -218,7 +218,7 @@ spec:
 			routes, err := s2.DefaultDataplaneResource().Route().List(s2.Context)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(routes).To(HaveLen(1))
-			assert.Equal(GinkgoT(), routes[0].Labels["k8s/controller-name"], "apisix.apache.org/api7-ingress-controller-2")
+			assert.Equal(GinkgoT(), routes[0].Labels["k8s/controller-name"], "apisix.apache.org/apisix-ingress-controller-2")
 		})
 	})
 })

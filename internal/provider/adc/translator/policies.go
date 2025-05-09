@@ -17,8 +17,8 @@ import (
 	"k8s.io/utils/ptr"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	adctypes "github.com/api7/api7-ingress-controller/api/adc"
-	"github.com/api7/api7-ingress-controller/api/v1alpha1"
+	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
+	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 )
 
 func convertBackendRef(namespace, name, kind string) gatewayv1.BackendRef {

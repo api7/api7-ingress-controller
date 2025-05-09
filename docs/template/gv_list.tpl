@@ -3,11 +3,11 @@
 
 ---
 title: Resource Definitions API Reference
-slug: /reference/api7-ingress-controller/crd-reference
-description: Explore detailed reference documentation for the custom resource definitions (CRDs) supported by the API7 Ingress Controller.
+slug: /reference/apisix-ingress-controller/crd-reference
+description: Explore detailed reference documentation for the custom resource definitions (CRDs) supported by the APISIX Ingress Controller.
 ---
 
-This document provides the API resource description for the API7 Ingress Controller.
+This document provides the API resource description for the APISIX Ingress Controller.
 
 ## Packages
 {{- range $groupVersions }}

@@ -19,11 +19,11 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	_ "github.com/api7/api7-ingress-controller/test/e2e/adminapi"
-	_ "github.com/api7/api7-ingress-controller/test/e2e/crds"
-	"github.com/api7/api7-ingress-controller/test/e2e/framework"
-	_ "github.com/api7/api7-ingress-controller/test/e2e/gatewayapi"
-	_ "github.com/api7/api7-ingress-controller/test/e2e/ingress"
+	_ "github.com/apache/apisix-ingress-controller/test/e2e/adminapi"
+	_ "github.com/apache/apisix-ingress-controller/test/e2e/crds"
+	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
+	_ "github.com/apache/apisix-ingress-controller/test/e2e/gatewayapi"
+	_ "github.com/apache/apisix-ingress-controller/test/e2e/ingress"
 )
 
 // Run e2e tests using the Ginkgo runner.
@@ -34,6 +34,6 @@ func TestE2E(t *testing.T) {
 	BeforeSuite(f.BeforeSuite)
 	AfterSuite(f.AfterSuite)
 
-	_, _ = fmt.Fprintf(GinkgoWriter, "Starting api7-ingress suite\n")
+	_, _ = fmt.Fprintf(GinkgoWriter, "Starting apisix-ingress suite\n")
 	RunSpecs(t, "e2e suite")
 }

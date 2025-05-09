@@ -29,8 +29,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/api7/api7-ingress-controller/pkg/dashboard"
-	"github.com/api7/api7-ingress-controller/test/e2e/framework"
+	"github.com/apache/apisix-ingress-controller/pkg/dashboard"
+	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 )
 
 // CreateResourceFromString creates resource from a loaded yaml string.
@@ -250,7 +250,7 @@ func (s *Scaffold) ApplyDefaultGatewayResource(
 	time.Sleep(5 * time.Second)
 
 	By("create GatewayClass")
-	gatewayClassName := fmt.Sprintf("api7-%d", time.Now().Unix())
+	gatewayClassName := fmt.Sprintf("apisix-%d", time.Now().Unix())
 	gatewayString := fmt.Sprintf(defaultGatewayClass, gatewayClassName, s.GetControllerName())
 	err = s.CreateResourceFromStringWithNamespace(gatewayString, "")
 	Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
@@ -261,7 +261,7 @@ func (s *Scaffold) ApplyDefaultGatewayResource(
 	Expect(err).NotTo(HaveOccurred(), "getting GatewayClass yaml")
 	Expect(gcyaml).To(ContainSubstring(`status: "True"`), "checking GatewayClass condition status")
 	Expect(gcyaml).To(
-		ContainSubstring("message: the gatewayclass has been accepted by the api7-ingress-controller"),
+		ContainSubstring("message: the gatewayclass has been accepted by the apisix-ingress-controller"),
 		"checking GatewayClass condition message",
 	)
 
@@ -271,11 +271,11 @@ func (s *Scaffold) ApplyDefaultGatewayResource(
 	time.Sleep(5 * time.Second)
 
 	By("check Gateway condition")
-	gwyaml, err := s.GetResourceYaml("Gateway", "api7ee")
+	gwyaml, err := s.GetResourceYaml("Gateway", "apisix")
 	Expect(err).NotTo(HaveOccurred(), "getting Gateway yaml")
 	Expect(gwyaml).To(ContainSubstring(`status: "True"`), "checking Gateway condition status")
 	Expect(gwyaml).To(
-		ContainSubstring("message: the gateway has been accepted by the api7-ingress-controller"),
+		ContainSubstring("message: the gateway has been accepted by the apisix-ingress-controller"),
 		"checking Gateway condition message",
 	)
 

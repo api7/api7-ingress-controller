@@ -1,6 +1,6 @@
 # Quickstart
 
-This quickstart guide will help you get started with API7 Ingress Controller in a few simple steps.
+This quickstart guide will help you get started with APISIX Ingress Controller in a few simple steps.
 
 ## Prerequisites
 
@@ -21,10 +21,10 @@ kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/downloa
 
 ```
 
-Install The API7 Ingress Controller:
+Install The APISIX Ingress Controller:
 
 ```shell
-kubectl apply -f https://github.com/api7/api7-ingress-controller/releases/download/install.yaml
+kubectl apply -f https://github.com/apache/apisix-ingress-controller/releases/download/install.yaml
 
 ```
 
@@ -33,22 +33,22 @@ kubectl apply -f https://github.com/api7/api7-ingress-controller/releases/downlo
 Install the GatewayClass, Gateway, HTTPRoute and httpbin example app:
 
 ```shell
-kubectl apply -f https://github.com/api7/api7-ingress-controller/blob/release-v2-dev/examples/quickstart.yaml
+kubectl apply -f https://github.com/apache/apisix-ingress-controller/blob/release-v2-dev/examples/quickstart.yaml
 ```
 
 Requests will be forwarded by the gateway to the httpbin application:
 
 ```shell
-curl http://{api7_gateway_loadbalancer_ip}/headers
+curl http://{apisix_gateway_loadbalancer_ip}/headers
 ```
 
-:::Note If the API7 Gateway service without loadbalancer
+:::Note If the APISIX Gateway service without loadbalancer
 
-You can forward the local port to the API7 Gateway service with the following command:
+You can forward the local port to the APISIX Gateway service with the following command:
 
 ```shell
 # Listen on port 9080 locally, forwarding to 80 in the pod
-kubectl port-forward svc/${api7-gateway-svc} 9080:80 -n ${api7_gateway_namespace}
+kubectl port-forward svc/${apisix-gateway-svc} 9080:80 -n ${apisix_gateway_namespace}
 ```
 
 Now you can send HTTP requests to access it:

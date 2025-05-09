@@ -4,9 +4,9 @@ metadata:
   labels:
     app.kubernetes.io/name: gatewayproxy
     app.kubernetes.io/instance: gatewayproxy-sample
-    app.kubernetes.io/part-of: api7-ingress-controller
+    app.kubernetes.io/part-of: apisix-ingress-controller
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/created-by: api7-ingress-controller
+    app.kubernetes.io/created-by: apisix-ingress-controller
   name: gatewayproxy-sample
 spec:
   pluginMetadata:

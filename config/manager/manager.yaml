@@ -3,7 +3,7 @@ kind: Namespace
 metadata:
   labels:
     control-plane: controller-manager
-    app.kubernetes.io/name: api7-ingress
+    app.kubernetes.io/name: apisix-ingress
     app.kubernetes.io/managed-by: kustomize
   name: system
 ---
@@ -14,7 +14,7 @@ metadata:
   namespace: system
   labels:
     control-plane: controller-manager
-    app.kubernetes.io/name: api7-ingress
+    app.kubernetes.io/name: apisix-ingress
     app.kubernetes.io/managed-by: kustomize
 spec:
   selector:
