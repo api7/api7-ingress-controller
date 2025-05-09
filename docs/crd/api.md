@@ -7,7 +7,6 @@ description: Explore detailed reference documentation for the custom resource de
 This document provides the API resource description for the API7 Ingress Controller.
 
 ## Packages
-
 - [apisix.apache.org/v1alpha1](#apisixapacheorgv1alpha1)
 
 
@@ -103,7 +102,6 @@ PluginConfig is the Schema for the PluginConfigs API.
 ### Types
 
 In this section you will find types that the CRDs rely on.
-
 #### AdminKeyAuth
 
 
@@ -136,7 +134,6 @@ _Appears in:_
 - [AdminKeyAuth](#adminkeyauth)
 
 #### AuthType
-
 _Base type:_ `string`
 
 AuthType defines the type of authentication.
@@ -149,7 +146,6 @@ _Appears in:_
 - [ControlPlaneAuth](#controlplaneauth)
 
 #### BackendPolicyTargetReferenceWithSectionName
-
 _Base type:_ `LocalPolicyTargetReferenceWithSectionName`
 
 
