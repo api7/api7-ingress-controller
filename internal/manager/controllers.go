@@ -18,9 +18,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	"github.com/api7/api7-ingress-controller/internal/controller"
-	"github.com/api7/api7-ingress-controller/internal/controller/indexer"
-	"github.com/api7/api7-ingress-controller/internal/provider"
+	"github.com/apache/apisix-ingress-controller/internal/controller"
+	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
+	"github.com/apache/apisix-ingress-controller/internal/provider"
 )
 
 // K8s

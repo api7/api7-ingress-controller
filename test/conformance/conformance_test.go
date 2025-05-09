@@ -69,7 +69,7 @@ func TestGatewayAPIConformance(t *testing.T) {
 	opts.Implementation = conformancev1.Implementation{
 		Organization: "APISIX",
 		Project:      "apisix-ingress-controller",
-		URL:          "https://github.com/api7/api7-ingress-controller.git",
+		URL:          "https://github.com/apache/apisix-ingress-controller.git",
 		Version:      "v2.0.0",
 	}
 	opts.ConformanceProfiles = sets.New(suite.GatewayHTTPConformanceProfileName)

@@ -21,10 +21,10 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	adctypes "github.com/api7/api7-ingress-controller/api/adc"
-	"github.com/api7/api7-ingress-controller/internal/controller/label"
-	"github.com/api7/api7-ingress-controller/internal/id"
-	"github.com/api7/api7-ingress-controller/internal/provider"
+	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
+	"github.com/apache/apisix-ingress-controller/internal/controller/label"
+	"github.com/apache/apisix-ingress-controller/internal/id"
+	"github.com/apache/apisix-ingress-controller/internal/provider"
 )
 
 func (t *Translator) translateIngressTLS(ingressTLS *networkingv1.IngressTLS, secret *corev1.Secret, labels map[string]string) (*adctypes.SSL, error) {

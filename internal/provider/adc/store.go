@@ -17,9 +17,9 @@ import (
 
 	"github.com/api7/gopkg/pkg/log"
 
-	adctypes "github.com/api7/api7-ingress-controller/api/adc"
-	"github.com/api7/api7-ingress-controller/internal/controller/label"
-	"github.com/api7/api7-ingress-controller/internal/provider/adc/cache"
+	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
+	"github.com/apache/apisix-ingress-controller/internal/controller/label"
+	"github.com/apache/apisix-ingress-controller/internal/provider/adc/cache"
 )
 
 type Store struct {

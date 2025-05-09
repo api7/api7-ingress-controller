@@ -15,7 +15,7 @@ package main
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/api7/api7-ingress-controller/cmd/root"
+	"github.com/apache/apisix-ingress-controller/cmd/root"
 )
 
 func main() {

@@ -24,9 +24,9 @@ CRD_DOCS_OUTPUT ?= docs/crd/api.md
 export KUBECONFIG = /tmp/$(KIND_NAME).kubeconfig
 
 # go 
-VERSYM="github.com/api7/api7-ingress-controller/internal/version._buildVersion"
-GITSHASYM="github.com/api7/api7-ingress-controller/internal/version._buildGitRevision"
-BUILDOSSYM="github.com/api7/api7-ingress-controller/internal/version._buildOS"
+VERSYM="github.com/apache/apisix-ingress-controller/internal/version._buildVersion"
+GITSHASYM="github.com/apache/apisix-ingress-controller/internal/version._buildGitRevision"
+BUILDOSSYM="github.com/apache/apisix-ingress-controller/internal/version._buildOS"
 GO_LDFLAGS ?= "-X=$(VERSYM)=$(VERSION) -X=$(GITSHASYM)=$(GITSHA) -X=$(BUILDOSSYM)=$(OSNAME)/$(OSARCH)"
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)

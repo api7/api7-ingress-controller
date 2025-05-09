@@ -20,10 +20,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/api7/api7-ingress-controller/internal/controller/config"
-	"github.com/api7/api7-ingress-controller/internal/provider"
-	"github.com/api7/api7-ingress-controller/internal/provider/controlplane/translator"
-	"github.com/api7/api7-ingress-controller/pkg/dashboard"
+	"github.com/apache/apisix-ingress-controller/internal/controller/config"
+	"github.com/apache/apisix-ingress-controller/internal/provider"
+	"github.com/apache/apisix-ingress-controller/internal/provider/controlplane/translator"
+	"github.com/apache/apisix-ingress-controller/pkg/dashboard"
 )
 
 type dashboardProvider struct {

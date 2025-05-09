@@ -16,8 +16,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/api7/api7-ingress-controller/api/adc"
-	"github.com/api7/api7-ingress-controller/internal/controller/label"
+	"github.com/apache/apisix-ingress-controller/api/adc"
+	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 )
 
 const (

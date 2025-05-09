@@ -6,7 +6,7 @@ domain: github.com
 layout:
 - go.kubebuilder.io/v4
 projectName: apisix-ingress-controller
-repo: github.com/api7/api7-ingress-controller
+repo: github.com/apache/apisix-ingress-controller
 resources:
 - api:
     crdVersion: v1
@@ -15,7 +15,7 @@ resources:
   domain: github.com
   group: apisix.apache.org
   kind: Guestbook
-  path: github.com/api7/api7-ingress-controller/api/v1alpha1
+  path: github.com/apache/apisix-ingress-controller/api/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1
@@ -24,7 +24,7 @@ resources:
   domain: github.com
   group: apisix.apache.org
   kind: GatewayProxy
-  path: github.com/api7/api7-ingress-controller/api/v1alpha1
+  path: github.com/apache/apisix-ingress-controller/api/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1
@@ -32,6 +32,6 @@ resources:
   domain: github.com
   group: apisix.apache.org
   kind: HTTPRoutePolicy
-  path: github.com/api7/api7-ingress-controller/api/v1alpha1
+  path: github.com/apache/apisix-ingress-controller/api/v1alpha1
   version: v1alpha1
 version: "3"

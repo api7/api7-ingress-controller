@@ -19,7 +19,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"go.uber.org/zap"
 
-	types "github.com/api7/api7-ingress-controller/api/adc"
+	types "github.com/apache/apisix-ingress-controller/api/adc"
 )
 
 var (
