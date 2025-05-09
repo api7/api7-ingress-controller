@@ -307,14 +307,18 @@ func (t *Translator) translateEndpointSlice(portName *string, weight int, endpoi
 	return nodes
 }
 
-func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref gatewayv1.BackendRef) adctypes.UpstreamNodes {
+func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref gatewayv1.BackendRef) (adctypes.UpstreamNodes, error) {
+	if ref.Kind != nil && *ref.Kind != "Service" {
+		return adctypes.UpstreamNodes{}, fmt.Errorf("kind %s is not supported", *ref.Kind)
+	}
+
 	key := types.NamespacedName{
 		Namespace: string(*ref.Namespace),
 		Name:      string(ref.Name),
 	}
 	service, ok := tctx.Services[key]
 	if !ok {
-		return adctypes.UpstreamNodes{}
+		return adctypes.UpstreamNodes{}, fmt.Errorf("service %s not found", key)
 	}
 
 	weight := 1
@@ -333,7 +337,7 @@ func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref ga
 				Port:   port,
 				Weight: weight,
 			},
-		}
+		}, nil
 	}
 
 	var portName *string
@@ -345,12 +349,12 @@ func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref ga
 			}
 		}
 		if portName == nil {
-			return adctypes.UpstreamNodes{}
+			return adctypes.UpstreamNodes{}, nil
 		}
 	}
 
 	endpointSlices := tctx.EndpointSlices[key]
-	return t.translateEndpointSlice(portName, weight, endpointSlices)
+	return t.translateEndpointSlice(portName, weight, endpointSlices), nil
 }
 
 // calculateHTTPRoutePriority calculates the priority of the HTTP route.
@@ -424,12 +428,17 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 
 	for ruleIndex, rule := range rules {
 		upstream := adctypes.NewDefaultUpstream()
+		var backendErr error
 		for _, backend := range rule.BackendRefs {
 			if backend.Namespace == nil {
 				namespace := gatewayv1.Namespace(httpRoute.Namespace)
 				backend.Namespace = &namespace
 			}
-			upNodes := t.translateBackendRef(tctx, backend.BackendRef)
+			upNodes, err := t.translateBackendRef(tctx, backend.BackendRef)
+			if err != nil {
+				backendErr = err
+				continue
+			}
 			t.AttachBackendTrafficPolicyToUpstream(backend.BackendRef, tctx.BackendTrafficPolicies, upstream)
 			upstream.Nodes = append(upstream.Nodes, upNodes...)
 		}
@@ -443,6 +452,19 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 		service.ID = id.GenID(service.Name)
 		service.Hosts = hosts
 		service.Upstream = upstream
+
+		if backendErr != nil && len(upstream.Nodes) == 0 {
+			if service.Plugins == nil {
+				service.Plugins = make(map[string]any)
+			}
+			service.Plugins["fault-injection"] = map[string]any{
+				"abort": map[string]any{
+					"http_status": 500,
+					"body":        "No existing backendRef provided",
+				},
+			}
+		}
+
 		t.fillPluginsFromHTTPRouteFilters(service.Plugins, httpRoute.GetNamespace(), rule.Filters, rule.Matches, tctx)
 
 		matches := rule.Matches

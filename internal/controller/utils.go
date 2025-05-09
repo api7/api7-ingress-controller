@@ -249,10 +249,16 @@ func SetRouteConditionResolvedRefs(routeParentStatus *gatewayv1.RouteParentStatu
 		conditionStatus = metav1.ConditionFalse
 	}
 
+	reason := string(gatewayv1.RouteReasonResolvedRefs)
+	// check if the error message contains InvalidKind
+	if !status && strings.Contains(message, string(gatewayv1.RouteReasonInvalidKind)) {
+		reason = string(gatewayv1.RouteReasonInvalidKind)
+	}
+
 	condition := metav1.Condition{
 		Type:               string(gatewayv1.RouteConditionResolvedRefs),
 		Status:             conditionStatus,
-		Reason:             string(gatewayv1.RouteReasonResolvedRefs),
+		Reason:             reason,
 		ObservedGeneration: generation,
 		Message:            message,
 		LastTransitionTime: metav1.Now(),
@@ -864,4 +870,25 @@ func FullTypeName(a any) string {
 		pkgPath = typeOf.Elem().PkgPath()
 	}
 	return path.Join(path.Dir(pkgPath), name)
+}
+
+// InvalidKindError represents an error when backend reference kind is not supported
+type InvalidKindError struct {
+	Kind string
+}
+
+// Error implements the error interface
+func (e *InvalidKindError) Error() string {
+	return fmt.Sprintf("%s %s", string(gatewayv1.RouteReasonInvalidKind), e.Kind)
+}
+
+// NewInvalidKindError creates a new InvalidKindError
+func NewInvalidKindError(kind string) *InvalidKindError {
+	return &InvalidKindError{Kind: kind}
+}
+
+// IsInvalidKindError checks if the error is an InvalidKindError
+func IsInvalidKindError(err error) bool {
+	_, ok := err.(*InvalidKindError)
+	return ok
 }
