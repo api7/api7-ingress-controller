@@ -871,3 +871,24 @@ func FullTypeName(a any) string {
 	}
 	return path.Join(path.Dir(pkgPath), name)
 }
+
+// InvalidKindError represents an error when backend reference kind is not supported
+type InvalidKindError struct {
+	Kind string
+}
+
+// Error implements the error interface
+func (e *InvalidKindError) Error() string {
+	return fmt.Sprintf("%s %s", string(gatewayv1.RouteReasonInvalidKind), e.Kind)
+}
+
+// NewInvalidKindError creates a new InvalidKindError
+func NewInvalidKindError(kind string) *InvalidKindError {
+	return &InvalidKindError{Kind: kind}
+}
+
+// IsInvalidKindError checks if the error is an InvalidKindError
+func IsInvalidKindError(err error) bool {
+	_, ok := err.(*InvalidKindError)
+	return ok
+}

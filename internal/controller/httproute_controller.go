@@ -174,7 +174,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if err := r.processHTTPRoute(tctx, hr); err != nil {
 		httpRouteErr = err
 		// When encountering a backend reference error, it should not affect the acceptance status
-		if !strings.Contains(err.Error(), string(gatewayv1.RouteReasonInvalidKind)) {
+		if !IsInvalidKindError(err) {
 			acceptStatus.status = false
 			acceptStatus.msg = err.Error()
 		}
@@ -193,7 +193,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// If the backend reference error is because of an invalid kind, use this error first
-	if httpRouteErr != nil && strings.Contains(httpRouteErr.Error(), string(gatewayv1.RouteReasonInvalidKind)) {
+	if httpRouteErr != nil && IsInvalidKindError(httpRouteErr) {
 		resolveRefStatus = status{
 			status: false,
 			msg:    httpRouteErr.Error(),
@@ -420,7 +420,7 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 		name := string(backend.Name)
 
 		if backend.Kind != nil && *backend.Kind != "Service" {
-			terr = fmt.Errorf("kind %s is not supported", *backend.Kind)
+			terr = NewInvalidKindError(string(*backend.Kind))
 			continue
 		}
 
@@ -504,7 +504,7 @@ func (r *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, 
 				kind = strings.ToLower(string(*backend.Kind))
 			}
 			if kind != "service" {
-				terror = fmt.Errorf("%s %s", string(gatewayv1.RouteReasonInvalidKind), kind)
+				terror = NewInvalidKindError(kind)
 				continue
 			}
 
