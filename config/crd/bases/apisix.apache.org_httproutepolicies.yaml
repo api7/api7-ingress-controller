@@ -40,14 +40,13 @@ spec:
             description: HTTPRoutePolicySpec defines the desired state of HTTPRoutePolicy.
             properties:
               priority:
+                description: Priority sets the priority for route. A higher value
+                  sets a higher priority in route matching.
                 format: int64
                 type: integer
               targetRefs:
-                description: |-
-                  TargetRef identifies an API object (enum: HTTPRoute, Ingress) to apply HTTPRoutePolicy to.
-
-
-                  target references.
+                description: TargetRef identifies an API object (i.e. HTTPRoute, Ingress)
+                  to apply HTTPRoutePolicy to.
                 items:
                   description: |-
                     LocalPolicyTargetReferenceWithSectionName identifies an API object to apply a
@@ -105,6 +104,7 @@ spec:
                 minItems: 1
                 type: array
               vars:
+                description: Vars sets the request matching conditions.
                 items:
                   x-kubernetes-preserve-unknown-fields: true
                 type: array

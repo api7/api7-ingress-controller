@@ -36,24 +36,37 @@ spec:
           metadata:
             type: object
           spec:
+            description: |-
+              ConsumerSpec defines the configuration for a consumer, including consumer name,
+              authentication credentials, and plugin settings.
             properties:
               credentials:
+                description: Credentials specifies the credential details of a consumer.
                 items:
                   properties:
                     config:
+                      description: Config specifies the credential details for authentication.
                       x-kubernetes-preserve-unknown-fields: true
                     name:
+                      description: Name is the name of the credential.
                       type: string
                     secretRef:
+                      description: SecretRef references to the Secret that contains
+                        the credentials.
                       properties:
                         name:
+                          description: Name is the name of the secret.
                           type: string
                         namespace:
+                          description: Namespace is the namespace of the secret.
                           type: string
                       required:
                       - name
                       type: object
                     type:
+                      description: |-
+                        Type specifies the type of authentication to configure credentials for.
+                        Can be one of `jwt-auth`, `basic-auth`, `key-auth`, or `hmac-auth`.
                       enum:
                       - jwt-auth
                       - basic-auth
@@ -65,29 +78,37 @@ spec:
                   type: object
                 type: array
               gatewayRef:
+                description: GatewayRef specifies the gateway details.
                 properties:
                   group:
                     default: gateway.networking.k8s.io
+                    description: Group is the API group the resource belongs to. Default
+                      to `gateway.networking.k8s.io`.
                     type: string
                   kind:
                     default: Gateway
+                    description: Kind is the type of Kubernetes object. Default to
+                      `Gateway`.
                     type: string
                   name:
+                    description: Name is the name of the gateway.
                     minLength: 1
                     type: string
                   namespace:
+                    description: Namespace is namespace of the resource.
                     type: string
                 required:
                 - name
                 type: object
               plugins:
+                description: Plugins define the plugins associated with a consumer.
                 items:
                   properties:
                     config:
-                      description: Plugin configuration.
+                      description: Config is plugin configuration details.
                       x-kubernetes-preserve-unknown-fields: true
                     name:
-                      description: The plugin name.
+                      description: Name is the name of the plugin.
                       type: string
                   required:
                   - name

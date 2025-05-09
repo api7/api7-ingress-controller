@@ -24,14 +24,13 @@ import (
 
 // HTTPRoutePolicySpec defines the desired state of HTTPRoutePolicy.
 type HTTPRoutePolicySpec struct {
-	// TargetRef identifies an API object (enum: HTTPRoute, Ingress) to apply HTTPRoutePolicy to.
-	//
-	// target references.
+	// TargetRef identifies an API object (i.e. HTTPRoute, Ingress) to apply HTTPRoutePolicy to.
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=16
 	TargetRefs []gatewayv1alpha2.LocalPolicyTargetReferenceWithSectionName `json:"targetRefs"`
-
+	// Priority sets the priority for route. A higher value sets a higher priority in route matching.
 	Priority *int64                 `json:"priority,omitempty" yaml:"priority,omitempty"`
+	// Vars sets the request matching conditions.
 	Vars     []apiextensionsv1.JSON `json:"vars,omitempty" yaml:"vars,omitempty"`
 }
 
