@@ -170,9 +170,14 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
+	var httpRouteErr error
 	if err := r.processHTTPRoute(tctx, hr); err != nil {
-		acceptStatus.status = false
-		acceptStatus.msg = err.Error()
+		httpRouteErr = err
+		// When encountering a backend reference error, it should not affect the acceptance status
+		if !strings.Contains(err.Error(), string(gatewayv1.RouteReasonInvalidKind)) {
+			acceptStatus.status = false
+			acceptStatus.msg = err.Error()
+		}
 	}
 
 	if err := r.processHTTPRoutePolicies(tctx, hr); err != nil {
@@ -187,6 +192,13 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
+	// If the backend reference error is because of an invalid kind, use this error first
+	if httpRouteErr != nil && strings.Contains(httpRouteErr.Error(), string(gatewayv1.RouteReasonInvalidKind)) {
+		resolveRefStatus = status{
+			status: false,
+			msg:    httpRouteErr.Error(),
+		}
+	}
 	ProcessBackendTrafficPolicy(r.Client, r.Log, tctx)
 
 	if err := r.Provider.Update(ctx, tctx, hr); err != nil {
@@ -492,7 +504,7 @@ func (r *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, 
 				kind = strings.ToLower(string(*backend.Kind))
 			}
 			if kind != "service" {
-				terror = fmt.Errorf("kind %s is not supported", kind)
+				terror = fmt.Errorf("%s %s", string(gatewayv1.RouteReasonInvalidKind), kind)
 				continue
 			}
 
