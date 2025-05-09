@@ -195,19 +195,52 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// TODO: diff the old and new status
+	hrNN := types.NamespacedName{Namespace: hr.GetNamespace(), Name: hr.GetName()}
 	hr.Status.Parents = make([]gatewayv1.RouteParentStatus, 0, len(gateways))
 	for _, gateway := range gateways {
-		parentStatus := gatewayv1.RouteParentStatus{}
-		SetRouteParentRef(&parentStatus, gateway.Gateway.Name, gateway.Gateway.Namespace)
+		var (
+			parentStatus gatewayv1.RouteParentStatus
+			gwNN         = types.NamespacedName{
+				Namespace: gateway.Gateway.GetNamespace(),
+				Name:      gateway.Gateway.GetName(),
+			}
+			conditionAccepted = metav1.Condition{
+				Type:               string(gatewayv1.RouteConditionAccepted),
+				Status:             ConditionStatus(acceptStatus.status),
+				ObservedGeneration: hr.GetGeneration(),
+				LastTransitionTime: metav1.Now(),
+				Reason:             string(gatewayv1.RouteReasonAccepted),
+				Message:            acceptStatus.msg,
+			}
+			conditionResolvedRefs = metav1.Condition{
+				Type:               string(gatewayv1.RouteConditionResolvedRefs),
+				Status:             ConditionStatus(resolveRefStatus.status),
+				ObservedGeneration: hr.GetGeneration(),
+				LastTransitionTime: metav1.Now(),
+				Reason:             string(gatewayv1.RouteReasonResolvedRefs),
+				Message:            resolveRefStatus.msg,
+			}
+		)
+		if ok := setControllerNameAndParentRef(&parentStatus, gwNN, hrNN); !ok {
+			conditionAccepted = metav1.Condition{
+				Type:               string(gatewayv1.RouteConditionAccepted),
+				Status:             metav1.ConditionFalse,
+				ObservedGeneration: hr.GetGeneration(),
+				LastTransitionTime: metav1.Now(),
+				Reason:             string(gatewayv1.RouteReasonNotAllowedByListeners),
+				Message: fmt.Sprintf("A HTTPRoute in the namespace %s failed to attach to a Gateway in another namespace %s",
+					hrNN.Namespace, gwNN.Namespace),
+			}
+		}
 		for _, condition := range gateway.Conditions {
 			parentStatus.Conditions = MergeCondition(parentStatus.Conditions, condition)
 		}
+		SetRouteParentStatusCondtion(&parentStatus, conditionResolvedRefs)
+		hr.Status.Parents = append(hr.Status.Parents, parentStatus)
 		if gateway.ListenerName == "" {
 			continue
 		}
-		SetRouteConditionAccepted(&parentStatus, hr.GetGeneration(), acceptStatus.status, acceptStatus.msg)
-		SetRouteConditionResolvedRefs(&parentStatus, hr.GetGeneration(), resolveRefStatus.status, resolveRefStatus.msg)
-		hr.Status.Parents = append(hr.Status.Parents, parentStatus)
+		SetRouteParentStatusCondtion(&parentStatus, conditionAccepted)
 	}
 	if err := r.Status().Update(ctx, hr); err != nil {
 		return ctrl.Result{}, err

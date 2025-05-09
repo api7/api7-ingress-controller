@@ -42,7 +42,7 @@ var skippedTestsForTraditionalRoutes = []string{
 
 	tests.GatewayInvalidTLSConfiguration.ShortName,
 	tests.HTTPRouteInvalidBackendRefUnknownKind.ShortName,
-	tests.HTTPRouteInvalidCrossNamespaceParentRef.ShortName,
+	//tests.HTTPRouteInvalidCrossNamespaceParentRef.ShortName,
 	tests.HTTPRouteInvalidNonExistentBackendRef.ShortName,
 	tests.HTTPRouteInvalidParentRefNotMatchingSectionName.ShortName,
 }
@@ -78,6 +78,10 @@ func TestGatewayAPIConformance(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Log("starting the gateway conformance test suite")
+
+	tests.ConformanceTests = []suite.ConformanceTest{
+		tests.HTTPRouteInvalidCrossNamespaceParentRef,
+	}
 	cSuite.Setup(t, tests.ConformanceTests)
 
 	if err := cSuite.Run(t, tests.ConformanceTests); err != nil {
