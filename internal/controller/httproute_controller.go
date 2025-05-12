@@ -224,14 +224,6 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				Reason:             string(gatewayv1.RouteReasonAccepted),
 				Message:            acceptStatus.msg,
 			}
-			conditionResolvedRefs = metav1.Condition{
-				Type:               string(gatewayv1.RouteConditionResolvedRefs),
-				Status:             ConditionStatus(resolveRefStatus.status),
-				ObservedGeneration: hr.GetGeneration(),
-				LastTransitionTime: metav1.Now(),
-				Reason:             string(gatewayv1.RouteReasonResolvedRefs),
-				Message:            resolveRefStatus.msg,
-			}
 		)
 		if ok := setControllerNameAndParentRef(&parentStatus, gwNN, hrNN); !ok {
 			conditionAccepted = metav1.Condition{
@@ -247,7 +239,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		for _, condition := range gateway.Conditions {
 			parentStatus.Conditions = MergeCondition(parentStatus.Conditions, condition)
 		}
-		SetRouteParentStatusCondtion(&parentStatus, conditionResolvedRefs)
+		SetRouteConditionResolvedRefs(&parentStatus, hr.GetGeneration(), resolveRefStatus.status, resolveRefStatus.msg)
 		hr.Status.Parents = append(hr.Status.Parents, parentStatus)
 		if gateway.ListenerName == "" {
 			continue
