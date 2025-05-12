@@ -38,6 +38,7 @@ import (
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
+	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 )
@@ -207,44 +208,32 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// TODO: diff the old and new status
-	hrNN := types.NamespacedName{Namespace: hr.GetNamespace(), Name: hr.GetName()}
 	hr.Status.Parents = make([]gatewayv1.RouteParentStatus, 0, len(gateways))
 	for _, gateway := range gateways {
-		var (
-			parentStatus gatewayv1.RouteParentStatus
-			gwNN         = types.NamespacedName{
-				Namespace: gateway.Gateway.GetNamespace(),
-				Name:      gateway.Gateway.GetName(),
-			}
-			conditionAccepted = metav1.Condition{
-				Type:               string(gatewayv1.RouteConditionAccepted),
-				Status:             ConditionStatus(acceptStatus.status),
-				ObservedGeneration: hr.GetGeneration(),
-				LastTransitionTime: metav1.Now(),
-				Reason:             string(gatewayv1.RouteReasonAccepted),
-				Message:            acceptStatus.msg,
-			}
-		)
-		if ok := setControllerNameAndParentRef(&parentStatus, gwNN, hrNN); !ok {
-			conditionAccepted = metav1.Condition{
-				Type:               string(gatewayv1.RouteConditionAccepted),
-				Status:             metav1.ConditionFalse,
-				ObservedGeneration: hr.GetGeneration(),
-				LastTransitionTime: metav1.Now(),
-				Reason:             string(gatewayv1.RouteReasonNotAllowedByListeners),
-				Message: fmt.Sprintf("A HTTPRoute in the namespace %s failed to attach to a Gateway in another namespace %s",
-					hrNN.Namespace, gwNN.Namespace),
-			}
+		parentStatus := gatewayv1.RouteParentStatus{
+			ParentRef: gatewayv1.ParentReference{
+				Kind:      ptr.To(gatewayv1.Kind(KindGateway)),
+				Group:     ptr.To(gatewayv1.Group(gatewayv1.GroupName)),
+				Name:      gatewayv1.ObjectName(gateway.Gateway.GetName()),
+				Namespace: ptr.To(gatewayv1.Namespace(gateway.Gateway.GetNamespace())),
+			},
+			ControllerName: gatewayv1.GatewayController(config.ControllerConfig.ControllerName),
 		}
 		for _, condition := range gateway.Conditions {
 			parentStatus.Conditions = MergeCondition(parentStatus.Conditions, condition)
 		}
-		SetRouteConditionResolvedRefs(&parentStatus, hr.GetGeneration(), resolveRefStatus.status, resolveRefStatus.msg)
-		hr.Status.Parents = append(hr.Status.Parents, parentStatus)
 		if gateway.ListenerName == "" {
 			continue
 		}
-		SetRouteParentStatusCondtion(&parentStatus, conditionAccepted)
+		SetRouteConditionResolvedRefs(&parentStatus, hr.GetGeneration(), resolveRefStatus.status, resolveRefStatus.msg)
+		// if the HTTPRoute is not accepted, the length of .Status.Parents should be 0 or 1. If it is 1, it can only contain a condition with Status="False"
+		if accepted := SetRouteConditionAccepted(&parentStatus, gateway.Gateway, hr, acceptStatus.status, acceptStatus.msg); !accepted {
+			hr.Status.Parents = []gatewayv1.RouteParentStatus{
+				parentStatus,
+			}
+			break
+		}
+		hr.Status.Parents = append(hr.Status.Parents, parentStatus)
 	}
 	if err := r.Status().Update(ctx, hr); err != nil {
 		return ctrl.Result{}, err

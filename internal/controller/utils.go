@@ -27,7 +27,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -231,10 +230,26 @@ func ConditionStatus(status bool) metav1.ConditionStatus {
 	return metav1.ConditionFalse
 }
 
-func SetRouteParentStatusCondtion(routeParentStatus *gatewayv1.RouteParentStatus, condition metav1.Condition) {
+func SetRouteConditionAccepted(routeParentStatus *gatewayv1.RouteParentStatus, gw *gatewayv1.Gateway, hr *gatewayv1.HTTPRoute, acceptedStatus bool, acceptStatusMsg string) (accepted bool) {
+	condition := metav1.Condition{
+		Type:               string(gatewayv1.RouteConditionAccepted),
+		Status:             ConditionStatus(acceptedStatus),
+		ObservedGeneration: hr.GetGeneration(),
+		LastTransitionTime: metav1.Now(),
+		Reason:             string(gatewayv1.RouteReasonAccepted),
+		Message:            acceptStatusMsg,
+	}
+	// if it is across the namespace between the Gateway and HTTPRoute, set .Status="False"
+	if gw.GetNamespace() != hr.GetNamespace() {
+		condition.Status = metav1.ConditionFalse
+		condition.Reason = string(gatewayv1.RouteReasonNotAllowedByListeners)
+		condition.Message = fmt.Sprintf("A HTTPRoute in the namespace %s failed to attach to a Gateway in another namespace %s",
+			hr.GetNamespace(), gw.GetNamespace())
+	}
 	if !IsConditionPresentAndEqual(routeParentStatus.Conditions, condition) {
 		routeParentStatus.Conditions = MergeCondition(routeParentStatus.Conditions, condition)
 	}
+	return condition.Status == metav1.ConditionTrue
 }
 
 func SetRouteConditionResolvedRefs(routeParentStatus *gatewayv1.RouteParentStatus, generation int64, status bool, message string) {
@@ -256,24 +271,6 @@ func SetRouteConditionResolvedRefs(routeParentStatus *gatewayv1.RouteParentStatu
 	if !IsConditionPresentAndEqual(routeParentStatus.Conditions, condition) {
 		routeParentStatus.Conditions = MergeCondition(routeParentStatus.Conditions, condition)
 	}
-}
-
-// setControllerNameAndParentRef sets the ControllerName and ParentRef fields in the RouteParentStatus object.
-// It ensures ParentRef is only set if the Gateway and HTTPRoute are in the same namespace.
-// Returns true if ParentRef is set, otherwise false.
-func setControllerNameAndParentRef(status *gatewayv1.RouteParentStatus, gwNN, hrNN types.NamespacedName) bool {
-	status.ControllerName = gatewayv1.GatewayController(config.ControllerConfig.ControllerName)
-	// route should not have Parents set in status if cross namespace
-	if gwNN.Namespace == hrNN.Namespace {
-		status.ParentRef = gatewayv1.ParentReference{
-			Kind:      ptr.To(gatewayv1.Kind(KindGateway)),
-			Group:     ptr.To(gatewayv1.Group(gatewayv1.GroupName)),
-			Name:      gatewayv1.ObjectName(gwNN.Name),
-			Namespace: ptr.To(gatewayv1.Namespace(gwNN.Namespace)),
-		}
-		return true
-	}
-	return false
 }
 
 func ParseRouteParentRefs(
