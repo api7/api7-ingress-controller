@@ -34,11 +34,10 @@ var skippedTestsForTraditionalRoutes = []string{
 	tests.HTTPRouteReferenceGrant.ShortName,
 
 	// TODO: HTTPRoute hostname intersection and listener hostname matching
-	tests.HTTPRouteHostnameIntersection.ShortName,
-	tests.HTTPRouteListenerHostnameMatching.ShortName,
+	// tests.HTTPRouteHostnameIntersection.ShortName,
+	// tests.HTTPRouteListenerHostnameMatching.ShortName,
 
 	tests.GatewayInvalidTLSConfiguration.ShortName,
-	// tests.HTTPRouteInvalidBackendRefUnknownKind.ShortName,
 	tests.HTTPRouteInvalidCrossNamespaceParentRef.ShortName,
 	tests.HTTPRouteInvalidNonExistentBackendRef.ShortName,
 	tests.HTTPRouteInvalidParentRefNotMatchingSectionName.ShortName,
