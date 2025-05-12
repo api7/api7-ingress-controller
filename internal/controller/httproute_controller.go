@@ -170,6 +170,12 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
+	filteredHTTPRoute, err := filterHostnames(gateways, hr.DeepCopy())
+	if err != nil {
+		acceptStatus.status = false
+		acceptStatus.msg = err.Error()
+	}
+
 	var httpRouteErr error
 	if err := r.processHTTPRoute(tctx, hr); err != nil {
 		httpRouteErr = err
@@ -201,7 +207,13 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 	ProcessBackendTrafficPolicy(r.Client, r.Log, tctx)
 
-	if err := r.Provider.Update(ctx, tctx, hr); err != nil {
+	routeToUpdate := hr
+	if err == nil && filteredHTTPRoute != nil {
+		r.Log.Info("filteredHTTPRoute", "filteredHTTPRoute", filteredHTTPRoute)
+		routeToUpdate = filteredHTTPRoute
+	}
+
+	if err := r.Provider.Update(ctx, tctx, routeToUpdate); err != nil {
 		acceptStatus.status = false
 		acceptStatus.msg = err.Error()
 	}

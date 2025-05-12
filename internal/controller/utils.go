@@ -892,3 +892,104 @@ func IsInvalidKindError(err error) bool {
 	_, ok := err.(*InvalidKindError)
 	return ok
 }
+
+// filterHostnames accepts a list of gateways and an HTTPRoute, and returns a copy of the HTTPRoute with only the hostnames that match the listener hostnames of the gateways.
+// If the HTTPRoute hostnames do not intersect with the listener hostnames of the gateways, it returns an ErrNoMatchingListenerHostname error.
+func filterHostnames(gateways []RouteParentRefContext, httpRoute *gatewayv1.HTTPRoute) (*gatewayv1.HTTPRoute, error) {
+	filteredHostnames := make([]gatewayv1.Hostname, 0)
+
+	// If the HTTPRoute does not specify hostnames, we use the union of the listener hostnames of all supported gateways
+	// If any supported listener does not specify a hostname, the HTTPRoute hostnames remain empty to match any hostname
+	if len(httpRoute.Spec.Hostnames) == 0 {
+		hostnames, matchAnyHost := getUnionOfGatewayHostnames(gateways)
+		if matchAnyHost {
+			return httpRoute, nil
+		}
+		filteredHostnames = hostnames
+	} else {
+		// If the HTTPRoute specifies hostnames, we need to find the intersection with the gateway listener hostnames
+		for _, hostname := range httpRoute.Spec.Hostnames {
+			if hostnameMatching := getMinimumHostnameIntersection(gateways, hostname); hostnameMatching != "" {
+				filteredHostnames = append(filteredHostnames, hostnameMatching)
+			}
+		}
+		if len(filteredHostnames) == 0 {
+			return httpRoute, fmt.Errorf("no matching hostnames in listener")
+		}
+	}
+
+	log.Debugw("filtered hostnames", zap.Any("httpRouteHostnames", httpRoute.Spec.Hostnames), zap.Any("hostnames", filteredHostnames))
+	httpRoute.Spec.Hostnames = filteredHostnames
+	return httpRoute, nil
+}
+
+// getUnionOfGatewayHostnames returns the union of the hostnames specified in all supported gateways
+// The second return value indicates whether any listener can match any hostname
+func getUnionOfGatewayHostnames(gateways []RouteParentRefContext) ([]gatewayv1.Hostname, bool) {
+	hostnames := make([]gatewayv1.Hostname, 0)
+
+	for _, gateway := range gateways {
+		if gateway.ListenerName != "" {
+			// If a listener name is specified, only check that listener
+			for _, listener := range gateway.Gateway.Spec.Listeners {
+				if string(listener.Name) == gateway.ListenerName {
+					// If a listener does not specify a hostname, it can match any hostname
+					if listener.Hostname == nil {
+						return nil, true
+					}
+					hostnames = append(hostnames, *listener.Hostname)
+					break
+				}
+			}
+		} else {
+			// Otherwise, check all listeners
+			for _, listener := range gateway.Gateway.Spec.Listeners {
+				// Only consider listeners that can effectively configure hostnames (HTTP, HTTPS, or TLS)
+				if isListenerHostnameEffective(listener) {
+					if listener.Hostname == nil {
+						return nil, true
+					}
+					hostnames = append(hostnames, *listener.Hostname)
+				}
+			}
+		}
+	}
+
+	return hostnames, false
+}
+
+// getMinimumHostnameIntersection returns the smallest intersection hostname
+// - If the listener hostname is empty, return the HTTPRoute hostname
+// - If the listener hostname is a wildcard of the HTTPRoute hostname, return the HTTPRoute hostname
+// - If the HTTPRoute hostname is a wildcard of the listener hostname, return the listener hostname
+// - If the HTTPRoute hostname and listener hostname are the same, return it
+// - If none of the above, return an empty string
+func getMinimumHostnameIntersection(gateways []RouteParentRefContext, hostname gatewayv1.Hostname) gatewayv1.Hostname {
+	for _, gateway := range gateways {
+		for _, listener := range gateway.Gateway.Spec.Listeners {
+			// If a listener name is specified, only check that listener
+			// If the listener name is not specified, check all listeners
+			if gateway.ListenerName == "" || gateway.ListenerName == string(listener.Name) {
+				if listener.Hostname == nil || *listener.Hostname == "" {
+					return hostname
+				}
+				if HostnamesMatch(string(*listener.Hostname), string(hostname)) {
+					return hostname
+				}
+				if HostnamesMatch(string(hostname), string(*listener.Hostname)) {
+					return *listener.Hostname
+				}
+			}
+		}
+	}
+
+	return ""
+}
+
+// isListenerHostnameEffective checks if a listener can specify a hostname to match the hostname in the request
+// Basically, check if the listener uses HTTP, HTTPS, or TLS protocol
+func isListenerHostnameEffective(listener gatewayv1.Listener) bool {
+	return listener.Protocol == gatewayv1.HTTPProtocolType ||
+		listener.Protocol == gatewayv1.HTTPSProtocolType ||
+		listener.Protocol == gatewayv1.TLSProtocolType
+}
