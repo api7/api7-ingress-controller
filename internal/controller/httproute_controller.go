@@ -38,7 +38,6 @@ import (
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
-	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 )
@@ -210,15 +209,8 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// TODO: diff the old and new status
 	hr.Status.Parents = make([]gatewayv1.RouteParentStatus, 0, len(gateways))
 	for _, gateway := range gateways {
-		parentStatus := gatewayv1.RouteParentStatus{
-			ParentRef: gatewayv1.ParentReference{
-				Kind:      ptr.To(gatewayv1.Kind(KindGateway)),
-				Group:     ptr.To(gatewayv1.Group(gatewayv1.GroupName)),
-				Name:      gatewayv1.ObjectName(gateway.Gateway.GetName()),
-				Namespace: ptr.To(gatewayv1.Namespace(gateway.Gateway.GetNamespace())),
-			},
-			ControllerName: gatewayv1.GatewayController(config.ControllerConfig.ControllerName),
-		}
+		parentStatus := gatewayv1.RouteParentStatus{}
+		SetRouteParentRef(&parentStatus, gateway.Gateway.Name, gateway.Gateway.Namespace)
 		for _, condition := range gateway.Conditions {
 			parentStatus.Conditions = MergeCondition(parentStatus.Conditions, condition)
 		}
@@ -226,14 +218,15 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			continue
 		}
 		SetRouteConditionResolvedRefs(&parentStatus, hr.GetGeneration(), resolveRefStatus.status, resolveRefStatus.msg)
-		// if the HTTPRoute is not accepted, the length of .Status.Parents should be 0 or 1. If it is 1, it can only contain a condition with Status="False"
-		if accepted := SetRouteConditionAccepted(&parentStatus, gateway.Gateway, hr, acceptStatus.status, acceptStatus.msg); !accepted {
-			hr.Status.Parents = []gatewayv1.RouteParentStatus{
-				parentStatus,
-			}
-			break
+		SetRouteConditionAccepted(&parentStatus, hr.GetGeneration(), acceptStatus.status, acceptStatus.msg)
+		var accepted = !slices.ContainsFunc(parentStatus.Conditions, func(condition metav1.Condition) bool {
+			return condition.Status == metav1.ConditionFalse
+		})
+		if accepted {
+			hr.Status.Parents = append(hr.Status.Parents, parentStatus)
+		} else {
+			hr.Status.Parents = []gatewayv1.RouteParentStatus{parentStatus}
 		}
-		hr.Status.Parents = append(hr.Status.Parents, parentStatus)
 	}
 	if err := r.Status().Update(ctx, hr); err != nil {
 		return ctrl.Result{}, err

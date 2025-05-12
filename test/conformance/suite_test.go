@@ -22,7 +22,6 @@ import (
 	"github.com/gruntwork-io/terratest/modules/retry"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -221,14 +220,6 @@ func patchGatewaysForConformanceTest(ctx context.Context, k8sClient client.Clien
 					Kind:  "GatewayProxy",
 					Name:  "conformance-gateway-proxy",
 				},
-			}
-
-			if len(gateway.Spec.Listeners) > 0 {
-				gateway.Spec.Listeners[0].AllowedRoutes = &gatewayv1.AllowedRoutes{
-					Namespaces: &gatewayv1.RouteNamespaces{
-						From: ptr.To(gatewayv1.FromNamespaces("All")),
-					},
-				}
 			}
 
 			if err := k8sClient.Update(ctx, gateway); err != nil {

@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"path"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/api7/gopkg/pkg/log"
@@ -230,26 +231,21 @@ func ConditionStatus(status bool) metav1.ConditionStatus {
 	return metav1.ConditionFalse
 }
 
-func SetRouteConditionAccepted(routeParentStatus *gatewayv1.RouteParentStatus, gw *gatewayv1.Gateway, hr *gatewayv1.HTTPRoute, acceptedStatus bool, acceptStatusMsg string) (accepted bool) {
+func SetRouteConditionAccepted(routeParentStatus *gatewayv1.RouteParentStatus, generation int64, status bool, message string) {
 	condition := metav1.Condition{
 		Type:               string(gatewayv1.RouteConditionAccepted),
-		Status:             ConditionStatus(acceptedStatus),
-		ObservedGeneration: hr.GetGeneration(),
-		LastTransitionTime: metav1.Now(),
+		Status:             ConditionStatus(status),
 		Reason:             string(gatewayv1.RouteReasonAccepted),
-		Message:            acceptStatusMsg,
+		ObservedGeneration: generation,
+		Message:            message,
+		LastTransitionTime: metav1.Now(),
 	}
-	// if it is across the namespace between the Gateway and HTTPRoute, set .Status="False"
-	if gw.GetNamespace() != hr.GetNamespace() {
-		condition.Status = metav1.ConditionFalse
-		condition.Reason = string(gatewayv1.RouteReasonNotAllowedByListeners)
-		condition.Message = fmt.Sprintf("A HTTPRoute in the namespace %s failed to attach to a Gateway in another namespace %s",
-			hr.GetNamespace(), gw.GetNamespace())
-	}
-	if !IsConditionPresentAndEqual(routeParentStatus.Conditions, condition) {
+
+	if !IsConditionPresentAndEqual(routeParentStatus.Conditions, condition) && !slices.ContainsFunc(routeParentStatus.Conditions, func(item metav1.Condition) bool {
+		return item.Type == condition.Type && item.Status == metav1.ConditionFalse && condition.Status == metav1.ConditionTrue
+	}) {
 		routeParentStatus.Conditions = MergeCondition(routeParentStatus.Conditions, condition)
 	}
-	return condition.Status == metav1.ConditionTrue
 }
 
 func SetRouteConditionResolvedRefs(routeParentStatus *gatewayv1.RouteParentStatus, generation int64, status bool, message string) {
@@ -271,6 +267,19 @@ func SetRouteConditionResolvedRefs(routeParentStatus *gatewayv1.RouteParentStatu
 	if !IsConditionPresentAndEqual(routeParentStatus.Conditions, condition) {
 		routeParentStatus.Conditions = MergeCondition(routeParentStatus.Conditions, condition)
 	}
+}
+
+func SetRouteParentRef(routeParentStatus *gatewayv1.RouteParentStatus, gatewayName string, namespace string) {
+	kind := gatewayv1.Kind(KindGateway)
+	group := gatewayv1.Group(gatewayv1.GroupName)
+	ns := gatewayv1.Namespace(namespace)
+	routeParentStatus.ParentRef = gatewayv1.ParentReference{
+		Kind:      &kind,
+		Group:     &group,
+		Name:      gatewayv1.ObjectName(gatewayName),
+		Namespace: &ns,
+	}
+	routeParentStatus.ControllerName = gatewayv1.GatewayController(config.ControllerConfig.ControllerName)
 }
 
 func ParseRouteParentRefs(
@@ -339,11 +348,14 @@ func ParseRouteParentRefs(
 				continue
 			}
 
-			if ok, err := routeMatchesListenerAllowedRoutes(ctx, mgrc, route, listener.AllowedRoutes, gateway.Namespace, parentRef.Namespace); err != nil {
-				return nil, fmt.Errorf("failed matching listener %s to a route %s for gateway %s: %w",
+			listenerName = string(listener.Name)
+			ok, err := routeMatchesListenerAllowedRoutes(ctx, mgrc, route, listener.AllowedRoutes, gateway.Namespace, parentRef.Namespace)
+			if err != nil {
+				log.Warnf("failed matching listener %s to a route %s for gateway %s: %v",
 					listener.Name, route.GetName(), gateway.Name, err,
 				)
-			} else if !ok {
+			}
+			if !ok {
 				reason = gatewayv1.RouteReasonNotAllowedByListeners
 				continue
 			}
@@ -351,7 +363,6 @@ func ParseRouteParentRefs(
 			// TODO: check if the listener status is programmed
 
 			matched = true
-			listenerName = string(listener.Name)
 			break
 		}
 
@@ -368,7 +379,8 @@ func ParseRouteParentRefs(
 			})
 		} else {
 			gateways = append(gateways, RouteParentRefContext{
-				Gateway: &gateway,
+				Gateway:      &gateway,
+				ListenerName: listenerName,
 				Conditions: []metav1.Condition{{
 					Type:               string(gatewayv1.RouteConditionAccepted),
 					Status:             metav1.ConditionFalse,
