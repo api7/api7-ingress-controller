@@ -170,12 +170,6 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	filteredHTTPRoute, err := filterHostnames(gateways, hr.DeepCopy())
-	if err != nil {
-		acceptStatus.status = false
-		acceptStatus.msg = err.Error()
-	}
-
 	var httpRouteErr error
 	if err := r.processHTTPRoute(tctx, hr); err != nil {
 		httpRouteErr = err
@@ -207,15 +201,22 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 	ProcessBackendTrafficPolicy(r.Client, r.Log, tctx)
 
-	routeToUpdate := hr
-	if err == nil && filteredHTTPRoute != nil {
-		r.Log.Info("filteredHTTPRoute", "filteredHTTPRoute", filteredHTTPRoute)
-		routeToUpdate = filteredHTTPRoute
-	}
-
-	if err := r.Provider.Update(ctx, tctx, routeToUpdate); err != nil {
+	filteredHTTPRoute, err := filterHostnames(gateways, hr.DeepCopy())
+	if err != nil {
 		acceptStatus.status = false
 		acceptStatus.msg = err.Error()
+	}
+
+	if isRouteAccepted(gateways) && err == nil {
+		routeToUpdate := hr
+		if filteredHTTPRoute != nil {
+			r.Log.Info("filteredHTTPRoute", "filteredHTTPRoute", filteredHTTPRoute)
+			routeToUpdate = filteredHTTPRoute
+		}
+		if err := r.Provider.Update(ctx, tctx, routeToUpdate); err != nil {
+			acceptStatus.status = false
+			acceptStatus.msg = err.Error()
+		}
 	}
 
 	// TODO: diff the old and new status
@@ -225,9 +226,6 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		SetRouteParentRef(&parentStatus, gateway.Gateway.Name, gateway.Gateway.Namespace)
 		for _, condition := range gateway.Conditions {
 			parentStatus.Conditions = MergeCondition(parentStatus.Conditions, condition)
-		}
-		if gateway.ListenerName == "" {
-			continue
 		}
 		SetRouteConditionAccepted(&parentStatus, hr.GetGeneration(), acceptStatus.status, acceptStatus.msg)
 		SetRouteConditionResolvedRefs(&parentStatus, hr.GetGeneration(), resolveRefStatus.status, resolveRefStatus.msg)

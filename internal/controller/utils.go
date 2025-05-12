@@ -14,6 +14,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"reflect"
@@ -47,6 +48,10 @@ const (
 )
 
 const defaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
+
+var (
+	ErrNoMatchingListenerHostname = errors.New("no matching hostnames in listener")
+)
 
 // IsDefaultIngressClass returns whether an IngressClass is the default IngressClass.
 func IsDefaultIngressClass(obj client.Object) bool {
@@ -229,10 +234,15 @@ func SetRouteConditionAccepted(routeParentStatus *gatewayv1.RouteParentStatus, g
 		conditionStatus = metav1.ConditionFalse
 	}
 
+	reason := gatewayv1.RouteReasonAccepted
+	if message == ErrNoMatchingListenerHostname.Error() {
+		reason = gatewayv1.RouteReasonNoMatchingListenerHostname
+	}
+
 	condition := metav1.Condition{
 		Type:               string(gatewayv1.RouteConditionAccepted),
 		Status:             conditionStatus,
-		Reason:             string(gatewayv1.RouteReasonAccepted),
+		Reason:             string(reason),
 		ObservedGeneration: generation,
 		Message:            message,
 		LastTransitionTime: metav1.Now(),
@@ -926,7 +936,7 @@ func filterHostnames(gateways []RouteParentRefContext, httpRoute *gatewayv1.HTTP
 			}
 		}
 		if len(filteredHostnames) == 0 {
-			return httpRoute, fmt.Errorf("no matching hostnames in listener")
+			return httpRoute, ErrNoMatchingListenerHostname
 		}
 	}
 
@@ -1004,4 +1014,15 @@ func isListenerHostnameEffective(listener gatewayv1.Listener) bool {
 	return listener.Protocol == gatewayv1.HTTPProtocolType ||
 		listener.Protocol == gatewayv1.HTTPSProtocolType ||
 		listener.Protocol == gatewayv1.TLSProtocolType
+}
+
+func isRouteAccepted(gateways []RouteParentRefContext) bool {
+	for _, gateway := range gateways {
+		for _, condition := range gateway.Conditions {
+			if condition.Type == string(gatewayv1.RouteConditionAccepted) && condition.Status == metav1.ConditionTrue {
+				return true
+			}
+		}
+	}
+	return false
 }
