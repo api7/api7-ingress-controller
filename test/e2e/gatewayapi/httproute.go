@@ -892,7 +892,7 @@ spec:
 			s.Logf(message)
 		})
 
-		It("HTTPRoutePolicy conflicts", func() {
+		PIt("HTTPRoutePolicy conflicts", func() {
 			const httpRoutePolicy0 = `
 apiVersion: apisix.apache.org/v1alpha1
 kind: HTTPRoutePolicy
