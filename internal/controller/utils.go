@@ -264,6 +264,9 @@ func SetRouteConditionResolvedRefs(routeParentStatus *gatewayv1.RouteParentStatu
 	if !status && strings.Contains(message, string(gatewayv1.RouteReasonInvalidKind)) {
 		reason = string(gatewayv1.RouteReasonInvalidKind)
 	}
+	if !status && strings.Contains(message, "Service") && strings.Contains(message, "not found") {
+		reason = string(gatewayv1.RouteReasonBackendNotFound)
+	}
 
 	condition := metav1.Condition{
 		Type:               string(gatewayv1.RouteConditionResolvedRefs),
