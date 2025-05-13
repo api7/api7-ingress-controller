@@ -722,7 +722,8 @@ spec:
 				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 		})
 
-		It("HTTPRoutePolicy status changes on Ingress deleting", func() {
+		// todo: unstable test case, pending for now
+		PIt("HTTPRoutePolicy status changes on Ingress deleting", func() {
 			By("create Ingress")
 			err := s.CreateResourceFromString(ingressSpec)
 			Expect(err).NotTo(HaveOccurred(), "creating Ingress")

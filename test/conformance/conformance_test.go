@@ -36,8 +36,6 @@ var skippedTestsForTraditionalRoutes = []string{
 	// TODO: HTTPRoute hostname intersection and listener hostname matching
 
 	tests.GatewayInvalidTLSConfiguration.ShortName,
-	tests.HTTPRouteInvalidCrossNamespaceParentRef.ShortName,
-	tests.HTTPRouteInvalidParentRefNotMatchingSectionName.ShortName,
 }
 
 var gatewaySupportedFeatures = []features.FeatureName{

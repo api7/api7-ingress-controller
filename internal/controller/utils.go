@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"path"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/api7/gopkg/pkg/log"
@@ -228,37 +229,34 @@ func SetGatewayConditionProgrammed(gw *gatewayv1.Gateway, status bool, message s
 	return
 }
 
+func ConditionStatus(status bool) metav1.ConditionStatus {
+	if status {
+		return metav1.ConditionTrue
+	}
+	return metav1.ConditionFalse
+}
+
 func SetRouteConditionAccepted(routeParentStatus *gatewayv1.RouteParentStatus, generation int64, status bool, message string) {
-	conditionStatus := metav1.ConditionTrue
-	if !status {
-		conditionStatus = metav1.ConditionFalse
-	}
-
-	reason := gatewayv1.RouteReasonAccepted
-	if message == ErrNoMatchingListenerHostname.Error() {
-		reason = gatewayv1.RouteReasonNoMatchingListenerHostname
-	}
-
 	condition := metav1.Condition{
 		Type:               string(gatewayv1.RouteConditionAccepted),
-		Status:             conditionStatus,
-		Reason:             string(reason),
+		Status:             ConditionStatus(status),
+		Reason:             string(gatewayv1.RouteReasonAccepted),
 		ObservedGeneration: generation,
 		Message:            message,
 		LastTransitionTime: metav1.Now(),
 	}
+	if message == ErrNoMatchingListenerHostname.Error() {
+		condition.Reason = string(gatewayv1.RouteReasonNoMatchingListenerHostname)
+	}
 
-	if !IsConditionPresentAndEqual(routeParentStatus.Conditions, condition) {
+	if !IsConditionPresentAndEqual(routeParentStatus.Conditions, condition) && !slices.ContainsFunc(routeParentStatus.Conditions, func(item metav1.Condition) bool {
+		return item.Type == condition.Type && item.Status == metav1.ConditionFalse && condition.Status == metav1.ConditionTrue
+	}) {
 		routeParentStatus.Conditions = MergeCondition(routeParentStatus.Conditions, condition)
 	}
 }
 
 func SetRouteConditionResolvedRefs(routeParentStatus *gatewayv1.RouteParentStatus, generation int64, status bool, message string) {
-	conditionStatus := metav1.ConditionTrue
-	if !status {
-		conditionStatus = metav1.ConditionFalse
-	}
-
 	reason := string(gatewayv1.RouteReasonResolvedRefs)
 	// check if the error message contains InvalidKind
 	if !status && strings.Contains(message, string(gatewayv1.RouteReasonInvalidKind)) {
@@ -270,7 +268,7 @@ func SetRouteConditionResolvedRefs(routeParentStatus *gatewayv1.RouteParentStatu
 
 	condition := metav1.Condition{
 		Type:               string(gatewayv1.RouteConditionResolvedRefs),
-		Status:             conditionStatus,
+		Status:             ConditionStatus(status),
 		Reason:             reason,
 		ObservedGeneration: generation,
 		Message:            message,
@@ -361,11 +359,14 @@ func ParseRouteParentRefs(
 				continue
 			}
 
-			if ok, err := routeMatchesListenerAllowedRoutes(ctx, mgrc, route, listener.AllowedRoutes, gateway.Namespace, parentRef.Namespace); err != nil {
-				return nil, fmt.Errorf("failed matching listener %s to a route %s for gateway %s: %w",
+			listenerName = string(listener.Name)
+			ok, err := routeMatchesListenerAllowedRoutes(ctx, mgrc, route, listener.AllowedRoutes, gateway.Namespace, parentRef.Namespace)
+			if err != nil {
+				log.Warnf("failed matching listener %s to a route %s for gateway %s: %v",
 					listener.Name, route.GetName(), gateway.Name, err,
 				)
-			} else if !ok {
+			}
+			if !ok {
 				reason = gatewayv1.RouteReasonNotAllowedByListeners
 				continue
 			}
@@ -373,7 +374,6 @@ func ParseRouteParentRefs(
 			// TODO: check if the listener status is programmed
 
 			matched = true
-			listenerName = string(listener.Name)
 			break
 		}
 
@@ -390,7 +390,8 @@ func ParseRouteParentRefs(
 			})
 		} else {
 			gateways = append(gateways, RouteParentRefContext{
-				Gateway: &gateway,
+				Gateway:      &gateway,
+				ListenerName: listenerName,
 				Conditions: []metav1.Condition{{
 					Type:               string(gatewayv1.RouteConditionAccepted),
 					Status:             metav1.ConditionFalse,
