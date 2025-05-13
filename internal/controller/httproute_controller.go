@@ -17,8 +17,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
@@ -210,7 +212,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if isRouteAccepted(gateways) && err == nil {
 		routeToUpdate := hr
 		if filteredHTTPRoute != nil {
-			r.Log.Info("filteredHTTPRoute", "filteredHTTPRoute", filteredHTTPRoute)
+			log.Debugw("filteredHTTPRoute", zap.Any("filteredHTTPRoute", filteredHTTPRoute))
 			routeToUpdate = filteredHTTPRoute
 		}
 		if err := r.Provider.Update(ctx, tctx, routeToUpdate); err != nil {
