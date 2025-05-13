@@ -231,13 +231,11 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 		SetRouteConditionResolvedRefs(&parentStatus, hr.GetGeneration(), resolveRefStatus.status, resolveRefStatus.msg)
 		SetRouteConditionAccepted(&parentStatus, hr.GetGeneration(), acceptStatus.status, acceptStatus.msg)
-		var accepted = !slices.ContainsFunc(parentStatus.Conditions, func(condition metav1.Condition) bool {
-			return condition.Status == metav1.ConditionFalse
-		})
-		if accepted {
+		if accepted := isRouteAccepted([]RouteParentRefContext{gateway}); accepted {
 			hr.Status.Parents = append(hr.Status.Parents, parentStatus)
 		} else {
 			hr.Status.Parents = []gatewayv1.RouteParentStatus{parentStatus}
+			break
 		}
 	}
 	if err := r.Status().Update(ctx, hr); err != nil {
