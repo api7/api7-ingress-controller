@@ -359,8 +359,12 @@ func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref ga
 
 // calculateHTTPRoutePriority calculates the priority of the HTTP route.
 // ref: https://github.com/Kong/kubernetes-ingress-controller/blob/57472721319e2c63e56cb8540425257e8e02520f/internal/dataplane/translator/subtranslator/httproute_atc.go#L279-L296
-func calculateHTTPRoutePriority(match *gatewayv1.HTTPRouteMatch, ruleIndex int) uint64 {
+func calculateHTTPRoutePriority(match *gatewayv1.HTTPRouteMatch, ruleIndex int, hosts []string) uint64 {
 	const (
+		// PreciseHostnameShiftBits assigns bit 43-50 for the length of hostname(max length=253).
+		PreciseHostnameShiftBits = 43
+		// HostnameLengthShiftBits assigns bits 35-42 for the length of hostname(max length=253).
+		HostnameLengthShiftBits = 35
 		// ExactPathShiftBits assigns bit 34 to mark if the match is exact path match.
 		ExactPathShiftBits = 34
 		// PathLengthShiftBits assigns bits 23-32 to path length. (max length = 1024, but must start with /)
@@ -375,7 +379,35 @@ func calculateHTTPRoutePriority(match *gatewayv1.HTTPRouteMatch, ruleIndex int) 
 		RuleIndexShiftBits = 7
 	)
 
-	var priority uint64 = 0
+	var (
+		priority uint64 = 0
+		// Handle hostname priority
+		// 1. Non-wildcard hostname priority
+		// 2. Hostname length priority
+		maxNonWildcardLength = 0
+		maxHostnameLength    = 0
+	)
+
+	for _, host := range hosts {
+		isNonWildcard := !strings.Contains(host, "*")
+
+		if isNonWildcard && len(host) > maxNonWildcardLength {
+			maxNonWildcardLength = len(host)
+		}
+
+		if len(host) > maxHostnameLength {
+			maxHostnameLength = len(host)
+		}
+	}
+
+	// If there is a non-wildcard hostname, set the PreciseHostnameShiftBits bit
+	if maxNonWildcardLength > 0 {
+		priority |= (uint64(maxNonWildcardLength) << PreciseHostnameShiftBits)
+	}
+
+	if maxHostnameLength > 0 {
+		priority |= (uint64(maxHostnameLength) << HostnameLengthShiftBits)
+	}
 
 	// ExactPathShiftBits
 	if match.Path != nil && match.Path.Type != nil && *match.Path.Type == gatewayv1.PathMatchExact {
@@ -495,7 +527,7 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 			route.EnableWebsocket = ptr.To(true)
 
 			// Set the route priority
-			priority := calculateHTTPRoutePriority(&match, ruleIndex)
+			priority := calculateHTTPRoutePriority(&match, ruleIndex, hosts)
 			route.Priority = ptr.To(int64(priority))
 
 			routes = append(routes, route)
