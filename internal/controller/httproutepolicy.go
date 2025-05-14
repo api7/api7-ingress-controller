@@ -190,14 +190,11 @@ func (r *IngressReconciler) updateHTTPRoutePolicyStatusOnDeleting(ctx context.Co
 func modifyHTTPRoutePolicyStatus(parentRefs []gatewayv1.ParentReference, policy *v1alpha1.HTTPRoutePolicy, status bool, reason, message string) {
 	condition := metav1.Condition{
 		Type:               string(v1alpha2.PolicyConditionAccepted),
-		Status:             metav1.ConditionTrue,
+		Status:             ConditionStatus(status),
 		ObservedGeneration: policy.GetGeneration(),
 		LastTransitionTime: metav1.Now(),
 		Reason:             reason,
 		Message:            message,
-	}
-	if !status {
-		condition.Status = metav1.ConditionFalse
 	}
 	_ = SetAncestors(&policy.Status, parentRefs, condition)
 }

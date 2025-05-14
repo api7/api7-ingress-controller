@@ -148,7 +148,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	tctx.RouteParentRefs = append(tctx.RouteParentRefs, gatewayv1.ParentReference{
 		Group: ptr.To(gatewayv1.Group(ingressClass.GroupVersionKind().Group)),
-		Kind:  ptr.To(gatewayv1.Kind("IngressClass")),
+		Kind:  ptr.To(gatewayv1.Kind(KindIngressClass)),
 		Name:  gatewayv1.ObjectName(ingressClass.Name),
 	})
 
