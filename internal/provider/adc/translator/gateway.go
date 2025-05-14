@@ -117,6 +117,7 @@ func (t *Translator) translateSecret(tctx *provider.TranslateContext, listener g
 				sslObj.Snis = append(sslObj.Snis, hosts...)
 				// Note: Dashboard doesn't allow duplicate certificate across ssl objects
 				sslObj.ID = id.GenID(string(cert))
+				log.Debugw("generated ssl id", zap.String("ssl id", sslObj.ID), zap.String("secret", secret.Namespace+"/"+secret.Name))
 				sslObj.Labels = label.GenLabel(obj)
 				sslObjs = append(sslObjs, sslObj)
 			}
