@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -38,6 +37,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
+
+	"github.com/api7/gopkg/pkg/log"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
@@ -114,7 +115,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	hr := new(gatewayv1.HTTPRoute)
 	if err := r.Get(ctx, req.NamespacedName, hr); err != nil {
 		if client.IgnoreNotFound(err) == nil {
-			if err := r.updateHTTPRoutePolicyStatusOnDeleting(req.NamespacedName); err != nil {
+			if err := r.updateHTTPRoutePolicyStatusOnDeleting(ctx, req.NamespacedName); err != nil {
 				return ctrl.Result{}, err
 			}
 			hr.Namespace = req.Namespace

@@ -20,21 +20,47 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/gavv/httpexpect/v2"
+	"github.com/gruntwork-io/terratest/modules/testing"
 	"github.com/onsi/gomega"
+	"github.com/pkg/errors"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/net/html"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	"sigs.k8s.io/gateway-api/conformance/utils/kubernetes"
 )
+
+var (
+	scheme_ = runtime.NewScheme()
+)
+
+func init() {
+	utilruntime.Must(scheme.AddToScheme(scheme_))
+	if err := gatewayv1.Install(scheme_); err != nil {
+		panic(err)
+	}
+	if err := v1alpha1.AddToScheme(scheme_); err != nil {
+		panic(err)
+	}
+}
 
 func (f *Framework) NewExpectResponse(httpBody any) *httpexpect.Response {
 	body, err := json.Marshal(httpBody)
@@ -369,6 +395,42 @@ func CreateTestZipFile(sourceCode, metadata string) ([]byte, error) {
 	return zipBuffer.Bytes(), nil
 }
 
+func HTTPRoutePolicyMustHaveCondition(t testing.TestingT, client client.Client, timeout time.Duration, refNN, hrpNN types.NamespacedName, condition metav1.Condition) {
+	_ = v1alpha1.AddToScheme(client.Scheme())
+
+	err := EventullyHTTPRoutePolicyHaveStatus(client, timeout, hrpNN, func(httpRoutePolicy v1alpha1.HTTPRoutePolicy, status v1alpha1.PolicyStatus) bool {
+		var (
+			ancestors      = status.Ancestors
+			conditionFound bool
+		)
+		for _, ancestor := range ancestors {
+			if err := kubernetes.ConditionsHaveLatestObservedGeneration(&httpRoutePolicy, ancestor.Conditions); err != nil {
+				log.Printf("HTTPRoutePolicy %s (parentRef=%v) %v", hrpNN, parentRefToString(ancestor.AncestorRef), err)
+				return false
+			}
+
+			if ancestor.AncestorRef.Name == gatewayv1.ObjectName(refNN.Name) && (ancestor.AncestorRef.Namespace == nil || string(*ancestor.AncestorRef.Namespace) == refNN.Namespace) {
+				if findConditionInList(t, ancestor.Conditions, condition) {
+					conditionFound = true
+				}
+			}
+		}
+		return conditionFound
+	})
+
+	require.NoError(t, err, "error waiting for HTTPRoutePolicy status to have a Condition matching expectations")
+}
+
+func EventullyHTTPRoutePolicyHaveStatus(client client.Client, timeout time.Duration, hrpNN types.NamespacedName, f func(httpRoutePolicy v1alpha1.HTTPRoutePolicy, status v1alpha1.PolicyStatus) bool) error {
+	return wait.PollUntilContextTimeout(context.Background(), time.Second, timeout, true, func(ctx context.Context) (done bool, err error) {
+		var httpRoutePolicy v1alpha1.HTTPRoutePolicy
+		if err = client.Get(ctx, hrpNN, &httpRoutePolicy); err != nil {
+			return false, errors.Errorf("error fetching HTTPRoutePolicy %v: %v", hrpNN, err)
+		}
+		return f(httpRoutePolicy, httpRoutePolicy.Status), nil
+	})
+}
+
 func addFileToZip(zipWriter *zip.Writer, fileName, fileContent string) error {
 	file, err := zipWriter.Create(fileName)
 	if err != nil {
@@ -377,4 +439,31 @@ func addFileToZip(zipWriter *zip.Writer, fileName, fileContent string) error {
 
 	_, err = file.Write([]byte(fileContent))
 	return err
+}
+
+func parentRefToString(p gatewayv1.ParentReference) string {
+	if p.Namespace != nil && *p.Namespace != "" {
+		return fmt.Sprintf("%v/%v", p.Namespace, p.Name)
+	}
+	return string(p.Name)
+}
+
+func findConditionInList(t testing.TestingT, conditions []metav1.Condition, expected metav1.Condition) bool {
+	for _, cond := range conditions {
+		if cond.Type == expected.Type {
+			// an empty Status string means "Match any status".
+			if expected.Status == "" || cond.Status == expected.Status {
+				// an empty Reason string means "Match any reason".
+				if expected.Reason == "" || cond.Reason == expected.Reason {
+					return true
+				}
+				log.Printf("%s condition Reason set to %s, expected %s", expected.Type, cond.Reason, expected.Reason)
+			}
+
+			log.Printf("%s condition set to Status %s with Reason %v, expected Status %s", expected.Type, cond.Status, cond.Reason, expected.Status)
+		}
+	}
+
+	log.Printf("%s was not in conditions list [%v]", expected.Type, conditions)
+	return false
 }

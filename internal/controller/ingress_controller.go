@@ -112,7 +112,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	ingress := new(networkingv1.Ingress)
 	if err := r.Get(ctx, req.NamespacedName, ingress); err != nil {
 		if client.IgnoreNotFound(err) == nil {
-			if err := r.updateHTTPRoutePolicyStatusOnDeleting(req.NamespacedName); err != nil {
+			if err := r.updateHTTPRoutePolicyStatusOnDeleting(ctx, req.NamespacedName); err != nil {
 				return ctrl.Result{}, err
 			}
 
