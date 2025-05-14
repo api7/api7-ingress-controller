@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"slices"
 
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/pkg/errors"
@@ -44,9 +45,7 @@ func (t *Translator) TranslateGateway(tctx *provider.TranslateContext, obj *gate
 			result.SSL = append(result.SSL, ssl...)
 		}
 	}
-	log.Debugw("translate gateway result.SSL", zap.Any("result.SSL", len(result.SSL)))
 	result.SSL = mergeSSLWithSameID(result.SSL)
-	log.Debugw("after merging SSL with same ID", zap.Any("result.SSL", len(result.SSL)))
 
 	rk := provider.ResourceKind{
 		Kind:      obj.Kind,
@@ -264,9 +263,12 @@ func mergeSSLWithSameID(sslList []*adctypes.SSL) []*adctypes.SSL {
 			for sni := range sniMap {
 				newSnis = append(newSnis, sni)
 			}
+
+			slices.Sort(newSnis)
 			// update existing ssl object
 			existing.Snis = newSnis
 		} else {
+			slices.Sort(ssl.Snis)
 			// if new ssl id, add to map
 			sslMap[ssl.ID] = ssl
 		}
