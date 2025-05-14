@@ -396,9 +396,7 @@ func CreateTestZipFile(sourceCode, metadata string) ([]byte, error) {
 }
 
 func HTTPRoutePolicyMustHaveCondition(t testing.TestingT, client client.Client, timeout time.Duration, refNN, hrpNN types.NamespacedName, condition metav1.Condition) {
-	_ = v1alpha1.AddToScheme(client.Scheme())
-
-	err := EventullyHTTPRoutePolicyHaveStatus(client, timeout, hrpNN, func(httpRoutePolicy v1alpha1.HTTPRoutePolicy, status v1alpha1.PolicyStatus) bool {
+	err := EventuallyHTTPRoutePolicyHaveStatus(client, timeout, hrpNN, func(httpRoutePolicy v1alpha1.HTTPRoutePolicy, status v1alpha1.PolicyStatus) bool {
 		var (
 			ancestors      = status.Ancestors
 			conditionFound bool
@@ -421,7 +419,8 @@ func HTTPRoutePolicyMustHaveCondition(t testing.TestingT, client client.Client, 
 	require.NoError(t, err, "error waiting for HTTPRoutePolicy status to have a Condition matching expectations")
 }
 
-func EventullyHTTPRoutePolicyHaveStatus(client client.Client, timeout time.Duration, hrpNN types.NamespacedName, f func(httpRoutePolicy v1alpha1.HTTPRoutePolicy, status v1alpha1.PolicyStatus) bool) error {
+func EventuallyHTTPRoutePolicyHaveStatus(client client.Client, timeout time.Duration, hrpNN types.NamespacedName, f func(httpRoutePolicy v1alpha1.HTTPRoutePolicy, status v1alpha1.PolicyStatus) bool) error {
+	_ = v1alpha1.AddToScheme(client.Scheme())
 	return wait.PollUntilContextTimeout(context.Background(), time.Second, timeout, true, func(ctx context.Context) (done bool, err error) {
 		var httpRoutePolicy v1alpha1.HTTPRoutePolicy
 		if err = client.Get(ctx, hrpNN, &httpRoutePolicy); err != nil {

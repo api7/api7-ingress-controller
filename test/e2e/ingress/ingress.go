@@ -749,7 +749,7 @@ spec:
 				err = s.DeleteResource("Ingress", "default")
 				Expect(err).NotTo(HaveOccurred(), "delete Ingress")
 
-				err = framework.EventullyHTTPRoutePolicyHaveStatus(s.K8sClient, 8*time.Second,
+				err = framework.EventuallyHTTPRoutePolicyHaveStatus(s.K8sClient, 8*time.Second,
 					types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-0"},
 					func(_ v1alpha1.HTTPRoutePolicy, status v1alpha1.PolicyStatus) bool {
 						return len(status.Ancestors) == 0
