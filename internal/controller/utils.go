@@ -14,6 +14,7 @@ package controller
 
 import (
 	"context"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"path"
@@ -164,14 +165,9 @@ func SetGatewayListenerConditionAccepted(gw *gatewayv1.Gateway, listenerName str
 }
 
 func SetGatewayListenerConditionProgrammed(gw *gatewayv1.Gateway, listenerName string, status bool, message string) (ok bool) {
-	conditionStatus := metav1.ConditionTrue
-	if !status {
-		conditionStatus = metav1.ConditionFalse
-	}
-
 	condition := metav1.Condition{
 		Type:               string(gatewayv1.ListenerConditionProgrammed),
-		Status:             conditionStatus,
+		Status:             ConditionStatus(status),
 		Reason:             string(gatewayv1.ListenerReasonProgrammed),
 		ObservedGeneration: gw.GetGeneration(),
 		Message:            message,
@@ -186,14 +182,9 @@ func SetGatewayListenerConditionProgrammed(gw *gatewayv1.Gateway, listenerName s
 }
 
 func SetGatewayListenerConditionResolvedRefs(gw *gatewayv1.Gateway, listenerName string, status bool, message string) (ok bool) {
-	conditionStatus := metav1.ConditionTrue
-	if !status {
-		conditionStatus = metav1.ConditionFalse
-	}
-
 	condition := metav1.Condition{
 		Type:               string(gatewayv1.ListenerConditionResolvedRefs),
-		Status:             conditionStatus,
+		Status:             ConditionStatus(status),
 		Reason:             string(gatewayv1.ListenerReasonResolvedRefs),
 		ObservedGeneration: gw.GetGeneration(),
 		Message:            message,
@@ -208,14 +199,9 @@ func SetGatewayListenerConditionResolvedRefs(gw *gatewayv1.Gateway, listenerName
 }
 
 func SetGatewayConditionProgrammed(gw *gatewayv1.Gateway, status bool, message string) (ok bool) {
-	conditionStatus := metav1.ConditionTrue
-	if !status {
-		conditionStatus = metav1.ConditionFalse
-	}
-
 	condition := metav1.Condition{
 		Type:               string(gatewayv1.GatewayConditionProgrammed),
-		Status:             conditionStatus,
+		Status:             ConditionStatus(status),
 		Reason:             string(gatewayv1.GatewayReasonProgrammed),
 		ObservedGeneration: gw.GetGeneration(),
 		Message:            message,
@@ -672,8 +658,9 @@ func getListenerStatus(
 			return nil, err
 		}
 		var (
-			reasonResolvedRef = string(gatewayv1.ListenerReasonResolvedRefs)
-			statusResolvedRef = metav1.ConditionTrue
+			reasonResolvedRef  = string(gatewayv1.ListenerReasonResolvedRefs)
+			statusResolvedRef  = metav1.ConditionTrue
+			messageResolvedRef string
 
 			reasonProgrammed = string(gatewayv1.ListenerReasonProgrammed)
 			statusProgrammed = metav1.ConditionTrue
@@ -707,24 +694,40 @@ func getListenerStatus(
 
 		if listener.TLS != nil {
 			// TODO: support TLS
-			secret := corev1.Secret{}
-			resolved := true
+			var (
+				secret   corev1.Secret
+				resolved = true
+			)
 			for _, ref := range listener.TLS.CertificateRefs {
+				if ref.Group != nil && *ref.Group != corev1.GroupName {
+					resolved = false
+					messageResolvedRef = fmt.Sprintf(`Invalid Group, expect "", got "%s"`, *ref.Group)
+					break
+				}
+				if ref.Kind != nil && *ref.Kind != "Secret" {
+					resolved = false
+					messageResolvedRef = fmt.Sprintf(`Invalid Kind, expect "Secret", got "%s"`, *ref.Kind)
+					break
+				}
 				ns := gateway.Namespace
 				if ref.Namespace != nil {
 					ns = string(*ref.Namespace)
 				}
-				if err := mrgc.Get(ctx, client.ObjectKey{
-					Namespace: ns,
-					Name:      string(ref.Name),
-				}, &secret); err != nil {
+				if err := mrgc.Get(ctx, client.ObjectKey{Namespace: ns, Name: string(ref.Name)}, &secret); err != nil {
 					resolved = false
+					messageResolvedRef = err.Error()
+					break
+				}
+				if reason, ok := isTLSSecretValid(&secret); !ok {
+					resolved = false
+					messageResolvedRef = fmt.Sprintf("Malformed Secret referenced: %s", reason)
 					break
 				}
 			}
 			if !resolved {
 				reasonResolvedRef = string(gatewayv1.ListenerReasonInvalidCertificateRef)
 				statusResolvedRef = metav1.ConditionFalse
+				reasonProgrammed = string(gatewayv1.ListenerReasonInvalid)
 				statusProgrammed = metav1.ConditionFalse
 			}
 		}
@@ -757,6 +760,7 @@ func getListenerStatus(
 				ObservedGeneration: gateway.Generation,
 				LastTransitionTime: metav1.Now(),
 				Reason:             reasonResolvedRef,
+				Message:            messageResolvedRef,
 			},
 		}
 
@@ -1029,4 +1033,22 @@ func isRouteAccepted(gateways []RouteParentRefContext) bool {
 		}
 	}
 	return false
+}
+
+func isTLSSecretValid(secret *corev1.Secret) (string, bool) {
+	var ok bool
+	var crt, key []byte
+	if crt, ok = secret.Data["tls.crt"]; !ok {
+		return "Missing tls.crt", false
+	}
+	if key, ok = secret.Data["tls.key"]; !ok {
+		return "Missing tls.key", false
+	}
+	if p, _ := pem.Decode(crt); p == nil {
+		return "Malformed PEM tls.crt", false
+	}
+	if p, _ := pem.Decode(key); p == nil {
+		return "Malformed PEM tls.key", false
+	}
+	return "", true
 }
