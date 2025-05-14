@@ -699,9 +699,9 @@ func getListenerStatus(
 				resolved = true
 			)
 			for _, ref := range listener.TLS.CertificateRefs {
-				if ref.Group != nil && *ref.Group != corev1.GroupName && *ref.Group != "core" {
+				if ref.Group != nil && *ref.Group != corev1.GroupName {
 					resolved = false
-					messageResolvedRef = fmt.Sprintf(`Invalid Group, expect "" or "core", got "%s"`, *ref.Group)
+					messageResolvedRef = fmt.Sprintf(`Invalid Group, expect "", got "%s"`, *ref.Group)
 					break
 				}
 				if ref.Kind != nil && *ref.Kind != "Secret" {
