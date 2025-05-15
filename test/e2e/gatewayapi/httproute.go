@@ -23,6 +23,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
@@ -892,7 +895,7 @@ spec:
 			s.Logf(message)
 		})
 
-		PIt("HTTPRoutePolicy conflicts", func() {
+		It("HTTPRoutePolicy conflicts", func() {
 			const httpRoutePolicy0 = `
 apiVersion: apisix.apache.org/v1alpha1
 kind: HTTPRoutePolicy
@@ -910,6 +913,22 @@ spec:
     - http-route-policy-0
 `
 			const httpRoutePolicy1 = `
+apiVersion: apisix.apache.org/v1alpha1
+kind: HTTPRoutePolicy
+metadata:
+  name: http-route-policy-1
+spec:
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: httpbin
+  priority: 10
+  vars:
+  - - http_x_hrp_name
+    - ==
+    - http-route-policy-0
+`
+			const httpRoutePolicy1Priority20 = `
 apiVersion: apisix.apache.org/v1alpha1
 kind: HTTPRoutePolicy
 metadata:
@@ -948,20 +967,86 @@ spec:
 			ResourceApplied("HTTPRoute", "httpbin", varsRoute, 1)
 
 			By("create HTTPRoutePolices")
-			for _, spec := range []string{httpRoutePolicy0, httpRoutePolicy1, httpRoutePolicy2} {
+			for name, spec := range map[string]string{
+				"http-route-policy-0": httpRoutePolicy0,
+				"http-route-policy-1": httpRoutePolicy1,
+				"http-route-policy-2": httpRoutePolicy2,
+			} {
 				err := s.CreateResourceFromString(spec)
 				Expect(err).NotTo(HaveOccurred(), "creating HTTPRoutePolicy")
+				// wait for HTTPRoutePolicy is Accepted
+				framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 10*time.Second,
+					types.NamespacedName{Namespace: s.Namespace(), Name: "apisix"},
+					types.NamespacedName{Namespace: s.Namespace(), Name: name},
+					metav1.Condition{
+						Type: string(v1alpha2.PolicyConditionAccepted),
+					},
+				)
 			}
 			for _, name := range []string{"http-route-policy-0", "http-route-policy-1", "http-route-policy-2"} {
-				Eventually(func(name string) string {
-					spec, err := s.GetResourceYaml("HTTPRoutePolicy", name)
-					Expect(err).NotTo(HaveOccurred(), "getting HTTPRoutePolicy yaml")
-					return spec
-				}).WithArguments(name).WithTimeout(10 * time.Second).ProbeEvery(time.Second).
-					Should(ContainSubstring("reason: Conflicted"))
+				framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 10*time.Second,
+					types.NamespacedName{Namespace: s.Namespace(), Name: "apisix"},
+					types.NamespacedName{Namespace: s.Namespace(), Name: name},
+					metav1.Condition{
+						Type:   string(v1alpha2.PolicyConditionAccepted),
+						Status: metav1.ConditionFalse,
+						Reason: string(v1alpha2.PolicyReasonConflicted),
+					},
+				)
 			}
 
 			// assert that conflict policies are not in effect
+			Eventually(func() int {
+				return s.NewAPISIXClient().
+					GET("/get").
+					WithHost("httpbin.example").
+					WithHeader("X-Route-Name", "httpbin").
+					Expect().Raw().StatusCode
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+
+			By("delete HTTPRoutePolicies")
+			err := s.DeleteResource("HTTPRoutePolicy", "http-route-policy-2")
+			Expect(err).NotTo(HaveOccurred(), "deleting HTTPRoutePolicy %s", "http-route-policy-2")
+			for _, name := range []string{"http-route-policy-0", "http-route-policy-1"} {
+				framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 10*time.Second,
+					types.NamespacedName{Namespace: s.Namespace(), Name: "apisix"},
+					types.NamespacedName{Namespace: s.Namespace(), Name: name},
+					metav1.Condition{
+						Type:   string(v1alpha2.PolicyConditionAccepted),
+						Status: metav1.ConditionTrue,
+						Reason: string(v1alpha2.PolicyReasonAccepted),
+					},
+				)
+			}
+			Eventually(func() int {
+				return s.NewAPISIXClient().
+					GET("/get").
+					WithHost("httpbin.example").
+					WithHeader("X-Route-Name", "httpbin").
+					Expect().Raw().StatusCode
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
+
+			By("update HTTPRoutePolicy")
+			err = s.CreateResourceFromString(httpRoutePolicy1Priority20)
+			Expect(err).NotTo(HaveOccurred(), "update HTTPRoutePolicy's priority to 20")
+			framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 10*time.Second,
+				types.NamespacedName{Namespace: s.Namespace(), Name: "apisix"},
+				types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-1"},
+				metav1.Condition{
+					Type: string(v1alpha2.PolicyConditionAccepted),
+				},
+			)
+			for _, name := range []string{"http-route-policy-0", "http-route-policy-1"} {
+				framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 10*time.Second,
+					types.NamespacedName{Namespace: s.Namespace(), Name: "apisix"},
+					types.NamespacedName{Namespace: s.Namespace(), Name: name},
+					metav1.Condition{
+						Type:   string(v1alpha2.PolicyConditionAccepted),
+						Status: metav1.ConditionFalse,
+						Reason: string(v1alpha2.PolicyReasonConflicted),
+					},
+				)
+			}
 			Eventually(func() int {
 				return s.NewAPISIXClient().
 					GET("/get").
