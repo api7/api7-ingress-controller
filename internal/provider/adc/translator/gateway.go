@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"slices"
 
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/pkg/errors"
@@ -44,6 +45,8 @@ func (t *Translator) TranslateGateway(tctx *provider.TranslateContext, obj *gate
 			result.SSL = append(result.SSL, ssl...)
 		}
 	}
+	result.SSL = mergeSSLWithSameID(result.SSL)
+
 	rk := provider.ResourceKind{
 		Kind:      obj.Kind,
 		Namespace: obj.Namespace,
@@ -117,6 +120,7 @@ func (t *Translator) translateSecret(tctx *provider.TranslateContext, listener g
 				sslObj.Snis = append(sslObj.Snis, hosts...)
 				// Note: Dashboard doesn't allow duplicate certificate across ssl objects
 				sslObj.ID = id.GenID(string(cert))
+				log.Debugw("generated ssl id", zap.String("ssl id", sslObj.ID), zap.String("secret", secret.Namespace+"/"+secret.Name))
 				sslObj.Labels = label.GenLabel(obj)
 				sslObjs = append(sslObjs, sslObj)
 			}
@@ -231,4 +235,48 @@ func (t *Translator) fillPluginMetadataFromGatewayProxy(pluginMetadata adctypes.
 		log.Debugw("fill plugin_metadata for gateway proxy", zap.String("plugin", pluginName), zap.Any("config", pluginConfig))
 		pluginMetadata[pluginName] = pluginConfig
 	}
+}
+
+// mergeSSLWithSameID merge ssl with same id
+func mergeSSLWithSameID(sslList []*adctypes.SSL) []*adctypes.SSL {
+	if len(sslList) <= 1 {
+		return sslList
+	}
+
+	// create a map to store ssl with same id
+	sslMap := make(map[string]*adctypes.SSL)
+	for _, ssl := range sslList {
+		if existing, exists := sslMap[ssl.ID]; exists {
+			// if ssl with same id exists, merge their snis
+			// use map to deduplicate
+			sniMap := make(map[string]struct{})
+			// add existing snis
+			for _, sni := range existing.Snis {
+				sniMap[sni] = struct{}{}
+			}
+			// add new snis
+			for _, sni := range ssl.Snis {
+				sniMap[sni] = struct{}{}
+			}
+			// rebuild deduplicated snis list
+			newSnis := make([]string, 0, len(sniMap))
+			for sni := range sniMap {
+				newSnis = append(newSnis, sni)
+			}
+
+			slices.Sort(newSnis)
+			// update existing ssl object
+			existing.Snis = newSnis
+		} else {
+			slices.Sort(ssl.Snis)
+			// if new ssl id, add to map
+			sslMap[ssl.ID] = ssl
+		}
+	}
+
+	mergedSSL := make([]*adctypes.SSL, 0, len(sslMap))
+	for _, ssl := range sslMap {
+		mergedSSL = append(mergedSSL, ssl)
+	}
+	return mergedSSL
 }
