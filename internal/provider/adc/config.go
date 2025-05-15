@@ -45,6 +45,10 @@ func (d *adcClient) getConfigsForGatewayProxy(tctx *provider.TranslateContext, g
 		ServerAddr: endpoint,
 	}
 
+	if provider.ControlPlane.TlsVerify != nil {
+		config.TlsVerify = *provider.ControlPlane.TlsVerify
+	}
+
 	if provider.ControlPlane.Auth.Type == v1alpha1.AuthTypeAdminKey && provider.ControlPlane.Auth.AdminKey != nil {
 		if provider.ControlPlane.Auth.AdminKey.ValueFrom != nil && provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
 			secretRef := provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef

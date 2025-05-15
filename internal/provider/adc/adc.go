@@ -40,6 +40,7 @@ type adcConfig struct {
 	Name       string
 	ServerAddr string
 	Token      string
+	TlsVerify  bool
 }
 
 type adcClient struct {
@@ -291,7 +292,6 @@ func (d *adcClient) sync(ctx context.Context, task Task) error {
 	args := []string{
 		"sync",
 		"-f", tmpFile.Name(),
-		"--tls-skip-verify",
 	}
 
 	for k, v := range task.Labels {
@@ -317,9 +317,12 @@ func (d *adcClient) execADC(ctx context.Context, config adcConfig, args []string
 
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, d.syncTimeout)
 	defer cancel()
-	// todo: use adc config
 	serverAddr := config.ServerAddr
 	token := config.Token
+	tlsVerify := config.TlsVerify
+	if !tlsVerify {
+		args = append(args, "--tls-skip-verify")
+	}
 
 	adcEnv := []string{
 		"ADC_EXPERIMENTAL_FEATURE_FLAGS=remote-state-file,parallel-backend-request",

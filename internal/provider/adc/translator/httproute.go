@@ -541,7 +541,6 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 	return result, nil
 }
 
-// NOTE: Dashboard not support Vars, matches only support Path, not support Headers, QueryParams
 func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMatch) (*adctypes.Route, error) {
 	route := &adctypes.Route{}
 
