@@ -266,6 +266,42 @@ func SetRouteConditionResolvedRefs(routeParentStatus *gatewayv1.RouteParentStatu
 	}
 }
 
+// SetRouteConditionResolvedRefsWithError sets the ResolvedRefs condition with proper reason based on error type
+func SetRouteConditionResolvedRefsWithError(routeParentStatus *gatewayv1.RouteParentStatus, generation int64, err error) {
+	var (
+		reason  string
+		status  = metav1.ConditionTrue
+		message = "backendRefs are resolved"
+	)
+
+	if err != nil {
+		status = metav1.ConditionFalse
+		message = err.Error()
+		reason = string(gatewayv1.RouteReasonResolvedRefs)
+
+		if IsInvalidKindError(err) {
+			reason = string(gatewayv1.RouteReasonInvalidKind)
+		} else if IsBackendNotFoundError(err) {
+			reason = string(gatewayv1.RouteReasonBackendNotFound)
+		}
+	} else {
+		reason = string(gatewayv1.RouteReasonResolvedRefs)
+	}
+
+	condition := metav1.Condition{
+		Type:               string(gatewayv1.RouteConditionResolvedRefs),
+		Status:             ConditionStatus(status == metav1.ConditionTrue),
+		Reason:             reason,
+		ObservedGeneration: generation,
+		Message:            message,
+		LastTransitionTime: metav1.Now(),
+	}
+
+	if !IsConditionPresentAndEqual(routeParentStatus.Conditions, condition) {
+		routeParentStatus.Conditions = MergeCondition(routeParentStatus.Conditions, condition)
+	}
+}
+
 func SetRouteParentRef(routeParentStatus *gatewayv1.RouteParentStatus, gatewayName string, namespace string) {
 	kind := gatewayv1.Kind(KindGateway)
 	group := gatewayv1.Group(gatewayv1.GroupName)
@@ -920,6 +956,31 @@ func NewInvalidKindError(kind string) *InvalidKindError {
 // IsInvalidKindError checks if the error is an InvalidKindError
 func IsInvalidKindError(err error) bool {
 	_, ok := err.(*InvalidKindError)
+	return ok
+}
+
+// BackendNotFoundError represents an error when a backend service is not found
+type BackendNotFoundError struct {
+	Name      string
+	Namespace string
+}
+
+// Error implements the error interface
+func (e *BackendNotFoundError) Error() string {
+	return fmt.Sprintf("Service %s/%s not found", e.Namespace, e.Name)
+}
+
+// NewBackendNotFoundError creates a new BackendNotFoundError
+func NewBackendNotFoundError(namespace, name string) *BackendNotFoundError {
+	return &BackendNotFoundError{
+		Name:      name,
+		Namespace: namespace,
+	}
+}
+
+// IsBackendNotFoundError checks if the error is a BackendNotFoundError
+func IsBackendNotFoundError(err error) bool {
+	_, ok := err.(*BackendNotFoundError)
 	return ok
 }
 

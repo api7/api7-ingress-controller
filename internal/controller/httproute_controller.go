@@ -139,10 +139,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		msg    string
 	}
 
-	resolveRefStatus := status{
-		status: true,
-		msg:    "backendRefs are resolved",
-	}
+	// Only keep acceptStatus since we're using error objects directly now
 	acceptStatus := status{
 		status: true,
 		msg:    "Route is accepted",
@@ -187,19 +184,15 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		acceptStatus.msg = err.Error()
 	}
 
+	// Store the backend reference error for later use
+	var backendRefErr error
 	if err := r.processHTTPRouteBackendRefs(tctx); err != nil {
-		resolveRefStatus = status{
-			status: false,
-			msg:    err.Error(),
-		}
+		backendRefErr = err
 	}
 
 	// If the backend reference error is because of an invalid kind, use this error first
 	if httpRouteErr != nil && IsInvalidKindError(httpRouteErr) {
-		resolveRefStatus = status{
-			status: false,
-			msg:    httpRouteErr.Error(),
-		}
+		backendRefErr = httpRouteErr
 	}
 	ProcessBackendTrafficPolicy(r.Client, r.Log, tctx)
 
@@ -230,7 +223,10 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			parentStatus.Conditions = MergeCondition(parentStatus.Conditions, condition)
 		}
 		SetRouteConditionAccepted(&parentStatus, hr.GetGeneration(), acceptStatus.status, acceptStatus.msg)
-		SetRouteConditionResolvedRefs(&parentStatus, hr.GetGeneration(), resolveRefStatus.status, resolveRefStatus.msg)
+
+		// Use the stored backend reference error directly with our new function
+		SetRouteConditionResolvedRefsWithError(&parentStatus, hr.GetGeneration(), backendRefErr)
+
 		hr.Status.Parents = append(hr.Status.Parents, parentStatus)
 	}
 	if err := r.Status().Update(ctx, hr); err != nil {
@@ -448,7 +444,7 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 
 		var service corev1.Service
 		if err := r.Get(tctx, serviceNS, &service); err != nil {
-			terr = err
+			terr = NewBackendNotFoundError(namespace, name)
 			continue
 		}
 		if service.Spec.Type == corev1.ServiceTypeExternalName {
