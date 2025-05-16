@@ -20,20 +20,32 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gavv/httpexpect/v2"
+	"github.com/gruntwork-io/terratest/modules/testing"
 	"github.com/onsi/gomega"
+	"github.com/pkg/errors"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/net/html"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	"sigs.k8s.io/gateway-api/conformance/utils/kubernetes"
+
+	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 )
 
 func (f *Framework) NewExpectResponse(httpBody any) *httpexpect.Response {
@@ -369,6 +381,43 @@ func CreateTestZipFile(sourceCode, metadata string) ([]byte, error) {
 	return zipBuffer.Bytes(), nil
 }
 
+func HTTPRoutePolicyMustHaveCondition(t testing.TestingT, client client.Client, timeout time.Duration, refNN, hrpNN types.NamespacedName,
+	condition metav1.Condition) {
+	err := EventuallyHTTPRoutePolicyHaveStatus(client, timeout, hrpNN, func(httpRoutePolicy v1alpha1.HTTPRoutePolicy, status v1alpha1.PolicyStatus) bool {
+		for _, ancestor := range status.Ancestors {
+			if err := kubernetes.ConditionsHaveLatestObservedGeneration(&httpRoutePolicy, ancestor.Conditions); err != nil {
+				log.Printf("HTTPRoutePolicy %s (parentRef=%v) %v", hrpNN, parentRefToString(ancestor.AncestorRef), err)
+				return false
+			}
+
+			if ancestor.AncestorRef.Name == gatewayv1.ObjectName(refNN.Name) &&
+				(ancestor.AncestorRef.Namespace == nil || refNN.Namespace == "" || string(*ancestor.AncestorRef.Namespace) == refNN.Namespace) {
+				if findConditionInList(ancestor.Conditions, condition) {
+					log.Printf("found condition %v in list [%v] for %s reference %s", condition, ancestor.Conditions, hrpNN, refNN)
+					return true
+				} else {
+					log.Printf("not found condition %v in list [%v] for %s reference %s", condition, ancestor.Conditions, hrpNN, refNN)
+				}
+			}
+		}
+		return false
+	})
+
+	require.NoError(t, err, "error waiting for HTTPRoutePolicy status to have a Condition matching expectations")
+}
+
+func EventuallyHTTPRoutePolicyHaveStatus(client client.Client, timeout time.Duration, hrpNN types.NamespacedName,
+	f func(httpRoutePolicy v1alpha1.HTTPRoutePolicy, status v1alpha1.PolicyStatus) bool) error {
+	_ = v1alpha1.AddToScheme(client.Scheme())
+	return wait.PollUntilContextTimeout(context.Background(), time.Second, timeout, true, func(ctx context.Context) (done bool, err error) {
+		var httpRoutePolicy v1alpha1.HTTPRoutePolicy
+		if err = client.Get(ctx, hrpNN, &httpRoutePolicy); err != nil {
+			return false, errors.Errorf("error fetching HTTPRoutePolicy %v: %v", hrpNN, err)
+		}
+		return f(httpRoutePolicy, httpRoutePolicy.Status), nil
+	})
+}
+
 func addFileToZip(zipWriter *zip.Writer, fileName, fileContent string) error {
 	file, err := zipWriter.Create(fileName)
 	if err != nil {
@@ -377,4 +426,19 @@ func addFileToZip(zipWriter *zip.Writer, fileName, fileContent string) error {
 
 	_, err = file.Write([]byte(fileContent))
 	return err
+}
+
+func parentRefToString(p gatewayv1.ParentReference) string {
+	if p.Namespace != nil && *p.Namespace != "" {
+		return fmt.Sprintf("%v/%v", p.Namespace, p.Name)
+	}
+	return string(p.Name)
+}
+
+func findConditionInList(conditions []metav1.Condition, expected metav1.Condition) bool {
+	return slices.ContainsFunc(conditions, func(item metav1.Condition) bool {
+		// an empty Status string means "Match any status".
+		// an empty Reason string means "Match any reason".
+		return expected.Type == item.Type && (expected.Status == "" || expected.Status == item.Status) && (expected.Reason == "" || expected.Reason == item.Reason)
+	})
 }

@@ -23,7 +23,11 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
@@ -722,8 +726,7 @@ spec:
 				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 		})
 
-		// todo: unstable test case, pending for now
-		PIt("HTTPRoutePolicy status changes on Ingress deleting", func() {
+		It("HTTPRoutePolicy status changes on Ingress deleting", func() {
 			By("create Ingress")
 			err := s.CreateResourceFromString(ingressSpec)
 			Expect(err).NotTo(HaveOccurred(), "creating Ingress")
@@ -731,37 +734,27 @@ spec:
 			By("create HTTPRoutePolicy")
 			err = s.CreateResourceFromString(httpRoutePolicySpec0)
 			Expect(err).NotTo(HaveOccurred(), "creating HTTPRoutePolicy")
-			Eventually(func() string {
-				spec, err := s.GetResourceYaml("HTTPRoutePolicy", "http-route-policy-0")
-				Expect(err).NotTo(HaveOccurred(), "HTTPRoutePolicy status should be True")
-				return spec
-			}).
-				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(ContainSubstring(`status: "True"`))
-
-			By("request the route without vars should be Not Found")
-			Eventually(func() int {
-				return s.NewAPISIXClient().GET("/get").WithHost("example.com").Expect().Raw().StatusCode
-			}).
-				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
-
-			By("request the route with the correct vars should be OK")
-			s.NewAPISIXClient().GET("/get").WithHost("example.com").
-				WithHeader("X-HRP-Name", "http-route-policy-0").Expect().Status(http.StatusOK)
+			framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 8*time.Second,
+				types.NamespacedName{Namespace: s.Namespace(), Name: "apisix"},
+				types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-0"},
+				metav1.Condition{
+					Type:   string(gatewayv1alpha2.PolicyConditionAccepted),
+					Status: metav1.ConditionTrue,
+					Reason: string(gatewayv1alpha2.PolicyReasonAccepted),
+				},
+			)
 
 			By("delete ingress")
 			err = s.DeleteResource("Ingress", "default")
 			Expect(err).NotTo(HaveOccurred(), "delete Ingress")
-			Eventually(func() int {
-				return s.NewAPISIXClient().GET("/get").WithHost("example.com").
-					WithHeader("X-HRP-Name", "http-route-policy-0").Expect().Raw().StatusCode
-			}).
-				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 
-			Eventually(func() string {
-				spec, err := s.GetResourceYaml("HTTPRoutePolicy", "http-route-policy-0")
-				Expect(err).NotTo(HaveOccurred(), "getting HTTPRoutePolicy")
-				return spec
-			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).ShouldNot(ContainSubstring("ancestorRef:"))
+			err = framework.EventuallyHTTPRoutePolicyHaveStatus(s.K8sClient, 8*time.Second,
+				types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-0"},
+				func(_ v1alpha1.HTTPRoutePolicy, status v1alpha1.PolicyStatus) bool {
+					return len(status.Ancestors) == 0
+				},
+			)
+			Expect(err).NotTo(HaveOccurred(), "expected HTTPRoutePolicy.Status has no Ancestor")
 		})
 	})
 
