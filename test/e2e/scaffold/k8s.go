@@ -13,6 +13,7 @@
 package scaffold
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/url"
@@ -27,7 +28,10 @@ import (
 	. "github.com/onsi/gomega"    //nolint:staticcheck
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/apache/apisix-ingress-controller/pkg/dashboard"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
@@ -280,4 +284,26 @@ func (s *Scaffold) ApplyDefaultGatewayResource(
 	)
 
 	s.ResourceApplied("httproute", "httpbin", defaultHTTPRoute, 1)
+}
+
+func (s *Scaffold) ApplyHTTPRoute(hrNN types.NamespacedName, spec string) {
+	err := s.CreateResourceFromString(spec)
+	Expect(err).NotTo(HaveOccurred(), "creating HTTPRoute %s", hrNN)
+	framework.HTTPRouteMustHaveCondition(s.GinkgoT, s.K8sClient, 8*time.Second,
+		types.NamespacedName{},
+		types.NamespacedName{Namespace: cmp.Or(hrNN.Namespace, s.Namespace()), Name: hrNN.Name},
+		metav1.Condition{
+			Type:   string(gatewayv1.RouteConditionAccepted),
+			Status: metav1.ConditionTrue,
+		},
+	)
+}
+
+func (s *Scaffold) ApplyHTTPRoutePolicy(refNN, hrpNN types.NamespacedName, spec string) {
+	err := s.CreateResourceFromString(spec)
+	Expect(err).NotTo(HaveOccurred(), "creating HTTPRoutePolicy %s", hrpNN)
+	framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 8*time.Second, refNN, hrpNN, metav1.Condition{
+		Type:   string(v1alpha2.PolicyConditionAccepted),
+		Status: metav1.ConditionTrue,
+	})
 }

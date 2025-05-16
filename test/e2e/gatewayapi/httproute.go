@@ -13,7 +13,6 @@
 package gatewayapi
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"net/http"
@@ -104,27 +103,6 @@ spec:
       kind: GatewayProxy
       name: apisix-proxy-config
 `
-	var ApplyHTTPRoute = func(nn types.NamespacedName, spec string) {
-		err := s.CreateResourceFromString(spec)
-		Expect(err).NotTo(HaveOccurred(), "creating HTTPRoute %s", nn)
-		framework.HTTPRouteMustHaveCondition(s.GinkgoT, s.K8sClient, 8*time.Second,
-			types.NamespacedName{},
-			types.NamespacedName{Namespace: cmp.Or(nn.Namespace, s.Namespace()), Name: nn.Name},
-			metav1.Condition{
-				Type:   string(gatewayv1.RouteConditionAccepted),
-				Status: metav1.ConditionTrue,
-			},
-		)
-	}
-	var ApplyHTTPRoutePolicy = func(refNN, hrpNN types.NamespacedName, spec string) {
-		err := s.CreateResourceFromString(spec)
-		Expect(err).NotTo(HaveOccurred(), "creating HTTPRoutePolicy %s", hrpNN)
-		framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 8*time.Second, refNN, hrpNN, metav1.Condition{
-			Type:   string(v1alpha2.PolicyConditionAccepted),
-			Status: metav1.ConditionTrue,
-		})
-	}
-
 	var beforeEachHTTP = func() {
 		By("create GatewayProxy")
 		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
@@ -226,7 +204,7 @@ spec:
 
 		It("Create/Update/Delete HTTPRoute", func() {
 			By("create HTTPRoute")
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, exactRouteByGet)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, exactRouteByGet)
 
 			By("access data plane to check the HTTPRoute")
 			request := func() int {
@@ -361,7 +339,7 @@ spec:
 
 			By("Create HTTPRoute referencing both gateways")
 			multiGatewayRoute := fmt.Sprintf(multiGatewayHTTPRoute, s.Namespace(), additionalNamespace)
-			ApplyHTTPRoute(types.NamespacedName{Name: "multi-gateway-route"}, multiGatewayRoute)
+			s.ApplyHTTPRoute(types.NamespacedName{Name: "multi-gateway-route"}, multiGatewayRoute)
 
 			By("Access through default gateway")
 			Eventually(request).WithArguments(s.NewAPISIXClient(), "httpbin.example").
@@ -504,7 +482,7 @@ spec:
 
 		It("Create/Update/Delete HTTPRoute", func() {
 			By("create HTTPRoute")
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, exactRouteByGet)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, exactRouteByGet)
 
 			request := func(host string) int {
 				if host == "" {
@@ -527,7 +505,7 @@ spec:
 
 		It("Delete Gateway after apply HTTPRoute", func() {
 			By("create HTTPRoute")
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, exactRouteByGet)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, exactRouteByGet)
 
 			request := func() int {
 				return s.NewAPISIXClient().GET("/get").WithHost("httpbin.example").Expect().Raw().StatusCode
@@ -543,7 +521,7 @@ spec:
 
 		It("Proxy External Service", func() {
 			By("create HTTPRoute")
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, httprouteWithExternalName)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, httprouteWithExternalName)
 
 			By("checking the external service response")
 			request := func() int {
@@ -554,7 +532,7 @@ spec:
 
 		It("Match Port", func() {
 			By("create HTTPRoute")
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, invalidBackendPort)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, invalidBackendPort)
 
 			serviceResources, err := s.DefaultDataplaneResource().Service().List(context.Background())
 			Expect(err).NotTo(HaveOccurred(), "listing services")
@@ -576,7 +554,7 @@ spec:
 				httpbinNN:  exactRouteByGet,
 				httpbin2NN: exactRouteByGet2,
 			} {
-				ApplyHTTPRoute(nn, spec)
+				s.ApplyHTTPRoute(nn, spec)
 			}
 
 			request := func(host string) int {
@@ -714,7 +692,7 @@ spec:
 
 		It("HTTPRoute Exact Match", func() {
 			By("create HTTPRoute")
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, exactRouteByGet)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, exactRouteByGet)
 
 			request := func(uri string) int {
 				return s.NewAPISIXClient().GET(uri).WithHost("httpbin.example").Expect().Raw().StatusCode
@@ -726,7 +704,7 @@ spec:
 
 		It("HTTPRoute Prefix Match", func() {
 			By("create HTTPRoute")
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, prefixRouteByStatus)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, prefixRouteByStatus)
 
 			request := func(uri string) int {
 				return s.NewAPISIXClient().GET(uri).WithHost("httpbin.example").Expect().Raw().StatusCode
@@ -738,7 +716,7 @@ spec:
 
 		It("HTTPRoute Method Match", func() {
 			By("create HTTPRoute")
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, methodRouteGETAndDELETEByAnything)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, methodRouteGETAndDELETEByAnything)
 
 			request := func(method string) int {
 				return s.NewAPISIXClient().Request(method, "/anything").WithHost("httpbin.example").Expect().Raw().StatusCode
@@ -751,7 +729,7 @@ spec:
 
 		It("HTTPRoute Vars Match", func() {
 			By("create HTTPRoute")
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, varsRoute)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, varsRoute)
 
 			request := func(headers map[string]string) int {
 				cli := s.NewAPISIXClient().GET("/get").WithHost("httpbin.example")
@@ -769,7 +747,7 @@ spec:
 
 		It("HTTPRoutePolicy in effect", func() {
 			By("create HTTPRoute")
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, varsRoute)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, varsRoute)
 			request := func() int {
 				return s.NewAPISIXClient().GET("/get").
 					WithHost("httpbin.example").WithHeader("X-Route-Name", "httpbin").
@@ -778,7 +756,7 @@ spec:
 			Eventually(request).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 
 			By("create HTTPRoutePolicy")
-			ApplyHTTPRoutePolicy(
+			s.ApplyHTTPRoutePolicy(
 				types.NamespacedName{Name: "apisix"},
 				types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-0"},
 				httpRoutePolicy,
@@ -814,7 +792,7 @@ spec:
     - ==
     - new-hrp-name
 `
-			ApplyHTTPRoutePolicy(
+			s.ApplyHTTPRoutePolicy(
 				types.NamespacedName{Name: "apisix"},
 				types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-0"},
 				changedHTTPRoutePolicy,
@@ -931,7 +909,7 @@ spec:
     - http-route-policy-0
 `
 			By("create HTTPRoute")
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, varsRoute)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, varsRoute)
 
 			By("create HTTPRoutePolices")
 			for name, spec := range map[string]string{
@@ -939,7 +917,7 @@ spec:
 				"http-route-policy-1": httpRoutePolicy1,
 				"http-route-policy-2": httpRoutePolicy2,
 			} {
-				ApplyHTTPRoutePolicy(
+				s.ApplyHTTPRoutePolicy(
 					types.NamespacedName{Namespace: s.Namespace(), Name: "apisix"},
 					types.NamespacedName{Namespace: s.Namespace(), Name: name},
 					spec,
@@ -989,7 +967,7 @@ spec:
 			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 
 			By("update HTTPRoutePolicy")
-			ApplyHTTPRoutePolicy(
+			s.ApplyHTTPRoutePolicy(
 				types.NamespacedName{Namespace: s.Namespace(), Name: "apisix"},
 				types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-1"},
 				httpRoutePolicy1Priority20,
@@ -1016,10 +994,10 @@ spec:
 
 		It("HTTPRoutePolicy status changes on HTTPRoute deleting", func() {
 			By("create HTTPRoute")
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, varsRoute)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, varsRoute)
 
 			By("create HTTPRoutePolicy")
-			ApplyHTTPRoutePolicy(
+			s.ApplyHTTPRoutePolicy(
 				types.NamespacedName{Name: "apisix"},
 				types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-0"},
 				httpRoutePolicy,
@@ -1281,7 +1259,7 @@ spec:
 
 		It("HTTPRoute RequestHeaderModifier", func() {
 			By("create HTTPRoute")
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, reqHeaderModifyByHeaders)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, reqHeaderModifyByHeaders)
 
 			By("access dataplane to check the HTTPRoute")
 			respExp := s.NewAPISIXClient().
@@ -1302,7 +1280,7 @@ spec:
 
 		It("HTTPRoute ResponseHeaderModifier", func() {
 			By("create HTTPRoute")
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, respHeaderModifyByHeaders)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, respHeaderModifyByHeaders)
 
 			By("access dataplane to check the HTTPRoute")
 			respExp := s.NewAPISIXClient().
@@ -1322,7 +1300,7 @@ spec:
 
 		It("HTTPRoute RequestRedirect", func() {
 			By("create HTTPRoute")
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, httpsRedirectByHeaders)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, httpsRedirectByHeaders)
 
 			s.NewAPISIXClient().GET("/headers").
 				WithHeader("Host", "httpbin.example").
@@ -1331,7 +1309,7 @@ spec:
 				Header("Location").IsEqual("https://httpbin.example:9443/headers")
 
 			By("update HTTPRoute")
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, hostnameRedirectByHeaders)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, hostnameRedirectByHeaders)
 
 			s.NewAPISIXClient().GET("/headers").
 				WithHeader("Host", "httpbin.example").
@@ -1399,7 +1377,7 @@ spec:
     - name: httpbin-service-e2e-test
       port: 80
 `
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, echoRoute)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, echoRoute)
 			Eventually(func() int {
 				return s.NewAPISIXClient().GET("/headers").
 					WithHeader("Host", "httpbin.example").
@@ -1412,7 +1390,7 @@ spec:
 
 		It("HTTPRoute URLRewrite with ReplaceFullPath And Hostname", func() {
 			By("create HTTPRoute")
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, replaceFullPathAndHost)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, replaceFullPathAndHost)
 
 			By("/replace/201 should be rewritten to /headers")
 			s.NewAPISIXClient().GET("/replace/201").
@@ -1433,7 +1411,7 @@ spec:
 
 		It("HTTPRoute URLRewrite with ReplacePrefixMatch", func() {
 			By("create HTTPRoute")
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, replacePrefixMatch)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, replacePrefixMatch)
 
 			By("/replace/201 should be rewritten to /status/201")
 			s.NewAPISIXClient().GET("/replace/201").
@@ -1452,7 +1430,7 @@ spec:
 			By("create HTTPRoute")
 			err := s.CreateResourceFromString(echoPlugin)
 			Expect(err).NotTo(HaveOccurred(), "creating PluginConfig")
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, extensionRefEchoPlugin)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, extensionRefEchoPlugin)
 
 			s.NewAPISIXClient().GET("/get").
 				WithHeader("Host", "httpbin.example").
@@ -1527,7 +1505,7 @@ spec:
 			})
 		})
 		It("HTTPRoute Canary", func() {
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, sameWeight)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, sameWeight)
 
 			var (
 				hitNginxCnt   = 0
@@ -1548,7 +1526,7 @@ spec:
 			}
 			Expect(hitNginxCnt - hitHttpbinCnt).To(BeNumerically("~", 0, 2))
 
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, oneWeight)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, oneWeight)
 
 			hitNginxCnt = 0
 			hitHttpbinCnt = 0
@@ -1613,7 +1591,7 @@ spec:
 
 		It("Should sync HTTPRoute when GatewayProxy is updated", func() {
 			By("create HTTPRoute")
-			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, exactRouteByGet)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, exactRouteByGet)
 
 			By("verify HTTPRoute works")
 			s.NewAPISIXClient().
