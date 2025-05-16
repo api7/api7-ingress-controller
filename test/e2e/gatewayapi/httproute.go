@@ -13,20 +13,24 @@
 package gatewayapi
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/gavv/httpexpect/v2"
 	"github.com/gruntwork-io/terratest/modules/retry"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
@@ -100,24 +104,25 @@ spec:
       kind: GatewayProxy
       name: apisix-proxy-config
 `
-
-	var ResourceApplied = func(resourType, resourceName, resourceRaw string, observedGeneration int) {
-		Expect(s.CreateResourceFromString(resourceRaw)).
-			NotTo(HaveOccurred(), fmt.Sprintf("creating %s", resourType))
-
-		Eventually(func() string {
-			hryaml, err := s.GetResourceYaml(resourType, resourceName)
-			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("getting %s yaml", resourType))
-			return hryaml
-		}, "8s", "2s").
-			Should(
-				SatisfyAll(
-					ContainSubstring(`status: "True"`),
-					ContainSubstring(fmt.Sprintf("observedGeneration: %d", observedGeneration)),
-				),
-				fmt.Sprintf("checking %s condition status", resourType),
-			)
-		time.Sleep(1 * time.Second)
+	var ApplyHTTPRoute = func(nn types.NamespacedName, spec string) {
+		err := s.CreateResourceFromString(spec)
+		Expect(err).NotTo(HaveOccurred(), "creating HTTPRoute %s", nn)
+		framework.HTTPRouteMustHaveCondition(s.GinkgoT, s.K8sClient, 8*time.Second,
+			types.NamespacedName{},
+			types.NamespacedName{Namespace: cmp.Or(nn.Namespace, s.Namespace()), Name: nn.Name},
+			metav1.Condition{
+				Type:   string(gatewayv1.RouteConditionAccepted),
+				Status: metav1.ConditionTrue,
+			},
+		)
+	}
+	var ApplyHTTPRoutePolicy = func(refNN, hrpNN types.NamespacedName, spec string) {
+		err := s.CreateResourceFromString(spec)
+		Expect(err).NotTo(HaveOccurred(), "creating HTTPRoutePolicy %s", hrpNN)
+		framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 8*time.Second, refNN, hrpNN, metav1.Condition{
+			Type:   string(v1alpha2.PolicyConditionAccepted),
+			Status: metav1.ConditionTrue,
+		})
 	}
 
 	var beforeEachHTTP = func() {
@@ -131,24 +136,30 @@ spec:
 		gatewayClassName := fmt.Sprintf("apisix-%d", time.Now().Unix())
 		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewayClassYaml, gatewayClassName, s.GetControllerName()), "")
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
-		time.Sleep(5 * time.Second)
 
 		By("check GatewayClass condition")
-		gcyaml, err := s.GetResourceYaml("GatewayClass", gatewayClassName)
-		Expect(err).NotTo(HaveOccurred(), "getting GatewayClass yaml")
-		Expect(gcyaml).To(ContainSubstring(`status: "True"`), "checking GatewayClass condition status")
-		Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the apisix-ingress-controller"), "checking GatewayClass condition message")
+		framework.GatewayClassMustHaveCondition(s.GinkgoT, s.K8sClient, 8*time.Second,
+			types.NamespacedName{Namespace: s.Namespace(), Name: gatewayClassName},
+			metav1.Condition{
+				Type:    string(gatewayv1.GatewayClassConditionStatusAccepted),
+				Status:  metav1.ConditionTrue,
+				Message: "the gatewayclass has been accepted by the apisix-ingress-controller",
+			},
+		)
 
 		By("create Gateway")
 		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defaultGateway, gatewayClassName), s.Namespace())
 		Expect(err).NotTo(HaveOccurred(), "creating Gateway")
-		time.Sleep(5 * time.Second)
 
 		By("check Gateway condition")
-		gwyaml, err := s.GetResourceYaml("Gateway", "apisix")
-		Expect(err).NotTo(HaveOccurred(), "getting Gateway yaml")
-		Expect(gwyaml).To(ContainSubstring(`status: "True"`), "checking Gateway condition status")
-		Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the apisix-ingress-controller"), "checking Gateway condition message")
+		framework.GatewayMustHaveCondition(s.GinkgoT, s.K8sClient, 8*time.Second,
+			types.NamespacedName{Namespace: s.Namespace(), Name: "apisix"},
+			metav1.Condition{
+				Type:    string(gatewayv1.GatewayConditionAccepted),
+				Status:  metav1.ConditionTrue,
+				Message: "the gateway has been accepted by the apisix-ingress-controller",
+			},
+		)
 	}
 
 	var beforeEachHTTPS = func() {
@@ -160,28 +171,35 @@ spec:
 
 		secretName := _secretName
 		createSecret(s, secretName)
+
 		By("create GatewayClass")
 		gatewayClassName := fmt.Sprintf("apisix-%d", time.Now().Unix())
 		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewayClassYaml, gatewayClassName, s.GetControllerName()), "")
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
-		time.Sleep(5 * time.Second)
 
 		By("check GatewayClass condition")
-		gcyaml, err := s.GetResourceYaml("GatewayClass", gatewayClassName)
-		Expect(err).NotTo(HaveOccurred(), "getting GatewayClass yaml")
-		Expect(gcyaml).To(ContainSubstring(`status: "True"`), "checking GatewayClass condition status")
-		Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the apisix-ingress-controller"), "checking GatewayClass condition message")
+		framework.GatewayClassMustHaveCondition(s.GinkgoT, s.K8sClient, 8*time.Second,
+			types.NamespacedName{Namespace: s.Namespace(), Name: gatewayClassName},
+			metav1.Condition{
+				Type:    string(gatewayv1.GatewayClassConditionStatusAccepted),
+				Status:  metav1.ConditionTrue,
+				Message: "the gatewayclass has been accepted by the apisix-ingress-controller",
+			},
+		)
 
 		By("create Gateway")
 		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defaultGatewayHTTPS, gatewayClassName), s.Namespace())
 		Expect(err).NotTo(HaveOccurred(), "creating Gateway")
-		time.Sleep(5 * time.Second)
 
 		By("check Gateway condition")
-		gwyaml, err := s.GetResourceYaml("Gateway", "apisix")
-		Expect(err).NotTo(HaveOccurred(), "getting Gateway yaml")
-		Expect(gwyaml).To(ContainSubstring(`status: "True"`), "checking Gateway condition status")
-		Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the apisix-ingress-controller"), "checking Gateway condition message")
+		framework.GatewayMustHaveCondition(s.GinkgoT, s.K8sClient, 8*time.Second,
+			types.NamespacedName{Namespace: s.Namespace(), Name: "apisix"},
+			metav1.Condition{
+				Type:    string(gatewayv1.GatewayConditionAccepted),
+				Status:  metav1.ConditionTrue,
+				Message: "the gateway has been accepted by the apisix-ingress-controller",
+			},
+		)
 	}
 	Context("HTTPRoute with HTTPS Gateway", func() {
 		var exactRouteByGet = `
@@ -206,26 +224,24 @@ spec:
 
 		BeforeEach(beforeEachHTTPS)
 
-		It("Create/Updtea/Delete HTTPRoute", func() {
+		It("Create/Update/Delete HTTPRoute", func() {
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 1)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, exactRouteByGet)
 
-			By("access dataplane to check the HTTPRoute")
-			s.NewAPISIXHttpsClient("api6.com").
-				GET("/get").
-				WithHost("api6.com").
-				Expect().
-				Status(200)
+			By("access data plane to check the HTTPRoute")
+			request := func() int {
+				return s.NewAPISIXHttpsClient("api6.com").
+					GET("/get").
+					WithHost("api6.com").
+					Expect().
+					Raw().StatusCode
+			}
+			Eventually(request).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+
 			By("delete HTTPRoute")
 			err := s.DeleteResourceFromString(exactRouteByGet)
 			Expect(err).NotTo(HaveOccurred(), "deleting HTTPRoute")
-			time.Sleep(5 * time.Second)
-
-			s.NewAPISIXHttpsClient("api6.com").
-				GET("/get").
-				WithHost("api6.com").
-				Expect().
-				Status(404)
+			Eventually(request).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 		})
 	})
 
@@ -314,12 +330,16 @@ spec:
 			additionalGatewayClassName = fmt.Sprintf("apisix-%d", time.Now().Unix())
 			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewayClassYaml, additionalGatewayClassName, s.GetControllerName()), "")
 			Expect(err).NotTo(HaveOccurred(), "creating additional GatewayClass")
-			time.Sleep(5 * time.Second)
+
 			By("Check additional GatewayClass condition")
-			gcyaml, err := s.GetResourceYaml("GatewayClass", additionalGatewayClassName)
-			Expect(err).NotTo(HaveOccurred(), "getting additional GatewayClass yaml")
-			Expect(gcyaml).To(ContainSubstring(`status: "True"`), "checking additional GatewayClass condition status")
-			Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the apisix-ingress-controller"), "checking additional GatewayClass condition message")
+			framework.GatewayClassMustHaveCondition(s.GinkgoT, s.K8sClient, 8*time.Second,
+				types.NamespacedName{Namespace: s.Namespace(), Name: additionalGatewayClassName},
+				metav1.Condition{
+					Type:    string(gatewayv1.GatewayClassConditionStatusAccepted),
+					Status:  metav1.ConditionTrue,
+					Message: "the gatewayclass has been accepted by the apisix-ingress-controller",
+				},
+			)
 
 			additionalGatewayProxy := fmt.Sprintf(additionalGatewayProxyYaml, framework.DashboardTLSEndpoint, resources.AdminAPIKey)
 			err = s.CreateResourceFromStringWithNamespace(additionalGatewayProxy, additionalNamespace)
@@ -335,31 +355,27 @@ spec:
 		})
 
 		It("HTTPRoute should be accessible through both gateways", func() {
+			request := func(client *httpexpect.Expect, host string) int {
+				return client.GET("/get").WithHost(host).Expect().Raw().StatusCode
+			}
+
 			By("Create HTTPRoute referencing both gateways")
 			multiGatewayRoute := fmt.Sprintf(multiGatewayHTTPRoute, s.Namespace(), additionalNamespace)
-			ResourceApplied("HTTPRoute", "multi-gateway-route", multiGatewayRoute, 1)
+			ApplyHTTPRoute(types.NamespacedName{Name: "multi-gateway-route"}, multiGatewayRoute)
 
 			By("Access through default gateway")
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.example").
-				Expect().
-				Status(http.StatusOK)
+			Eventually(request).WithArguments(s.NewAPISIXClient(), "httpbin.example").
+				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 
 			By("Access through additional gateway")
 			client, err := s.NewAPISIXClientForGatewayGroup(additionalGatewayGroupID)
 			Expect(err).NotTo(HaveOccurred(), "creating client for additional gateway")
-
-			client.
-				GET("/get").
-				WithHost("httpbin-additional.example").
-				Expect().
-				Status(http.StatusOK)
+			Eventually(request).WithArguments(client, "httpbin-additional.example").
+				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 
 			By("Delete Additional Gateway")
 			err = s.DeleteResourceFromStringWithNamespace(fmt.Sprintf(additionalGateway, additionalGatewayClassName), additionalNamespace)
 			Expect(err).NotTo(HaveOccurred(), "deleting additional Gateway")
-			time.Sleep(5 * time.Second)
 
 			By("HTTPRoute should still be accessible through default gateway")
 			s.NewAPISIXClient().
@@ -371,12 +387,8 @@ spec:
 			By("HTTPRoute should not be accessible through additional gateway")
 			client, err = s.NewAPISIXClientForGatewayGroup(additionalGatewayGroupID)
 			Expect(err).NotTo(HaveOccurred(), "creating client for additional gateway")
-
-			client.
-				GET("/get").
-				WithHost("httpbin-additional.example").
-				Expect().
-				Status(http.StatusNotFound)
+			Eventually(request).WithArguments(client, "httpbin-additional.example").
+				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 		})
 	})
 
@@ -492,70 +504,57 @@ spec:
 
 		It("Create/Update/Delete HTTPRoute", func() {
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 1)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, exactRouteByGet)
 
+			request := func(host string) int {
+				if host == "" {
+					return s.NewAPISIXClient().GET("/get").Expect().Raw().StatusCode
+				}
+				return s.NewAPISIXClient().GET("/get").WithHost(host).Expect().Raw().StatusCode
+			}
 			By("access dataplane to check the HTTPRoute")
+			Eventually(request).WithArguments("httpbin.example").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 			s.NewAPISIXClient().
 				GET("/get").
 				Expect().
 				Status(404)
-
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.example").
-				Expect().
-				Status(200)
 
 			By("delete HTTPRoute")
 			err := s.DeleteResourceFromString(exactRouteByGet)
 			Expect(err).NotTo(HaveOccurred(), "deleting HTTPRoute")
-			time.Sleep(5 * time.Second)
-
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.example").
-				Expect().
-				Status(404)
+			Eventually(request).WithArguments("httpbin.example").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 		})
 
 		It("Delete Gateway after apply HTTPRoute", func() {
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 1)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, exactRouteByGet)
 
-			By("access daataplane to check the HTTPRoute")
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.example").
-				Expect().
-				Status(200)
+			request := func() int {
+				return s.NewAPISIXClient().GET("/get").WithHost("httpbin.example").Expect().Raw().StatusCode
+			}
+			By("access dataplane to check the HTTPRoute")
+			Eventually(request).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 
 			By("delete Gateway")
 			err := s.DeleteResource("Gateway", "apisix")
 			Expect(err).NotTo(HaveOccurred(), "deleting Gateway")
-			time.Sleep(5 * time.Second)
-
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.example").
-				Expect().
-				Status(404)
+			Eventually(request).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 		})
 
 		It("Proxy External Service", func() {
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", httprouteWithExternalName, 1)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, httprouteWithExternalName)
 
 			By("checking the external service response")
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.external").
-				Expect().
-				Status(200)
+			request := func() int {
+				return s.NewAPISIXClient().GET("/get").WithHost("httpbin.external").Expect().Raw().StatusCode
+			}
+			Eventually(request).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 		})
 
 		It("Match Port", func() {
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", invalidBackendPort, 1)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, invalidBackendPort)
 
 			serviceResources, err := s.DefaultDataplaneResource().Service().List(context.Background())
 			Expect(err).NotTo(HaveOccurred(), "listing services")
@@ -568,23 +567,23 @@ spec:
 		})
 
 		It("Delete HTTPRoute during restart", func() {
-			By("create HTTPRoute httpbin")
-			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 1)
+			By("create HTTPRoute httpbin and httpbin2")
+			var (
+				httpbinNN  = types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}
+				httpbin2NN = types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin2"}
+			)
+			for nn, spec := range map[types.NamespacedName]string{
+				httpbinNN:  exactRouteByGet,
+				httpbin2NN: exactRouteByGet2,
+			} {
+				ApplyHTTPRoute(nn, spec)
+			}
 
-			By("create HTTPRoute httpbin2")
-			ResourceApplied("HTTPRoute", "httpbin2", exactRouteByGet2, 1)
-
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.example").
-				Expect().
-				Status(200)
-
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin2.example").
-				Expect().
-				Status(200)
+			request := func(host string) int {
+				return s.NewAPISIXClient().GET("/get").WithHost(host).Expect().Raw().StatusCode
+			}
+			Eventually(request).WithArguments("httpbin.example").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+			Eventually(request).WithArguments("httpbin2.example").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 
 			s.ScaleIngress(0)
 
@@ -593,19 +592,8 @@ spec:
 			Expect(err).NotTo(HaveOccurred(), "deleting HTTPRoute httpbin2")
 
 			s.ScaleIngress(1)
-			time.Sleep(1 * time.Minute)
-
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.example").
-				Expect().
-				Status(200)
-
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin2.example").
-				Expect().
-				Status(404)
+			Eventually(request).WithArguments("httpbin.example").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+			Eventually(request).WithArguments("httpbin2.example").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 		})
 	})
 
@@ -726,104 +714,78 @@ spec:
 
 		It("HTTPRoute Exact Match", func() {
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 1)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, exactRouteByGet)
 
-			By("access daataplane to check the HTTPRoute")
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.example").
-				Expect().
-				Status(200)
-
-			s.NewAPISIXClient().
-				GET("/get/xxx").
-				WithHost("httpbin.example").
-				Expect().
-				Status(404)
+			request := func(uri string) int {
+				return s.NewAPISIXClient().GET(uri).WithHost("httpbin.example").Expect().Raw().StatusCode
+			}
+			By("access dataplane to check the HTTPRoute")
+			Eventually(request).WithArguments("/get").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+			Eventually(request).WithArguments("/get/xxx").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 		})
 
 		It("HTTPRoute Prefix Match", func() {
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", prefixRouteByStatus, 1)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, prefixRouteByStatus)
 
-			By("access daataplane to check the HTTPRoute")
-			s.NewAPISIXClient().
-				GET("/status/200").
-				WithHost("httpbin.example").
-				Expect().
-				Status(200)
-
-			s.NewAPISIXClient().
-				GET("/status/201").
-				WithHost("httpbin.example").
-				Expect().
-				Status(201)
+			request := func(uri string) int {
+				return s.NewAPISIXClient().GET(uri).WithHost("httpbin.example").Expect().Raw().StatusCode
+			}
+			By("access dataplane to check the HTTPRoute")
+			Eventually(request).WithArguments("/status/200").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+			Eventually(request).WithArguments("/status/201").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusCreated))
 		})
 
 		It("HTTPRoute Method Match", func() {
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", methodRouteGETAndDELETEByAnything, 1)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, methodRouteGETAndDELETEByAnything)
 
-			By("access daataplane to check the HTTPRoute")
-			s.NewAPISIXClient().
-				GET("/anything").
-				WithHost("httpbin.example").
-				Expect().
-				Status(200)
-
-			s.NewAPISIXClient().
-				DELETE("/anything").
-				WithHost("httpbin.example").
-				Expect().
-				Status(200)
-
-			s.NewAPISIXClient().
-				POST("/anything").
-				WithHost("httpbin.example").
-				Expect().
-				Status(404)
+			request := func(method string) int {
+				return s.NewAPISIXClient().Request(method, "/anything").WithHost("httpbin.example").Expect().Raw().StatusCode
+			}
+			By("access dataplane to check the HTTPRoute")
+			Eventually(request).WithArguments(http.MethodGet).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+			Eventually(request).WithArguments(http.MethodDelete).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+			Eventually(request).WithArguments(http.MethodPost).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 		})
 
 		It("HTTPRoute Vars Match", func() {
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", varsRoute, 1)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, varsRoute)
 
+			request := func(headers map[string]string) int {
+				cli := s.NewAPISIXClient().GET("/get").WithHost("httpbin.example")
+				for k, v := range headers {
+					cli = cli.WithHeader(k, v)
+				}
+				return cli.Expect().Raw().StatusCode
+			}
 			By("access dataplane to check the HTTPRoute")
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.example").
-				Expect().
-				Status(http.StatusNotFound)
-
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.example").
-				WithHeader("X-Route-Name", "httpbin").
-				Expect().
-				Status(http.StatusOK)
+			Eventually(request).WithArguments(map[string]string{}).
+				WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
+			Eventually(request).WithArguments(map[string]string{"X-Route-Name": "httpbin"}).
+				WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 		})
 
 		It("HTTPRoutePolicy in effect", func() {
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", varsRoute, 1)
-
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.example").
-				WithHeader("X-Route-Name", "httpbin").
-				Expect().
-				Status(http.StatusOK)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, varsRoute)
+			request := func() int {
+				return s.NewAPISIXClient().GET("/get").
+					WithHost("httpbin.example").WithHeader("X-Route-Name", "httpbin").
+					Expect().Raw().StatusCode
+			}
+			Eventually(request).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 
 			By("create HTTPRoutePolicy")
-			ResourceApplied("HTTPRoutePolicy", "http-route-policy-0", httpRoutePolicy, 1)
+			ApplyHTTPRoutePolicy(
+				types.NamespacedName{Name: "apisix"},
+				types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-0"},
+				httpRoutePolicy,
+			)
 
 			By("access dataplane to check the HTTPRoutePolicy")
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.example").
-				WithHeader("X-Route-Name", "httpbin").
-				Expect().
-				Status(http.StatusNotFound)
+			Eventually(request).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 
 			s.NewAPISIXClient().
 				GET("/get").
@@ -852,7 +814,12 @@ spec:
     - ==
     - new-hrp-name
 `
-			ResourceApplied("HTTPRoutePolicy", "http-route-policy-0", changedHTTPRoutePolicy, 1)
+			ApplyHTTPRoutePolicy(
+				types.NamespacedName{Name: "apisix"},
+				types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-0"},
+				changedHTTPRoutePolicy,
+			)
+
 			// use the old vars cannot match any route
 			Eventually(func() int {
 				return s.NewAPISIXClient().
@@ -964,7 +931,7 @@ spec:
     - http-route-policy-0
 `
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", varsRoute, 1)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, varsRoute)
 
 			By("create HTTPRoutePolices")
 			for name, spec := range map[string]string{
@@ -972,15 +939,10 @@ spec:
 				"http-route-policy-1": httpRoutePolicy1,
 				"http-route-policy-2": httpRoutePolicy2,
 			} {
-				err := s.CreateResourceFromString(spec)
-				Expect(err).NotTo(HaveOccurred(), "creating HTTPRoutePolicy")
-				// wait for HTTPRoutePolicy is Accepted
-				framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 10*time.Second,
+				ApplyHTTPRoutePolicy(
 					types.NamespacedName{Namespace: s.Namespace(), Name: "apisix"},
 					types.NamespacedName{Namespace: s.Namespace(), Name: name},
-					metav1.Condition{
-						Type: string(v1alpha2.PolicyConditionAccepted),
-					},
+					spec,
 				)
 			}
 			for _, name := range []string{"http-route-policy-0", "http-route-policy-1", "http-route-policy-2"} {
@@ -1027,14 +989,10 @@ spec:
 			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 
 			By("update HTTPRoutePolicy")
-			err = s.CreateResourceFromString(httpRoutePolicy1Priority20)
-			Expect(err).NotTo(HaveOccurred(), "update HTTPRoutePolicy's priority to 20")
-			framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 10*time.Second,
+			ApplyHTTPRoutePolicy(
 				types.NamespacedName{Namespace: s.Namespace(), Name: "apisix"},
 				types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-1"},
-				metav1.Condition{
-					Type: string(v1alpha2.PolicyConditionAccepted),
-				},
+				httpRoutePolicy1Priority20,
 			)
 			for _, name := range []string{"http-route-policy-0", "http-route-policy-1"} {
 				framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 10*time.Second,
@@ -1058,16 +1016,14 @@ spec:
 
 		It("HTTPRoutePolicy status changes on HTTPRoute deleting", func() {
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", varsRoute, 1)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, varsRoute)
 
 			By("create HTTPRoutePolicy")
-			ResourceApplied("HTTPRoutePolicy", "http-route-policy-0", httpRoutePolicy, 1)
-
-			Eventually(func() string {
-				spec, err := s.GetResourceYaml("HTTPRoutePolicy", "http-route-policy-0")
-				Expect(err).NotTo(HaveOccurred(), "getting HTTPRoutePolicy")
-				return spec
-			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(ContainSubstring("type: Accepted"))
+			ApplyHTTPRoutePolicy(
+				types.NamespacedName{Name: "apisix"},
+				types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-0"},
+				httpRoutePolicy,
+			)
 
 			By("access dataplane to check the HTTPRoutePolicy")
 			s.NewAPISIXClient().
@@ -1104,11 +1060,12 @@ spec:
 			})
 			s.Logf(message)
 
-			Eventually(func() string {
-				spec, err := s.GetResourceYaml("HTTPRoutePolicy", "http-route-policy-0")
-				Expect(err).NotTo(HaveOccurred(), "getting HTTPRoutePolicy")
-				return spec
-			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).ShouldNot(ContainSubstring("ancestorRef:"))
+			err = framework.PollUntilHTTPRoutePolicyHaveStatus(s.K8sClient, 8*time.Second, types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-0"},
+				func(_ v1alpha1.HTTPRoutePolicy, status v1alpha1.PolicyStatus) bool {
+					return len(status.Ancestors) == 0
+				},
+			)
+			Expect(err).NotTo(HaveOccurred(), "HTPRoutePolicy.Status should has no ancestor")
 		})
 	})
 
@@ -1324,9 +1281,9 @@ spec:
 
 		It("HTTPRoute RequestHeaderModifier", func() {
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", reqHeaderModifyByHeaders, 1)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, reqHeaderModifyByHeaders)
 
-			By("access daataplane to check the HTTPRoute")
+			By("access dataplane to check the HTTPRoute")
 			respExp := s.NewAPISIXClient().
 				GET("/headers").
 				WithHost("httpbin.example").
@@ -1345,9 +1302,9 @@ spec:
 
 		It("HTTPRoute ResponseHeaderModifier", func() {
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", respHeaderModifyByHeaders, 1)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, respHeaderModifyByHeaders)
 
-			By("access daataplane to check the HTTPRoute")
+			By("access dataplane to check the HTTPRoute")
 			respExp := s.NewAPISIXClient().
 				GET("/headers").
 				WithHost("httpbin.example").
@@ -1365,7 +1322,7 @@ spec:
 
 		It("HTTPRoute RequestRedirect", func() {
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", httpsRedirectByHeaders, 1)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, httpsRedirectByHeaders)
 
 			s.NewAPISIXClient().GET("/headers").
 				WithHeader("Host", "httpbin.example").
@@ -1374,7 +1331,7 @@ spec:
 				Header("Location").IsEqual("https://httpbin.example:9443/headers")
 
 			By("update HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", hostnameRedirectByHeaders, 2)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, hostnameRedirectByHeaders)
 
 			s.NewAPISIXClient().GET("/headers").
 				WithHeader("Host", "httpbin.example").
@@ -1442,14 +1399,12 @@ spec:
     - name: httpbin-service-e2e-test
       port: 80
 `
-			ResourceApplied("HTTPRoute", "httpbin", echoRoute, 1)
-
-			time.Sleep(time.Second * 6)
-
-			_ = s.NewAPISIXClient().GET("/headers").
-				WithHeader("Host", "httpbin.example").
-				Expect().
-				Status(http.StatusOK)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, echoRoute)
+			Eventually(func() int {
+				return s.NewAPISIXClient().GET("/headers").
+					WithHeader("Host", "httpbin.example").
+					Expect().Raw().StatusCode
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 
 			echoLogs := s.GetDeploymentLogs("echo")
 			Expect(echoLogs).To(ContainSubstring("GET /headers"))
@@ -1457,7 +1412,7 @@ spec:
 
 		It("HTTPRoute URLRewrite with ReplaceFullPath And Hostname", func() {
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", replaceFullPathAndHost, 1)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, replaceFullPathAndHost)
 
 			By("/replace/201 should be rewritten to /headers")
 			s.NewAPISIXClient().GET("/replace/201").
@@ -1478,7 +1433,7 @@ spec:
 
 		It("HTTPRoute URLRewrite with ReplacePrefixMatch", func() {
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", replacePrefixMatch, 1)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, replacePrefixMatch)
 
 			By("/replace/201 should be rewritten to /status/201")
 			s.NewAPISIXClient().GET("/replace/201").
@@ -1497,7 +1452,7 @@ spec:
 			By("create HTTPRoute")
 			err := s.CreateResourceFromString(echoPlugin)
 			Expect(err).NotTo(HaveOccurred(), "creating PluginConfig")
-			ResourceApplied("HTTPRoute", "httpbin", extensionRefEchoPlugin, 1)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, extensionRefEchoPlugin)
 
 			s.NewAPISIXClient().GET("/get").
 				WithHeader("Host", "httpbin.example").
@@ -1518,7 +1473,7 @@ spec:
 	})
 
 	Context("HTTPRoute Multiple Backend", func() {
-		var sameWeiht = `
+		var sameWeight = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -1541,7 +1496,7 @@ spec:
       port: 80
       weight: 50
  `
-		var oneWeiht = `
+		var oneWeight = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -1572,7 +1527,7 @@ spec:
 			})
 		})
 		It("HTTPRoute Canary", func() {
-			ResourceApplied("HTTPRoute", "httpbin", sameWeiht, 1)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, sameWeight)
 
 			var (
 				hitNginxCnt   = 0
@@ -1593,7 +1548,7 @@ spec:
 			}
 			Expect(hitNginxCnt - hitHttpbinCnt).To(BeNumerically("~", 0, 2))
 
-			ResourceApplied("HTTPRoute", "httpbin", oneWeiht, 2)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, oneWeight)
 
 			hitNginxCnt = 0
 			hitHttpbinCnt = 0
@@ -1658,7 +1613,7 @@ spec:
 
 		It("Should sync HTTPRoute when GatewayProxy is updated", func() {
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", exactRouteByGet, 1)
+			ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, exactRouteByGet)
 
 			By("verify HTTPRoute works")
 			s.NewAPISIXClient().
