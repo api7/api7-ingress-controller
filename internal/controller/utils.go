@@ -242,32 +242,8 @@ func SetRouteConditionAccepted(routeParentStatus *gatewayv1.RouteParentStatus, g
 	}
 }
 
-func SetRouteConditionResolvedRefs(routeParentStatus *gatewayv1.RouteParentStatus, generation int64, status bool, message string) {
-	reason := string(gatewayv1.RouteReasonResolvedRefs)
-	// check if the error message contains InvalidKind
-	if !status && strings.Contains(message, string(gatewayv1.RouteReasonInvalidKind)) {
-		reason = string(gatewayv1.RouteReasonInvalidKind)
-	}
-	if !status && strings.Contains(message, "Service") && strings.Contains(message, "not found") {
-		reason = string(gatewayv1.RouteReasonBackendNotFound)
-	}
-
-	condition := metav1.Condition{
-		Type:               string(gatewayv1.RouteConditionResolvedRefs),
-		Status:             ConditionStatus(status),
-		Reason:             reason,
-		ObservedGeneration: generation,
-		Message:            message,
-		LastTransitionTime: metav1.Now(),
-	}
-
-	if !IsConditionPresentAndEqual(routeParentStatus.Conditions, condition) {
-		routeParentStatus.Conditions = MergeCondition(routeParentStatus.Conditions, condition)
-	}
-}
-
-// SetRouteConditionResolvedRefsWithError sets the ResolvedRefs condition with proper reason based on error type
-func SetRouteConditionResolvedRefsWithError(routeParentStatus *gatewayv1.RouteParentStatus, generation int64, err error) {
+// SetRouteConditionResolvedRefs sets the ResolvedRefs condition with proper reason based on error type
+func SetRouteConditionResolvedRefs(routeParentStatus *gatewayv1.RouteParentStatus, generation int64, err error) {
 	var (
 		reason  string
 		status  = metav1.ConditionTrue

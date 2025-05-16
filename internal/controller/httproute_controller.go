@@ -223,9 +223,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			parentStatus.Conditions = MergeCondition(parentStatus.Conditions, condition)
 		}
 		SetRouteConditionAccepted(&parentStatus, hr.GetGeneration(), acceptStatus.status, acceptStatus.msg)
-
-		// Use the stored backend reference error directly with our new function
-		SetRouteConditionResolvedRefsWithError(&parentStatus, hr.GetGeneration(), backendRefErr)
+		SetRouteConditionResolvedRefs(&parentStatus, hr.GetGeneration(), backendRefErr)
 
 		hr.Status.Parents = append(hr.Status.Parents, parentStatus)
 	}
@@ -444,7 +442,11 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 
 		var service corev1.Service
 		if err := r.Get(tctx, serviceNS, &service); err != nil {
-			terr = NewBackendNotFoundError(namespace, name)
+			if client.IgnoreNotFound(err) == nil {
+				terr = NewBackendNotFoundError(namespace, name)
+			} else {
+				terr = err
+			}
 			continue
 		}
 		if service.Spec.Type == corev1.ServiceTypeExternalName {
