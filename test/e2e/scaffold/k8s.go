@@ -26,9 +26,11 @@ import (
 	"github.com/gruntwork-io/terratest/modules/testing"
 	. "github.com/onsi/ginkgo/v2" //nolint:staticcheck
 	. "github.com/onsi/gomega"    //nolint:staticcheck
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -286,7 +288,7 @@ func (s *Scaffold) ApplyDefaultGatewayResource(
 	s.ResourceApplied("httproute", "httpbin", defaultHTTPRoute, 1)
 }
 
-func (s *Scaffold) ApplyHTTPRoute(hrNN types.NamespacedName, spec string) {
+func (s *Scaffold) ApplyHTTPRoute(hrNN types.NamespacedName, spec string, until ...wait.ConditionWithContextFunc) {
 	err := s.CreateResourceFromString(spec)
 	Expect(err).NotTo(HaveOccurred(), "creating HTTPRoute %s", hrNN)
 	framework.HTTPRouteMustHaveCondition(s.GinkgoT, s.K8sClient, 8*time.Second,
@@ -297,13 +299,24 @@ func (s *Scaffold) ApplyHTTPRoute(hrNN types.NamespacedName, spec string) {
 			Status: metav1.ConditionTrue,
 		},
 	)
+	for i, f := range until {
+		err := wait.PollUntilContextTimeout(context.Background(), time.Second, 10*time.Second, true, f)
+		require.NoError(s.GinkgoT, err, "wait for ConditionWithContextFunc[%d] OK", i)
+	}
 }
 
-func (s *Scaffold) ApplyHTTPRoutePolicy(refNN, hrpNN types.NamespacedName, spec string) {
+func (s *Scaffold) ApplyHTTPRoutePolicy(refNN, hrpNN types.NamespacedName, spec string, conditions ...metav1.Condition) {
 	err := s.CreateResourceFromString(spec)
 	Expect(err).NotTo(HaveOccurred(), "creating HTTPRoutePolicy %s", hrpNN)
-	framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 8*time.Second, refNN, hrpNN, metav1.Condition{
-		Type:   string(v1alpha2.PolicyConditionAccepted),
-		Status: metav1.ConditionTrue,
-	})
+	if len(conditions) == 0 {
+		conditions = []metav1.Condition{
+			{
+				Type:   string(v1alpha2.PolicyConditionAccepted),
+				Status: metav1.ConditionTrue,
+			},
+		}
+	}
+	for _, condition := range conditions {
+		framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 8*time.Second, refNN, hrpNN, condition)
+	}
 }

@@ -148,7 +148,7 @@ func HTTPRoutePolicyMustHaveCondition(t testing.TestingT, client client.Client, 
 		return false
 	})
 
-	require.NoError(t, err, "error waiting for HTTPRoutePolicy status to have a Condition matching %+v", condition)
+	require.NoError(t, err, "error waiting for HTTPRoutePolicy %s status to have a Condition matching %+v", hrpNN, condition)
 }
 
 func PollUntilHTTPRoutePolicyHaveStatus(client client.Client, timeout time.Duration, hrpNN types.NamespacedName,
@@ -174,12 +174,6 @@ func findConditionInList(conditions []metav1.Condition, expected metav1.Conditio
 	return slices.ContainsFunc(conditions, func(item metav1.Condition) bool {
 		// an empty Status string means "Match any status".
 		// an empty Reason string means "Match any reason".
-		if expected.Type == item.Type &&
-			(expected.Status == "" || expected.Status == item.Status) &&
-			(expected.Reason == "" || expected.Reason == item.Reason) &&
-			expected.Message != "" && !strings.Contains(item.Message, expected.Message) {
-			log.Printf("condition message not match, item.Message: %s, expected.Message: %s", item.Message, expected.Message)
-		}
 		return expected.Type == item.Type &&
 			(expected.Status == "" || expected.Status == item.Status) &&
 			(expected.Reason == "" || expected.Reason == item.Reason) &&
