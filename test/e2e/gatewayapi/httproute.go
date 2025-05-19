@@ -1295,7 +1295,12 @@ spec:
 
 		It("HTTPRoute ResponseHeaderModifier", func() {
 			By("create HTTPRoute")
-			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, respHeaderModifyByHeaders)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, respHeaderModifyByHeaders, func(_ context.Context) (done bool, err error) {
+				return s.NewAPISIXClient().
+					GET("/headers").
+					WithHost("httpbin.example").
+					Expect().Raw().StatusCode == http.StatusOK, nil
+			})
 
 			By("access dataplane to check the HTTPRoute")
 			respExp := s.NewAPISIXClient().
@@ -1456,7 +1461,11 @@ spec:
 			By("create HTTPRoute")
 			err := s.CreateResourceFromString(echoPlugin)
 			Expect(err).NotTo(HaveOccurred(), "creating PluginConfig")
-			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, extensionRefEchoPlugin)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, extensionRefEchoPlugin, func(_ context.Context) (done bool, err error) {
+				return s.NewAPISIXClient().GET("/get").
+					WithHeader("Host", "httpbin.example").
+					Expect().Raw().StatusCode == http.StatusOK, nil
+			})
 
 			s.NewAPISIXClient().GET("/get").
 				WithHeader("Host", "httpbin.example").
@@ -1466,13 +1475,11 @@ spec:
 
 			err = s.CreateResourceFromString(echoPluginUpdated)
 			Expect(err).NotTo(HaveOccurred(), "updating PluginConfig")
-			time.Sleep(5 * time.Second)
-
-			s.NewAPISIXClient().GET("/get").
-				WithHeader("Host", "httpbin.example").
-				Expect().
-				Body().
-				Contains("Updated")
+			Eventually(func() string {
+				return s.NewAPISIXClient().GET("/get").
+					WithHeader("Host", "httpbin.example").
+					Expect().Body().Raw()
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(ContainSubstring("Updated"))
 		})
 	})
 
