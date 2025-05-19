@@ -103,26 +103,6 @@ spec:
       kind: GatewayProxy
       name: apisix-proxy-config
 `
-
-	var ResourceApplied = func(resourType, resourceName, resourceRaw string, observedGeneration int) {
-		Expect(s.CreateResourceFromString(resourceRaw)).
-			NotTo(HaveOccurred(), fmt.Sprintf("creating %s", resourType))
-
-		Eventually(func() string {
-			hryaml, err := s.GetResourceYaml(resourType, resourceName)
-			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("getting %s yaml", resourType))
-			return hryaml
-		}, "8s", "2s").
-			Should(
-				SatisfyAll(
-					ContainSubstring(`status: "True"`),
-					ContainSubstring(fmt.Sprintf("observedGeneration: %d", observedGeneration)),
-				),
-				fmt.Sprintf("checking %s condition status", resourType),
-			)
-		time.Sleep(1 * time.Second)
-	}
-
 	var beforeEachHTTP = func() {
 		By("create GatewayProxy")
 		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
@@ -929,7 +909,7 @@ spec:
     - http-route-policy-0
 `
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", varsRoute, 1)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, varsRoute)
 
 			By("create HTTPRoutePolices")
 			for name, spec := range map[string]string{
@@ -937,12 +917,10 @@ spec:
 				"http-route-policy-1": httpRoutePolicy1,
 				"http-route-policy-2": httpRoutePolicy2,
 			} {
-				err := s.CreateResourceFromString(spec)
-				Expect(err).NotTo(HaveOccurred(), "creating HTTPRoutePolicy")
-				// wait for HTTPRoutePolicy is Accepted
-				framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 10*time.Second,
+				s.ApplyHTTPRoutePolicy(
 					types.NamespacedName{Namespace: s.Namespace(), Name: "apisix"},
 					types.NamespacedName{Namespace: s.Namespace(), Name: name},
+					spec,
 					metav1.Condition{
 						Type: string(v1alpha2.PolicyConditionAccepted),
 					},
@@ -1414,14 +1392,13 @@ spec:
     - name: httpbin-service-e2e-test
       port: 80
 `
-			ResourceApplied("HTTPRoute", "httpbin", echoRoute, 1)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, echoRoute, func(_ context.Context) (done bool, err error) {
+				return s.NewAPISIXClient().GET("/headers").
+					WithHeader("Host", "httpbin.example").
+					Expect().Raw().StatusCode == http.StatusOK, nil
+			})
 
 			time.Sleep(time.Second * 6)
-
-			_ = s.NewAPISIXClient().GET("/headers").
-				WithHeader("Host", "httpbin.example").
-				Expect().
-				Status(http.StatusOK)
 
 			echoLogs := s.GetDeploymentLogs("echo")
 			Expect(echoLogs).To(ContainSubstring("GET /headers"))
@@ -1554,7 +1531,11 @@ spec:
 			})
 		})
 		It("HTTPRoute Canary", func() {
-			ResourceApplied("HTTPRoute", "httpbin", sameWeight, 1)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, sameWeight, func(_ context.Context) (done bool, err error) {
+				return s.NewAPISIXClient().GET("/get").
+					WithHeader("Host", "httpbin.example").
+					Expect().Raw().StatusCode == http.StatusOK, nil
+			})
 
 			var (
 				hitNginxCnt   = 0
@@ -1575,7 +1556,7 @@ spec:
 			}
 			Expect(hitNginxCnt - hitHttpbinCnt).To(BeNumerically("~", 0, 2))
 
-			ResourceApplied("HTTPRoute", "httpbin", oneWeight, 2)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, oneWeight)
 
 			hitNginxCnt = 0
 			hitHttpbinCnt = 0

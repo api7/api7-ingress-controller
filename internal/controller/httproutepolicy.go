@@ -45,6 +45,16 @@ func (r *HTTPRouteReconciler) processHTTPRoutePolicies(tctx *provider.TranslateC
 		return nil
 	}
 
+	// set namespace in prentRef if it is not set
+	var parentRefs = make([]gatewayv1.ParentReference, len(httpRoute.Spec.ParentRefs))
+	for i := range httpRoute.Spec.ParentRefs {
+		ref := httpRoute.Spec.ParentRefs[i]
+		if ref.Namespace == nil || *ref.Namespace == "" {
+			ref.Namespace = (*gatewayv1.Namespace)(&httpRoute.Namespace)
+		}
+		parentRefs[i] = ref
+	}
+
 	var conflicts = make(map[types.NamespacedName]v1alpha1.HTTPRoutePolicy)
 	for _, rule := range httpRoute.Spec.Rules {
 		var policies = findPoliciesWhichTargetRefTheRule(rule.Name, "HTTPRoute", list)
@@ -70,7 +80,7 @@ func (r *HTTPRouteReconciler) processHTTPRoutePolicies(tctx *provider.TranslateC
 			tctx.HTTPRoutePolicies = append(tctx.HTTPRoutePolicies, policy)
 		}
 
-		if updated := setAncestorsForHTTPRoutePolicyStatus(httpRoute.Spec.ParentRefs, &policy, condition); updated {
+		if updated := setAncestorsForHTTPRoutePolicyStatus(parentRefs, &policy, condition); updated {
 			tctx.StatusUpdaters = append(tctx.StatusUpdaters, &policy)
 		}
 	}
