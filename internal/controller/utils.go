@@ -266,7 +266,7 @@ func SetRouteConditionResolvedRefs(routeParentStatus *gatewayv1.RouteParentStatu
 
 	condition := metav1.Condition{
 		Type:               string(gatewayv1.RouteConditionResolvedRefs),
-		Status:             ConditionStatus(status == metav1.ConditionTrue),
+		Status:             status,
 		Reason:             reason,
 		ObservedGeneration: generation,
 		Message:            message,
