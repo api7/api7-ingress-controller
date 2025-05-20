@@ -17,7 +17,7 @@ spec:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: PluginConfig is the Schema for the PluginConfigs API
+        description: PluginConfig is the Schema for the PluginConfigs API.
         properties:
           apiVersion:
             description: |-
@@ -37,16 +37,20 @@ spec:
           metadata:
             type: object
           spec:
-            description: PluginConfigSpec defines the desired state of PluginConfig
+            description: |-
+              PluginConfigSpec defines the desired state of a PluginConfig,
+              in which plugins and their configurations are specified.
             properties:
               plugins:
+                description: Plugins are an array of plugins and their configurations
+                  to be applied.
                 items:
                   properties:
                     config:
-                      description: Plugin configuration.
+                      description: Config is plugin configuration details.
                       x-kubernetes-preserve-unknown-fields: true
                     name:
-                      description: The plugin name.
+                      description: Name is the name of the plugin.
                       type: string
                   required:
                   - name

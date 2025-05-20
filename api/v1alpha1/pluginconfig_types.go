@@ -22,22 +22,25 @@ import (
 
 // +kubebuilder:object:root=true
 
-// PluginConfig is the Schema for the PluginConfigs API
+// PluginConfig is the Schema for the PluginConfigs API.
 type PluginConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// PluginConfigSpec defines the desired state of a PluginConfig,
+	// in which plugins and their configurations are specified.
 	Spec PluginConfigSpec `json:"spec,omitempty"`
 }
 
-// PluginConfigSpec defines the desired state of PluginConfig
+// PluginConfigSpec defines the desired state of PluginConfig.
 type PluginConfigSpec struct {
+	// Plugins are an array of plugins and their configurations to be applied.
 	Plugins []Plugin `json:"plugins"`
 }
 
 // +kubebuilder:object:root=true
 
-// PluginConfigList contains a list of PluginConfig
+// PluginConfigList contains a list of PluginConfig.
 type PluginConfigList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
@@ -45,9 +48,9 @@ type PluginConfigList struct {
 }
 
 type Plugin struct {
-	// The plugin name.
+	// Name is the name of the plugin.
 	Name string `json:"name" yaml:"name"`
-	// Plugin configuration.
+	// Config is plugin configuration details.
 	Config apiextensionsv1.JSON `json:"config,omitempty" yaml:"config,omitempty"`
 }
 

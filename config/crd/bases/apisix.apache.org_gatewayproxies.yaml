@@ -17,7 +17,7 @@ spec:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: GatewayProxy is the Schema for the gatewayproxies API
+        description: GatewayProxy is the Schema for the gatewayproxies API.
         properties:
           apiVersion:
             description: |-
@@ -37,55 +37,64 @@ spec:
           metadata:
             type: object
           spec:
-            description: GatewayProxySpec defines the desired state of GatewayProxy
+            description: |-
+              GatewayProxySpec defines the desired state and configuration of a GatewayProxy,
+              including networking settings, global plugins, and plugin metadata.
             properties:
               pluginMetadata:
                 additionalProperties:
                   x-kubernetes-preserve-unknown-fields: true
+                description: PluginMetadata configures common configurations shared
+                  by all plugin instances of the same name.
                 type: object
               plugins:
+                description: Plugins configure global plugins.
                 items:
+                  description: GatewayProxyPlugin contains plugin configurations.
                   properties:
                     config:
+                      description: Config defines the plugin's configuration details.
                       x-kubernetes-preserve-unknown-fields: true
                     enabled:
+                      description: Enabled defines whether the plugin is enabled.
                       type: boolean
                     name:
+                      description: Name is the name of the plugin.
                       type: string
                   type: object
                 type: array
               provider:
-                description: GatewayProxyProvider defines the provider configuration
-                  for GatewayProxy
+                description: Provider configures the provider details.
                 properties:
                   controlPlane:
                     description: ControlPlane specifies the configuration for control
-                      plane provider
+                      plane provider.
                     properties:
                       auth:
-                        description: Auth specifies the authentication configuration
+                        description: Auth specifies the authentication configurations.
                         properties:
                           adminKey:
                             description: AdminKey specifies the admin key authentication
-                              configuration
+                              configuration.
                             properties:
                               value:
-                                description: Value specifies the admin key value directly
-                                  (not recommended for production)
+                                description: Value sets the admin key value explicitly
+                                  (not recommended for production).
                                 type: string
                               valueFrom:
                                 description: ValueFrom specifies the source of the
-                                  admin key
+                                  admin key.
                                 properties:
                                   secretKeyRef:
                                     description: SecretKeyRef references a key in
-                                      a Secret
+                                      a Secret.
                                     properties:
                                       key:
                                         description: Key is the key in the secret
+                                          to retrieve the secret from.
                                         type: string
                                       name:
-                                        description: Name is the name of the secret
+                                        description: Name is the name of the secret.
                                         type: string
                                     required:
                                     - key
@@ -94,7 +103,9 @@ spec:
                                 type: object
                             type: object
                           type:
-                            description: Type specifies the type of authentication
+                            description: |-
+                              Type specifies the type of authentication.
+                              Can only be `AdminKey`.
                             enum:
                             - AdminKey
                             type: string
@@ -103,21 +114,22 @@ spec:
                         type: object
                       endpoints:
                         description: Endpoints specifies the list of control plane
-                          endpoints
+                          endpoints.
                         items:
                           type: string
                         minItems: 1
                         type: array
                       tlsVerify:
                         description: TlsVerify specifies whether to verify the TLS
-                          certificate of the control plane
+                          certificate of the control plane.
                         type: boolean
                     required:
                     - auth
                     - endpoints
                     type: object
                   type:
-                    description: Type specifies the type of provider
+                    description: Type specifies the type of provider. Can only be
+                      `ControlPlane`.
                     enum:
                     - ControlPlane
                     type: string
@@ -129,8 +141,14 @@ spec:
                   rule: 'self.type == ''ControlPlane'' ? has(self.controlPlane) :
                     true'
               publishService:
+                description: |-
+                  PublishService specifies the LoadBalancer-type Service whose external address the controller uses to
+                  update the status of Ingress resources.
                 type: string
               statusAddress:
+                description: |-
+                  StatusAddress specifies the external IP addresses that the controller uses to populate the status field
+                  of GatewayProxy or Ingress resources for developers to access.
                 items:
                   type: string
                 type: array
