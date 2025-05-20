@@ -25,9 +25,9 @@ type HTTPRoutePolicySpec struct {
 	// +kubebuilder:validation:MaxItems=16
 	TargetRefs []gatewayv1alpha2.LocalPolicyTargetReferenceWithSectionName `json:"targetRefs"`
 	// Priority sets the priority for route. A higher value sets a higher priority in route matching.
-	Priority *int64                 `json:"priority,omitempty" yaml:"priority,omitempty"`
+	Priority *int64 `json:"priority,omitempty" yaml:"priority,omitempty"`
 	// Vars sets the request matching conditions.
-	Vars     []apiextensionsv1.JSON `json:"vars,omitempty" yaml:"vars,omitempty"`
+	Vars []apiextensionsv1.JSON `json:"vars,omitempty" yaml:"vars,omitempty"`
 }
 
 // +kubebuilder:object:root=true

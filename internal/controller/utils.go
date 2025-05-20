@@ -47,6 +47,7 @@ const (
 	KindIngressClass = "IngressClass"
 	KindGatewayProxy = "GatewayProxy"
 	KindSecret       = "Secret"
+	KindService      = "Service"
 )
 
 const defaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
@@ -244,33 +245,22 @@ func SetRouteConditionAccepted(routeParentStatus *gatewayv1.RouteParentStatus, g
 
 // SetRouteConditionResolvedRefs sets the ResolvedRefs condition with proper reason based on error type
 func SetRouteConditionResolvedRefs(routeParentStatus *gatewayv1.RouteParentStatus, generation int64, err error) {
-	var (
-		reason  string
-		status  = metav1.ConditionTrue
-		message = "backendRefs are resolved"
-	)
-
-	if err != nil {
-		status = metav1.ConditionFalse
-		message = err.Error()
-		reason = string(gatewayv1.RouteReasonResolvedRefs)
-
-		if IsInvalidKindError(err) {
-			reason = string(gatewayv1.RouteReasonInvalidKind)
-		} else if IsBackendNotFoundError(err) {
-			reason = string(gatewayv1.RouteReasonBackendNotFound)
-		}
-	} else {
-		reason = string(gatewayv1.RouteReasonResolvedRefs)
+	var condition = metav1.Condition{
+		Type:               string(gatewayv1.RouteConditionResolvedRefs),
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: generation,
+		LastTransitionTime: metav1.Now(),
+		Reason:             string(gatewayv1.RouteReasonResolvedRefs),
+		Message:            "backendRefs are resolved",
 	}
 
-	condition := metav1.Condition{
-		Type:               string(gatewayv1.RouteConditionResolvedRefs),
-		Status:             status,
-		Reason:             reason,
-		ObservedGeneration: generation,
-		Message:            message,
-		LastTransitionTime: metav1.Now(),
+	if err != nil {
+		condition.Status = metav1.ConditionFalse
+		condition.Message = err.Error()
+
+		if re := new(ReasonError); errors.As(err, &re) {
+			condition.Reason = re.Reason
+		}
 	}
 
 	if !IsConditionPresentAndEqual(routeParentStatus.Conditions, condition) {
@@ -914,50 +904,34 @@ func FullTypeName(a any) string {
 	return path.Join(path.Dir(pkgPath), name)
 }
 
-// InvalidKindError represents an error when backend reference kind is not supported
-type InvalidKindError struct {
-	Kind string
+type ReasonError struct {
+	Reason  string
+	Message string
 }
 
-// Error implements the error interface
-func (e *InvalidKindError) Error() string {
-	return fmt.Sprintf("%s %s", string(gatewayv1.RouteReasonInvalidKind), e.Kind)
+func (e ReasonError) Error() string {
+	return e.Message
 }
 
-// NewInvalidKindError creates a new InvalidKindError
-func NewInvalidKindError(kind string) *InvalidKindError {
-	return &InvalidKindError{Kind: kind}
-}
-
-// IsInvalidKindError checks if the error is an InvalidKindError
-func IsInvalidKindError(err error) bool {
-	_, ok := err.(*InvalidKindError)
-	return ok
-}
-
-// BackendNotFoundError represents an error when a backend service is not found
-type BackendNotFoundError struct {
-	Name      string
-	Namespace string
-}
-
-// Error implements the error interface
-func (e *BackendNotFoundError) Error() string {
-	return fmt.Sprintf("Service %s/%s not found", e.Namespace, e.Name)
-}
-
-// NewBackendNotFoundError creates a new BackendNotFoundError
-func NewBackendNotFoundError(namespace, name string) *BackendNotFoundError {
-	return &BackendNotFoundError{
-		Name:      name,
-		Namespace: namespace,
+func IsSomeReasonError[Reason ~string](err error, reasons ...Reason) bool {
+	if err == nil {
+		return false
 	}
+	var re = new(ReasonError)
+	if !errors.As(err, &re) {
+		return false
+	}
+	if len(reasons) == 0 {
+		return true
+	}
+	return slices.Contains(reasons, Reason(re.Reason))
 }
 
-// IsBackendNotFoundError checks if the error is a BackendNotFoundError
-func IsBackendNotFoundError(err error) bool {
-	_, ok := err.(*BackendNotFoundError)
-	return ok
+func newInvalidKindError[Kind ~string](kind Kind) *ReasonError {
+	return &ReasonError{
+		Reason:  string(gatewayv1.RouteReasonInvalidKind),
+		Message: fmt.Sprintf("Invalid kind %s, only Service is supported", kind),
+	}
 }
 
 // filterHostnames accepts a list of gateways and an HTTPRoute, and returns a copy of the HTTPRoute with only the hostnames that match the listener hostnames of the gateways.
