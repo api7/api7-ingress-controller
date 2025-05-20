@@ -38,7 +38,7 @@ spec:
             type: object
           spec:
             description: |-
-              HTTPRoutePolicySpec defines the defines the desired state and configuration of a HTTPRoutePolicy,
+              HTTPRoutePolicySpec defines the desired state and configuration of a HTTPRoutePolicy,
               including route priority and request matching conditions.
             properties:
               priority:

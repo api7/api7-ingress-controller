@@ -79,7 +79,7 @@ HTTPRoutePolicy is the Schema for the httproutepolicies API.
 | `apiVersion` _string_ | `apisix.apache.org/v1alpha1`
 | `kind` _string_ | `HTTPRoutePolicy`
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#objectmeta-v1-meta)_ | Please refer to the Kubernetes API documentation for details on the `metadata` field. |
-| `spec` _[HTTPRoutePolicySpec](#httproutepolicyspec)_ | HTTPRoutePolicySpec defines the defines the desired state and configuration of a HTTPRoutePolicy, including route priority and request matching conditions. |
+| `spec` _[HTTPRoutePolicySpec](#httproutepolicyspec)_ | HTTPRoutePolicySpec defines the desired state and configuration of a HTTPRoutePolicy, including route priority and request matching conditions. |
 
 
 
