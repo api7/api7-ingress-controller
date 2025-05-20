@@ -742,8 +742,8 @@ spec:
 
 			err = framework.PollUntilHTTPRoutePolicyHaveStatus(s.K8sClient, 8*time.Second,
 				types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-0"},
-				func(_ v1alpha1.HTTPRoutePolicy, status v1alpha1.PolicyStatus) bool {
-					return len(status.Ancestors) == 0
+				func(hrp *v1alpha1.HTTPRoutePolicy) bool {
+					return len(hrp.Status.Ancestors) == 0
 				},
 			)
 			Expect(err).NotTo(HaveOccurred(), "expected HTTPRoutePolicy.Status has no Ancestor")

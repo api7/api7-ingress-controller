@@ -812,3 +812,7 @@ func (s *Scaffold) GetGatewayGroupHTTPSEndpoint(gatewayGroupID string) (string, 
 func (s *Scaffold) CurrentGatewayGroupID() string {
 	return s.gatewaygroupid
 }
+
+func (s *Scaffold) KubectlOpts() *k8s.KubectlOptions {
+	return s.kubectlOptions
+}

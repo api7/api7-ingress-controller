@@ -26,6 +26,7 @@ import (
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 
@@ -1046,8 +1047,8 @@ spec:
 			s.Logf(message)
 
 			err = framework.PollUntilHTTPRoutePolicyHaveStatus(s.K8sClient, 8*time.Second, types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-0"},
-				func(_ v1alpha1.HTTPRoutePolicy, status v1alpha1.PolicyStatus) bool {
-					return len(status.Ancestors) == 0
+				func(hrp *v1alpha1.HTTPRoutePolicy) bool {
+					return len(hrp.Status.Ancestors) == 0
 				},
 			)
 			Expect(err).NotTo(HaveOccurred(), "HTPRoutePolicy.Status should has no ancestor")
@@ -1320,7 +1321,11 @@ spec:
 
 		It("HTTPRoute RequestRedirect", func() {
 			By("create HTTPRoute")
-			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, httpsRedirectByHeaders)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, httpsRedirectByHeaders, func(_ context.Context) (done bool, err error) {
+				return s.NewAPISIXClient().GET("/headers").
+					WithHeader("Host", "httpbin.example").
+					Expect().Raw().Header.Get("Location") == "https://httpbin.example:9443/headers", nil
+			})
 
 			s.NewAPISIXClient().GET("/headers").
 				WithHeader("Host", "httpbin.example").
@@ -1329,7 +1334,11 @@ spec:
 				Header("Location").IsEqual("https://httpbin.example:9443/headers")
 
 			By("update HTTPRoute")
-			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, hostnameRedirectByHeaders)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, hostnameRedirectByHeaders, func(_ context.Context) (done bool, err error) {
+				return s.NewAPISIXClient().GET("/headers").
+					WithHeader("Host", "httpbin.example").
+					Expect().Raw().Header.Get("Location") == "http://httpbin.org/headers", nil
+			})
 
 			s.NewAPISIXClient().GET("/headers").
 				WithHeader("Host", "httpbin.example").
@@ -1339,7 +1348,7 @@ spec:
 		})
 
 		It("HTTPRoute RequestMirror", func() {
-			echoRoute := `
+			const echoService = `
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -1372,7 +1381,9 @@ spec:
     port: 80
     protocol: TCP
     targetPort: 8080
----
+`
+
+			const echoRoute = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -1397,13 +1408,22 @@ spec:
     - name: httpbin-service-e2e-test
       port: 80
 `
+			// apply echo server Deployment and Service
+			err := s.CreateResourceFromString(echoService)
+			Expect(err).NotTo(HaveOccurred(), "create echo service")
+			err = framework.WaitPodsAvailable(s.GinkgoT, s.KubectlOpts(), metav1.ListOptions{
+				LabelSelector:  "app=echo",
+				TimeoutSeconds: ptr.To(int64(10)),
+			})
+			Expect(err).NotTo(HaveOccurred(), "wait for echo available")
+
 			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, echoRoute, func(_ context.Context) (done bool, err error) {
 				return s.NewAPISIXClient().GET("/headers").
 					WithHeader("Host", "httpbin.example").
 					Expect().Raw().StatusCode == http.StatusOK, nil
 			})
 
-			time.Sleep(time.Second * 6)
+			time.Sleep(time.Second)
 
 			echoLogs := s.GetDeploymentLogs("echo")
 			Expect(echoLogs).To(ContainSubstring("GET /headers"))
@@ -1564,6 +1584,20 @@ spec:
 			Expect(hitNginxCnt - hitHttpbinCnt).To(BeNumerically("~", 0, 2))
 
 			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, oneWeight)
+
+			var cnt int
+			for cnt < 5 {
+				body := s.NewAPISIXClient().GET("/get").
+					WithHeader("Host", "httpbin.example").
+					Expect().
+					Status(http.StatusOK).
+					Body().Raw()
+				if strings.Contains(body, "Hello") {
+					cnt = 0
+				} else {
+					cnt++
+				}
+			}
 
 			hitNginxCnt = 0
 			hitHttpbinCnt = 0
