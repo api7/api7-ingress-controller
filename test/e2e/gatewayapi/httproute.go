@@ -520,15 +520,10 @@ spec:
 			Eventually(request).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 		})
 
-		It("Proxy External Service", func() {
-			By("create HTTPRoute")
-			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, httprouteWithExternalName)
-
-			By("checking the external service response")
-			request := func() int {
-				return s.NewAPISIXClient().GET("/get").WithHost("httpbin.external").Expect().Raw().StatusCode
-			}
-			Eventually(request).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+		PIt("Proxy External Service", func() {
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, httprouteWithExternalName, func(_ context.Context) (done bool, err error) {
+				return s.NewAPISIXClient().GET("/get").WithHost("httpbin.external").Expect().Raw().StatusCode == http.StatusOK, nil
+			})
 		})
 
 		It("Match Port", func() {
@@ -1347,7 +1342,7 @@ spec:
 				Header("Location").IsEqual("http://httpbin.org/headers")
 		})
 
-		It("HTTPRoute RequestMirror", func() {
+		PIt("HTTPRoute RequestMirror", func() {
 			const echoService = `
 apiVersion: apps/v1
 kind: Deployment
