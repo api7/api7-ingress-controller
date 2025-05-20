@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,6 +32,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	"sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	"github.com/api7/gopkg/pkg/log"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
@@ -182,11 +183,6 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			msg:    err.Error(),
 		}
 	}
-	setAccepted := SetGatewayConditionAccepted(gateway, acceptStatus.status, acceptStatus.msg)
-	setProgrammed := SetGatewayConditionProgrammed(gateway, conditionProgrammedStatus, conditionProgrammedMsg)
-	if !acceptStatus.status {
-		return ctrl.Result{}, r.Status().Update(ctx, gateway)
-	}
 
 	var referenceGrantList v1beta1.ReferenceGrantList
 	if err := r.List(ctx, &referenceGrantList); err != nil {
@@ -199,7 +195,9 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	if setAccepted || setProgrammed || len(addrs) > 0 || len(listenerStatuses) > 0 {
+	accepted := SetGatewayConditionAccepted(gateway, acceptStatus.status, acceptStatus.msg)
+	programmed := SetGatewayConditionProgrammed(gateway, conditionProgrammedStatus, conditionProgrammedMsg)
+	if accepted || programmed || len(addrs) > 0 || len(listenerStatuses) > 0 {
 		if len(addrs) > 0 {
 			gateway.Status.Addresses = addrs
 		}
