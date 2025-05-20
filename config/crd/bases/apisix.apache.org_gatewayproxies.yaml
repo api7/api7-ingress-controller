@@ -103,7 +103,9 @@ spec:
                                 type: object
                             type: object
                           type:
-                            description: Type specifies the type of authentication.
+                            description: |-
+                              Type specifies the type of authentication.
+                              Can only be `AdminKey`.
                             enum:
                             - AdminKey
                             type: string
@@ -126,7 +128,8 @@ spec:
                     - endpoints
                     type: object
                   type:
-                    description: Type specifies the type of provider.
+                    description: Type specifies the type of provider. Can only be
+                      `ControlPlane`.
                     enum:
                     - ControlPlane
                     type: string

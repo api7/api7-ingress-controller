@@ -79,7 +79,7 @@ HTTPRoutePolicy is the Schema for the httproutepolicies API.
 | `apiVersion` _string_ | `apisix.apache.org/v1alpha1`
 | `kind` _string_ | `HTTPRoutePolicy`
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#objectmeta-v1-meta)_ | Please refer to the Kubernetes API documentation for details on the `metadata` field. |
-| `spec` _[HTTPRoutePolicySpec](#httproutepolicyspec)_ |  |
+| `spec` _[HTTPRoutePolicySpec](#httproutepolicyspec)_ | HTTPRoutePolicySpec defines the defines the desired state and configuration of a HTTPRoutePolicy, including route priority and request matching conditions. |
 
 
 
@@ -95,7 +95,7 @@ PluginConfig is the Schema for the PluginConfigs API.
 | `apiVersion` _string_ | `apisix.apache.org/v1alpha1`
 | `kind` _string_ | `PluginConfig`
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#objectmeta-v1-meta)_ | Please refer to the Kubernetes API documentation for details on the `metadata` field. |
-| `spec` _[PluginConfigSpec](#pluginconfigspec)_ |  |
+| `spec` _[PluginConfigSpec](#pluginconfigspec)_ | PluginConfigSpec defines the desired state of a PluginConfig, in which plugins and their configurations are specified. |
 
 
 
@@ -174,10 +174,10 @@ _Appears in:_
 | --- | --- |
 | `targetRefs` _[BackendPolicyTargetReferenceWithSectionName](#backendpolicytargetreferencewithsectionname) array_ | TargetRef identifies an API object to apply policy to. Currently, Backends (i.e. Service, ServiceImport, or any implementation-specific backendRef) are the only valid API target references. |
 | `loadbalancer` _[LoadBalancer](#loadbalancer)_ | LoadBalancer represents the load balancer configuration for Kubernetes Service. The default strategy is round robin. |
-| `scheme` _string_ | Scheme is the protocol used to communicate with the upstream. Can be one of `http`, `https`, `grpc`, or `grpcs`. |
+| `scheme` _string_ | Scheme is the protocol used to communicate with the upstream. Default is `http`. Can be one of `http`, `https`, `grpc`, or `grpcs`. |
 | `retries` _integer_ | Retries specify the number of times the gateway should retry sending requests when errors such as timeouts or 502 errors occur. |
 | `timeout` _[Timeout](#timeout)_ | Timeout sets the read, send, and connect timeouts to the upstream. |
-| `passHost` _string_ | PassHost configures how the host header should be determined when a request is forwarded to the upstream. Can be one of `pass`, `node` or `rewrite`. |
+| `passHost` _string_ | PassHost configures how the host header should be determined when a request is forwarded to the upstream. Default is `pass`. Can be one of `pass`, `node` or `rewrite`. |
 | `upstreamHost` _[Hostname](#hostname)_ | UpstreamHost specifies the host of the Upstream request. Used only if passHost is set to `rewrite`. |
 
 
@@ -210,7 +210,7 @@ ControlPlaneAuth defines the authentication configuration for control plane.
 
 | Field | Description |
 | --- | --- |
-| `type` _[AuthType](#authtype)_ | Type specifies the type of authentication. |
+| `type` _[AuthType](#authtype)_ | Type specifies the type of authentication. Can only be `AdminKey`. |
 | `adminKey` _[AdminKeyAuth](#adminkeyauth)_ | AdminKey specifies the admin key authentication configuration. |
 
 
@@ -278,7 +278,7 @@ GatewayProxyProvider defines the provider configuration for GatewayProxy.
 
 | Field | Description |
 | --- | --- |
-| `type` _[ProviderType](#providertype)_ | Type specifies the type of provider. |
+| `type` _[ProviderType](#providertype)_ | Type specifies the type of provider. Can only be `ControlPlane`. |
 | `controlPlane` _[ControlPlaneProvider](#controlplaneprovider)_ | ControlPlane specifies the configuration for control plane provider. |
 
 
@@ -314,8 +314,8 @@ _Appears in:_
 | Field | Description |
 | --- | --- |
 | `name` _string_ | Name is the name of the gateway. |
-| `kind` _string_ | Kind is the type of Kubernetes object. Default to `Gateway`. |
-| `group` _string_ | Group is the API group the resource belongs to. Default to `gateway.networking.k8s.io`. |
+| `kind` _string_ | Kind is the type of Kubernetes object. Default is `Gateway`. |
+| `group` _string_ | Group is the API group the resource belongs to. Default is `gateway.networking.k8s.io`. |
 | `namespace` _string_ | Namespace is namespace of the resource. |
 
 
@@ -360,8 +360,8 @@ LoadBalancer describes the load balancing parameters.
 
 | Field | Description |
 | --- | --- |
-| `type` _string_ | Type specifies the load balancing algorithms. Can be one of `roundrobin`, `chash`, `ewma`, or `least_conn`. |
-| `hashOn` _string_ | HashOn specified the type of field used for hashing, required when Type is `chash`. Can be one of `vars`, `header`, `cookie`, `consumer`, or `vars_combinations`. |
+| `type` _string_ | Type specifies the load balancing algorithms. Default is `roundrobin`. Can be one of `roundrobin`, `chash`, `ewma`, or `least_conn`. |
+| `hashOn` _string_ | HashOn specified the type of field used for hashing, required when Type is `chash`. Default is `vars`. Can be one of `vars`, `header`, `cookie`, `consumer`, or `vars_combinations`. |
 | `key` _string_ | Key is used with HashOn, generally required when Type is `chash`. When HashOn is `header` or `cookie`, specifies the name of the header or cookie. When HashOn is `consumer`, key is not required, as the consumer name is used automatically. When HashOn is `vars` or `vars_combinations`, key refers to one or a combination of [built-in variables](/enterprise/reference/built-in-variables). |
 
 

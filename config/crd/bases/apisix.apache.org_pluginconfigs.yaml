@@ -37,7 +37,9 @@ spec:
           metadata:
             type: object
           spec:
-            description: PluginConfigSpec defines the desired state of PluginConfig.
+            description: |-
+              PluginConfigSpec defines the desired state of a PluginConfig,
+              in which plugins and their configurations are specified.
             properties:
               plugins:
                 description: Plugins are an array of plugins and their configurations

@@ -42,6 +42,8 @@ type HTTPRoutePolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// HTTPRoutePolicySpec defines the defines the desired state and configuration of a HTTPRoutePolicy,
+	// including route priority and request matching conditions.
 	Spec   HTTPRoutePolicySpec `json:"spec,omitempty"`
 	Status PolicyStatus        `json:"status,omitempty"`
 }

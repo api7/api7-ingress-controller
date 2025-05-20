@@ -15,6 +15,8 @@ type PluginConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// PluginConfigSpec defines the desired state of a PluginConfig,
+	// in which plugins and their configurations are specified.
 	Spec PluginConfigSpec `json:"spec,omitempty"`
 }
 

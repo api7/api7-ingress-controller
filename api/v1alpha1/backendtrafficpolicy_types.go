@@ -28,6 +28,7 @@ type BackendTrafficPolicySpec struct {
 	// The default strategy is round robin.
 	LoadBalancer *LoadBalancer `json:"loadbalancer,omitempty" yaml:"loadbalancer,omitempty"`
 	// Scheme is the protocol used to communicate with the upstream.
+	// Default is `http`.
 	// Can be one of `http`, `https`, `grpc`, or `grpcs`.
 	// +kubebuilder:validation:Enum=http;https;grpc;grpcs;
 	// +kubebuilder:default=http
@@ -43,6 +44,7 @@ type BackendTrafficPolicySpec struct {
 
 	// PassHost configures how the host header should be determined when a
 	// request is forwarded to the upstream.
+	// Default is `pass`.
 	// Can be one of `pass`, `node` or `rewrite`.
 	//
 	// +kubebuilder:validation:Enum=pass;node;rewrite;
@@ -58,12 +60,14 @@ type BackendTrafficPolicySpec struct {
 // +kubebuilder:validation:XValidation:rule="!(has(self.key) && self.type != 'chash')"
 type LoadBalancer struct {
 	// Type specifies the load balancing algorithms.
+	// Default is `roundrobin`.
 	// Can be one of `roundrobin`, `chash`, `ewma`, or `least_conn`.
 	// +kubebuilder:validation:Enum=roundrobin;chash;ewma;least_conn;
 	// +kubebuilder:default=roundrobin
 	// +kubebuilder:validation:Required
 	Type string `json:"type" yaml:"type"`
 	// HashOn specified the type of field used for hashing, required when Type is `chash`.
+	// Default is `vars`.
 	// Can be one of `vars`, `header`, `cookie`, `consumer`, or `vars_combinations`.
 	// +kubebuilder:validation:Enum=vars;header;cookie;consumer;vars_combinations;
 	// +kubebuilder:default=vars

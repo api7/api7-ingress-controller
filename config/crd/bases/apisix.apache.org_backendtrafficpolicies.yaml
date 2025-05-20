@@ -49,6 +49,7 @@ spec:
                     default: vars
                     description: |-
                       HashOn specified the type of field used for hashing, required when Type is `chash`.
+                      Default is `vars`.
                       Can be one of `vars`, `header`, `cookie`, `consumer`, or `vars_combinations`.
                     enum:
                     - vars
@@ -69,6 +70,7 @@ spec:
                     default: roundrobin
                     description: |-
                       Type specifies the load balancing algorithms.
+                      Default is `roundrobin`.
                       Can be one of `roundrobin`, `chash`, `ewma`, or `least_conn`.
                     enum:
                     - roundrobin
@@ -86,6 +88,7 @@ spec:
                 description: |-
                   PassHost configures how the host header should be determined when a
                   request is forwarded to the upstream.
+                  Default is `pass`.
                   Can be one of `pass`, `node` or `rewrite`.
                 enum:
                 - pass
@@ -101,6 +104,7 @@ spec:
                 default: http
                 description: |-
                   Scheme is the protocol used to communicate with the upstream.
+                  Default is `http`.
                   Can be one of `http`, `https`, `grpc`, or `grpcs`.
                 enum:
                 - http

@@ -31,10 +31,10 @@ type GatewayRef struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
-	// Kind is the type of Kubernetes object. Default to `Gateway`.
+	// Kind is the type of Kubernetes object. Default is `Gateway`.
 	// +kubebuilder:default=Gateway
 	Kind *string `json:"kind,omitempty"`
-	// Group is the API group the resource belongs to. Default to `gateway.networking.k8s.io`.
+	// Group is the API group the resource belongs to. Default is `gateway.networking.k8s.io`.
 	// +kubebuilder:default=gateway.networking.k8s.io
 	Group     *string `json:"group,omitempty"`
 	// Namespace is namespace of the resource.

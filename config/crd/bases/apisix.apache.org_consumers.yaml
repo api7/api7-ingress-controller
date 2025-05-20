@@ -83,11 +83,11 @@ spec:
                   group:
                     default: gateway.networking.k8s.io
                     description: Group is the API group the resource belongs to. Default
-                      to `gateway.networking.k8s.io`.
+                      is `gateway.networking.k8s.io`.
                     type: string
                   kind:
                     default: Gateway
-                    description: Kind is the type of Kubernetes object. Default to
+                    description: Kind is the type of Kubernetes object. Default is
                       `Gateway`.
                     type: string
                   name:
