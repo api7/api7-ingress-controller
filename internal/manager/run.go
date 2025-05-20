@@ -19,7 +19,9 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/utils/ptr"
@@ -29,6 +31,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	"sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
@@ -46,6 +49,9 @@ func init() {
 		panic(err)
 	}
 	if err := v1alpha1.AddToScheme(scheme); err != nil {
+		panic(err)
+	}
+	if err := v1beta1.Install(scheme); err != nil {
 		panic(err)
 	}
 	// +kubebuilder:scaffold:scheme
@@ -176,6 +182,14 @@ func Run(ctx context.Context, logger logr.Logger) error {
 	if err != nil {
 		setupLog.Error(err, "unable to set up controllers")
 		return err
+	}
+	if _, err = mgr.GetRESTMapper().KindsFor(schema.GroupVersionResource{
+		Group:    v1beta1.GroupVersion.Group,
+		Version:  v1beta1.GroupVersion.Version,
+		Resource: "referencegrants",
+	}); err != nil {
+		logger.Error(err, "CRD ReferenceGrants is not installed")
+		return errors.Wrap(err, "CRD ReferenceGrants is not installed")
 	}
 	for _, c := range controllers {
 		if err := c.SetupWithManager(mgr); err != nil {

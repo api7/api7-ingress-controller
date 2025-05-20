@@ -25,9 +25,6 @@ var skippedTestsForSSL = []string{
 }
 
 var skippedTestsForTraditionalRoutes = []string{
-	// TODO: Support ReferenceGrant resource
-	tests.GatewaySecretInvalidReferenceGrant.ShortName,
-	tests.GatewaySecretMissingReferenceGrant.ShortName,
 	tests.HTTPRouteInvalidCrossNamespaceBackendRef.ShortName,
 	tests.HTTPRouteInvalidReferenceGrant.ShortName,
 	tests.HTTPRoutePartiallyInvalidViaInvalidReferenceGrant.ShortName,
