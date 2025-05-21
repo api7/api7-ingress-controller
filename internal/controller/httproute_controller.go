@@ -470,10 +470,11 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 					Kind:      KindHTTPRoute,
 					Namespace: v1beta1.Namespace(hrNN.Namespace),
 				},
-				v1beta1.ReferenceGrantTo{
-					Group: corev1.GroupName,
-					Kind:  KindService,
-					Name:  (*gatewayv1.ObjectName)(&targetNN.Name),
+				gatewayv1.ObjectReference{
+					Group:     corev1.GroupName,
+					Kind:      KindService,
+					Name:      gatewayv1.ObjectName(targetNN.Name),
+					Namespace: (*gatewayv1.Namespace)(&targetNN.Namespace),
 				},
 				referenceGrantList.Items,
 			); !permitted {

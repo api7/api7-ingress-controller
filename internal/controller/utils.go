@@ -739,28 +739,26 @@ func getListenerStatus(
 					conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
 					break
 				}
-				// if cross namespaces, check if the Gateway has the permission to access the Secret
-				if ref.Namespace != nil && string(*ref.Namespace) != gateway.Namespace {
-					if permitted := checkReferenceGrant(
-						v1beta1.ReferenceGrantFrom{
-							Group:     gatewayv1.GroupName,
-							Kind:      KindGateway,
-							Namespace: v1beta1.Namespace(gateway.Namespace),
-						},
-						v1beta1.ReferenceGrantTo{
-							Group: corev1.GroupName,
-							Kind:  KindSecret,
-							Name:  &ref.Name,
-						},
-						grants,
-					); !permitted {
-						conditionResolvedRefs.Status = metav1.ConditionFalse
-						conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonRefNotPermitted)
-						conditionResolvedRefs.Message = "certificateRefs cross namespaces is not permitted"
-						conditionProgrammed.Status = metav1.ConditionFalse
-						conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
-						break
-					}
+				if permitted := checkReferenceGrant(
+					v1beta1.ReferenceGrantFrom{
+						Group:     gatewayv1.GroupName,
+						Kind:      KindGateway,
+						Namespace: v1beta1.Namespace(gateway.Namespace),
+					},
+					gatewayv1.ObjectReference{
+						Group:     corev1.GroupName,
+						Kind:      KindSecret,
+						Name:      ref.Name,
+						Namespace: ref.Namespace,
+					},
+					grants,
+				); !permitted {
+					conditionResolvedRefs.Status = metav1.ConditionFalse
+					conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonRefNotPermitted)
+					conditionResolvedRefs.Message = "certificateRefs cross namespaces is not permitted"
+					conditionProgrammed.Status = metav1.ConditionFalse
+					conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
+					break
 				}
 
 				secretNN := types.NamespacedName{
@@ -1109,16 +1107,21 @@ func referenceGrantPredicates(kind gatewayv1.Kind) predicate.Funcs {
 	return predicates
 }
 
-func checkReferenceGrant(from v1beta1.ReferenceGrantFrom, to v1beta1.ReferenceGrantTo, grants []v1beta1.ReferenceGrant) bool {
+func checkReferenceGrant(obj v1beta1.ReferenceGrantFrom, ref gatewayv1.ObjectReference, grants []v1beta1.ReferenceGrant) bool {
+	if ref.Namespace == nil || *ref.Namespace == obj.Namespace {
+		return true
+	}
 	for _, grant := range grants {
-		grantFrom := slices.ContainsFunc(grant.Spec.From, func(item v1beta1.ReferenceGrantFrom) bool {
-			return item == from
-		})
-		grantTo := slices.ContainsFunc(grant.Spec.To, func(item v1beta1.ReferenceGrantTo) bool {
-			return item.Group == to.Group && item.Kind == to.Kind && to.Name != nil && (item.Name == nil || *item.Name == *to.Name)
-		})
-		if grantFrom && grantTo {
-			return true
+		if grant.Namespace == string(*ref.Namespace) {
+			for _, from := range grant.Spec.From {
+				if obj == from {
+					for _, to := range grant.Spec.To {
+						if to.Group == ref.Group && to.Kind == ref.Kind && (to.Name == nil || *to.Name == ref.Name) {
+							return true
+						}
+					}
+				}
+			}
 		}
 	}
 	return false
