@@ -741,7 +741,7 @@ func getListenerStatus(
 				}
 				// if cross namespaces, check if the Gateway has the permission to access the Secret
 				if ref.Namespace != nil && string(*ref.Namespace) != gateway.Namespace {
-					if ok := checkReferenceGrant(
+					if permitted := checkReferenceGrant(
 						v1beta1.ReferenceGrantFrom{
 							Group:     gatewayv1.GroupName,
 							Kind:      KindGateway,
@@ -753,7 +753,7 @@ func getListenerStatus(
 							Name:  &ref.Name,
 						},
 						grants,
-					); !ok {
+					); !permitted {
 						conditionResolvedRefs.Status = metav1.ConditionFalse
 						conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonRefNotPermitted)
 						conditionResolvedRefs.Message = "certificateRefs cross namespaces is not permitted"
@@ -763,8 +763,11 @@ func getListenerStatus(
 					}
 				}
 
-				ns := cmp.Or(ref.Namespace, (*gatewayv1.Namespace)(&gateway.Namespace))
-				if err := mrgc.Get(ctx, client.ObjectKey{Namespace: string(*ns), Name: string(ref.Name)}, &secret); err != nil {
+				secretNN := types.NamespacedName{
+					Namespace: string(*cmp.Or(ref.Namespace, (*gatewayv1.Namespace)(&gateway.Namespace))),
+					Name:      string(ref.Name),
+				}
+				if err := mrgc.Get(ctx, secretNN, &secret); err != nil {
 					conditionResolvedRefs.Status = metav1.ConditionFalse
 					conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonInvalidCertificateRef)
 					conditionResolvedRefs.Message = err.Error()
