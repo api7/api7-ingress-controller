@@ -29,7 +29,7 @@ For more information about Gateway API, please refer to [Gateway API](https://ga
 
 ## HTTPRoute
 
-The HTTPRoute resource allows users to configure HTTP routing by matching HTTP traffic and forwarding it to Kubernetes backends. Currently, the only backend supported by API7 Gateway is the Service resource.
+The HTTPRoute resource allows users to configure HTTP routing by matching HTTP traffic and forwarding it to Kubernetes backends. Currently, the only backend supported by APISIX Gateway is the Service resource.
 
 ### Example
 

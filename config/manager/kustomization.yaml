@@ -4,5 +4,5 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
 - name: controller
-  newName: api7/api7-ingress-controller
+  newName: apache/apisix-ingress-controller
   newTag: dev
