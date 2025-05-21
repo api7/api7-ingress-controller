@@ -61,7 +61,7 @@ type HTTPRouteReconciler struct { //nolint:revive
 func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.genericEvent = make(chan event.GenericEvent, 100)
 
-	return ctrl.NewControllerManagedBy(mgr).
+	bdr := ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.HTTPRoute{}).
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Watches(&discoveryv1.EndpointSlice{},
@@ -102,17 +102,21 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&v1alpha1.GatewayProxy{},
 			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesForGatewayProxy),
 		).
-		Watches(&v1beta1.ReferenceGrant{},
-			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesForReferenceGrant),
-			builder.WithPredicates(referenceGrantPredicates(KindHTTPRoute)),
-		).
 		WatchesRawSource(
 			source.Channel(
 				r.genericEvent,
 				handler.EnqueueRequestsFromMapFunc(r.listHTTPRouteForGenericEvent),
 			),
-		).
-		Complete(r)
+		)
+
+	if GetEnableReferenceGrant() {
+		bdr.Watches(&v1beta1.ReferenceGrant{},
+			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesForReferenceGrant),
+			builder.WithPredicates(referenceGrantPredicates(KindHTTPRoute)),
+		)
+	}
+
+	return bdr.Complete(r)
 }
 
 func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

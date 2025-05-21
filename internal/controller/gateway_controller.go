@@ -49,7 +49,7 @@ type GatewayReconciler struct { //nolint:revive
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	bdr := ctrl.NewControllerManagedBy(mgr).
 		For(
 			&gatewayv1.Gateway{},
 			builder.WithPredicates(
@@ -83,12 +83,16 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewaysForSecret),
-		).
-		Watches(&v1beta1.ReferenceGrant{},
+		)
+
+	if GetEnableReferenceGrant() {
+		bdr.Watches(&v1beta1.ReferenceGrant{},
 			handler.EnqueueRequestsFromMapFunc(r.listReferenceGrantsForGateway),
 			builder.WithPredicates(referenceGrantPredicates(KindGateway)),
-		).
-		Complete(r)
+		)
+	}
+
+	return bdr.Complete(r)
 }
 
 func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
