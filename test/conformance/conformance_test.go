@@ -25,10 +25,6 @@ var skippedTestsForSSL = []string{
 }
 
 var skippedTestsForTraditionalRoutes = []string{
-	// TODO: Support ReferenceGrant resource
-	tests.GatewaySecretInvalidReferenceGrant.ShortName,
-	tests.GatewaySecretMissingReferenceGrant.ShortName,
-
 	// TODO: HTTPRoute hostname intersection and listener hostname matching
 }
 
@@ -63,13 +59,6 @@ func TestGatewayAPIConformance(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Log("starting the gateway conformance test suite")
-	tests.ConformanceTests = []suite.ConformanceTest{
-		tests.HTTPRouteInvalidBackendRefUnknownKind,
-		tests.HTTPRouteInvalidCrossNamespaceBackendRef,
-		tests.HTTPRouteInvalidReferenceGrant,
-		tests.HTTPRoutePartiallyInvalidViaInvalidReferenceGrant,
-		tests.HTTPRouteReferenceGrant,
-	}
 	cSuite.Setup(t, tests.ConformanceTests)
 
 	if err := cSuite.Run(t, tests.ConformanceTests); err != nil {
