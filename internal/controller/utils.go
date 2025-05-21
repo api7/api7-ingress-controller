@@ -258,7 +258,8 @@ func SetRouteConditionResolvedRefs(routeParentStatus *gatewayv1.RouteParentStatu
 		condition.Status = metav1.ConditionFalse
 		condition.Message = err.Error()
 
-		if re := new(ReasonError); errors.As(err, &re) {
+		var re ReasonError
+		if errors.As(err, &re) {
 			condition.Reason = re.Reason
 		}
 	}
@@ -917,7 +918,7 @@ func IsSomeReasonError[Reason ~string](err error, reasons ...Reason) bool {
 	if err == nil {
 		return false
 	}
-	var re = new(ReasonError)
+	var re ReasonError
 	if !errors.As(err, &re) {
 		return false
 	}
@@ -927,8 +928,8 @@ func IsSomeReasonError[Reason ~string](err error, reasons ...Reason) bool {
 	return slices.Contains(reasons, Reason(re.Reason))
 }
 
-func newInvalidKindError[Kind ~string](kind Kind) *ReasonError {
-	return &ReasonError{
+func newInvalidKindError[Kind ~string](kind Kind) ReasonError {
+	return ReasonError{
 		Reason:  string(gatewayv1.RouteReasonInvalidKind),
 		Message: fmt.Sprintf("Invalid kind %s, only Service is supported", kind),
 	}

@@ -174,11 +174,12 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	var httpRouteErr error
+	var backendRefErr error
 	if err := r.processHTTPRoute(tctx, hr); err != nil {
-		httpRouteErr = err
 		// When encountering a backend reference error, it should not affect the acceptance status
-		if !IsSomeReasonError(err, gatewayv1.RouteReasonInvalidKind) {
+		if IsSomeReasonError(err, gatewayv1.RouteReasonInvalidKind) {
+			backendRefErr = err
+		} else {
 			acceptStatus.status = false
 			acceptStatus.msg = err.Error()
 		}
@@ -189,16 +190,12 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		acceptStatus.msg = err.Error()
 	}
 
-	// Store the backend reference error for later use
-	var backendRefErr error
-	if err := r.processHTTPRouteBackendRefs(tctx, req.NamespacedName); err != nil {
+	// Store the backend reference error for later use.
+	// If the backend reference error is because of an invalid kind, use this error first
+	if err := r.processHTTPRouteBackendRefs(tctx, req.NamespacedName); err != nil && backendRefErr == nil {
 		backendRefErr = err
 	}
 
-	// If the backend reference error is because of an invalid kind, use this error first
-	if IsSomeReasonError(err, gatewayv1.RouteReasonInvalidKind) {
-		backendRefErr = httpRouteErr
-	}
 	ProcessBackendTrafficPolicy(r.Client, r.Log, tctx)
 
 	filteredHTTPRoute, err := filterHostnames(gateways, hr.DeepCopy())
@@ -436,7 +433,7 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 		}
 
 		if backend.Kind != nil && *backend.Kind != "Service" {
-			terr = &ReasonError{
+			terr = ReasonError{
 				Reason:  string(gatewayv1.RouteReasonInvalidKind),
 				Message: fmt.Sprintf("invalid kind %s, only Service is supported", *backend.Kind),
 			}
@@ -452,7 +449,7 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 		if err := r.Get(tctx, targetNN, &service); err != nil {
 			terr = err
 			if client.IgnoreNotFound(err) == nil {
-				terr = &ReasonError{
+				terr = ReasonError{
 					Reason:  string(gatewayv1.RouteReasonBackendNotFound),
 					Message: fmt.Sprintf("Service %s not found", targetNN),
 				}
@@ -468,7 +465,7 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 				return err
 			}
 			if !checkReferenceGrantBetweenHTTPRouteAndService(hrNN, targetNN, referenceGrantList.Items) {
-				terr = &ReasonError{
+				terr = ReasonError{
 					Reason:  string(v1beta1.RouteReasonRefNotPermitted),
 					Message: fmt.Sprintf("%s is in a different namespace than the HTTPRoute %s and no ReferenceGrant allowing reference is configured", targetNN, hrNN),
 				}

@@ -63,6 +63,13 @@ func TestGatewayAPIConformance(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Log("starting the gateway conformance test suite")
+	tests.ConformanceTests = []suite.ConformanceTest{
+		tests.HTTPRouteInvalidBackendRefUnknownKind,
+		tests.HTTPRouteInvalidCrossNamespaceBackendRef,
+		tests.HTTPRouteInvalidReferenceGrant,
+		tests.HTTPRoutePartiallyInvalidViaInvalidReferenceGrant,
+		tests.HTTPRouteReferenceGrant,
+	}
 	cSuite.Setup(t, tests.ConformanceTests)
 
 	if err := cSuite.Run(t, tests.ConformanceTests); err != nil {
