@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,14 +27,11 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	"sigs.k8s.io/gateway-api/apis/v1beta1"
-
-	"github.com/api7/gopkg/pkg/log"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
@@ -51,7 +49,7 @@ type GatewayReconciler struct { //nolint:revive
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	bdr := ctrl.NewControllerManagedBy(mgr).
 		For(
 			&gatewayv1.Gateway{},
 			builder.WithPredicates(
@@ -85,25 +83,16 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewaysForSecret),
-		).
-		Watches(&v1beta1.ReferenceGrant{},
+		)
+
+	if GetEnableReferenceGrant() {
+		bdr.Watches(&v1beta1.ReferenceGrant{},
 			handler.EnqueueRequestsFromMapFunc(r.listReferenceGrantsForGateway),
-			builder.WithPredicates(predicate.Funcs{
-				CreateFunc: func(e event.CreateEvent) bool {
-					return referenceGrantHasGatewayFrom(e.Object)
-				},
-				UpdateFunc: func(e event.UpdateEvent) bool {
-					return referenceGrantHasGatewayFrom(e.ObjectOld) || referenceGrantHasGatewayFrom(e.ObjectNew)
-				},
-				DeleteFunc: func(e event.DeleteEvent) bool {
-					return referenceGrantHasGatewayFrom(e.Object)
-				},
-				GenericFunc: func(e event.GenericEvent) bool {
-					return referenceGrantHasGatewayFrom(e.Object)
-				},
-			}),
-		).
-		Complete(r)
+			builder.WithPredicates(referenceGrantPredicates(KindGateway)),
+		)
+	}
+
+	return bdr.Complete(r)
 }
 
 func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -184,14 +173,9 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 	}
 
-	var referenceGrantList v1beta1.ReferenceGrantList
-	if err := r.List(ctx, &referenceGrantList); err != nil {
-		r.Log.Error(err, "failed to list reference grants")
-		return ctrl.Result{}, err
-	}
-	listenerStatuses, err := getListenerStatus(ctx, r.Client, gateway, referenceGrantList.Items)
+	listenerStatuses, err := getListenerStatus(ctx, r.Client, gateway)
 	if err != nil {
-		r.Log.Error(err, "failed to get listener status", "gateway", types.NamespacedName{Namespace: gateway.GetNamespace(), Name: gateway.GetName()})
+		r.Log.Error(err, "failed to get listener status", "gateway", req.NamespacedName)
 		return ctrl.Result{}, err
 	}
 
@@ -391,12 +375,12 @@ func (r *GatewayReconciler) listReferenceGrantsForGateway(ctx context.Context, o
 	}
 
 	for _, gateway := range gatewayList.Items {
+		gw := v1beta1.ReferenceGrantFrom{
+			Group:     gatewayv1.GroupName,
+			Kind:      KindGateway,
+			Namespace: v1beta1.Namespace(gateway.GetNamespace()),
+		}
 		for _, from := range grant.Spec.From {
-			gw := v1beta1.ReferenceGrantFrom{
-				Group:     gatewayv1.GroupName,
-				Kind:      KindGateway,
-				Namespace: v1beta1.Namespace(gateway.GetNamespace()),
-			}
 			if from == gw {
 				requests = append(requests, reconcile.Request{
 					NamespacedName: types.NamespacedName{
@@ -408,19 +392,6 @@ func (r *GatewayReconciler) listReferenceGrantsForGateway(ctx context.Context, o
 		}
 	}
 	return requests
-}
-
-func referenceGrantHasGatewayFrom(obj client.Object) bool {
-	grant, ok := obj.(*v1beta1.ReferenceGrant)
-	if !ok {
-		return false
-	}
-	for _, from := range grant.Spec.From {
-		if from.Kind == KindGateway && string(from.Group) == gatewayv1.GroupName {
-			return true
-		}
-	}
-	return false
 }
 
 func (r *GatewayReconciler) processInfrastructure(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway) error {

@@ -27,14 +27,14 @@ type GatewayProxySpec struct {
 
 	// PublishService specifies the LoadBalancer-type Service whose external address the controller uses to
 	// update the status of Ingress resources.
-	PublishService string                          `json:"publishService,omitempty"`
+	PublishService string `json:"publishService,omitempty"`
 	// StatusAddress specifies the external IP addresses that the controller uses to populate the status field
 	// of GatewayProxy or Ingress resources for developers to access.
-	StatusAddress  []string                        `json:"statusAddress,omitempty"`
+	StatusAddress []string `json:"statusAddress,omitempty"`
 	// Provider configures the provider details.
-	Provider       *GatewayProxyProvider           `json:"provider,omitempty"`
+	Provider *GatewayProxyProvider `json:"provider,omitempty"`
 	// Plugins configure global plugins.
-	Plugins        []GatewayProxyPlugin            `json:"plugins,omitempty"`
+	Plugins []GatewayProxyPlugin `json:"plugins,omitempty"`
 	// PluginMetadata configures common configurations shared by all plugin instances of the same name.
 	PluginMetadata map[string]apiextensionsv1.JSON `json:"pluginMetadata,omitempty"`
 }
@@ -132,8 +132,8 @@ type GatewayProxy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-    // GatewayProxySpec defines the desired state and configuration of a GatewayProxy,
-    // including networking settings, global plugins, and plugin metadata.
+	// GatewayProxySpec defines the desired state and configuration of a GatewayProxy,
+	// including networking settings, global plugins, and plugin metadata.
 	Spec GatewayProxySpec `json:"spec,omitempty"`
 }
 
@@ -148,11 +148,11 @@ type GatewayProxyList struct {
 // GatewayProxyPlugin contains plugin configurations.
 type GatewayProxyPlugin struct {
 	// Name is the name of the plugin.
-	Name    string               `json:"name,omitempty"`
-	// Enabled defines whether the plugin is enabled. 
-	Enabled bool                 `json:"enabled,omitempty"`
+	Name string `json:"name,omitempty"`
+	// Enabled defines whether the plugin is enabled.
+	Enabled bool `json:"enabled,omitempty"`
 	// Config defines the plugin's configuration details.
-	Config  apiextensionsv1.JSON `json:"config,omitempty"`
+	Config apiextensionsv1.JSON `json:"config,omitempty"`
 }
 
 func init() {

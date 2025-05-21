@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -34,6 +33,7 @@ import (
 	"sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
+	"github.com/apache/apisix-ingress-controller/internal/controller"
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/provider/adc"
 )
@@ -177,20 +177,24 @@ func Run(ctx context.Context, logger logr.Logger) error {
 		}
 	}()
 
+	setupLog.Info("check ReferenceGrants is enabled")
+	_, err = mgr.GetRESTMapper().KindsFor(schema.GroupVersionResource{
+		Group:    v1beta1.GroupVersion.Group,
+		Version:  v1beta1.GroupVersion.Version,
+		Resource: "referencegrants",
+	})
+	if err != nil {
+		setupLog.Info("CRD ReferenceGrants is not installed", "err", err)
+	}
+	controller.SetEnableReferenceGrant(err == nil)
+
 	setupLog.Info("setting up controllers")
 	controllers, err := setupControllers(ctx, mgr, provider)
 	if err != nil {
 		setupLog.Error(err, "unable to set up controllers")
 		return err
 	}
-	if _, err = mgr.GetRESTMapper().KindsFor(schema.GroupVersionResource{
-		Group:    v1beta1.GroupVersion.Group,
-		Version:  v1beta1.GroupVersion.Version,
-		Resource: "referencegrants",
-	}); err != nil {
-		logger.Error(err, "CRD ReferenceGrants is not installed")
-		return errors.Wrap(err, "CRD ReferenceGrants is not installed")
-	}
+
 	for _, c := range controllers {
 		if err := c.SetupWithManager(mgr); err != nil {
 			return err
