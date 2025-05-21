@@ -60,6 +60,18 @@ var (
 	ErrNoMatchingListenerHostname = errors.New("no matching hostnames in listener")
 )
 
+var (
+	enableReferenceGrant bool
+)
+
+func SetEnableReferenceGrant(enable bool) {
+	enableReferenceGrant = enable
+}
+
+func GetEnableReferenceGrant() bool {
+	return enableReferenceGrant
+}
+
 // IsDefaultIngressClass returns whether an IngressClass is the default IngressClass.
 func IsDefaultIngressClass(obj client.Object) bool {
 	if ingressClass, ok := obj.(*networkingv1.IngressClass); ok {
@@ -651,7 +663,6 @@ func getListenerStatus(
 	ctx context.Context,
 	mrgc client.Client,
 	gateway *gatewayv1.Gateway,
-	grants []v1beta1.ReferenceGrant,
 ) ([]gatewayv1.ListenerStatus, error) {
 	statuses := make(map[gatewayv1.SectionName]gatewayv1.ListenerStatus, len(gateway.Spec.Listeners))
 
@@ -739,7 +750,8 @@ func getListenerStatus(
 					conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
 					break
 				}
-				if permitted := checkReferenceGrant(
+				if permitted := checkReferenceGrant(ctx,
+					mrgc,
 					v1beta1.ReferenceGrantFrom{
 						Group:     gatewayv1.GroupName,
 						Kind:      KindGateway,
@@ -751,7 +763,6 @@ func getListenerStatus(
 						Name:      ref.Name,
 						Namespace: ref.Namespace,
 					},
-					grants,
 				); !permitted {
 					conditionResolvedRefs.Status = metav1.ConditionFalse
 					conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonRefNotPermitted)
@@ -1107,11 +1118,21 @@ func referenceGrantPredicates(kind gatewayv1.Kind) predicate.Funcs {
 	return predicates
 }
 
-func checkReferenceGrant(obj v1beta1.ReferenceGrantFrom, ref gatewayv1.ObjectReference, grants []v1beta1.ReferenceGrant) bool {
+func checkReferenceGrant(ctx context.Context, cli client.Client, obj v1beta1.ReferenceGrantFrom, ref gatewayv1.ObjectReference) bool {
 	if ref.Namespace == nil || *ref.Namespace == obj.Namespace {
 		return true
 	}
-	for _, grant := range grants {
+
+	if !GetEnableReferenceGrant() {
+		return false
+	}
+
+	var grantList v1beta1.ReferenceGrantList
+	if err := cli.List(ctx, &grantList, client.InNamespace(*ref.Namespace)); err != nil {
+		return false
+	}
+
+	for _, grant := range grantList.Items {
 		if grant.Namespace == string(*ref.Namespace) {
 			for _, from := range grant.Spec.From {
 				if obj == from {

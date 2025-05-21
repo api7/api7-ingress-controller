@@ -169,12 +169,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 	}
 
-	var referenceGrantList v1beta1.ReferenceGrantList
-	if err := r.List(ctx, &referenceGrantList); err != nil {
-		r.Log.Error(err, "failed to list reference grants")
-		return ctrl.Result{}, err
-	}
-	listenerStatuses, err := getListenerStatus(ctx, r.Client, gateway, referenceGrantList.Items)
+	listenerStatuses, err := getListenerStatus(ctx, r.Client, gateway)
 	if err != nil {
 		r.Log.Error(err, "failed to get listener status", "gateway", types.NamespacedName{Namespace: gateway.GetNamespace()})
 		return ctrl.Result{}, err

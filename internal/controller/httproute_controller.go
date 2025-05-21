@@ -459,12 +459,8 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 
 		// if cross namespaces between HTTPRoute and referenced Service, check ReferenceGrant
 		if hrNN.Namespace != targetNN.Namespace {
-			var referenceGrantList v1beta1.ReferenceGrantList
-			if err := r.List(tctx, &referenceGrantList, client.InNamespace(targetNN.Namespace)); err != nil {
-				r.Log.Error(err, "failed to list ReferenceGrants", "namespace", targetNN.Namespace)
-				return err
-			}
-			if permitted := checkReferenceGrant(
+			if permitted := checkReferenceGrant(tctx,
+				r.Client,
 				v1beta1.ReferenceGrantFrom{
 					Group:     gatewayv1.GroupName,
 					Kind:      KindHTTPRoute,
@@ -476,7 +472,6 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 					Name:      gatewayv1.ObjectName(targetNN.Name),
 					Namespace: (*gatewayv1.Namespace)(&targetNN.Namespace),
 				},
-				referenceGrantList.Items,
 			); !permitted {
 				terr = ReasonError{
 					Reason:  string(v1beta1.RouteReasonRefNotPermitted),
