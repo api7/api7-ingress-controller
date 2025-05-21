@@ -104,7 +104,7 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Watches(&v1beta1.ReferenceGrant{},
 			handler.EnqueueRequestsFromMapFunc(r.lisHTTPRoutesForReferenceGrant),
-			builder.WithPredicates(httpRouteReferenceGrantPredicates()),
+			builder.WithPredicates(referenceGrantPredicates(KindHTTPRoute)),
 		).
 		WatchesRawSource(
 			source.Channel(
@@ -464,7 +464,19 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 				r.Log.Error(err, "failed to list ReferenceGrants", "namespace", targetNN.Namespace)
 				return err
 			}
-			if !checkReferenceGrantBetweenHTTPRouteAndService(hrNN, targetNN, referenceGrantList.Items) {
+			if !checkReferenceGrant(
+				v1beta1.ReferenceGrantFrom{
+					Group:     gatewayv1.GroupName,
+					Kind:      KindHTTPRoute,
+					Namespace: v1beta1.Namespace(hrNN.Namespace),
+				},
+				v1beta1.ReferenceGrantTo{
+					Group: corev1.GroupName,
+					Kind:  KindService,
+					Name:  (*gatewayv1.ObjectName)(&targetNN.Name),
+				},
+				referenceGrantList.Items,
+			) {
 				terr = ReasonError{
 					Reason:  string(v1beta1.RouteReasonRefNotPermitted),
 					Message: fmt.Sprintf("%s is in a different namespace than the HTTPRoute %s and no ReferenceGrant allowing reference is configured", targetNN, hrNN),
@@ -639,12 +651,12 @@ func (r *HTTPRouteReconciler) lisHTTPRoutesForReferenceGrant(ctx context.Context
 	}
 
 	for _, httpRoute := range httpRouteList.Items {
+		hr := v1beta1.ReferenceGrantFrom{
+			Group:     gatewayv1.GroupName,
+			Kind:      KindHTTPRoute,
+			Namespace: v1beta1.Namespace(httpRoute.GetNamespace()),
+		}
 		for _, from := range grant.Spec.From {
-			hr := v1beta1.ReferenceGrantFrom{
-				Group:     gatewayv1.GroupName,
-				Kind:      KindHTTPRoute,
-				Namespace: v1beta1.Namespace(httpRoute.GetNamespace()),
-			}
 			if from == hr {
 				requests = append(requests, reconcile.Request{
 					NamespacedName: client.ObjectKey{
@@ -656,44 +668,4 @@ func (r *HTTPRouteReconciler) lisHTTPRoutesForReferenceGrant(ctx context.Context
 		}
 	}
 	return requests
-}
-
-func httpRouteReferenceGrantPredicates() predicate.Funcs {
-	var filter = func(obj client.Object) bool {
-		grant, ok := obj.(*v1beta1.ReferenceGrant)
-		if !ok {
-			return false
-		}
-		for _, from := range grant.Spec.From {
-			if from.Kind == KindHTTPRoute && string(from.Group) == gatewayv1.GroupName {
-				return true
-			}
-		}
-		return false
-	}
-	predicates := predicate.NewPredicateFuncs(filter)
-	predicates.UpdateFunc = func(e event.UpdateEvent) bool {
-		return filter(e.ObjectOld) || filter(e.ObjectNew)
-	}
-	return predicates
-}
-
-func checkReferenceGrantBetweenHTTPRouteAndService(hrNN, targetNN types.NamespacedName, grants []v1beta1.ReferenceGrant) bool {
-	hr := v1beta1.ReferenceGrantFrom{
-		Group:     gatewayv1.GroupName,
-		Kind:      KindHTTPRoute,
-		Namespace: v1beta1.Namespace(hrNN.Namespace),
-	}
-	for _, grant := range grants {
-		fromHTTPRoute := slices.ContainsFunc(grant.Spec.From, func(from v1beta1.ReferenceGrantFrom) bool {
-			return from == hr
-		})
-		toService := slices.ContainsFunc(grant.Spec.To, func(to v1beta1.ReferenceGrantTo) bool {
-			return to.Group == corev1.GroupName && to.Kind == KindService && (to.Name == nil || string(*to.Name) == targetNN.Name)
-		})
-		if fromHTTPRoute && toService {
-			return true
-		}
-	}
-	return false
 }

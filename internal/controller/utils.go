@@ -13,6 +13,7 @@
 package controller
 
 import (
+	"cmp"
 	"context"
 	"encoding/pem"
 	"errors"
@@ -31,6 +32,8 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	"sigs.k8s.io/gateway-api/apis/v1beta1"
@@ -736,19 +739,32 @@ func getListenerStatus(
 					conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
 					break
 				}
-				if ok := checkReferenceGrantBetweenGatewayAndSecret(gateway.Namespace, ref, grants); !ok {
-					conditionResolvedRefs.Status = metav1.ConditionFalse
-					conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonRefNotPermitted)
-					conditionResolvedRefs.Message = "certificateRefs cross namespaces is not permitted"
-					conditionProgrammed.Status = metav1.ConditionFalse
-					conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
-					break
+				// if cross namespaces, check if the Gateway has the permission to access the Secret
+				if ref.Namespace != nil && string(*ref.Namespace) != gateway.Namespace {
+					if ok := checkReferenceGrant(
+						v1beta1.ReferenceGrantFrom{
+							Group:     gatewayv1.GroupName,
+							Kind:      KindGateway,
+							Namespace: v1beta1.Namespace(gateway.Namespace),
+						},
+						v1beta1.ReferenceGrantTo{
+							Group: corev1.GroupName,
+							Kind:  KindSecret,
+							Name:  &ref.Name,
+						},
+						grants,
+					); !ok {
+						conditionResolvedRefs.Status = metav1.ConditionFalse
+						conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonRefNotPermitted)
+						conditionResolvedRefs.Message = "certificateRefs cross namespaces is not permitted"
+						conditionProgrammed.Status = metav1.ConditionFalse
+						conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
+						break
+					}
 				}
-				ns := gateway.Namespace
-				if ref.Namespace != nil {
-					ns = string(*ref.Namespace)
-				}
-				if err := mrgc.Get(ctx, client.ObjectKey{Namespace: ns, Name: string(ref.Name)}, &secret); err != nil {
+
+				ns := cmp.Or(ref.Namespace, (*gatewayv1.Namespace)(&gateway.Namespace))
+				if err := mrgc.Get(ctx, client.ObjectKey{Namespace: string(*ns), Name: string(ref.Name)}, &secret); err != nil {
 					conditionResolvedRefs.Status = metav1.ConditionFalse
 					conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonInvalidCertificateRef)
 					conditionResolvedRefs.Message = err.Error()
@@ -1070,28 +1086,36 @@ func isTLSSecretValid(secret *corev1.Secret) (string, bool) {
 	return "", true
 }
 
-func checkReferenceGrantBetweenGatewayAndSecret(gwNamespace string, certRef gatewayv1.SecretObjectReference, grants []v1beta1.ReferenceGrant) bool {
-	// if not cross namespaces
-	if certRef.Namespace == nil || string(*certRef.Namespace) == gwNamespace {
-		return true
-	}
-
-	for _, grant := range grants {
-		if grant.Namespace == string(*certRef.Namespace) {
-			for _, from := range grant.Spec.From {
-				gw := v1beta1.ReferenceGrantFrom{
-					Group:     gatewayv1.GroupName,
-					Kind:      KindGateway,
-					Namespace: v1beta1.Namespace(gwNamespace),
-				}
-				if from == gw {
-					for _, to := range grant.Spec.To {
-						if to.Group == corev1.GroupName && to.Kind == KindSecret && (to.Name == nil || *to.Name == certRef.Name) {
-							return true
-						}
-					}
-				}
+func referenceGrantPredicates(kind gatewayv1.Kind) predicate.Funcs {
+	var filter = func(obj client.Object) bool {
+		grant, ok := obj.(*v1beta1.ReferenceGrant)
+		if !ok {
+			return false
+		}
+		for _, from := range grant.Spec.From {
+			if from.Kind == kind && string(from.Group) == gatewayv1.GroupName {
+				return true
 			}
+		}
+		return false
+	}
+	predicates := predicate.NewPredicateFuncs(filter)
+	predicates.UpdateFunc = func(e event.UpdateEvent) bool {
+		return filter(e.ObjectOld) || filter(e.ObjectNew)
+	}
+	return predicates
+}
+
+func checkReferenceGrant(from v1beta1.ReferenceGrantFrom, to v1beta1.ReferenceGrantTo, grants []v1beta1.ReferenceGrant) bool {
+	for _, grant := range grants {
+		grantFrom := slices.ContainsFunc(grant.Spec.From, func(item v1beta1.ReferenceGrantFrom) bool {
+			return item == from
+		})
+		grantTo := slices.ContainsFunc(grant.Spec.To, func(item v1beta1.ReferenceGrantTo) bool {
+			return item.Group == to.Group && item.Kind == to.Kind && to.Name != nil && (item.Name == nil || *item.Name == *to.Name)
+		})
+		if grantFrom && grantTo {
+			return true
 		}
 	}
 	return false
