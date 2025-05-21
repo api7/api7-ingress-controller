@@ -24,9 +24,7 @@ var skippedTestsForSSL = []string{
 	tests.HTTPRouteRedirectPortAndScheme.ShortName,
 }
 
-var skippedTestsForTraditionalRoutes = []string{
-	// TODO: HTTPRoute hostname intersection and listener hostname matching
-}
+var skippedTestsForTraditionalRoutes []string // TODO: HTTPRoute hostname intersection and listener hostname matching
 
 var gatewaySupportedFeatures = []features.FeatureName{
 	features.SupportGateway,
