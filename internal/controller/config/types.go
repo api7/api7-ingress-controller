@@ -36,8 +36,6 @@ const (
 // Config contains all config items which are necessary for
 // apisix-ingress-controller's running.
 type Config struct {
-	CertFilePath     string             `json:"cert_file" yaml:"cert_file"`
-	KeyFilePath      string             `json:"key_file" yaml:"key_file"`
 	LogLevel         string             `json:"log_level" yaml:"log_level"`
 	ControllerName   string             `json:"controller_name" yaml:"controller_name"`
 	LeaderElectionID string             `json:"leader_election_id" yaml:"leader_election_id"`
