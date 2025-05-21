@@ -27,10 +27,12 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	"sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
@@ -83,6 +85,23 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewaysForSecret),
 		).
+		Watches(&v1beta1.ReferenceGrant{},
+			handler.EnqueueRequestsFromMapFunc(r.listReferenceGrantsForGateway),
+			builder.WithPredicates(predicate.Funcs{
+				CreateFunc: func(e event.CreateEvent) bool {
+					return referenceGrantHasGatewayFrom(e.Object)
+				},
+				UpdateFunc: func(e event.UpdateEvent) bool {
+					return referenceGrantHasGatewayFrom(e.ObjectOld) || referenceGrantHasGatewayFrom(e.ObjectNew)
+				},
+				DeleteFunc: func(e event.DeleteEvent) bool {
+					return referenceGrantHasGatewayFrom(e.Object)
+				},
+				GenericFunc: func(e event.GenericEvent) bool {
+					return referenceGrantHasGatewayFrom(e.Object)
+				},
+			}),
+		).
 		Complete(r)
 }
 
@@ -117,7 +136,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		msg:    acceptedMessage("gateway"),
 	}
 
-	// create a translate context
+	// create a translation context
 	tctx := provider.NewDefaultTranslateContext(ctx)
 
 	r.processListenerConfig(tctx, gateway)
@@ -164,20 +183,25 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 	}
 
-	ListenerStatuses, err := getListenerStatus(ctx, r.Client, gateway)
+	var referenceGrantList v1beta1.ReferenceGrantList
+	if err := r.List(ctx, &referenceGrantList); err != nil {
+		r.Log.Error(err, "failed to list reference grants")
+		return ctrl.Result{}, err
+	}
+	listenerStatuses, err := getListenerStatus(ctx, r.Client, gateway, referenceGrantList.Items)
 	if err != nil {
-		log.Error(err, "failed to get listener status", "gateway", gateway.GetName())
+		r.Log.Error(err, "failed to get listener status", "gateway", types.NamespacedName{Namespace: gateway.GetNamespace(), Name: gateway.GetName()})
 		return ctrl.Result{}, err
 	}
 
 	accepted := SetGatewayConditionAccepted(gateway, acceptStatus.status, acceptStatus.msg)
-	Programmed := SetGatewayConditionProgrammed(gateway, conditionProgrammedStatus, conditionProgrammedMsg)
-	if accepted || Programmed || len(addrs) > 0 || len(ListenerStatuses) > 0 {
+	programmed := SetGatewayConditionProgrammed(gateway, conditionProgrammedStatus, conditionProgrammedMsg)
+	if accepted || programmed || len(addrs) > 0 || len(listenerStatuses) > 0 {
 		if len(addrs) > 0 {
 			gateway.Status.Addresses = addrs
 		}
-		if len(ListenerStatuses) > 0 {
-			gateway.Status.Listeners = ListenerStatuses
+		if len(listenerStatuses) > 0 {
+			gateway.Status.Listeners = listenerStatuses
 		}
 
 		return ctrl.Result{}, r.Status().Update(ctx, gateway)
@@ -346,6 +370,56 @@ func (r *GatewayReconciler) listGatewaysForSecret(ctx context.Context, obj clien
 		})
 	}
 	return requests
+}
+
+func (r *GatewayReconciler) listReferenceGrantsForGateway(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
+	grant, ok := obj.(*v1beta1.ReferenceGrant)
+	if !ok {
+		r.Log.Error(
+			errors.New("unexpected object type"),
+			"ReferenceGrant watch predicate received unexpected object type",
+			"expected", FullTypeName(new(v1beta1.ReferenceGrant)), "found", FullTypeName(obj),
+		)
+		return nil
+	}
+
+	var gatewayList gatewayv1.GatewayList
+	if err := r.List(ctx, &gatewayList); err != nil {
+		r.Log.Error(err, "failed to list gateways in watch predicate", "ReferenceGrant", grant.GetName())
+		return nil
+	}
+
+	for _, gateway := range gatewayList.Items {
+		for _, from := range grant.Spec.From {
+			gw := v1beta1.ReferenceGrantFrom{
+				Group:     gatewayv1.GroupName,
+				Kind:      KindGateway,
+				Namespace: v1beta1.Namespace(gateway.GetNamespace()),
+			}
+			if from == gw {
+				requests = append(requests, reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Namespace: gateway.GetNamespace(),
+						Name:      gateway.GetName(),
+					},
+				})
+			}
+		}
+	}
+	return requests
+}
+
+func referenceGrantHasGatewayFrom(obj client.Object) bool {
+	grant, ok := obj.(*v1beta1.ReferenceGrant)
+	if !ok {
+		return false
+	}
+	for _, from := range grant.Spec.From {
+		if from.Kind == KindGateway && string(from.Group) == gatewayv1.GroupName {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *GatewayReconciler) processInfrastructure(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway) error {
