@@ -33,7 +33,7 @@ deployment:
         - ALL
   topologySpreadConstraints: []
   image:
-    repository: api7/api7-ingress-controller
+    repository: apache/apisix-ingress-controller
     pullPolicy: IfNotPresent
     tag: "dev"
 

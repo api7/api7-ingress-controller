@@ -22,8 +22,8 @@ type BackendTrafficPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-    // BackendTrafficPolicySpec defines traffic handling policies applied to backend services,
-    // such as load balancing strategy, connection settings, and failover behavior.
+	// BackendTrafficPolicySpec defines traffic handling policies applied to backend services,
+	// such as load balancing strategy, connection settings, and failover behavior.
 	Spec   BackendTrafficPolicySpec `json:"spec,omitempty"`
 	Status PolicyStatus             `json:"status,omitempty"`
 }

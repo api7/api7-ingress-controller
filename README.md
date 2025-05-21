@@ -2,7 +2,7 @@
 
 ## Description
 
-The APISIX Ingress Controller allows you to run the APISIX Gateway as a Kubernetes Ingress to handle inbound traffic for a Kubernetes cluster. It dynamically configures and manages the API7 Gateway using Gateway API resources.
+The APISIX Ingress Controller allows you to run the APISIX Gateway as a Kubernetes Ingress to handle inbound traffic for a Kubernetes cluster. It dynamically configures and manages the APISIX Gateway using Gateway API resources.
 
 ## Document
 
@@ -41,7 +41,7 @@ make install
 **Deploy the Manager to the cluster with the image specified by `IMG`:**
 
 ```sh
-make deploy #IMG=api7/api7-ingress-controller:dev
+make deploy #IMG=apache/apisix-ingress-controller:dev
 ```
 
 > **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
@@ -66,7 +66,7 @@ Following are the steps to build the installer and distribute this project to us
 1. Build the installer for the image built and published in the registry:
 
 ```sh
-make build-installer # IMG=api7/api7-ingress-controller:dev
+make build-installer # IMG=apache/apisix-ingress-controller:dev
 ```
 
 NOTE: The makefile target mentioned above generates an 'install.yaml'

@@ -110,7 +110,6 @@ func newAPISIXIngressController() *cobra.Command {
 				return err
 			}
 
-			// dashboard sdk log
 			l, err := log.NewLogger(
 				log.WithOutputFile("stderr"),
 				log.WithLogLevel(cfg.LogLevel),

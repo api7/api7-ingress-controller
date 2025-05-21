@@ -1,6 +1,6 @@
 # Concepts
 
-The APISIX Ingress Controller is used to manage the APISIX Gateway as either a standalone application or a Kubernetes-based application. It dynamically configures and manages the API7 Gateway using Gateway API resources.
+The APISIX Ingress Controller is used to manage the APISIX Gateway as either a standalone application or a Kubernetes-based application. It dynamically configures and manages the APISIX Gateway using Gateway API resources.
 
 ## Architecture
 

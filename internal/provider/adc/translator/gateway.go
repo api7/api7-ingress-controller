@@ -105,7 +105,7 @@ func (t *Translator) translateSecret(tctx *provider.TranslateContext, listener g
 					Certificate: string(cert),
 					Key:         string(key),
 				})
-				// Dashboard doesn't allow wildcard hostname
+				// we doesn't allow wildcard hostname
 				if listener.Hostname != nil && *listener.Hostname != "" {
 					sslObj.Snis = append(sslObj.Snis, string(*listener.Hostname))
 				}
@@ -118,7 +118,7 @@ func (t *Translator) translateSecret(tctx *provider.TranslateContext, listener g
 					continue
 				}
 				sslObj.Snis = append(sslObj.Snis, hosts...)
-				// Note: Dashboard doesn't allow duplicate certificate across ssl objects
+				// Note: use cert as id to avoid duplicate certificate across ssl objects
 				sslObj.ID = id.GenID(string(cert))
 				log.Debugw("generated ssl id", zap.String("ssl id", sslObj.ID), zap.String("secret", secret.Namespace+"/"+secret.Name))
 				sslObj.Labels = label.GenLabel(obj)
