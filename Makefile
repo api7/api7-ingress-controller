@@ -12,7 +12,6 @@ ENVTEST_K8S_VERSION = 1.30.0
 KIND_NAME ?= apisix-ingress-cluster
 GATEAY_API_VERSION ?= v1.2.0
 
-DASHBOARD_VERSION ?= dev
 TEST_TIMEOUT ?= 45m
 
 # CRD Reference Documentation
@@ -105,23 +104,6 @@ test: manifests generate fmt vet envtest ## Run tests.
 .PHONY: kind-e2e-test
 kind-e2e-test: kind-up build-image kind-load-images e2e-test
 
-# Utilize Kind or modify the e2e tests to load the image locally, enabling compatibility with other vendors.
-.PHONY: e2e-test
-e2e-test:
-	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
-	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test ./test/e2e/ -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)"
-
-.PHONY: download-api7ee3-chart
-download-api7ee3-chart:
-	@helm repo add api7 https://charts.api7.ai || true
-	@helm repo update
-	@helm pull api7/api7ee3 --destination "$(shell helm env HELM_REPOSITORY_CACHE)"
-	@echo "Downloaded API7EE3 chart"
-
-.PHONY: conformance-test
-conformance-test:
-	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test -v ./test/conformance -tags=conformance -timeout 60m
-
 .PHONY: lint
 lint: sort-import golangci-lint ## Run golangci-lint linter
 	$(GOLANGCI_LINT) run
@@ -146,20 +128,8 @@ kind-down:
 
 .PHONY: kind-load-images
 kind-load-images: pull-infra-images kind-load-ingress-image
-	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev --name $(KIND_NAME) 
-	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION)  --name $(KIND_NAME) 
-	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)  --name $(KIND_NAME) 
 	@kind load docker-image kennethreitz/httpbin:latest --name $(KIND_NAME) 
 	@kind load docker-image jmalloc/echo-server:latest --name $(KIND_NAME)
-
-.PHONY: kind-load-gateway-image
-kind-load-gateway-image:
-	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev --name $(KIND_NAME) 
-
-.PHONY: kind-load-dashboard-images
-kind-load-dashboard-images:
-	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
-	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
 
 .PHONY: kind-load-ingress-image
 kind-load-ingress-image:
@@ -167,9 +137,6 @@ kind-load-ingress-image:
 
 .PHONY: pull-infra-images
 pull-infra-images:
-	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev
-	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION) 
-	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)
 	@docker pull kennethreitz/httpbin:latest
 	@docker pull jmalloc/echo-server:latest
 
@@ -314,10 +281,6 @@ $(GOLANGCI_LINT): $(LOCALBIN)
 
 gofmt: ## Apply go fmt
 	@gofmt -w -r 'interface{} -> any' .
-	@gofmt -w -r 'FIt -> It' test
-	@gofmt -w -r 'FContext -> Context' test
-	@gofmt -w -r 'FDescribe -> Describe' test
-	@gofmt -w -r 'FDescribeTable -> DescribeTable' test
 	@go fmt ./...
 .PHONY: gofmt
 
