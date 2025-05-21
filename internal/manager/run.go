@@ -184,7 +184,7 @@ func Run(ctx context.Context, logger logr.Logger) error {
 		Resource: "referencegrants",
 	})
 	if err != nil {
-		logger.Error(err, "CRD ReferenceGrants is not installed")
+		setupLog.Info("CRD ReferenceGrants is not installed", "err", err)
 	}
 	controller.SetEnableReferenceGrant(err == nil)
 

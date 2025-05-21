@@ -433,10 +433,7 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 		}
 
 		if backend.Kind != nil && *backend.Kind != "Service" {
-			terr = ReasonError{
-				Reason:  string(gatewayv1.RouteReasonInvalidKind),
-				Message: fmt.Sprintf("invalid kind %s, only Service is supported", *backend.Kind),
-			}
+			terr = newInvalidKindError(*backend.Kind)
 			continue
 		}
 
