@@ -103,7 +103,7 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesForGatewayProxy),
 		).
 		Watches(&v1beta1.ReferenceGrant{},
-			handler.EnqueueRequestsFromMapFunc(r.lisHTTPRoutesForReferenceGrant),
+			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesForReferenceGrant),
 			builder.WithPredicates(referenceGrantPredicates(KindHTTPRoute)),
 		).
 		WatchesRawSource(
@@ -633,7 +633,7 @@ func (r *HTTPRouteReconciler) listHTTPRoutesForGatewayProxy(ctx context.Context,
 	return requests
 }
 
-func (r *HTTPRouteReconciler) lisHTTPRoutesForReferenceGrant(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
+func (r *HTTPRouteReconciler) listHTTPRoutesForReferenceGrant(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
 	grant, ok := obj.(*v1beta1.ReferenceGrant)
 	if !ok {
 		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to ReferenceGrant")

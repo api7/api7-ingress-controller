@@ -171,7 +171,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	listenerStatuses, err := getListenerStatus(ctx, r.Client, gateway)
 	if err != nil {
-		r.Log.Error(err, "failed to get listener status", "gateway", types.NamespacedName{Namespace: gateway.GetNamespace()})
+		r.Log.Error(err, "failed to get listener status", "gateway", req.NamespacedName)
 		return ctrl.Result{}, err
 	}
 
