@@ -1,10 +1,10 @@
 ---
-title: Resource Definitions API Reference
+title: Custom Resource Definitions API Reference
 slug: /reference/apisix-ingress-controller/crd-reference
 description: Explore detailed reference documentation for the custom resource definitions (CRDs) supported by the APISIX Ingress Controller.
 ---
 
-This document provides the API resource description for the APISIX Ingress Controller.
+This document provides the API resource description the API7 Ingress Controller custom resource definitions (CRDs).
 
 ## Packages
 - [apisix.apache.org/v1alpha1](#apisixapacheorgv1alpha1)
@@ -157,7 +157,7 @@ _Base type:_ `LocalPolicyTargetReferenceWithSectionName`
 | `group` _[Group](#group)_ | Group is the group of the target resource. |
 | `kind` _[Kind](#kind)_ | Kind is kind of the target resource. |
 | `name` _[ObjectName](#objectname)_ | Name is the name of the target resource. |
-| `sectionName` _[SectionName](#sectionname)_ | SectionName is the name of a section within the target resource. When unspecified, this targetRef targets the entire resource. In the following resources, SectionName is interpreted as the following:<br /><br /> * Gateway: Listener name * HTTPRoute: HTTPRouteRule name * Service: Port name<br /><br /> If a SectionName is specified, but does not exist on the targeted object, the Policy must fail to attach, and the policy implementation should record a `ResolvedRefs` or similar Condition in the Policy's status. |
+| `sectionName` _[SectionName](#sectionname)_ | SectionName is the name of a section within the target resource. When unspecified, this targetRef targets the entire resource. In the following resources, SectionName is interpreted as the following:<br /><br /> • Gateway: Listener name<br /> • HTTPRoute: HTTPRouteRule name<br /> • Service: Port name<br /><br /> If a SectionName is specified, but does not exist on the targeted object, the Policy must fail to attach, and the policy implementation should record a `ResolvedRefs` or similar Condition in the Policy's status. |
 
 
 _Appears in:_
