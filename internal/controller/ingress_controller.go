@@ -41,6 +41,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
+	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 )
 
@@ -52,6 +53,8 @@ type IngressReconciler struct { //nolint:revive
 
 	Provider     provider.Provider
 	genericEvent chan event.GenericEvent
+
+	Updater status.Updater
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -185,7 +188,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// update the status of related resources
-	UpdateStatus(r.Client, r.Log, tctx)
+	UpdateStatus(r.Updater, r.Log, tctx)
 
 	// update the ingress status
 	if err := r.updateStatus(ctx, tctx, ingress, ingressClass); err != nil {
@@ -661,7 +664,20 @@ func (r *IngressReconciler) updateStatus(ctx context.Context, tctx *provider.Tra
 	// update the load balancer status
 	if len(loadBalancerStatus.Ingress) > 0 && !reflect.DeepEqual(ingress.Status.LoadBalancer, loadBalancerStatus) {
 		ingress.Status.LoadBalancer = loadBalancerStatus
-		return r.Status().Update(ctx, ingress)
+		r.Updater.Update(status.Update{
+			NamespacedName: NamespacedName(ingress),
+			Resource:       ingress.DeepCopy(),
+			Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
+				t, ok := obj.(*networkingv1.Ingress)
+				if !ok {
+					err := fmt.Errorf("unsupported object type %T", obj)
+					panic(err)
+				}
+				t.Status = ingress.Status
+				return t
+			}),
+		})
+		return nil
 	}
 
 	return nil

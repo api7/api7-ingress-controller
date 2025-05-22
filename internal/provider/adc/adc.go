@@ -52,8 +52,7 @@ type adcClient struct {
 	// gateway/ingressclass -> adcConfig
 	configs map[provider.ResourceKind]adcConfig
 	// httproute/consumer/ingress/gateway -> gateway/ingressclass
-	parentRefs map[provider.ResourceKind][]provider.ResourceKind
-
+	parentRefs  map[provider.ResourceKind][]provider.ResourceKind
 	syncTimeout time.Duration
 
 	store *Store

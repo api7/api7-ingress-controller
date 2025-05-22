@@ -42,6 +42,7 @@ import (
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
+	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 )
 
@@ -55,6 +56,8 @@ type HTTPRouteReconciler struct { //nolint:revive
 	Provider provider.Provider
 
 	genericEvent chan event.GenericEvent
+
+	Updater status.Updater
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -143,13 +146,13 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, err
 	}
 
-	type status struct {
+	type ResourceStatus struct {
 		status bool
 		msg    string
 	}
 
 	// Only keep acceptStatus since we're using error objects directly now
-	acceptStatus := status{
+	acceptStatus := ResourceStatus{
 		status: true,
 		msg:    "Route is accepted",
 	}
@@ -233,10 +236,20 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 		hr.Status.Parents = append(hr.Status.Parents, parentStatus)
 	}
-	if err := r.Status().Update(ctx, hr); err != nil {
-		return ctrl.Result{}, err
-	}
-	UpdateStatus(r.Client, r.Log, tctx)
+	r.Updater.Update(status.Update{
+		NamespacedName: NamespacedName(hr),
+		Resource:       hr.DeepCopy(),
+		Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
+			h, ok := obj.(*gatewayv1.HTTPRoute)
+			if !ok {
+				err := fmt.Errorf("unsupported object type %T", obj)
+				panic(err)
+			}
+			h.Status = hr.Status
+			return h
+		}),
+	})
+	UpdateStatus(r.Updater, r.Log, tctx)
 	return ctrl.Result{}, nil
 }
 
