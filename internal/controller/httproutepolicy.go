@@ -74,7 +74,7 @@ func (r *HTTPRouteReconciler) processHTTPRoutePolicies(tctx *provider.TranslateC
 		if updated := setAncestorsForHTTPRoutePolicyStatus(httpRoute.Spec.ParentRefs, &policy, condition); updated {
 			tctx.StatusUpdaters = append(tctx.StatusUpdaters, status.Update{
 				NamespacedName: NamespacedName(&policy),
-				Resource:       &policy,
+				Resource:       policy.DeepCopy(),
 				Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
 					t, ok := obj.(*v1alpha1.HTTPRoutePolicy)
 					if !ok {
@@ -153,7 +153,7 @@ func (r *IngressReconciler) processHTTPRoutePolicies(tctx *provider.TranslateCon
 		if updated := setAncestorsForHTTPRoutePolicyStatus(tctx.RouteParentRefs, &policy, condition); updated {
 			tctx.StatusUpdaters = append(tctx.StatusUpdaters, status.Update{
 				NamespacedName: NamespacedName(&policy),
-				Resource:       &policy,
+				Resource:       policy.DeepCopy(),
 				Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
 					t, ok := obj.(*v1alpha1.HTTPRoutePolicy)
 					if !ok {

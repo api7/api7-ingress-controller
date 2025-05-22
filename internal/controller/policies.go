@@ -150,7 +150,7 @@ func ProcessBackendTrafficPolicy(
 		if updated {
 			tctx.StatusUpdaters = append(tctx.StatusUpdaters, status.Update{
 				NamespacedName: NamespacedName(policy),
-				Resource:       policy,
+				Resource:       policy.DeepCopy(),
 				Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
 					t, ok := obj.(*v1alpha1.BackendTrafficPolicy)
 					if !ok {
