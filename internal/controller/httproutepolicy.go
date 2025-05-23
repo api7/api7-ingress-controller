@@ -97,7 +97,7 @@ func (r *HTTPRouteReconciler) updateHTTPRoutePolicyStatusOnDeleting(ctx context.
 		list v1alpha1.HTTPRoutePolicyList
 		key  = indexer.GenIndexKeyWithGK(gatewayv1.GroupName, "HTTPRoute", nn.Namespace, nn.Name)
 	)
-	if err := r.List(context.Background(), &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
+	if err := r.List(ctx, &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
 		return err
 	}
 	var (
@@ -110,7 +110,7 @@ func (r *HTTPRouteReconciler) updateHTTPRoutePolicyStatusOnDeleting(ctx context.
 			var namespacedName = types.NamespacedName{Namespace: policy.GetNamespace(), Name: string(ref.Name)}
 			httpRoute, ok := httpRoutes[namespacedName]
 			if !ok {
-				if err := r.Get(context.Background(), namespacedName, &httpRoute); err != nil {
+				if err := r.Get(ctx, namespacedName, &httpRoute); err != nil {
 					continue
 				}
 				httpRoutes[namespacedName] = httpRoute

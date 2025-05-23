@@ -236,7 +236,7 @@ func (r *ConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		statusErr = err
 	}
 
-	if err := r.updateStatus(ctx, consumer, statusErr); err != nil {
+	if err := r.updateStatus(consumer, statusErr); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -273,7 +273,7 @@ func (r *ConsumerReconciler) processSpec(ctx context.Context, tctx *provider.Tra
 	return nil
 }
 
-func (r *ConsumerReconciler) updateStatus(ctx context.Context, consumer *v1alpha1.Consumer, err error) error {
+func (r *ConsumerReconciler) updateStatus(consumer *v1alpha1.Consumer, err error) error {
 	condition := NewCondition(consumer.Generation, true, "Successfully")
 	if err != nil {
 		condition = NewCondition(consumer.Generation, false, err.Error())
