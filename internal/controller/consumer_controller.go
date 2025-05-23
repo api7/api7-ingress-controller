@@ -236,9 +236,7 @@ func (r *ConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		statusErr = err
 	}
 
-	if err := r.updateStatus(consumer, statusErr); err != nil {
-		return ctrl.Result{}, err
-	}
+	r.updateStatus(consumer, statusErr)
 
 	return ctrl.Result{}, nil
 }
@@ -273,13 +271,13 @@ func (r *ConsumerReconciler) processSpec(ctx context.Context, tctx *provider.Tra
 	return nil
 }
 
-func (r *ConsumerReconciler) updateStatus(consumer *v1alpha1.Consumer, err error) error {
+func (r *ConsumerReconciler) updateStatus(consumer *v1alpha1.Consumer, err error) {
 	condition := NewCondition(consumer.Generation, true, "Successfully")
 	if err != nil {
 		condition = NewCondition(consumer.Generation, false, err.Error())
 	}
 	if !VerifyConditions(&consumer.Status.Conditions, condition) {
-		return nil
+		return
 	}
 	meta.SetStatusCondition(&consumer.Status.Conditions, condition)
 
@@ -296,7 +294,6 @@ func (r *ConsumerReconciler) updateStatus(consumer *v1alpha1.Consumer, err error
 			return t
 		}),
 	})
-	return nil
 }
 
 func (r *ConsumerReconciler) getGateway(ctx context.Context, consumer *v1alpha1.Consumer) (*gatewayv1.Gateway, error) {
