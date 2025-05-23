@@ -81,9 +81,8 @@ func (r *HTTPRouteReconciler) processHTTPRoutePolicies(tctx *provider.TranslateC
 						err := fmt.Errorf("unsupported object type %T", obj)
 						panic(err)
 					}
-					tCopy := t.DeepCopy()
-					tCopy.Status = policy.Status
-					return tCopy
+					t.Status = policy.Status
+					return t
 				}),
 			})
 		}
@@ -160,9 +159,8 @@ func (r *IngressReconciler) processHTTPRoutePolicies(tctx *provider.TranslateCon
 						err := fmt.Errorf("unsupported object type %T", obj)
 						panic(err)
 					}
-					tCopy := t.DeepCopy()
-					tCopy.Status = policy.Status
-					return tCopy
+					t.Status = policy.Status
+					return t
 				}),
 			})
 		}

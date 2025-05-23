@@ -23,6 +23,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const UpdateChannelBufferSize = 1000
+
 type Update struct {
 	NamespacedName types.NamespacedName
 	Resource       client.Object
@@ -54,7 +56,7 @@ func NewStatusUpdateHandler(log logr.Logger, client client.Client) *UpdateHandle
 	u := &UpdateHandler{
 		log:           log,
 		client:        client,
-		updateChannel: make(chan Update, 1000),
+		updateChannel: make(chan Update, UpdateChannelBufferSize),
 		wg:            new(sync.WaitGroup),
 	}
 

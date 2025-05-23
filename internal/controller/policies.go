@@ -157,9 +157,8 @@ func ProcessBackendTrafficPolicy(
 						err := fmt.Errorf("unsupported object type %T", obj)
 						panic(err)
 					}
-					tCopy := t.DeepCopy()
-					tCopy.Status = policy.Status
-					return tCopy
+					t.Status = policy.Status
+					return t
 				}),
 			})
 		}
