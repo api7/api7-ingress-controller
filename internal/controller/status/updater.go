@@ -37,12 +37,12 @@ type Mutator interface {
 
 type MutatorFunc func(client.Object) client.Object
 
-func (m MutatorFunc) Mutate(old client.Object) client.Object {
+func (m MutatorFunc) Mutate(obj client.Object) client.Object {
 	if m == nil {
 		return nil
 	}
 
-	return m(old)
+	return m(obj)
 }
 
 type UpdateHandler struct {
@@ -64,21 +64,21 @@ func NewStatusUpdateHandler(log logr.Logger, client client.Client) *UpdateHandle
 	return u
 }
 
-func (u *UpdateHandler) apply(update Update) {
+func (u *UpdateHandler) apply(ctx context.Context, update Update) {
 	if err := retry.OnError(retry.DefaultBackoff, func(err error) bool {
 		return k8serrors.IsConflict(err)
 	}, func() error {
-		return u.updateStatus(update)
+		return u.updateStatus(ctx, update)
 	}); err != nil {
 		u.log.Error(err, "unable to update status", "name", update.NamespacedName.Name,
 			"namespace", update.NamespacedName.Namespace)
 	}
 }
 
-func (u *UpdateHandler) updateStatus(update Update) error {
+func (u *UpdateHandler) updateStatus(ctx context.Context, update Update) error {
 	var obj = update.Resource
 	oldGeneration := obj.GetGeneration()
-	if err := u.client.Get(context.Background(), update.NamespacedName, obj); err != nil {
+	if err := u.client.Get(ctx, update.NamespacedName, obj); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil
 		}
@@ -89,8 +89,11 @@ func (u *UpdateHandler) updateStatus(update Update) error {
 		return nil
 	}
 	obj = update.Mutator.Mutate(obj)
+	if obj == nil {
+		return nil
+	}
 
-	return u.client.Status().Update(context.Background(), obj)
+	return u.client.Status().Update(ctx, obj)
 }
 
 func (u *UpdateHandler) Start(ctx context.Context) error {
@@ -107,7 +110,7 @@ func (u *UpdateHandler) Start(ctx context.Context) error {
 			u.log.Info("received a status update", "namespace", update.NamespacedName.Namespace,
 				"name", update.NamespacedName.Name)
 
-			u.apply(update)
+			u.apply(ctx, update)
 		}
 	}
 }
