@@ -35,6 +35,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller"
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
+	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider/adc"
 )
 
@@ -146,6 +147,12 @@ func Run(ctx context.Context, logger logr.Logger) error {
 		return err
 	}
 
+	updater := status.NewStatusUpdateHandler(ctrl.LoggerFrom(ctx).WithName("status").WithName("updater"), mgr.GetClient())
+	if err := mgr.Add(updater); err != nil {
+		setupLog.Error(err, "unable to add status updater")
+		return err
+	}
+
 	go func() {
 		setupLog.Info("starting provider sync")
 		initalSyncDelay := config.ControllerConfig.ProviderConfig.InitSyncDelay.Duration
@@ -189,7 +196,7 @@ func Run(ctx context.Context, logger logr.Logger) error {
 	controller.SetEnableReferenceGrant(err == nil)
 
 	setupLog.Info("setting up controllers")
-	controllers, err := setupControllers(ctx, mgr, provider)
+	controllers, err := setupControllers(ctx, mgr, provider, updater.Writer())
 	if err != nil {
 		setupLog.Error(err, "unable to set up controllers")
 		return err

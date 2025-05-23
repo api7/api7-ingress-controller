@@ -35,6 +35,7 @@ import (
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
+	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 )
 
@@ -45,6 +46,8 @@ type GatewayReconciler struct { //nolint:revive
 	Log    logr.Logger
 
 	Provider provider.Provider
+
+	Updater status.Updater
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -117,11 +120,11 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	conditionProgrammedStatus, conditionProgrammedMsg := true, "Programmed"
 
 	r.Log.Info("gateway has been accepted", "gateway", gateway.GetName())
-	type status struct {
+	type conditionStatus struct {
 		status bool
 		msg    string
 	}
-	acceptStatus := status{
+	acceptStatus := conditionStatus{
 		status: true,
 		msg:    acceptedMessage("gateway"),
 	}
@@ -131,7 +134,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	r.processListenerConfig(tctx, gateway)
 	if err := r.processInfrastructure(tctx, gateway); err != nil {
-		acceptStatus = status{
+		acceptStatus = conditionStatus{
 			status: false,
 			msg:    err.Error(),
 		}
@@ -147,7 +150,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	gatewayProxy, ok := tctx.GatewayProxies[rk]
 	if !ok {
-		acceptStatus = status{
+		acceptStatus = conditionStatus{
 			status: false,
 			msg:    "gateway proxy not found",
 		}
@@ -167,7 +170,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	if err := r.Provider.Update(ctx, tctx, gateway); err != nil {
-		acceptStatus = status{
+		acceptStatus = conditionStatus{
 			status: false,
 			msg:    err.Error(),
 		}
@@ -189,7 +192,21 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			gateway.Status.Listeners = listenerStatuses
 		}
 
-		return ctrl.Result{}, r.Status().Update(ctx, gateway)
+		r.Updater.Update(status.Update{
+			NamespacedName: NamespacedName(gateway),
+			Resource:       gateway.DeepCopy(),
+			Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
+				t, ok := obj.(*gatewayv1.Gateway)
+				if !ok {
+					err := fmt.Errorf("unsupported object type %T", obj)
+					panic(err)
+				}
+				t.Status = gateway.Status
+				return t
+			}),
+		})
+
+		return ctrl.Result{}, nil
 	}
 
 	return ctrl.Result{}, nil

@@ -22,6 +22,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
+	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 )
 
 type Provider interface {
@@ -52,7 +53,7 @@ type TranslateContext struct {
 	ResourceParentRefs     map[ResourceKind][]ResourceKind
 	HTTPRoutePolicies      []v1alpha1.HTTPRoutePolicy
 
-	StatusUpdaters []client.Object
+	StatusUpdaters []status.Update
 }
 
 func NewDefaultTranslateContext(ctx context.Context) *TranslateContext {

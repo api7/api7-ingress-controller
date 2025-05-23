@@ -1147,3 +1147,10 @@ func checkReferenceGrant(ctx context.Context, cli client.Client, obj v1beta1.Ref
 	}
 	return false
 }
+
+func NamespacedName(obj client.Object) types.NamespacedName {
+	return types.NamespacedName{
+		Namespace: obj.GetNamespace(),
+		Name:      obj.GetName(),
+	}
+}
