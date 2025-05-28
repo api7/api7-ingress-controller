@@ -24,17 +24,7 @@ var skippedTestsForSSL = []string{
 	tests.HTTPRouteRedirectPortAndScheme.ShortName,
 }
 
-var skippedTestsForTraditionalRoutes = []string{
-	// TODO: Support ReferenceGrant resource
-	tests.GatewaySecretInvalidReferenceGrant.ShortName,
-	tests.GatewaySecretMissingReferenceGrant.ShortName,
-	tests.HTTPRouteInvalidCrossNamespaceBackendRef.ShortName,
-	tests.HTTPRouteInvalidReferenceGrant.ShortName,
-	tests.HTTPRoutePartiallyInvalidViaInvalidReferenceGrant.ShortName,
-	tests.HTTPRouteReferenceGrant.ShortName,
-
-	// TODO: HTTPRoute hostname intersection and listener hostname matching
-}
+// TODO: HTTPRoute hostname intersection and listener hostname matching
 
 var gatewaySupportedFeatures = []features.FeatureName{
 	features.SupportGateway,
@@ -54,7 +44,7 @@ func TestGatewayAPIConformance(t *testing.T) {
 	opts.CleanupBaseResources = true
 	opts.GatewayClassName = gatewayClassName
 	opts.SupportedFeatures = sets.New(gatewaySupportedFeatures...)
-	opts.SkipTests = append(skippedTestsForSSL, skippedTestsForTraditionalRoutes...)
+	opts.SkipTests = skippedTestsForSSL
 	opts.Implementation = conformancev1.Implementation{
 		Organization: "APISIX",
 		Project:      "apisix-ingress-controller",
@@ -83,6 +73,6 @@ func TestGatewayAPIConformance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to marshal the gateway conformance test report: %v", err)
 	}
-	// Save report in root of the repository, file name is in .gitignore.
+	// Save report in the root of the repository, file name is in .gitignore.
 	require.NoError(t, os.WriteFile("../../"+reportFileName, rawReport, 0o600))
 }

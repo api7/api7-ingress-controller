@@ -22,6 +22,8 @@ type BackendTrafficPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// BackendTrafficPolicySpec defines traffic handling policies applied to backend services,
+	// such as load balancing strategy, connection settings, and failover behavior.
 	Spec   BackendTrafficPolicySpec `json:"spec,omitempty"`
 	Status PolicyStatus             `json:"status,omitempty"`
 }
@@ -37,57 +39,71 @@ type BackendTrafficPolicySpec struct {
 	// LoadBalancer represents the load balancer configuration for Kubernetes Service.
 	// The default strategy is round robin.
 	LoadBalancer *LoadBalancer `json:"loadbalancer,omitempty" yaml:"loadbalancer,omitempty"`
-	// The scheme used to talk with the upstream.
-	//
+	// Scheme is the protocol used to communicate with the upstream.
+	// Default is `http`.
+	// Can be one of `http`, `https`, `grpc`, or `grpcs`.
 	// +kubebuilder:validation:Enum=http;https;grpc;grpcs;
 	// +kubebuilder:default=http
 	Scheme string `json:"scheme,omitempty" yaml:"scheme,omitempty"`
 
-	// How many times that the proxy (Apache APISIX) should do when
-	// errors occur (error, timeout or bad http status codes like 500, 502).
+	// Retries specify the number of times the gateway should retry sending
+	// requests when errors such as timeouts or 502 errors occur.
 	// +optional
 	Retries *int `json:"retries,omitempty" yaml:"retries,omitempty"`
 
-	// Timeout settings for the read, send and connect to the upstream.
+	// Timeout sets the read, send, and connect timeouts to the upstream.
 	Timeout *Timeout `json:"timeout,omitempty" yaml:"timeout,omitempty"`
 
-	// Configures the host when the request is forwarded to the upstream.
-	// Can be one of pass, node or rewrite.
+	// PassHost configures how the host header should be determined when a
+	// request is forwarded to the upstream.
+	// Default is `pass`.
+	// Can be one of `pass`, `node` or `rewrite`.
 	//
 	// +kubebuilder:validation:Enum=pass;node;rewrite;
 	// +kubebuilder:default=pass
 	PassHost string `json:"passHost,omitempty" yaml:"passHost,omitempty"`
 
-	// Specifies the host of the Upstream request. This is only valid if
-	// the passHost is set to rewrite
+	// UpstreamHost specifies the host of the Upstream request. Used only if
+	// passHost is set to `rewrite`.
 	Host Hostname `json:"upstreamHost,omitempty" yaml:"upstreamHost,omitempty"`
 }
 
 // LoadBalancer describes the load balancing parameters.
 // +kubebuilder:validation:XValidation:rule="!(has(self.key) && self.type != 'chash')"
 type LoadBalancer struct {
+	// Type specifies the load balancing algorithms.
+	// Default is `roundrobin`.
+	// Can be one of `roundrobin`, `chash`, `ewma`, or `least_conn`.
 	// +kubebuilder:validation:Enum=roundrobin;chash;ewma;least_conn;
 	// +kubebuilder:default=roundrobin
 	// +kubebuilder:validation:Required
 	Type string `json:"type" yaml:"type"`
-	// The HashOn and Key fields are required when Type is "chash".
-	// HashOn represents the key fetching scope.
+	// HashOn specified the type of field used for hashing, required when Type is `chash`.
+	// Default is `vars`.
+	// Can be one of `vars`, `header`, `cookie`, `consumer`, or `vars_combinations`.
 	// +kubebuilder:validation:Enum=vars;header;cookie;consumer;vars_combinations;
 	// +kubebuilder:default=vars
 	HashOn string `json:"hashOn,omitempty" yaml:"hashOn,omitempty"`
-	// Key represents the hash key.
+	// Key is used with HashOn, generally required when Type is `chash`.
+	// When HashOn is `header` or `cookie`, specifies the name of the header or cookie.
+	// When HashOn is `consumer`, key is not required, as the consumer name is used automatically.
+	// When HashOn is `vars` or `vars_combinations`, key refers to one or a combination of
+	// [built-in variables](/enterprise/reference/built-in-variables).
 	Key string `json:"key,omitempty" yaml:"key,omitempty"`
 }
 
 type Timeout struct {
+	// Connection timeout. Default is `60s`.
 	// +kubebuilder:default="60s"
 	// +kubebuilder:validation:Pattern=`^[0-9]+s$`
 	// +kubebuilder:validation:Type=string
 	Connect metav1.Duration `json:"connect,omitempty" yaml:"connect,omitempty"`
+	// Send timeout. Default is `60s`.
 	// +kubebuilder:default="60s"
 	// +kubebuilder:validation:Pattern=`^[0-9]+s$`
 	// +kubebuilder:validation:Type=string
 	Send metav1.Duration `json:"send,omitempty" yaml:"send,omitempty"`
+	// Read timeout. Default is `60s`.
 	// +kubebuilder:default="60s"
 	// +kubebuilder:validation:Pattern=`^[0-9]+s$`
 	// +kubebuilder:validation:Type=string

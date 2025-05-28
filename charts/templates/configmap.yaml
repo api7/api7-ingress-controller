@@ -5,10 +5,6 @@ metadata:
   namespace: {{ .Release.Namespace }}
 data:
   config.yaml: |
-    cert_file: {{ .Values.config.certFile | default "" }}
-
-    key_file: {{ .Values.config.keyFile | default "" }}
-
     log_level: {{ .Values.config.logLevel | default "info" }}
 
     controller_name: {{ .Values.config.controllerName | default "apisix.apache.org/apisix-ingress-controller" }}
@@ -34,3 +30,8 @@ data:
     secure_metrics: {{ .Values.config.secureMetrics | default "" }}
     
     exec_adc_timeout: {{ .Values.config.execADCTimeout | default "15s" }}
+
+    provider:
+      sync_period: {{ .Values.config.provider.syncPeriod | default "0s" }}
+
+      init_sync_delay: {{ .Values.config.provider.initSyncDelay | default "20m" }}

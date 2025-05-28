@@ -13,6 +13,7 @@
 package controller
 
 import (
+	"cmp"
 	"context"
 	"encoding/pem"
 	"errors"
@@ -31,8 +32,11 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	"sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
@@ -47,6 +51,7 @@ const (
 	KindIngressClass = "IngressClass"
 	KindGatewayProxy = "GatewayProxy"
 	KindSecret       = "Secret"
+	KindService      = "Service"
 )
 
 const defaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
@@ -54,6 +59,18 @@ const defaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-cla
 var (
 	ErrNoMatchingListenerHostname = errors.New("no matching hostnames in listener")
 )
+
+var (
+	enableReferenceGrant bool
+)
+
+func SetEnableReferenceGrant(enable bool) {
+	enableReferenceGrant = enable
+}
+
+func GetEnableReferenceGrant() bool {
+	return enableReferenceGrant
+}
 
 // IsDefaultIngressClass returns whether an IngressClass is the default IngressClass.
 func IsDefaultIngressClass(obj client.Object) bool {
@@ -121,14 +138,9 @@ func IsConditionPresentAndEqual(conditions []metav1.Condition, condition metav1.
 }
 
 func SetGatewayConditionAccepted(gw *gatewayv1.Gateway, status bool, message string) (ok bool) {
-	conditionStatus := metav1.ConditionTrue
-	if !status {
-		conditionStatus = metav1.ConditionFalse
-	}
-
 	condition := metav1.Condition{
 		Type:               string(gatewayv1.GatewayConditionAccepted),
-		Status:             conditionStatus,
+		Status:             ConditionStatus(status),
 		Reason:             string(gatewayv1.GatewayReasonAccepted),
 		ObservedGeneration: gw.GetGeneration(),
 		Message:            message,
@@ -242,23 +254,25 @@ func SetRouteConditionAccepted(routeParentStatus *gatewayv1.RouteParentStatus, g
 	}
 }
 
-func SetRouteConditionResolvedRefs(routeParentStatus *gatewayv1.RouteParentStatus, generation int64, status bool, message string) {
-	reason := string(gatewayv1.RouteReasonResolvedRefs)
-	// check if the error message contains InvalidKind
-	if !status && strings.Contains(message, string(gatewayv1.RouteReasonInvalidKind)) {
-		reason = string(gatewayv1.RouteReasonInvalidKind)
-	}
-	if !status && strings.Contains(message, "Service") && strings.Contains(message, "not found") {
-		reason = string(gatewayv1.RouteReasonBackendNotFound)
+// SetRouteConditionResolvedRefs sets the ResolvedRefs condition with proper reason based on error type
+func SetRouteConditionResolvedRefs(routeParentStatus *gatewayv1.RouteParentStatus, generation int64, err error) {
+	var condition = metav1.Condition{
+		Type:               string(gatewayv1.RouteConditionResolvedRefs),
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: generation,
+		LastTransitionTime: metav1.Now(),
+		Reason:             string(gatewayv1.RouteReasonResolvedRefs),
+		Message:            "backendRefs are resolved",
 	}
 
-	condition := metav1.Condition{
-		Type:               string(gatewayv1.RouteConditionResolvedRefs),
-		Status:             ConditionStatus(status),
-		Reason:             reason,
-		ObservedGeneration: generation,
-		Message:            message,
-		LastTransitionTime: metav1.Now(),
+	if err != nil {
+		condition.Status = metav1.ConditionFalse
+		condition.Message = err.Error()
+
+		var re ReasonError
+		if errors.As(err, &re) {
+			condition.Reason = re.Reason
+		}
 	}
 
 	if !IsConditionPresentAndEqual(routeParentStatus.Conditions, condition) {
@@ -658,12 +672,35 @@ func getListenerStatus(
 			return nil, err
 		}
 		var (
-			reasonResolvedRef  = string(gatewayv1.ListenerReasonResolvedRefs)
-			statusResolvedRef  = metav1.ConditionTrue
-			messageResolvedRef string
-
-			reasonProgrammed = string(gatewayv1.ListenerReasonProgrammed)
-			statusProgrammed = metav1.ConditionTrue
+			now                 = metav1.Now()
+			conditionProgrammed = metav1.Condition{
+				Type:               string(gatewayv1.ListenerConditionProgrammed),
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: gateway.GetGeneration(),
+				LastTransitionTime: now,
+				Reason:             string(gatewayv1.ListenerReasonProgrammed),
+			}
+			conditionAccepted = metav1.Condition{
+				Type:               string(gatewayv1.ListenerConditionAccepted),
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: gateway.GetGeneration(),
+				LastTransitionTime: now,
+				Reason:             string(gatewayv1.ListenerReasonAccepted),
+			}
+			conditionConflicted = metav1.Condition{
+				Type:               string(gatewayv1.ListenerConditionConflicted),
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: gateway.GetGeneration(),
+				LastTransitionTime: now,
+				Reason:             string(gatewayv1.ListenerReasonNoConflicts),
+			}
+			conditionResolvedRefs = metav1.Condition{
+				Type:               string(gatewayv1.ListenerConditionResolvedRefs),
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: gateway.GetGeneration(),
+				LastTransitionTime: now,
+				Reason:             string(gatewayv1.ListenerReasonResolvedRefs),
+			}
 
 			supportedKinds = []gatewayv1.RouteGroupKind{}
 		)
@@ -671,102 +708,101 @@ func getListenerStatus(
 		if listener.AllowedRoutes == nil || listener.AllowedRoutes.Kinds == nil {
 			supportedKinds = []gatewayv1.RouteGroupKind{
 				{
-					Kind: gatewayv1.Kind("HTTPRoute"),
+					Kind: KindHTTPRoute,
 				},
 			}
 		} else {
 			for _, kind := range listener.AllowedRoutes.Kinds {
 				if kind.Group != nil && *kind.Group != gatewayv1.GroupName {
-					reasonResolvedRef = string(gatewayv1.ListenerReasonInvalidRouteKinds)
-					statusResolvedRef = metav1.ConditionFalse
+					conditionResolvedRefs.Status = metav1.ConditionFalse
+					conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonInvalidRouteKinds)
 					continue
 				}
 				switch kind.Kind {
-				case gatewayv1.Kind("HTTPRoute"):
+				case KindHTTPRoute:
 					supportedKinds = append(supportedKinds, kind)
 				default:
-					reasonResolvedRef = string(gatewayv1.ListenerReasonInvalidRouteKinds)
-					statusResolvedRef = metav1.ConditionFalse
+					conditionResolvedRefs.Status = metav1.ConditionFalse
+					conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonInvalidRouteKinds)
 				}
-
 			}
 		}
 
 		if listener.TLS != nil {
 			// TODO: support TLS
 			var (
-				secret   corev1.Secret
-				resolved = true
+				secret corev1.Secret
 			)
 			for _, ref := range listener.TLS.CertificateRefs {
 				if ref.Group != nil && *ref.Group != corev1.GroupName {
-					resolved = false
-					messageResolvedRef = fmt.Sprintf(`Invalid Group, expect "", got "%s"`, *ref.Group)
+					conditionResolvedRefs.Status = metav1.ConditionFalse
+					conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonInvalidCertificateRef)
+					conditionResolvedRefs.Message = fmt.Sprintf(`Invalid Group, expect "", got "%s"`, *ref.Group)
+					conditionProgrammed.Status = metav1.ConditionFalse
+					conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
 					break
 				}
-				if ref.Kind != nil && *ref.Kind != "Secret" {
-					resolved = false
-					messageResolvedRef = fmt.Sprintf(`Invalid Kind, expect "Secret", got "%s"`, *ref.Kind)
+				if ref.Kind != nil && *ref.Kind != KindSecret {
+					conditionResolvedRefs.Status = metav1.ConditionFalse
+					conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonInvalidCertificateRef)
+					conditionResolvedRefs.Message = fmt.Sprintf(`Invalid Kind, expect "Secret", got "%s"`, *ref.Kind)
+					conditionProgrammed.Status = metav1.ConditionFalse
+					conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
 					break
 				}
-				ns := gateway.Namespace
-				if ref.Namespace != nil {
-					ns = string(*ref.Namespace)
-				}
-				if err := mrgc.Get(ctx, client.ObjectKey{Namespace: ns, Name: string(ref.Name)}, &secret); err != nil {
-					resolved = false
-					messageResolvedRef = err.Error()
+				if permitted := checkReferenceGrant(ctx,
+					mrgc,
+					v1beta1.ReferenceGrantFrom{
+						Group:     gatewayv1.GroupName,
+						Kind:      KindGateway,
+						Namespace: v1beta1.Namespace(gateway.Namespace),
+					},
+					gatewayv1.ObjectReference{
+						Group:     corev1.GroupName,
+						Kind:      KindSecret,
+						Name:      ref.Name,
+						Namespace: ref.Namespace,
+					},
+				); !permitted {
+					conditionResolvedRefs.Status = metav1.ConditionFalse
+					conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonRefNotPermitted)
+					conditionResolvedRefs.Message = "certificateRefs cross namespaces is not permitted"
+					conditionProgrammed.Status = metav1.ConditionFalse
+					conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
 					break
 				}
-				if reason, ok := isTLSSecretValid(&secret); !ok {
-					resolved = false
-					messageResolvedRef = fmt.Sprintf("Malformed Secret referenced: %s", reason)
-					break
-				}
-			}
-			if !resolved {
-				reasonResolvedRef = string(gatewayv1.ListenerReasonInvalidCertificateRef)
-				statusResolvedRef = metav1.ConditionFalse
-				reasonProgrammed = string(gatewayv1.ListenerReasonInvalid)
-				statusProgrammed = metav1.ConditionFalse
-			}
-		}
 
-		conditions := []metav1.Condition{
-			{
-				Type:               string(gatewayv1.ListenerConditionProgrammed),
-				Status:             statusProgrammed,
-				ObservedGeneration: gateway.Generation,
-				LastTransitionTime: metav1.Now(),
-				Reason:             reasonProgrammed,
-			},
-			{
-				Type:               string(gatewayv1.ListenerConditionAccepted),
-				Status:             metav1.ConditionTrue,
-				ObservedGeneration: gateway.Generation,
-				LastTransitionTime: metav1.Now(),
-				Reason:             string(gatewayv1.ListenerReasonAccepted),
-			},
-			{
-				Type:               string(gatewayv1.ListenerConditionConflicted),
-				Status:             metav1.ConditionTrue,
-				ObservedGeneration: gateway.Generation,
-				LastTransitionTime: metav1.Now(),
-				Reason:             string(gatewayv1.ListenerReasonNoConflicts),
-			},
-			{
-				Type:               string(gatewayv1.ListenerConditionResolvedRefs),
-				Status:             statusResolvedRef,
-				ObservedGeneration: gateway.Generation,
-				LastTransitionTime: metav1.Now(),
-				Reason:             reasonResolvedRef,
-				Message:            messageResolvedRef,
-			},
+				secretNN := types.NamespacedName{
+					Namespace: string(*cmp.Or(ref.Namespace, (*gatewayv1.Namespace)(&gateway.Namespace))),
+					Name:      string(ref.Name),
+				}
+				if err := mrgc.Get(ctx, secretNN, &secret); err != nil {
+					conditionResolvedRefs.Status = metav1.ConditionFalse
+					conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonInvalidCertificateRef)
+					conditionResolvedRefs.Message = err.Error()
+					conditionProgrammed.Status = metav1.ConditionFalse
+					conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
+					break
+				}
+				if cause, ok := isTLSSecretValid(&secret); !ok {
+					conditionResolvedRefs.Status = metav1.ConditionFalse
+					conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonInvalidCertificateRef)
+					conditionResolvedRefs.Message = fmt.Sprintf("Malformed Secret referenced: %s", cause)
+					conditionProgrammed.Status = metav1.ConditionFalse
+					conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
+					break
+				}
+			}
 		}
 
 		status := gatewayv1.ListenerStatus{
-			Name:           listener.Name,
-			Conditions:     conditions,
+			Name: listener.Name,
+			Conditions: []metav1.Condition{
+				conditionProgrammed,
+				conditionAccepted,
+				conditionConflicted,
+				conditionResolvedRefs,
+			},
 			SupportedKinds: supportedKinds,
 			AttachedRoutes: attachedRoutes,
 		}
@@ -776,7 +812,7 @@ func getListenerStatus(
 			if gateway.Status.Listeners[i].AttachedRoutes != attachedRoutes {
 				changed = true
 			}
-			for _, condition := range conditions {
+			for _, condition := range status.Conditions {
 				if !IsConditionPresentAndEqual(gateway.Status.Listeners[i].Conditions, condition) {
 					changed = true
 					break
@@ -902,25 +938,34 @@ func FullTypeName(a any) string {
 	return path.Join(path.Dir(pkgPath), name)
 }
 
-// InvalidKindError represents an error when backend reference kind is not supported
-type InvalidKindError struct {
-	Kind string
+type ReasonError struct {
+	Reason  string
+	Message string
 }
 
-// Error implements the error interface
-func (e *InvalidKindError) Error() string {
-	return fmt.Sprintf("%s %s", string(gatewayv1.RouteReasonInvalidKind), e.Kind)
+func (e ReasonError) Error() string {
+	return e.Message
 }
 
-// NewInvalidKindError creates a new InvalidKindError
-func NewInvalidKindError(kind string) *InvalidKindError {
-	return &InvalidKindError{Kind: kind}
+func IsSomeReasonError[Reason ~string](err error, reasons ...Reason) bool {
+	if err == nil {
+		return false
+	}
+	var re ReasonError
+	if !errors.As(err, &re) {
+		return false
+	}
+	if len(reasons) == 0 {
+		return true
+	}
+	return slices.Contains(reasons, Reason(re.Reason))
 }
 
-// IsInvalidKindError checks if the error is an InvalidKindError
-func IsInvalidKindError(err error) bool {
-	_, ok := err.(*InvalidKindError)
-	return ok
+func newInvalidKindError[Kind ~string](kind Kind) ReasonError {
+	return ReasonError{
+		Reason:  string(gatewayv1.RouteReasonInvalidKind),
+		Message: fmt.Sprintf("Invalid kind %s, only Service is supported", kind),
+	}
 }
 
 // filterHostnames accepts a list of gateways and an HTTPRoute, and returns a copy of the HTTPRoute with only the hostnames that match the listener hostnames of the gateways.
@@ -1051,4 +1096,61 @@ func isTLSSecretValid(secret *corev1.Secret) (string, bool) {
 		return "Malformed PEM tls.key", false
 	}
 	return "", true
+}
+
+func referenceGrantPredicates(kind gatewayv1.Kind) predicate.Funcs {
+	var filter = func(obj client.Object) bool {
+		grant, ok := obj.(*v1beta1.ReferenceGrant)
+		if !ok {
+			return false
+		}
+		for _, from := range grant.Spec.From {
+			if from.Kind == kind && string(from.Group) == gatewayv1.GroupName {
+				return true
+			}
+		}
+		return false
+	}
+	predicates := predicate.NewPredicateFuncs(filter)
+	predicates.UpdateFunc = func(e event.UpdateEvent) bool {
+		return filter(e.ObjectOld) || filter(e.ObjectNew)
+	}
+	return predicates
+}
+
+func checkReferenceGrant(ctx context.Context, cli client.Client, obj v1beta1.ReferenceGrantFrom, ref gatewayv1.ObjectReference) bool {
+	if ref.Namespace == nil || *ref.Namespace == obj.Namespace {
+		return true
+	}
+
+	if !GetEnableReferenceGrant() {
+		return false
+	}
+
+	var grantList v1beta1.ReferenceGrantList
+	if err := cli.List(ctx, &grantList, client.InNamespace(*ref.Namespace)); err != nil {
+		return false
+	}
+
+	for _, grant := range grantList.Items {
+		if grant.Namespace == string(*ref.Namespace) {
+			for _, from := range grant.Spec.From {
+				if obj == from {
+					for _, to := range grant.Spec.To {
+						if to.Group == ref.Group && to.Kind == ref.Kind && (to.Name == nil || *to.Name == ref.Name) {
+							return true
+						}
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func NamespacedName(obj client.Object) types.NamespacedName {
+	return types.NamespacedName{
+		Namespace: obj.GetNamespace(),
+		Name:      obj.GetName(),
+	}
 }

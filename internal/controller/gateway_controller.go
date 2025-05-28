@@ -31,9 +31,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	"sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
+	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 )
 
@@ -44,11 +46,13 @@ type GatewayReconciler struct { //nolint:revive
 	Log    logr.Logger
 
 	Provider provider.Provider
+
+	Updater status.Updater
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	bdr := ctrl.NewControllerManagedBy(mgr).
 		For(
 			&gatewayv1.Gateway{},
 			builder.WithPredicates(
@@ -82,8 +86,16 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewaysForSecret),
-		).
-		Complete(r)
+		)
+
+	if GetEnableReferenceGrant() {
+		bdr.Watches(&v1beta1.ReferenceGrant{},
+			handler.EnqueueRequestsFromMapFunc(r.listReferenceGrantsForGateway),
+			builder.WithPredicates(referenceGrantPredicates(KindGateway)),
+		)
+	}
+
+	return bdr.Complete(r)
 }
 
 func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -108,21 +120,21 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	conditionProgrammedStatus, conditionProgrammedMsg := true, "Programmed"
 
 	r.Log.Info("gateway has been accepted", "gateway", gateway.GetName())
-	type status struct {
+	type conditionStatus struct {
 		status bool
 		msg    string
 	}
-	acceptStatus := status{
+	acceptStatus := conditionStatus{
 		status: true,
 		msg:    acceptedMessage("gateway"),
 	}
 
-	// create a translate context
+	// create a translation context
 	tctx := provider.NewDefaultTranslateContext(ctx)
 
 	r.processListenerConfig(tctx, gateway)
 	if err := r.processInfrastructure(tctx, gateway); err != nil {
-		acceptStatus = status{
+		acceptStatus = conditionStatus{
 			status: false,
 			msg:    err.Error(),
 		}
@@ -138,7 +150,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	gatewayProxy, ok := tctx.GatewayProxies[rk]
 	if !ok {
-		acceptStatus = status{
+		acceptStatus = conditionStatus{
 			status: false,
 			msg:    "gateway proxy not found",
 		}
@@ -158,29 +170,43 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	if err := r.Provider.Update(ctx, tctx, gateway); err != nil {
-		acceptStatus = status{
+		acceptStatus = conditionStatus{
 			status: false,
 			msg:    err.Error(),
 		}
 	}
 
-	ListenerStatuses, err := getListenerStatus(ctx, r.Client, gateway)
+	listenerStatuses, err := getListenerStatus(ctx, r.Client, gateway)
 	if err != nil {
-		log.Error(err, "failed to get listener status", "gateway", gateway.GetName())
+		r.Log.Error(err, "failed to get listener status", "gateway", req.NamespacedName)
 		return ctrl.Result{}, err
 	}
 
 	accepted := SetGatewayConditionAccepted(gateway, acceptStatus.status, acceptStatus.msg)
-	Programmed := SetGatewayConditionProgrammed(gateway, conditionProgrammedStatus, conditionProgrammedMsg)
-	if accepted || Programmed || len(addrs) > 0 || len(ListenerStatuses) > 0 {
+	programmed := SetGatewayConditionProgrammed(gateway, conditionProgrammedStatus, conditionProgrammedMsg)
+	if accepted || programmed || len(addrs) > 0 || len(listenerStatuses) > 0 {
 		if len(addrs) > 0 {
 			gateway.Status.Addresses = addrs
 		}
-		if len(ListenerStatuses) > 0 {
-			gateway.Status.Listeners = ListenerStatuses
+		if len(listenerStatuses) > 0 {
+			gateway.Status.Listeners = listenerStatuses
 		}
 
-		return ctrl.Result{}, r.Status().Update(ctx, gateway)
+		r.Updater.Update(status.Update{
+			NamespacedName: NamespacedName(gateway),
+			Resource:       gateway.DeepCopy(),
+			Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
+				t, ok := obj.(*gatewayv1.Gateway)
+				if !ok {
+					err := fmt.Errorf("unsupported object type %T", obj)
+					panic(err)
+				}
+				t.Status = gateway.Status
+				return t
+			}),
+		})
+
+		return ctrl.Result{}, nil
 	}
 
 	return ctrl.Result{}, nil
@@ -344,6 +370,43 @@ func (r *GatewayReconciler) listGatewaysForSecret(ctx context.Context, obj clien
 				Name:      gateway.GetName(),
 			},
 		})
+	}
+	return requests
+}
+
+func (r *GatewayReconciler) listReferenceGrantsForGateway(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
+	grant, ok := obj.(*v1beta1.ReferenceGrant)
+	if !ok {
+		r.Log.Error(
+			errors.New("unexpected object type"),
+			"ReferenceGrant watch predicate received unexpected object type",
+			"expected", FullTypeName(new(v1beta1.ReferenceGrant)), "found", FullTypeName(obj),
+		)
+		return nil
+	}
+
+	var gatewayList gatewayv1.GatewayList
+	if err := r.List(ctx, &gatewayList); err != nil {
+		r.Log.Error(err, "failed to list gateways in watch predicate", "ReferenceGrant", grant.GetName())
+		return nil
+	}
+
+	for _, gateway := range gatewayList.Items {
+		gw := v1beta1.ReferenceGrantFrom{
+			Group:     gatewayv1.GroupName,
+			Kind:      KindGateway,
+			Namespace: v1beta1.Namespace(gateway.GetNamespace()),
+		}
+		for _, from := range grant.Spec.From {
+			if from == gw {
+				requests = append(requests, reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Namespace: gateway.GetNamespace(),
+						Name:      gateway.GetName(),
+					},
+				})
+			}
+		}
 	}
 	return requests
 }

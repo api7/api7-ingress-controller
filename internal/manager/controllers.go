@@ -20,6 +20,7 @@ import (
 
 	"github.com/apache/apisix-ingress-controller/internal/controller"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
+	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 )
 
@@ -58,39 +59,44 @@ type Controller interface {
 	SetupWithManager(mgr manager.Manager) error
 }
 
-func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Provider) ([]Controller, error) {
+func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Provider, updater status.Updater) ([]Controller, error) {
 	if err := indexer.SetupIndexer(mgr); err != nil {
 		return nil, err
 	}
 	return []Controller{
 		&controller.GatewayClassReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-			Log:    ctrl.LoggerFrom(ctx).WithName("controllers").WithName("GatewayClass"),
+			Client:  mgr.GetClient(),
+			Scheme:  mgr.GetScheme(),
+			Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName("GatewayClass"),
+			Updater: updater,
 		},
 		&controller.GatewayReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Gateway"),
 			Provider: pro,
+			Updater:  updater,
 		},
 		&controller.HTTPRouteReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("HTTPRoute"),
 			Provider: pro,
+			Updater:  updater,
 		},
 		&controller.IngressReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Ingress"),
 			Provider: pro,
+			Updater:  updater,
 		},
 		&controller.ConsumerReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Consumer"),
 			Provider: pro,
+			Updater:  updater,
 		},
 		&controller.IngressClassReconciler{
 			Client:   mgr.GetClient(),
