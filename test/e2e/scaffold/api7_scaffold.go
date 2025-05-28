@@ -34,6 +34,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/apache/apisix-ingress-controller/pkg/dashboard"
 	"github.com/apache/apisix-ingress-controller/pkg/utils"
@@ -811,4 +812,16 @@ func (s *Scaffold) GetGatewayGroupHTTPSEndpoint(gatewayGroupID string) (string, 
 
 func (s *Scaffold) CurrentGatewayGroupID() string {
 	return s.gatewaygroupid
+}
+
+func (s *Scaffold) GetContext() context.Context {
+	return s.Context
+}
+
+func (s *Scaffold) GetGinkgoT() GinkgoTInterface {
+	return s.GinkgoT
+}
+
+func (s *Scaffold) GetK8sClient() client.Client {
+	return s.K8sClient
 }

@@ -72,7 +72,7 @@ spec:
       name: apisix-proxy-config
 `
 
-	var ResourceApplied = func(s *scaffold.Scaffold, resourType, resourceName, ns, resourceRaw string, observedGeneration int) {
+	var ResourceApplied = func(s scaffold.TestScaffold, resourType, resourceName, ns, resourceRaw string, observedGeneration int) {
 		Expect(s.CreateResourceFromStringWithNamespace(resourceRaw, ns)).
 			NotTo(HaveOccurred(), fmt.Sprintf("creating %s", resourType))
 
@@ -90,7 +90,7 @@ spec:
 			)
 		time.Sleep(1 * time.Second)
 	}
-	var beforeEach = func(s *scaffold.Scaffold, gatewayName string) {
+	var beforeEach = func(s scaffold.TestScaffold, gatewayName string) {
 		err := s.CreateResourceFromString(fmt.Sprintf(`
 kind: Namespace
 apiVersion: v1
@@ -169,7 +169,7 @@ spec:
 		})
 		It("Apply resource ", func() {
 			ResourceApplied(s1, "HTTPRoute", "httpbin", "gateway1", route1, 1)
-			routes, err := s1.DefaultDataplaneResource().Route().List(s1.Context)
+			routes, err := s1.DefaultDataplaneResource().Route().List(s1.GetContext())
 			Expect(err).NotTo(HaveOccurred())
 			Expect(routes).To(HaveLen(1))
 			assert.Equal(GinkgoT(), routes[0].Labels["k8s/controller-name"], "apisix.apache.org/apisix-ingress-controller-1")
@@ -215,7 +215,7 @@ spec:
 		})
 		It("Apply resource ", func() {
 			ResourceApplied(s2, "HTTPRoute", "httpbin2", "gateway2", route2, 1)
-			routes, err := s2.DefaultDataplaneResource().Route().List(s2.Context)
+			routes, err := s2.DefaultDataplaneResource().Route().List(s2.GetContext())
 			Expect(err).NotTo(HaveOccurred())
 			Expect(routes).To(HaveLen(1))
 			assert.Equal(GinkgoT(), routes[0].Labels["k8s/controller-name"], "apisix.apache.org/apisix-ingress-controller-2")

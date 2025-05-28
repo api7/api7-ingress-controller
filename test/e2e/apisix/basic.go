@@ -26,7 +26,7 @@ var _ = Describe("APISIX Standalone Basic Tests", func() {
 
 	Describe("APISIX HTTP Proxy", func() {
 		It("should handle basic HTTP requests", func() {
-			httpClient := s.GetHTTPClient()
+			httpClient := s.NewAPISIXClient()
 			Expect(httpClient).NotTo(BeNil())
 
 			// Test basic connectivity

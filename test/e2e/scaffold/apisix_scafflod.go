@@ -16,8 +16,10 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/apache/apisix-ingress-controller/pkg/dashboard"
 	"net/http"
 	"net/url"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
 
 	"github.com/gavv/httpexpect/v2"
@@ -48,6 +50,16 @@ type APISIXScaffold struct {
 	apisixHttpTunnel  *k8s.Tunnel
 	apisixHttpsTunnel *k8s.Tunnel
 	httpbinService    *corev1.Service
+}
+
+func (s *APISIXScaffold) ResourceApplied(resourType, resourceName, resourceRaw string, observedGeneration int) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) ScaleIngress(i int) {
+	//TODO implement me
+	panic("implement me")
 }
 
 // NewAPISIXScaffold creates a new APISIX scaffold
@@ -289,4 +301,104 @@ func (s *APISIXScaffold) getDeploymentLogs(name string) string {
 		logs += "\n"
 	}
 	return logs
+}
+
+func (s *APISIXScaffold) AdminKey() string {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) GetControllerName() string {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) Namespace() string {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) Context() context.Context {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) CreateResourceFromString(resourceYaml string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) CreateResourceFromStringWithNamespace(resourceYaml, namespace string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) DeleteResourceFromString(resourceYaml string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) DeleteResourceFromStringWithNamespace(resourceYaml, namespace string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) DeleteResource(resourceType, name string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) GetResourceYaml(resourceType, name string) (string, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) GetResourceYamlFromNamespace(resourceType, name, namespace string) (string, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) RunKubectlAndGetOutput(args ...string) (string, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) NewKubeTlsSecret(secretName, cert, key string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) DefaultDataplaneResource() dashboard.Cluster {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) CreateAdditionalGatewayGroup(namePrefix string) (string, string, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) GetAdditionalGatewayGroup(gatewayGroupID string) (*GatewayGroupResources, bool) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) NewAPISIXClientForGatewayGroup(gatewayGroupID string) (*httpexpect.Expect, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) GetContext() context.Context {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) GetGinkgoT() GinkgoTInterface {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) GetK8sClient() client.Client {
+	//TODO implement me
+	panic("implement me")
 }

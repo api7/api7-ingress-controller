@@ -38,7 +38,7 @@ var Cert = strings.TrimSpace(framework.TestServerCert)
 
 var Key = strings.TrimSpace(framework.TestServerKey)
 
-func createSecret(s *scaffold.Scaffold, secretName string) {
+func createSecret(s scaffold.TestScaffold, secretName string) {
 	err := s.NewKubeTlsSecret(secretName, Cert, Key)
 	assert.Nil(GinkgoT(), err, "create secret error")
 }
@@ -734,7 +734,7 @@ spec:
 			By("create HTTPRoutePolicy")
 			err = s.CreateResourceFromString(httpRoutePolicySpec0)
 			Expect(err).NotTo(HaveOccurred(), "creating HTTPRoutePolicy")
-			framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 8*time.Second,
+			framework.HTTPRoutePolicyMustHaveCondition(s.GetGinkgoT(), s.GetK8sClient(), 8*time.Second,
 				types.NamespacedName{Namespace: s.Namespace(), Name: "apisix"},
 				types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-0"},
 				metav1.Condition{
@@ -748,7 +748,7 @@ spec:
 			err = s.DeleteResource("Ingress", "default")
 			Expect(err).NotTo(HaveOccurred(), "delete Ingress")
 
-			err = framework.EventuallyHTTPRoutePolicyHaveStatus(s.K8sClient, 8*time.Second,
+			err = framework.EventuallyHTTPRoutePolicyHaveStatus(s.GetK8sClient(), 8*time.Second,
 				types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-0"},
 				func(_ v1alpha1.HTTPRoutePolicy, status v1alpha1.PolicyStatus) bool {
 					return len(status.Ancestors) == 0

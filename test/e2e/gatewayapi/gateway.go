@@ -32,7 +32,7 @@ var Cert = strings.TrimSpace(framework.TestServerCert)
 
 var Key = strings.TrimSpace(framework.TestServerKey)
 
-func createSecret(s *scaffold.Scaffold, secretName string) {
+func createSecret(s scaffold.TestScaffold, secretName string) {
 	err := s.NewKubeTlsSecret(secretName, Cert, Key)
 	assert.Nil(GinkgoT(), err, "create secret error")
 }
