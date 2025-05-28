@@ -99,6 +99,10 @@ type Scaffold struct {
 	additionalGatewayGroups map[string]*GatewayGroupResources
 }
 
+func (s *Scaffold) DeployNginx(options framework.NginxOptions) {
+	s.Framework.DeployNginx(options)
+}
+
 // GatewayGroupResources contains resources associated with a specific Gateway group
 type GatewayGroupResources struct {
 	GatewayGroupID   string
@@ -175,8 +179,8 @@ func NewAPI7Scaffold(o *Options) *Scaffold {
 
 // NewDefaultScaffold creates a scaffold with some default options.
 // apisix-version default v2
-func NewDefaultScaffold() *Scaffold {
-	return NewAPI7Scaffold(&Options{})
+func NewDefaultScaffold() TestScaffold {
+	return NewScaffold(&Options{})
 }
 
 // KillPod kill the pod which name is podName.

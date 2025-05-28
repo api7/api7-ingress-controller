@@ -52,16 +52,6 @@ type APISIXScaffold struct {
 	httpbinService    *corev1.Service
 }
 
-func (s *APISIXScaffold) ResourceApplied(resourType, resourceName, resourceRaw string, observedGeneration int) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (s *APISIXScaffold) ScaleIngress(i int) {
-	//TODO implement me
-	panic("implement me")
-}
-
 // NewAPISIXScaffold creates a new APISIX scaffold
 func NewAPISIXScaffold(opts *Options) *APISIXScaffold {
 	if opts == nil {
@@ -399,6 +389,36 @@ func (s *APISIXScaffold) GetGinkgoT() GinkgoTInterface {
 }
 
 func (s *APISIXScaffold) GetK8sClient() client.Client {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) ApplyDefaultGatewayResource(gatewayProxy, gatewayClass, gateway, httpRoute string) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) DefaultDataplaneResourceHTTPS() dashboard.Cluster {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) ResourceApplied(resourType, resourceName, resourceRaw string, observedGeneration int) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) ScaleIngress(i int) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) GetDeploymentLogs(name string) string {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *APISIXScaffold) DeployNginx(options framework.NginxOptions) {
 	//TODO implement me
 	panic("implement me")
 }

@@ -881,7 +881,7 @@ spec:
 				return err.Error()
 			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(ContainSubstring(`httproutepolicies.apisix.apache.org "http-route-policy-0" not found`))
 			// access the route without additional vars should be OK
-			message := retry.DoWithRetry(s.GinkgoT, "", 10, time.Second, func() (string, error) {
+			message := retry.DoWithRetry(s.GetGinkgoT(), "", 10, time.Second, func() (string, error) {
 				statusCode := s.NewAPISIXClient().
 					GET("/get").
 					WithHost("httpbin.example").
@@ -892,7 +892,7 @@ spec:
 				}
 				return "request OK", nil
 			})
-			s.Logf(message)
+			s.GetGinkgoT().Logf(message)
 		})
 
 		It("HTTPRoutePolicy conflicts", func() {
@@ -975,7 +975,7 @@ spec:
 				err := s.CreateResourceFromString(spec)
 				Expect(err).NotTo(HaveOccurred(), "creating HTTPRoutePolicy")
 				// wait for HTTPRoutePolicy is Accepted
-				framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 10*time.Second,
+				framework.HTTPRoutePolicyMustHaveCondition(s.GetGinkgoT(), s.GetK8sClient(), 10*time.Second,
 					types.NamespacedName{Namespace: s.Namespace(), Name: "apisix"},
 					types.NamespacedName{Namespace: s.Namespace(), Name: name},
 					metav1.Condition{
@@ -984,7 +984,7 @@ spec:
 				)
 			}
 			for _, name := range []string{"http-route-policy-0", "http-route-policy-1", "http-route-policy-2"} {
-				framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 10*time.Second,
+				framework.HTTPRoutePolicyMustHaveCondition(s.GetGinkgoT(), s.GetK8sClient(), 10*time.Second,
 					types.NamespacedName{Namespace: s.Namespace(), Name: "apisix"},
 					types.NamespacedName{Namespace: s.Namespace(), Name: name},
 					metav1.Condition{
@@ -1008,7 +1008,7 @@ spec:
 			err := s.DeleteResource("HTTPRoutePolicy", "http-route-policy-2")
 			Expect(err).NotTo(HaveOccurred(), "deleting HTTPRoutePolicy %s", "http-route-policy-2")
 			for _, name := range []string{"http-route-policy-0", "http-route-policy-1"} {
-				framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 10*time.Second,
+				framework.HTTPRoutePolicyMustHaveCondition(s.GetGinkgoT(), s.GetK8sClient(), 10*time.Second,
 					types.NamespacedName{Namespace: s.Namespace(), Name: "apisix"},
 					types.NamespacedName{Namespace: s.Namespace(), Name: name},
 					metav1.Condition{
@@ -1029,7 +1029,7 @@ spec:
 			By("update HTTPRoutePolicy")
 			err = s.CreateResourceFromString(httpRoutePolicy1Priority20)
 			Expect(err).NotTo(HaveOccurred(), "update HTTPRoutePolicy's priority to 20")
-			framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 10*time.Second,
+			framework.HTTPRoutePolicyMustHaveCondition(s.GetGinkgoT(), s.GetK8sClient(), 10*time.Second,
 				types.NamespacedName{Namespace: s.Namespace(), Name: "apisix"},
 				types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-1"},
 				metav1.Condition{
@@ -1037,7 +1037,7 @@ spec:
 				},
 			)
 			for _, name := range []string{"http-route-policy-0", "http-route-policy-1"} {
-				framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 10*time.Second,
+				framework.HTTPRoutePolicyMustHaveCondition(s.GetGinkgoT(), s.GetK8sClient(), 10*time.Second,
 					types.NamespacedName{Namespace: s.Namespace(), Name: "apisix"},
 					types.NamespacedName{Namespace: s.Namespace(), Name: name},
 					metav1.Condition{
@@ -1089,7 +1089,7 @@ spec:
 			By("delete the HTTPRoute, assert the HTTPRoutePolicy's status will be changed")
 			err := s.DeleteResource("HTTPRoute", "httpbin")
 			Expect(err).NotTo(HaveOccurred(), "deleting HTTPRoute")
-			message := retry.DoWithRetry(s.GinkgoT, "request the deleted route", 10, time.Second, func() (string, error) {
+			message := retry.DoWithRetry(s.GetGinkgoT(), "request the deleted route", 10, time.Second, func() (string, error) {
 				statusCode := s.NewAPISIXClient().
 					GET("/get").
 					WithHost("httpbin.example").
@@ -1102,7 +1102,7 @@ spec:
 				}
 				return "the route is deleted", nil
 			})
-			s.Logf(message)
+			s.GetGinkgoT().Logf(message)
 
 			Eventually(func() string {
 				spec, err := s.GetResourceYaml("HTTPRoutePolicy", "http-route-policy-0")

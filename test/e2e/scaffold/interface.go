@@ -8,6 +8,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/apache/apisix-ingress-controller/pkg/dashboard"
+	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 )
 
 var NewScaffold func(*Options) TestScaffold
@@ -35,6 +36,8 @@ type TestScaffold interface {
 	GetResourceYaml(resourceType, name string) (string, error)
 	GetResourceYamlFromNamespace(resourceType, name, namespace string) (string, error)
 	ResourceApplied(resourType, resourceName, resourceRaw string, observedGeneration int)
+	ApplyDefaultGatewayResource(gatewayProxy, gatewayClass, gateway, httpRoute string)
+	GetDeploymentLogs(name string) string
 
 	// Kubernetes operation methods
 	RunKubectlAndGetOutput(args ...string) (string, error)
@@ -42,6 +45,7 @@ type TestScaffold interface {
 
 	// Dataplane resource access methods
 	DefaultDataplaneResource() dashboard.Cluster
+	DefaultDataplaneResourceHTTPS() dashboard.Cluster
 
 	// TODO: remove it
 	// Gateway group management methods (for multi-gateway support)
@@ -50,4 +54,5 @@ type TestScaffold interface {
 	NewAPISIXClientForGatewayGroup(gatewayGroupID string) (*httpexpect.Expect, error)
 
 	ScaleIngress(int)
+	DeployNginx(options framework.NginxOptions)
 }
