@@ -133,7 +133,7 @@ func GetKubeconfig() string {
 }
 
 // NewScaffold creates an e2e test scaffold.
-func NewScaffold(o *Options) *Scaffold {
+func NewAPI7Scaffold(o *Options) *Scaffold {
 	if o.Name == "" {
 		o.Name = "default"
 	}
@@ -175,7 +175,7 @@ func NewScaffold(o *Options) *Scaffold {
 // NewDefaultScaffold creates a scaffold with some default options.
 // apisix-version default v2
 func NewDefaultScaffold() *Scaffold {
-	return NewScaffold(&Options{})
+	return NewAPI7Scaffold(&Options{})
 }
 
 // KillPod kill the pod which name is podName.

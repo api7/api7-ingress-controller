@@ -19,21 +19,24 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	_ "github.com/apache/apisix-ingress-controller/test/e2e/adminapi"
-	_ "github.com/apache/apisix-ingress-controller/test/e2e/crds"
+	_ "github.com/apache/apisix-ingress-controller/test/e2e/apisix"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
-	_ "github.com/apache/apisix-ingress-controller/test/e2e/gatewayapi"
-	_ "github.com/apache/apisix-ingress-controller/test/e2e/ingress"
+	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-// Run e2e tests using the Ginkgo runner.
-func TestE2E(t *testing.T) {
+// TestAPISIXE2E runs e2e tests using the APISIX standalone mode
+func TestAPISIXE2E(t *testing.T) {
 	RegisterFailHandler(Fail)
-	f := framework.NewFramework()
+	f := framework.NewAPISIXFramework()
+
+	// init newScaffold function
+	scaffold.NewScaffold = func(opts *scaffold.Options) scaffold.TestScaffold {
+		return scaffold.NewAPISIXScaffold(opts)
+	}
 
 	BeforeSuite(f.BeforeSuite)
 	AfterSuite(f.AfterSuite)
 
-	_, _ = fmt.Fprintf(GinkgoWriter, "Starting apisix-ingress suite\n")
-	RunSpecs(t, "e2e suite")
+	_, _ = fmt.Fprintf(GinkgoWriter, "Starting APISIX standalone e2e suite\n")
+	RunSpecs(t, "apisix standalone e2e suite")
 }

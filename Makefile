@@ -109,7 +109,7 @@ kind-e2e-test: kind-up build-image kind-load-images e2e-test
 .PHONY: e2e-test
 e2e-test:
 	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
-	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test ./test/e2e/ -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)"
+	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test ./test/e2e/ -run TestE2E -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)"
 
 .PHONY: download-api7ee3-chart
 download-api7ee3-chart:
