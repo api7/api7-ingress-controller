@@ -23,9 +23,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
@@ -732,26 +730,20 @@ spec:
 			Expect(err).NotTo(HaveOccurred(), "creating Ingress")
 
 			By("create HTTPRoutePolicy")
-			err = s.CreateResourceFromString(httpRoutePolicySpec0)
-			Expect(err).NotTo(HaveOccurred(), "creating HTTPRoutePolicy")
-			framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 8*time.Second,
-				types.NamespacedName{Namespace: s.Namespace(), Name: "apisix"},
+			s.ApplyHTTPRoutePolicy(
+				types.NamespacedName{Name: "apisix"},
 				types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-0"},
-				metav1.Condition{
-					Type:   string(gatewayv1alpha2.PolicyConditionAccepted),
-					Status: metav1.ConditionTrue,
-					Reason: string(gatewayv1alpha2.PolicyReasonAccepted),
-				},
+				httpRoutePolicySpec0,
 			)
 
 			By("delete ingress")
 			err = s.DeleteResource("Ingress", "default")
 			Expect(err).NotTo(HaveOccurred(), "delete Ingress")
 
-			err = framework.EventuallyHTTPRoutePolicyHaveStatus(s.K8sClient, 8*time.Second,
+			err = framework.PollUntilHTTPRoutePolicyHaveStatus(s.K8sClient, 8*time.Second,
 				types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-0"},
-				func(_ v1alpha1.HTTPRoutePolicy, status v1alpha1.PolicyStatus) bool {
-					return len(status.Ancestors) == 0
+				func(hrp *v1alpha1.HTTPRoutePolicy) bool {
+					return len(hrp.Status.Ancestors) == 0
 				},
 			)
 			Expect(err).NotTo(HaveOccurred(), "expected HTTPRoutePolicy.Status has no Ancestor")
