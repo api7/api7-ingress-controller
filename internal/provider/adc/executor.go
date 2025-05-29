@@ -28,21 +28,21 @@ import (
 )
 
 type ADCExecutor interface {
-	Execute(ctx context.Context, config adcConfig, args []string) error
+	Execute(ctx context.Context, mode string, config adcConfig, args []string) error
 }
 
 type DefaultADCExecutor struct {
 	sync.Mutex
 }
 
-func (e *DefaultADCExecutor) Execute(ctx context.Context, config adcConfig, args []string) error {
+func (e *DefaultADCExecutor) Execute(ctx context.Context, mode string, config adcConfig, args []string) error {
 	e.Lock()
 	defer e.Unlock()
 
-	return e.unlockExecute(ctx, config, args)
+	return e.unlockExecute(ctx, mode, config, args)
 }
 
-func (e *DefaultADCExecutor) unlockExecute(ctx context.Context, config adcConfig, args []string) error {
+func (e *DefaultADCExecutor) unlockExecute(ctx context.Context, mode string, config adcConfig, args []string) error {
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -56,7 +56,7 @@ func (e *DefaultADCExecutor) unlockExecute(ctx context.Context, config adcConfig
 	adcEnv := []string{
 		"ADC_EXPERIMENTAL_FEATURE_FLAGS=remote-state-file,parallel-backend-request",
 		"ADC_RUNNING_MODE=ingress",
-		"ADC_BACKEND=apisix-standalone",
+		"ADC_BACKEND=" + string(mode),
 		"ADC_SERVER=" + serverAddr,
 		"ADC_TOKEN=" + token,
 	}

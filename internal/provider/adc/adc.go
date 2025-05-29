@@ -336,7 +336,7 @@ func (d *adcClient) sync(ctx context.Context, task Task) error {
 
 	log.Debugw("syncing resources with multiple configs", zap.Any("configs", task.configs))
 	for _, config := range task.configs {
-		if err := d.executor.Execute(ctx, config, args); err != nil {
+		if err := d.executor.Execute(ctx, d.BackendMode, config, args); err != nil {
 			return err
 		}
 	}
