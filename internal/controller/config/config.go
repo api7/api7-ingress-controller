@@ -105,6 +105,9 @@ func (c *Config) Validate() error {
 	if c.ControllerName == "" {
 		return fmt.Errorf("controller_name is required")
 	}
+	if c.ProviderConfig.Type == "" {
+		c.ProviderConfig.Type = ProviderTypeAPI7EE
+	}
 	if err := validateProviderType(c.ProviderConfig.Type); err != nil {
 		return err
 	}
