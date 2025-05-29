@@ -21,6 +21,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/Masterminds/sprig/v3"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/testing"
 	corev1 "k8s.io/api/core/v1"
@@ -72,10 +73,14 @@ func NewAPISIXDeployer(t testing.TestingT, kubectlOpts *k8s.KubectlOptions, opts
 	}
 }
 
+func (d *APISIXDeployer) GetService() *corev1.Service {
+	return d.service
+}
+
 // Deploy deploys APISIX standalone
 func (d *APISIXDeployer) Deploy(ctx context.Context) error {
 	// Parse and execute template
-	tmpl, err := template.New("apisix-standalone").Parse(apisixStandaloneTemplate)
+	tmpl, err := template.New("apisix-standalone").Funcs(sprig.TxtFuncMap()).Parse(apisixStandaloneTemplate)
 	if err != nil {
 		return fmt.Errorf("failed to parse template: %w", err)
 	}

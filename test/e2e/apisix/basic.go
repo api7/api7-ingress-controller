@@ -20,9 +20,9 @@ import (
 )
 
 var _ = Describe("APISIX Standalone Basic Tests", func() {
-	var (
-		s *scaffold.APISIXScaffold
-	)
+	s := scaffold.NewScaffold(&scaffold.Options{
+		ControllerName: "apisix.apache.org/apisix-ingress-controller",
+	})
 
 	Describe("APISIX HTTP Proxy", func() {
 		It("should handle basic HTTP requests", func() {

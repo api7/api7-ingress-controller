@@ -43,16 +43,6 @@ var (
 )
 
 func init() {
-	API7EELicense = os.Getenv("API7_EE_LICENSE")
-	if API7EELicense == "" {
-		panic("env {API7_EE_LICENSE} is required")
-	}
-
-	dashboardVersion = os.Getenv("DASHBOARD_VERSION")
-	if dashboardVersion == "" {
-		dashboardVersion = "dev"
-	}
-
 	tmpl, err := template.New("values.yaml").Parse(`
 dashboard:
   image:

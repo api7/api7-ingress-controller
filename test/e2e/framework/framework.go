@@ -18,6 +18,7 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/gruntwork-io/terratest/modules/k8s"
@@ -76,6 +77,16 @@ type Framework struct {
 
 // NewFramework create a global framework with special settings.
 func NewFramework() *Framework {
+	API7EELicense = os.Getenv("API7_EE_LICENSE")
+	if API7EELicense == "" {
+		panic("env {API7_EE_LICENSE} is required")
+	}
+
+	dashboardVersion = os.Getenv("DASHBOARD_VERSION")
+	if dashboardVersion == "" {
+		dashboardVersion = "dev"
+	}
+
 	f := &Framework{
 		GinkgoT:           GinkgoT(),
 		GomegaT:           NewWithT(GinkgoT(4)),

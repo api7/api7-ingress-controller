@@ -15,6 +15,10 @@ GATEAY_API_VERSION ?= v1.2.0
 DASHBOARD_VERSION ?= dev
 TEST_TIMEOUT ?= 45m
 
+APISIX_IMAGE ?= apache/apisix:dev
+APISIX_ADMIN_KEY ?= edd1c9f034335f136f87ad84b625c8f1
+APISIX_NAMESPACE ?= apisix-standalone
+
 # CRD Reference Documentation
 CRD_REF_DOCS_VERSION ?= v0.1.0
 CRD_REF_DOCS ?= $(LOCALBIN)/crd-ref-docs
@@ -109,7 +113,12 @@ kind-e2e-test: kind-up build-image kind-load-images e2e-test
 .PHONY: e2e-test
 e2e-test:
 	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
-	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test ./test/e2e/ -run TestE2E -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)"
+	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test ./test/e2e/ -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)"
+
+.PHONY: e2e-test-standalone
+e2e-test-standalone:
+	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
+	APISIX_IMAGE=$(APISIX_IMAGE) APISIX_ADMIN_KEY=$(APISIX_ADMIN_KEY) APISIX_NAMESPACE=$(APISIX_NAMESPACE) go test ./test/e2e/apisix/ -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)"
 
 .PHONY: download-api7ee3-chart
 download-api7ee3-chart:

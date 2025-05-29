@@ -16,10 +16,8 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/apache/apisix-ingress-controller/pkg/dashboard"
 	"net/http"
 	"net/url"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
 
 	"github.com/gavv/httpexpect/v2"
@@ -29,7 +27,9 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/apache/apisix-ingress-controller/pkg/dashboard"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 )
 
@@ -183,7 +183,7 @@ func (s *APISIXScaffold) NewAPISIXHttpsClient(host string) *httpexpect.Expect {
 
 // DeployIngress deploys the ingress controller
 func (s *APISIXScaffold) DeployIngress(opts framework.IngressDeployOpts) {
-	s.DeployIngress(opts)
+	s.APISIXFramework.DeployIngress(opts)
 }
 
 // deployAPISIXStandalone deploys APISIX in standalone mode
@@ -199,18 +199,36 @@ func (s *APISIXScaffold) deployAPISIXStandalone() {
 	Expect(err).NotTo(HaveOccurred(), "deploying APISIX standalone")
 
 	// Create HTTP tunnel for APISIX
-	s.createAPISIXTunnel()
+	s.createAPISIXTunnel(s.deployer.GetService())
 	// init admin client
 	s.initAdminClient()
 }
 
 // createAPISIXTunnel creates HTTP tunnel to APISIX service
-func (s *APISIXScaffold) createAPISIXTunnel() {
-	tunnel := k8s.NewTunnel(s.kubectlOptions, k8s.ResourceTypeService, "apisix", 0, 80)
+func (s *APISIXScaffold) createAPISIXTunnel(svc *corev1.Service) {
+	var (
+		httpNodePort  int
+		httpsNodePort int
+		httpPort      int
+		httpsPort     int
+	)
+
+	for _, port := range svc.Spec.Ports {
+		switch port.Name {
+		case "http":
+			httpNodePort = int(port.NodePort)
+			httpPort = int(port.Port)
+		case "https":
+			httpsNodePort = int(port.NodePort)
+			httpsPort = int(port.Port)
+		}
+	}
+
+	tunnel := k8s.NewTunnel(s.kubectlOptions, k8s.ResourceTypeService, svc.Name, httpNodePort, httpPort)
 	tunnel.ForwardPort(s.t)
 	s.apisixHttpTunnel = tunnel
 
-	httpsTunnel := k8s.NewTunnel(s.kubectlOptions, k8s.ResourceTypeService, "apisix", 0, 443)
+	httpsTunnel := k8s.NewTunnel(s.kubectlOptions, k8s.ResourceTypeService, svc.Name, httpsNodePort, httpsPort)
 	httpsTunnel.ForwardPort(s.t)
 	s.apisixHttpsTunnel = httpsTunnel
 
@@ -299,8 +317,7 @@ func (s *APISIXScaffold) AdminKey() string {
 }
 
 func (s *APISIXScaffold) GetControllerName() string {
-	//TODO implement me
-	panic("implement me")
+	return s.opts.ControllerName
 }
 
 func (s *APISIXScaffold) Namespace() string {
