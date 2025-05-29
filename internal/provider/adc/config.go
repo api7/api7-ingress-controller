@@ -14,11 +14,14 @@ package adc
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/api7/gopkg/pkg/log"
 	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
+	v1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
@@ -34,15 +37,8 @@ func (d *adcClient) getConfigsForGatewayProxy(tctx *provider.TranslateContext, g
 		return nil, nil
 	}
 
-	endpoints := provider.ControlPlane.Endpoints
-	if len(endpoints) == 0 {
-		return nil, errors.New("no endpoints found")
-	}
-
-	endpoint := endpoints[0]
 	config := adcConfig{
-		Name:       types.NamespacedName{Namespace: gatewayProxy.Namespace, Name: gatewayProxy.Name}.String(),
-		ServerAddr: endpoint,
+		Name: types.NamespacedName{Namespace: gatewayProxy.Namespace, Name: gatewayProxy.Name}.String(),
 	}
 
 	if provider.ControlPlane.TlsVerify != nil {
@@ -69,6 +65,39 @@ func (d *adcClient) getConfigsForGatewayProxy(tctx *provider.TranslateContext, g
 
 	if config.Token == "" {
 		return nil, errors.New("no token found")
+	}
+
+	endpoints := provider.ControlPlane.Endpoints
+	if len(endpoints) > 0 {
+		config.ServerAddrs = endpoints
+		return &config, nil
+	}
+
+	if provider.ControlPlane.Service != nil {
+		namespacedName := types.NamespacedName{
+			Namespace: gatewayProxy.Namespace,
+			Name:      provider.ControlPlane.Service.Name,
+		}
+		_, ok := tctx.Services[namespacedName]
+		if !ok {
+			return nil, errors.New("no service found for service reference")
+		}
+		endpoint := tctx.EndpointSlices[namespacedName]
+		if endpoint == nil {
+			return nil, nil
+		}
+		upstreamNodes, err := d.translator.TranslateBackendRef(tctx, v1.BackendRef{
+			BackendObjectReference: v1.BackendObjectReference{
+				Name: v1.ObjectName(provider.ControlPlane.Service.Name),
+				Port: ptr.To(v1.PortNumber(provider.ControlPlane.Service.Port)),
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, node := range upstreamNodes {
+			config.ServerAddrs = append(config.ServerAddrs, fmt.Sprintf("http://%s:%d", node.Host, node.Port))
+		}
 	}
 
 	return &config, nil

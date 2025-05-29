@@ -46,6 +46,7 @@ func NewDefaultConfig() *Config {
 		LeaderElection:   NewLeaderElection(),
 		ExecADCTimeout:   types.TimeDuration{Duration: 15 * time.Second},
 		ProviderConfig: ProviderConfig{
+			Type:          ProviderTypeStandalone,
 			SyncPeriod:    types.TimeDuration{Duration: 0},
 			InitSyncDelay: types.TimeDuration{Duration: 20 * time.Minute},
 		},
@@ -104,7 +105,19 @@ func (c *Config) Validate() error {
 	if c.ControllerName == "" {
 		return fmt.Errorf("controller_name is required")
 	}
+	if err := validateProviderType(c.ProviderConfig.Type); err != nil {
+		return err
+	}
 	return nil
+}
+
+func validateProviderType(providerType ProviderType) error {
+	switch providerType {
+	case ProviderTypeStandalone, ProviderTypeAPI7EE:
+		return nil
+	default:
+		return fmt.Errorf("unsupported provider type: %s", providerType)
+	}
 }
 
 func GetControllerName() string {

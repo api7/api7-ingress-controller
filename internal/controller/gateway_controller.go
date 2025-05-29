@@ -169,13 +169,6 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 	}
 
-	if err := r.Provider.Update(ctx, tctx, gateway); err != nil {
-		acceptStatus = conditionStatus{
-			status: false,
-			msg:    err.Error(),
-		}
-	}
-
 	listenerStatuses, err := getListenerStatus(ctx, r.Client, gateway)
 	if err != nil {
 		r.Log.Error(err, "failed to get listener status", "gateway", req.NamespacedName)
@@ -194,19 +187,24 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		r.Updater.Update(status.Update{
 			NamespacedName: NamespacedName(gateway),
-			Resource:       gateway.DeepCopy(),
+			Resource:       &gatewayv1.Gateway{},
 			Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
 				t, ok := obj.(*gatewayv1.Gateway)
 				if !ok {
 					err := fmt.Errorf("unsupported object type %T", obj)
 					panic(err)
 				}
-				t.Status = gateway.Status
-				return t
+				tCopy := t.DeepCopy()
+				tCopy.Status = gateway.Status
+				return tCopy
 			}),
 		})
 
 		return ctrl.Result{}, nil
+	}
+
+	if err := r.Provider.Update(ctx, tctx, gateway); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to update gateway %s: %w", req.NamespacedName, err)
 	}
 
 	return ctrl.Result{}, nil

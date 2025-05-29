@@ -211,18 +211,6 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		acceptStatus.msg = err.Error()
 	}
 
-	if isRouteAccepted(gateways) && err == nil {
-		routeToUpdate := hr
-		if filteredHTTPRoute != nil {
-			log.Debugw("filteredHTTPRoute", zap.Any("filteredHTTPRoute", filteredHTTPRoute))
-			routeToUpdate = filteredHTTPRoute
-		}
-		if err := r.Provider.Update(ctx, tctx, routeToUpdate); err != nil {
-			acceptStatus.status = false
-			acceptStatus.msg = err.Error()
-		}
-	}
-
 	// TODO: diff the old and new status
 	hr.Status.Parents = make([]gatewayv1.RouteParentStatus, 0, len(gateways))
 	for _, gateway := range gateways {
@@ -236,20 +224,38 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 		hr.Status.Parents = append(hr.Status.Parents, parentStatus)
 	}
+
+	r.Log.Info("updating HTTPRoute status start", "key", req.NamespacedName,
+		"status", hr.Status)
+
 	r.Updater.Update(status.Update{
 		NamespacedName: NamespacedName(hr),
-		Resource:       hr.DeepCopy(),
+		Resource:       &gatewayv1.HTTPRoute{},
 		Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
 			h, ok := obj.(*gatewayv1.HTTPRoute)
 			if !ok {
 				err := fmt.Errorf("unsupported object type %T", obj)
 				panic(err)
 			}
-			h.Status = hr.Status
-			return h
+			hCopy := h.DeepCopy()
+			r.Log.Info("updating HTTPRoute status", "key", req.NamespacedName,
+				"status", hr.Status)
+			hCopy.Status = hr.Status
+			return hCopy
 		}),
 	})
 	UpdateStatus(r.Updater, r.Log, tctx)
+
+	if isRouteAccepted(gateways) && err == nil {
+		routeToUpdate := hr
+		if filteredHTTPRoute != nil {
+			log.Debugw("filteredHTTPRoute", zap.Any("filteredHTTPRoute", filteredHTTPRoute))
+			routeToUpdate = filteredHTTPRoute
+		}
+		if err := r.Provider.Update(ctx, tctx, routeToUpdate); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
 	return ctrl.Result{}, nil
 }
 

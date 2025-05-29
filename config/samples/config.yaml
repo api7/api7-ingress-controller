@@ -1,4 +1,4 @@
-log_level: "info"                               # The log level of the APISIX Ingress Controller.
+log_level: "debug"                               # The log level of the APISIX Ingress Controller.
                                                 # the default value is "info".
 
 controller_name: apisix.apache.org/apisix-ingress-controller  # The controller name of the APISIX Ingress Controller,
@@ -32,6 +32,8 @@ exec_adc_timeout: 15s                   # The timeout for the ADC to execute.
                                         # The default value is 15 seconds.
 
 provider:
+  type: "api7ee"
+
   sync_period: 0s
                                         # The period between two consecutive syncs.
                                         # The default value is 0 seconds, which means the controller will not sync.

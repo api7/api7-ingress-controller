@@ -77,7 +77,6 @@ func (u *UpdateHandler) apply(ctx context.Context, update Update) {
 
 func (u *UpdateHandler) updateStatus(ctx context.Context, update Update) error {
 	var obj = update.Resource
-	oldGeneration := obj.GetGeneration()
 	if err := u.client.Get(ctx, update.NamespacedName, obj); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil
@@ -85,15 +84,14 @@ func (u *UpdateHandler) updateStatus(ctx context.Context, update Update) error {
 		return err
 	}
 
-	if obj.GetGeneration() != oldGeneration {
-		return nil
-	}
-	obj = update.Mutator.Mutate(obj)
-	if obj == nil {
+	newObj := update.Mutator.Mutate(obj)
+	if newObj == nil {
 		return nil
 	}
 
-	return u.client.Status().Update(ctx, obj)
+	newObj.SetUID(obj.GetUID())
+
+	return u.client.Status().Update(ctx, newObj)
 }
 
 func (u *UpdateHandler) Start(ctx context.Context) error {

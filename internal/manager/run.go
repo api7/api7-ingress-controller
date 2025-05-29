@@ -141,15 +141,26 @@ func Run(ctx context.Context, logger logr.Logger) error {
 		return err
 	}
 
-	provider, err := adc.New()
+	updater := status.NewStatusUpdateHandler(ctrl.LoggerFrom(ctx).WithName("status").WithName("updater"), mgr.GetClient())
+	if err := mgr.Add(updater); err != nil {
+		setupLog.Error(err, "unable to add status updater")
+		return err
+	}
+
+	provider, err := adc.New(
+		updater.Writer(),
+		&adc.Options{
+			SyncTimeout:   config.ControllerConfig.ExecADCTimeout.Duration,
+			SyncPeriod:    config.ControllerConfig.ProviderConfig.SyncPeriod.Duration,
+			InitSyncDelay: config.ControllerConfig.ProviderConfig.InitSyncDelay.Duration,
+		})
 	if err != nil {
 		setupLog.Error(err, "unable to create provider")
 		return err
 	}
 
-	updater := status.NewStatusUpdateHandler(ctrl.LoggerFrom(ctx).WithName("status").WithName("updater"), mgr.GetClient())
-	if err := mgr.Add(updater); err != nil {
-		setupLog.Error(err, "unable to add status updater")
+	if err := mgr.Add(provider); err != nil {
+		setupLog.Error(err, "unable to add provider to manager")
 		return err
 	}
 
@@ -173,7 +184,6 @@ func Run(ctx context.Context, logger logr.Logger) error {
 		for {
 			select {
 			case <-ticker.C:
-				setupLog.Info("trying to sync resources to provider")
 				if err := provider.Sync(ctx); err != nil {
 					setupLog.Error(err, "unable to sync resources to provider")
 					return

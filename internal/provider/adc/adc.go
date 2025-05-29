@@ -13,12 +13,10 @@
 package adc
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"os"
-	"os/exec"
 	"sync"
 	"time"
 
@@ -30,32 +28,39 @@ import (
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
-	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
+	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/provider/adc/translator"
 )
 
 type adcConfig struct {
-	Name       string
-	ServerAddr string
-	Token      string
-	TlsVerify  bool
+	Name        string
+	ServerAddrs []string
+	Token       string
+	TlsVerify   bool
 }
+
+type BackendMode string
+
+const (
+	BackendModeAPISIXStandalone string = "apisix-standalone"
+)
 
 type adcClient struct {
 	sync.Mutex
-
-	execLock sync.Mutex
 
 	translator *translator.Translator
 	// gateway/ingressclass -> adcConfig
 	configs map[provider.ResourceKind]adcConfig
 	// httproute/consumer/ingress/gateway -> gateway/ingressclass
-	parentRefs  map[provider.ResourceKind][]provider.ResourceKind
-	syncTimeout time.Duration
+	parentRefs map[provider.ResourceKind][]provider.ResourceKind
 
 	store *Store
+
+	executor ADCExecutor
+
+	Options
 }
 
 type Task struct {
@@ -66,13 +71,17 @@ type Task struct {
 	configs       []adcConfig
 }
 
-func New() (provider.Provider, error) {
+func New(updater status.Updater, opts ...Option) (provider.Provider, error) {
+	o := Options{}
+	o.ApplyOptions(opts)
+
 	return &adcClient{
-		syncTimeout: config.ControllerConfig.ExecADCTimeout.Duration,
-		translator:  &translator.Translator{},
-		configs:     make(map[provider.ResourceKind]adcConfig),
-		parentRefs:  make(map[provider.ResourceKind][]provider.ResourceKind),
-		store:       NewStore(),
+		Options:    o,
+		translator: &translator.Translator{},
+		configs:    make(map[provider.ResourceKind]adcConfig),
+		parentRefs: make(map[provider.ResourceKind][]provider.ResourceKind),
+		store:      NewStore(),
+		executor:   &DefaultADCExecutor{},
 	}, nil
 }
 
@@ -162,14 +171,16 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		}
 	}
 
-	// sync update
-	return d.sync(ctx, Task{
-		Name:          obj.GetName(),
-		Labels:        label.GenLabel(obj),
-		Resources:     resources,
-		ResourceTypes: resourceTypes,
-		configs:       configs,
-	})
+	if d.BackendMode != BackendModeAPISIXStandalone {
+		return d.sync(ctx, Task{
+			Name:          obj.GetName(),
+			Labels:        label.GenLabel(obj),
+			Resources:     resources,
+			ResourceTypes: resourceTypes,
+			configs:       configs,
+		})
+	}
+	return nil
 }
 
 func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
@@ -214,17 +225,40 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 
 	log.Debugw("successfully deleted resources from store", zap.Any("object", obj))
 
-	err := d.sync(ctx, Task{
-		Name:          obj.GetName(),
-		Labels:        labels,
-		ResourceTypes: resourceTypes,
-		configs:       configs,
-	})
-	if err != nil {
-		return err
+	if d.BackendMode != BackendModeAPISIXStandalone {
+		return d.sync(ctx, Task{
+			Name:          obj.GetName(),
+			Labels:        labels,
+			ResourceTypes: resourceTypes,
+			configs:       configs,
+		})
 	}
-
 	return nil
+}
+
+func (d *adcClient) Start(ctx context.Context) error {
+	initalSyncDelay := d.InitSyncDelay
+	time.AfterFunc(initalSyncDelay, func() {
+		if err := d.Sync(ctx); err != nil {
+			return
+		}
+	})
+
+	if d.SyncPeriod < 1 {
+		return nil
+	}
+	ticker := time.NewTicker(d.SyncPeriod)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if err := d.Sync(ctx); err != nil {
+				log.Errorw("failed to sync resources", zap.Error(err))
+			}
+		case <-ctx.Done():
+			return nil
+		}
+	}
 }
 
 func (d *adcClient) Sync(ctx context.Context) error {
@@ -302,75 +336,9 @@ func (d *adcClient) sync(ctx context.Context, task Task) error {
 
 	log.Debugw("syncing resources with multiple configs", zap.Any("configs", task.configs))
 	for _, config := range task.configs {
-		if err := d.execADC(ctx, config, args); err != nil {
+		if err := d.executor.Execute(ctx, config, args); err != nil {
 			return err
 		}
 	}
-
-	return nil
-}
-
-func (d *adcClient) execADC(ctx context.Context, config adcConfig, args []string) error {
-	d.execLock.Lock()
-	defer d.execLock.Unlock()
-
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, d.syncTimeout)
-	defer cancel()
-	serverAddr := config.ServerAddr
-	token := config.Token
-	tlsVerify := config.TlsVerify
-	if !tlsVerify {
-		args = append(args, "--tls-skip-verify")
-	}
-
-	adcEnv := []string{
-		"ADC_EXPERIMENTAL_FEATURE_FLAGS=remote-state-file,parallel-backend-request",
-		"ADC_RUNNING_MODE=ingress",
-		"ADC_BACKEND=api7ee",
-		"ADC_SERVER=" + serverAddr,
-		"ADC_TOKEN=" + token,
-	}
-
-	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctxWithTimeout, "adc", args...)
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	cmd.Env = append(cmd.Env, os.Environ()...)
-	cmd.Env = append(cmd.Env, adcEnv...)
-
-	log.Debug("running adc command", zap.String("command", cmd.String()), zap.Strings("env", adcEnv))
-
-	var result adctypes.SyncResult
-	if err := cmd.Run(); err != nil {
-		stderrStr := stderr.String()
-		stdoutStr := stdout.String()
-		errMsg := stderrStr
-		if errMsg == "" {
-			errMsg = stdoutStr
-		}
-		log.Errorw("failed to run adc",
-			zap.Error(err),
-			zap.String("output", stdoutStr),
-			zap.String("stderr", stderrStr),
-		)
-		return errors.New("failed to sync resources: " + errMsg + ", exit err: " + err.Error())
-	}
-
-	output := stdout.Bytes()
-	if err := json.Unmarshal(output, &result); err != nil {
-		log.Errorw("failed to unmarshal adc output",
-			zap.Error(err),
-			zap.String("stdout", string(output)),
-		)
-		return errors.New("failed to unmarshal adc result: " + err.Error())
-	}
-
-	if result.FailedCount > 0 {
-		log.Errorw("adc sync failed", zap.Any("result", result))
-		failed := result.Failed
-		return errors.New(failed[0].Reason)
-	}
-
-	log.Debugw("adc sync success", zap.Any("result", result))
 	return nil
 }
