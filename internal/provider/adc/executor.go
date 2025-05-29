@@ -22,9 +22,10 @@ import (
 	"sync"
 	"time"
 
-	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/api7/gopkg/pkg/log"
 	"go.uber.org/zap"
+
+	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 )
 
 type ADCExecutor interface {
@@ -56,7 +57,7 @@ func (e *DefaultADCExecutor) unlockExecute(ctx context.Context, mode string, con
 	adcEnv := []string{
 		"ADC_EXPERIMENTAL_FEATURE_FLAGS=remote-state-file,parallel-backend-request",
 		"ADC_RUNNING_MODE=ingress",
-		"ADC_BACKEND=" + string(mode),
+		"ADC_BACKEND=" + mode,
 		"ADC_SERVER=" + serverAddr,
 		"ADC_TOKEN=" + token,
 	}

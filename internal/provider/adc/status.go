@@ -15,13 +15,14 @@ package adc
 import (
 	"fmt"
 
-	v1alpha1 "github.com/apache/apisix-ingress-controller/api/v1alpha1"
-	"github.com/apache/apisix-ingress-controller/internal/controller/status"
-	types "github.com/apache/apisix-ingress-controller/internal/types"
 	networkingv1 "k8s.io/api/networking/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
+	v1alpha1 "github.com/apache/apisix-ingress-controller/api/v1alpha1"
+	"github.com/apache/apisix-ingress-controller/internal/controller/status"
+	types "github.com/apache/apisix-ingress-controller/internal/types"
 )
 
 type Statuses struct {
