@@ -12,7 +12,7 @@ ENVTEST_K8S_VERSION = 1.30.0
 KIND_NAME ?= apisix-ingress-cluster
 GATEAY_API_VERSION ?= v1.2.0
 
-DASHBOARD_VERSION ?= dev
+DASHBOARD_VERSION ?= v3.8.0
 TEST_TIMEOUT ?= 45m
 
 # CRD Reference Documentation

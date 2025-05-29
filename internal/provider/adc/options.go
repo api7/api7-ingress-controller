@@ -35,7 +35,7 @@ func (o *Options) ApplyToList(lo *Options) {
 	if o.InitSyncDelay > 0 {
 		lo.InitSyncDelay = o.InitSyncDelay
 	}
-	if o.BackendMode == "" {
+	if o.BackendMode != "" {
 		lo.BackendMode = o.BackendMode
 	}
 }

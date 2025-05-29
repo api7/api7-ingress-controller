@@ -46,7 +46,7 @@ func NewDefaultConfig() *Config {
 		LeaderElection:   NewLeaderElection(),
 		ExecADCTimeout:   types.TimeDuration{Duration: 15 * time.Second},
 		ProviderConfig: ProviderConfig{
-			Type:          ProviderTypeStandalone,
+			Type:          ProviderTypeAPI7EE,
 			SyncPeriod:    types.TimeDuration{Duration: 0},
 			InitSyncDelay: types.TimeDuration{Duration: 20 * time.Minute},
 		},
@@ -104,9 +104,6 @@ func NewConfigFromFile(filename string) (*Config, error) {
 func (c *Config) Validate() error {
 	if c.ControllerName == "" {
 		return fmt.Errorf("controller_name is required")
-	}
-	if c.ProviderConfig.Type == "" {
-		c.ProviderConfig.Type = ProviderTypeAPI7EE
 	}
 	if err := validateProviderType(c.ProviderConfig.Type); err != nil {
 		return err
