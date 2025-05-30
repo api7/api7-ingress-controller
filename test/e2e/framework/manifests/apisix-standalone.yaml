@@ -17,17 +17,9 @@ data:
       worker_processes: 2
       error_log_level: info
     deployment:
-      role: data_plane
-      role_data_plane:
-        config_provider: yaml
-  apisix.yaml: |
-    routes:
-      - uri: /anything
-        upstream:
-          nodes:
-            "httpbin.org:80": 1
-          type: roundrobin
-    #END
+      role: traditional
+      role_traditional:
+          config_provider: yaml
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -63,9 +55,6 @@ spec:
             - name: conf
               mountPath: /usr/local/apisix/conf/config.yaml
               subPath: config.yaml
-            - name: conf
-              mountPath: /usr/local/apisix/conf/apisix.yaml
-              subPath: apisix.yaml
       volumes:
         - name: conf
           configMap:
