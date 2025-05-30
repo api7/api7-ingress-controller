@@ -44,6 +44,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
 // HTTPRouteReconciler reconciles a GatewayClass object.
@@ -169,11 +170,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	tctx := provider.NewDefaultTranslateContext(ctx)
 
 	tctx.RouteParentRefs = hr.Spec.ParentRefs
-	rk := provider.ResourceKind{
-		Kind:      hr.Kind,
-		Namespace: hr.Namespace,
-		Name:      hr.Name,
-	}
+	rk := utils.NamespacedNameKind(hr)
 	for _, gateway := range gateways {
 		if err := ProcessGatewayProxy(r.Client, tctx, gateway.Gateway, rk); err != nil {
 			acceptStatus.status = false
@@ -225,9 +222,6 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		hr.Status.Parents = append(hr.Status.Parents, parentStatus)
 	}
 
-	r.Log.Info("updating HTTPRoute status start", "key", req.NamespacedName,
-		"status", hr.Status)
-
 	r.Updater.Update(status.Update{
 		NamespacedName: NamespacedName(hr),
 		Resource:       &gatewayv1.HTTPRoute{},
@@ -238,8 +232,6 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				panic(err)
 			}
 			hCopy := h.DeepCopy()
-			r.Log.Info("updating HTTPRoute status", "key", req.NamespacedName,
-				"status", hr.Status)
 			hCopy.Status = hr.Status
 			return hCopy
 		}),

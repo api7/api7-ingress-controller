@@ -37,6 +37,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
 // GatewayReconciler reconciles a Gateway object.
@@ -142,11 +143,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	var addrs []gatewayv1.GatewayStatusAddress
 
-	rk := provider.ResourceKind{
-		Kind:      gateway.Kind,
-		Namespace: gateway.Namespace,
-		Name:      gateway.Name,
-	}
+	rk := utils.NamespacedNameKind(gateway)
 
 	gatewayProxy, ok := tctx.GatewayProxies[rk]
 	if !ok {
@@ -175,6 +172,13 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
+	if err := r.Provider.Update(ctx, tctx, gateway); err != nil {
+		acceptStatus = conditionStatus{
+			status: false,
+			msg:    err.Error(),
+		}
+	}
+
 	accepted := SetGatewayConditionAccepted(gateway, acceptStatus.status, acceptStatus.msg)
 	programmed := SetGatewayConditionProgrammed(gateway, conditionProgrammedStatus, conditionProgrammedMsg)
 	if accepted || programmed || len(addrs) > 0 || len(listenerStatuses) > 0 {
@@ -201,10 +205,6 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		})
 
 		return ctrl.Result{}, nil
-	}
-
-	if err := r.Provider.Update(ctx, tctx, gateway); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to update gateway %s: %w", req.NamespacedName, err)
 	}
 
 	return ctrl.Result{}, nil
@@ -410,12 +410,7 @@ func (r *GatewayReconciler) listReferenceGrantsForGateway(ctx context.Context, o
 }
 
 func (r *GatewayReconciler) processInfrastructure(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway) error {
-	rk := provider.ResourceKind{
-		Kind:      gateway.Kind,
-		Namespace: gateway.Namespace,
-		Name:      gateway.Name,
-	}
-	return ProcessGatewayProxy(r.Client, tctx, gateway, rk)
+	return ProcessGatewayProxy(r.Client, tctx, gateway, utils.NamespacedNameKind(gateway))
 }
 
 func (r *GatewayReconciler) processListenerConfig(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway) {

@@ -32,6 +32,8 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/provider/adc/translator"
+	types "github.com/apache/apisix-ingress-controller/internal/types"
+	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
 type adcConfig struct {
@@ -45,6 +47,7 @@ type BackendMode string
 
 const (
 	BackendModeAPISIXStandalone string = "apisix-standalone"
+	BackendModeAPI7EE           string = "api7ee"
 )
 
 type adcClient struct {
@@ -52,9 +55,9 @@ type adcClient struct {
 
 	translator *translator.Translator
 	// gateway/ingressclass -> adcConfig
-	configs map[provider.ResourceKind]adcConfig
+	configs map[types.NamespacedNameKind]adcConfig
 	// httproute/consumer/ingress/gateway -> gateway/ingressclass
-	parentRefs map[provider.ResourceKind][]provider.ResourceKind
+	parentRefs map[types.NamespacedNameKind][]types.NamespacedNameKind
 
 	store *Store
 
@@ -78,8 +81,8 @@ func New(updater status.Updater, opts ...Option) (provider.Provider, error) {
 	return &adcClient{
 		Options:    o,
 		translator: &translator.Translator{},
-		configs:    make(map[provider.ResourceKind]adcConfig),
-		parentRefs: make(map[provider.ResourceKind][]provider.ResourceKind),
+		configs:    make(map[types.NamespacedNameKind]adcConfig),
+		parentRefs: make(map[types.NamespacedNameKind][]types.NamespacedNameKind),
 		store:      NewStore(),
 		executor:   &DefaultADCExecutor{},
 	}, nil
@@ -93,11 +96,7 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		err           error
 	)
 
-	rk := provider.ResourceKind{
-		Kind:      obj.GetObjectKind().GroupVersionKind().Kind,
-		Namespace: obj.GetNamespace(),
-		Name:      obj.GetName(),
-	}
+	rk := utils.NamespacedNameKind(obj)
 
 	switch t := obj.(type) {
 	case *gatewayv1.HTTPRoute:
@@ -171,7 +170,10 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		}
 	}
 
-	if d.BackendMode != BackendModeAPISIXStandalone {
+	switch d.BackendMode {
+	case BackendModeAPISIXStandalone:
+		return nil
+	case BackendModeAPI7EE:
 		return d.sync(ctx, Task{
 			Name:          obj.GetName(),
 			Labels:        label.GenLabel(obj),
@@ -179,8 +181,10 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 			ResourceTypes: resourceTypes,
 			configs:       configs,
 		})
+	default:
+		log.Errorw("unknown backend mode", zap.String("mode", d.BackendMode))
+		return errors.New("unknown backend mode: " + d.BackendMode)
 	}
-	return nil
 }
 
 func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
@@ -204,11 +208,7 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 		// delete all resources
 	}
 
-	rk := provider.ResourceKind{
-		Kind:      obj.GetObjectKind().GroupVersionKind().Kind,
-		Namespace: obj.GetNamespace(),
-		Name:      obj.GetName(),
-	}
+	rk := utils.NamespacedNameKind(obj)
 
 	configs := d.getConfigs(rk)
 	defer d.deleteConfigs(rk)
@@ -225,15 +225,20 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 
 	log.Debugw("successfully deleted resources from store", zap.Any("object", obj))
 
-	if d.BackendMode != BackendModeAPISIXStandalone {
+	switch d.BackendMode {
+	case BackendModeAPISIXStandalone:
+		return nil
+	case BackendModeAPI7EE:
 		return d.sync(ctx, Task{
 			Name:          obj.GetName(),
 			Labels:        labels,
 			ResourceTypes: resourceTypes,
 			configs:       configs,
 		})
+	default:
+		log.Errorw("unknown backend mode", zap.String("mode", d.BackendMode))
+		return errors.New("unknown backend mode: " + d.BackendMode)
 	}
-	return nil
 }
 
 func (d *adcClient) Start(ctx context.Context) error {
@@ -303,42 +308,46 @@ func (d *adcClient) sync(ctx context.Context, task Task) error {
 		return errors.New("no adc configs provided")
 	}
 
-	data, err := json.Marshal(task.Resources)
+	syncFilePath, cleanup, err := prepareSyncFile(task.Resources)
 	if err != nil {
 		return err
 	}
+	defer cleanup()
 
-	tmpFile, err := os.CreateTemp("", "adc-task-*.json")
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = tmpFile.Close()
-		_ = os.Remove(tmpFile.Name())
-	}()
-
-	log.Debugf("generated adc file, filename: %s, json: %s\n", tmpFile.Name(), string(data))
-
-	if _, err := tmpFile.Write(data); err != nil {
-		return err
-	}
-	args := []string{
-		"sync",
-		"-f", tmpFile.Name(),
-	}
-
-	for k, v := range task.Labels {
-		args = append(args, "--label-selector", k+"="+v)
-	}
-	for _, t := range task.ResourceTypes {
-		args = append(args, "--include-resource-type", t)
-	}
+	args := BuildADCExecuteArgs(syncFilePath, task.Labels, task.ResourceTypes)
 
 	log.Debugw("syncing resources with multiple configs", zap.Any("configs", task.configs))
 	for _, config := range task.configs {
 		if err := d.executor.Execute(ctx, d.BackendMode, config, args); err != nil {
+			log.Errorw("failed to execute adc command", zap.Error(err), zap.Any("config", config))
 			return err
 		}
 	}
 	return nil
+}
+
+func prepareSyncFile(resources any) (string, func(), error) {
+	data, err := json.Marshal(resources)
+	if err != nil {
+		return "", nil, err
+	}
+
+	tmpFile, err := os.CreateTemp("", "adc-task-*.json")
+	if err != nil {
+		return "", nil, err
+	}
+
+	if _, err := tmpFile.Write(data); err != nil {
+		tmpFile.Close()
+		os.Remove(tmpFile.Name())
+		return "", nil, err
+	}
+
+	cleanup := func() {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpFile.Name())
+	}
+	log.Debugf("generated adc file, filename: %s, json: %s\n", tmpFile.Name(), string(data))
+
+	return tmpFile.Name(), cleanup, nil
 }

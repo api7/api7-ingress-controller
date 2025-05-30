@@ -19,12 +19,13 @@ import (
 
 	"github.com/api7/gopkg/pkg/log"
 	"go.uber.org/zap"
-	"k8s.io/apimachinery/pkg/types"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	v1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	types "github.com/apache/apisix-ingress-controller/internal/types"
 )
 
 func (d *adcClient) getConfigsForGatewayProxy(tctx *provider.TranslateContext, gatewayProxy *v1alpha1.GatewayProxy) (*adcConfig, error) {
@@ -38,7 +39,7 @@ func (d *adcClient) getConfigsForGatewayProxy(tctx *provider.TranslateContext, g
 	}
 
 	config := adcConfig{
-		Name: types.NamespacedName{Namespace: gatewayProxy.Namespace, Name: gatewayProxy.Name}.String(),
+		Name: k8stypes.NamespacedName{Namespace: gatewayProxy.Namespace, Name: gatewayProxy.Name}.String(),
 	}
 
 	if provider.ControlPlane.TlsVerify != nil {
@@ -48,7 +49,7 @@ func (d *adcClient) getConfigsForGatewayProxy(tctx *provider.TranslateContext, g
 	if provider.ControlPlane.Auth.Type == v1alpha1.AuthTypeAdminKey && provider.ControlPlane.Auth.AdminKey != nil {
 		if provider.ControlPlane.Auth.AdminKey.ValueFrom != nil && provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
 			secretRef := provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef
-			secret, ok := tctx.Secrets[types.NamespacedName{
+			secret, ok := tctx.Secrets[k8stypes.NamespacedName{
 				// we should use gateway proxy namespace
 				Namespace: gatewayProxy.GetNamespace(),
 				Name:      secretRef.Name,
@@ -74,7 +75,7 @@ func (d *adcClient) getConfigsForGatewayProxy(tctx *provider.TranslateContext, g
 	}
 
 	if provider.ControlPlane.Service != nil {
-		namespacedName := types.NamespacedName{
+		namespacedName := k8stypes.NamespacedName{
 			Namespace: gatewayProxy.Namespace,
 			Name:      provider.ControlPlane.Service.Name,
 		}
@@ -103,20 +104,20 @@ func (d *adcClient) getConfigsForGatewayProxy(tctx *provider.TranslateContext, g
 	return &config, nil
 }
 
-func (d *adcClient) deleteConfigs(rk provider.ResourceKind) {
+func (d *adcClient) deleteConfigs(rk types.NamespacedNameKind) {
 	d.Lock()
 	defer d.Unlock()
 	delete(d.configs, rk)
 	delete(d.parentRefs, rk)
 }
 
-func (d *adcClient) getParentRefs(rk provider.ResourceKind) []provider.ResourceKind {
+func (d *adcClient) getParentRefs(rk types.NamespacedNameKind) []types.NamespacedNameKind {
 	d.Lock()
 	defer d.Unlock()
 	return d.parentRefs[rk]
 }
 
-func (d *adcClient) getConfigs(rk provider.ResourceKind) []adcConfig {
+func (d *adcClient) getConfigs(rk types.NamespacedNameKind) []adcConfig {
 	d.Lock()
 	defer d.Unlock()
 	parentRefs := d.parentRefs[rk]
@@ -129,7 +130,7 @@ func (d *adcClient) getConfigs(rk provider.ResourceKind) []adcConfig {
 	return configs
 }
 
-func (d *adcClient) updateConfigs(rk provider.ResourceKind, tctx *provider.TranslateContext) error {
+func (d *adcClient) updateConfigs(rk types.NamespacedNameKind, tctx *provider.TranslateContext) error {
 	d.Lock()
 	defer d.Unlock()
 
@@ -157,10 +158,10 @@ func (d *adcClient) updateConfigs(rk provider.ResourceKind, tctx *provider.Trans
 	return nil
 }
 
-func (d *adcClient) findConfigsToDelete(oldParentRefs, newParentRefs []provider.ResourceKind) []adcConfig {
+func (d *adcClient) findConfigsToDelete(oldParentRefs, newParentRefs []types.NamespacedNameKind) []adcConfig {
 	var deleteConfigs []adcConfig
 	for _, parentRef := range oldParentRefs {
-		if !slices.ContainsFunc(newParentRefs, func(rk provider.ResourceKind) bool {
+		if !slices.ContainsFunc(newParentRefs, func(rk types.NamespacedNameKind) bool {
 			return rk.Kind == parentRef.Kind && rk.Namespace == parentRef.Namespace && rk.Name == parentRef.Name
 		}) {
 			deleteConfigs = append(deleteConfigs, d.configs[parentRef])

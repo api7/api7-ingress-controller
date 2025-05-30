@@ -35,6 +35,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
 // ConsumerReconciler  reconciles a Gateway object.
@@ -215,11 +216,7 @@ func (r *ConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		statusErr = err
 	}
 
-	rk := provider.ResourceKind{
-		Kind:      consumer.Kind,
-		Namespace: consumer.Namespace,
-		Name:      consumer.Name,
-	}
+	rk := utils.NamespacedNameKind(consumer)
 
 	if err := ProcessGatewayProxy(r.Client, tctx, gateway, rk); err != nil {
 		r.Log.Error(err, "failed to process gateway proxy", "gateway", gateway)

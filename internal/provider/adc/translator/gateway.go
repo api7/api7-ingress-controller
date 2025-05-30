@@ -31,6 +31,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 	"github.com/apache/apisix-ingress-controller/internal/id"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
 func (t *Translator) TranslateGateway(tctx *provider.TranslateContext, obj *gatewayv1.Gateway) (*TranslateResult, error) {
@@ -47,11 +48,7 @@ func (t *Translator) TranslateGateway(tctx *provider.TranslateContext, obj *gate
 	}
 	result.SSL = mergeSSLWithSameID(result.SSL)
 
-	rk := provider.ResourceKind{
-		Kind:      obj.Kind,
-		Namespace: obj.Namespace,
-		Name:      obj.Name,
-	}
+	rk := utils.NamespacedNameKind(obj)
 	gatewayProxy, ok := tctx.GatewayProxies[rk]
 	if !ok {
 		log.Debugw("no GatewayProxy found for Gateway", zap.String("gateway", obj.Name))

@@ -17,12 +17,13 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
-	"k8s.io/apimachinery/pkg/types"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
+	"github.com/apache/apisix-ingress-controller/internal/types"
 )
 
 type Provider interface {
@@ -32,12 +33,6 @@ type Provider interface {
 	Start(context.Context) error
 }
 
-type ResourceKind struct {
-	Kind      string
-	Namespace string
-	Name      string
-}
-
 type TranslateContext struct {
 	context.Context
 	RouteParentRefs  []gatewayv1.ParentReference
@@ -45,13 +40,13 @@ type TranslateContext struct {
 	GatewayTLSConfig []gatewayv1.GatewayTLSConfig
 	Credentials      []v1alpha1.Credential
 
-	EndpointSlices         map[types.NamespacedName][]discoveryv1.EndpointSlice
-	Secrets                map[types.NamespacedName]*corev1.Secret
-	PluginConfigs          map[types.NamespacedName]*v1alpha1.PluginConfig
-	Services               map[types.NamespacedName]*corev1.Service
-	BackendTrafficPolicies map[types.NamespacedName]*v1alpha1.BackendTrafficPolicy
-	GatewayProxies         map[ResourceKind]v1alpha1.GatewayProxy
-	ResourceParentRefs     map[ResourceKind][]ResourceKind
+	EndpointSlices         map[k8stypes.NamespacedName][]discoveryv1.EndpointSlice
+	Secrets                map[k8stypes.NamespacedName]*corev1.Secret
+	PluginConfigs          map[k8stypes.NamespacedName]*v1alpha1.PluginConfig
+	Services               map[k8stypes.NamespacedName]*corev1.Service
+	BackendTrafficPolicies map[k8stypes.NamespacedName]*v1alpha1.BackendTrafficPolicy
+	GatewayProxies         map[types.NamespacedNameKind]v1alpha1.GatewayProxy
+	ResourceParentRefs     map[types.NamespacedNameKind][]types.NamespacedNameKind
 	HTTPRoutePolicies      []v1alpha1.HTTPRoutePolicy
 
 	StatusUpdaters []status.Update
@@ -60,12 +55,12 @@ type TranslateContext struct {
 func NewDefaultTranslateContext(ctx context.Context) *TranslateContext {
 	return &TranslateContext{
 		Context:                ctx,
-		EndpointSlices:         make(map[types.NamespacedName][]discoveryv1.EndpointSlice),
-		Secrets:                make(map[types.NamespacedName]*corev1.Secret),
-		PluginConfigs:          make(map[types.NamespacedName]*v1alpha1.PluginConfig),
-		Services:               make(map[types.NamespacedName]*corev1.Service),
-		BackendTrafficPolicies: make(map[types.NamespacedName]*v1alpha1.BackendTrafficPolicy),
-		GatewayProxies:         make(map[ResourceKind]v1alpha1.GatewayProxy),
-		ResourceParentRefs:     make(map[ResourceKind][]ResourceKind),
+		EndpointSlices:         make(map[k8stypes.NamespacedName][]discoveryv1.EndpointSlice),
+		Secrets:                make(map[k8stypes.NamespacedName]*corev1.Secret),
+		PluginConfigs:          make(map[k8stypes.NamespacedName]*v1alpha1.PluginConfig),
+		Services:               make(map[k8stypes.NamespacedName]*corev1.Service),
+		BackendTrafficPolicies: make(map[k8stypes.NamespacedName]*v1alpha1.BackendTrafficPolicy),
+		GatewayProxies:         make(map[types.NamespacedNameKind]v1alpha1.GatewayProxy),
+		ResourceParentRefs:     make(map[types.NamespacedNameKind][]types.NamespacedNameKind),
 	}
 }
