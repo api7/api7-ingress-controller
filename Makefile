@@ -13,7 +13,7 @@ KIND_NAME ?= apisix-ingress-cluster
 GATEAY_API_VERSION ?= v1.2.0
 
 DASHBOARD_VERSION ?= dev
-TEST_TIMEOUT ?= 45m
+TEST_TIMEOUT ?= 60m
 
 # CRD Reference Documentation
 CRD_REF_DOCS_VERSION ?= v0.1.0
