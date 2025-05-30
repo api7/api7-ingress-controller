@@ -1007,12 +1007,13 @@ spec:
 			)
 
 			By("access dataplane to check the HTTPRoutePolicy")
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.example").
-				WithHeader("X-Route-Name", "httpbin").
-				Expect().
-				Status(http.StatusNotFound)
+			Eventually(func() int {
+				return s.NewAPISIXClient().
+					GET("/get").
+					WithHost("httpbin.example").
+					WithHeader("X-Route-Name", "httpbin").
+					Expect().Raw().StatusCode
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 
 			s.NewAPISIXClient().
 				GET("/get").
