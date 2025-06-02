@@ -56,3 +56,24 @@ type TestScaffold interface {
 	ScaleIngress(int)
 	DeployNginx(options framework.NginxOptions)
 }
+
+//// Deployer defines the interface for deploying data plane components
+//type Deployer interface {
+//	// for api7 mode, deploy api7 dashboard and api7 gateway
+//	// fror apisix mode, deploy apisix dp only
+//	Deploy(ctx context.Context, opts *DeployOptions) (*DeployResult, error)
+//
+//	// GetClient returns HTTP client for the gateway
+//	GetHTTPClient() *httpexpect.Expect
+//
+//	// GetHTTPSClient returns HTTPS client for the gateway
+//	GetHTTPSClient() *httpexpect.Expect
+//
+//	GetAdminHTTPClient() ...
+//
+//	GetAdminKey() ...
+//}
+
+//type TestFrameWork interface {
+//	NewScaffold(*Options) TestScaffold
+//}

@@ -17,7 +17,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -87,16 +86,15 @@ type Scaffold struct {
 
 	apisixCli dashboard.Dashboard
 
-	gatewaygroupid         string
-	apisixHttpTunnel       *k8s.Tunnel
-	apisixHttpsTunnel      *k8s.Tunnel
-	apisixTCPTunnel        *k8s.Tunnel
-	apisixTLSOverTCPTunnel *k8s.Tunnel
-	apisixUDPTunnel        *k8s.Tunnel
-	// apisixControlTunnel    *k8s.Tunnel
+	gatewaygroupid    string
+	apisixHttpTunnel  *k8s.Tunnel
+	apisixHttpsTunnel *k8s.Tunnel
 
 	// Support for multiple Gateway groups
 	additionalGatewayGroups map[string]*GatewayGroupResources
+
+	// Frameworkd interface
+	// Deployer interface
 }
 
 func (s *Scaffold) DeployNginx(options framework.NginxOptions) {
@@ -230,45 +228,6 @@ func (s *Scaffold) NewAPISIXClient() *httpexpect.Expect {
 // GetAPISIXHTTPSEndpoint get apisix https endpoint from tunnel map
 func (s *Scaffold) GetAPISIXHTTPSEndpoint() string {
 	return s.apisixHttpsTunnel.Endpoint()
-}
-
-// NewAPISIXClientWithTCPProxy creates the HTTP client but with the TCP proxy of APISIX.
-func (s *Scaffold) NewAPISIXClientWithTCPProxy() *httpexpect.Expect {
-	u := url.URL{
-		Scheme: "http",
-		Host:   s.apisixTCPTunnel.Endpoint(),
-	}
-	return httpexpect.WithConfig(httpexpect.Config{
-		BaseURL: u.String(),
-		Client: &http.Client{
-			Transport: &http.Transport{},
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
-		Reporter: httpexpect.NewAssertReporter(
-			httpexpect.NewAssertReporter(GinkgoT()),
-		),
-	})
-}
-
-func (s *Scaffold) DNSResolver() *net.Resolver {
-	return &net.Resolver{
-		PreferGo: false,
-		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			d := net.Dialer{
-				Timeout: time.Millisecond * time.Duration(10000),
-			}
-			return d.DialContext(ctx, "udp", s.apisixUDPTunnel.Endpoint())
-		},
-	}
-}
-
-func (s *Scaffold) DialTLSOverTcp(serverName string) (*tls.Conn, error) {
-	return tls.Dial("tcp", s.apisixTLSOverTCPTunnel.Endpoint(), &tls.Config{
-		InsecureSkipVerify: true,
-		ServerName:         serverName,
-	})
 }
 
 func (s *Scaffold) UpdateNamespace(ns string) {
