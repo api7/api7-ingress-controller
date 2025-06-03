@@ -17,6 +17,15 @@ import (
 )
 
 const (
+	postgres     = "postgres"
+	oceanbase    = "oceanbase"
+	mysql        = "mysql"
+	postgresDSN  = "postgres://api7ee:changeme@api7-postgresql:5432/api7ee"
+	oceanbaseDSN = "mysql://root@tcp(oceanbase:2881)/api7ee"
+	mysqlDSN     = "mysql://root:changeme@tcp(mysql:3306)/api7ee"
+)
+
+const (
 	DashboardEndpoint    = "http://api7ee3-dashboard.api7-ee-e2e:7080"
 	DashboardTLSEndpoint = "https://api7ee3-dashboard.api7-ee-e2e:7443"
 	DPManagerTLSEndpoint = "https://api7ee3-dp-manager.api7-ee-e2e:7943"

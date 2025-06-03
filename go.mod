@@ -7,6 +7,7 @@ toolchain go1.22.5
 require (
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/api7/gopkg v0.2.1-0.20230601092738-0f3730f9b57a
+	github.com/bytedance/sonic/loader v0.2.4
 	github.com/gavv/httpexpect v2.0.0+incompatible
 	github.com/gavv/httpexpect/v2 v2.16.0
 	github.com/go-logr/logr v1.4.2
@@ -28,6 +29,7 @@ require (
 	go.uber.org/zap v1.27.0
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
 	golang.org/x/net v0.28.0
+	google.golang.org/appengine v1.6.7
 	gopkg.in/yaml.v2 v2.4.0
 	gorm.io/gorm v1.25.11
 	helm.sh/helm/v3 v3.15.4
@@ -35,6 +37,7 @@ require (
 	k8s.io/apiextensions-apiserver v0.31.1
 	k8s.io/apimachinery v0.31.1
 	k8s.io/client-go v0.31.1
+	k8s.io/kubectl v0.30.3
 	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
 	sigs.k8s.io/controller-runtime v0.19.0
 	sigs.k8s.io/gateway-api v1.2.0
@@ -192,6 +195,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.28.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
+	go.uber.org/goleak v1.3.0 // indirect
 	golang.org/x/arch v0.6.0 // indirect
 	golang.org/x/crypto v0.26.0 // indirect
 	golang.org/x/mod v0.20.0 // indirect
@@ -217,7 +221,6 @@ require (
 	k8s.io/component-base v0.31.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240430033511-f0e62f92d13f // indirect
-	k8s.io/kubectl v0.30.3 // indirect
 	moul.io/http2curl/v2 v2.3.0 // indirect
 	oras.land/oras-go v1.2.5 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.30.3 // indirect

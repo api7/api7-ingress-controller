@@ -10,28 +10,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package framework
+package apisix
 
 import (
-	_ "embed"
-	"encoding/json"
+	"fmt"
+	"testing"
 
-	"github.com/stretchr/testify/assert"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 )
 
-func (f *Framework) UploadLicense() {
-	payload := map[string]any{"data": API7EELicense}
-	payloadBytes, err := json.Marshal(payload)
-	assert.Nil(f.GinkgoT, err)
+// TestAPISIXE2E runs e2e tests using the APISIX standalone mode
+func TestAPISIXE2E(t *testing.T) {
+	RegisterFailHandler(Fail)
+	// init framework
+	_ = framework.NewFramework()
 
-	respExpect := f.DashboardHTTPClient().PUT("/api/license").
-		WithBasicAuth("admin", "admin").
-		WithHeader("Content-Type", "application/json").
-		WithBytes(payloadBytes).
-		Expect()
+	// TODO: init newDeployer function
 
-	body := respExpect.Body().Raw()
-	f.Logf("request /api/license, response body: %s", body)
-
-	respExpect.Status(200)
+	_, _ = fmt.Fprintf(GinkgoWriter, "Starting APISIX standalone e2e suite\n")
+	RunSpecs(t, "apisix standalone e2e suite")
 }
