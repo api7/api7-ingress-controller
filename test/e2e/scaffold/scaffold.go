@@ -39,12 +39,10 @@ const (
 )
 
 type Options struct {
-	Name                  string
-	Kubeconfig            string
-	APISIXAdminAPIVersion string
-	APISIXConfigPath      string
-	APISIXAdminAPIKey     string
-	ControllerName        string
+	Name              string
+	Kubeconfig        string
+	APISIXAdminAPIKey string
+	ControllerName    string
 
 	NamespaceSelectorLabel map[string][]string
 	DisableNamespaceLabel  bool
@@ -64,6 +62,7 @@ type Scaffold struct {
 	finalizers []func()
 	label      map[string]string
 
+	// TODO: move to deployer
 	apisixCli dashboard.Dashboard
 
 	apisixHttpTunnel  *k8s.Tunnel
@@ -97,14 +96,6 @@ func NewScaffold(o *Options) *Scaffold {
 	}
 	if o.Kubeconfig == "" {
 		o.Kubeconfig = GetKubeconfig()
-	}
-	if o.APISIXAdminAPIVersion == "" {
-		adminVersion := os.Getenv("APISIX_ADMIN_API_VERSION")
-		if adminVersion != "" {
-			o.APISIXAdminAPIVersion = adminVersion
-		} else {
-			o.APISIXAdminAPIVersion = "v3"
-		}
 	}
 
 	defer GinkgoRecover()
@@ -198,34 +189,6 @@ func (s *Scaffold) NewAPISIXHttpsClient(host string) *httpexpect.Expect {
 			httpexpect.NewAssertReporter(GinkgoT()),
 		),
 	})
-}
-
-func (s *Scaffold) initDataPlaneClient() {
-	var err error
-	s.apisixCli, err = dashboard.NewClient()
-	Expect(err).NotTo(HaveOccurred(), "creating apisix client")
-
-	url := fmt.Sprintf("http://%s/apisix/admin", s.GetDashboardEndpoint())
-
-	s.Logf("apisix admin: %s", url)
-
-	err = s.apisixCli.AddCluster(context.Background(), &dashboard.ClusterOptions{
-		Name:           "default",
-		ControllerName: s.opts.ControllerName,
-		Labels:         map[string]string{"k8s/controller-name": s.opts.ControllerName},
-		BaseURL:        url,
-		AdminKey:       s.AdminKey(),
-	})
-	Expect(err).NotTo(HaveOccurred(), "adding cluster")
-
-	httpsURL := fmt.Sprintf("https://%s/apisix/admin", s.GetDashboardEndpointHTTPS())
-	err = s.apisixCli.AddCluster(context.Background(), &dashboard.ClusterOptions{
-		Name:          "default-https",
-		BaseURL:       httpsURL,
-		AdminKey:      s.AdminKey(),
-		SkipTLSVerify: true,
-	})
-	Expect(err).NotTo(HaveOccurred(), "adding cluster")
 }
 
 func (s *Scaffold) DefaultDataplaneResource() dashboard.Cluster {

@@ -1,6 +1,7 @@
 package scaffold
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
@@ -10,6 +11,7 @@ import (
 	. "github.com/onsi/gomega"    //nolint:staticcheck
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/apache/apisix-ingress-controller/pkg/dashboard"
 	"github.com/apache/apisix-ingress-controller/pkg/utils"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 )
@@ -153,10 +155,7 @@ func (s *API7Deployer) newAPISIXTunnels() error {
 func (s *API7Deployer) DeployIngress() {
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
 		ControllerName: s.opts.ControllerName,
-		AdminKey:       s.AdminKey(),
-		AdminTLSVerify: false,
 		Namespace:      s.namespace,
-		AdminEnpoint:   framework.DashboardTLSEndpoint,
 		Replicas:       1,
 	})
 }
@@ -164,10 +163,35 @@ func (s *API7Deployer) DeployIngress() {
 func (s *API7Deployer) ScaleIngress(replicas int) {
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
 		ControllerName: s.opts.ControllerName,
-		AdminKey:       s.AdminKey(),
-		AdminTLSVerify: false,
 		Namespace:      s.namespace,
-		AdminEnpoint:   framework.DashboardTLSEndpoint,
 		Replicas:       replicas,
 	})
+}
+
+func (s *API7Deployer) initDataPlaneClient() {
+	var err error
+	s.apisixCli, err = dashboard.NewClient()
+	Expect(err).NotTo(HaveOccurred(), "creating apisix client")
+
+	url := fmt.Sprintf("http://%s/apisix/admin", s.GetDashboardEndpoint())
+
+	s.Logf("apisix admin: %s", url)
+
+	err = s.apisixCli.AddCluster(context.Background(), &dashboard.ClusterOptions{
+		Name:           "default",
+		ControllerName: s.opts.ControllerName,
+		Labels:         map[string]string{"k8s/controller-name": s.opts.ControllerName},
+		BaseURL:        url,
+		AdminKey:       s.AdminKey(),
+	})
+	Expect(err).NotTo(HaveOccurred(), "adding cluster")
+
+	httpsURL := fmt.Sprintf("https://%s/apisix/admin", s.GetDashboardEndpointHTTPS())
+	err = s.apisixCli.AddCluster(context.Background(), &dashboard.ClusterOptions{
+		Name:          "default-https",
+		BaseURL:       httpsURL,
+		AdminKey:      s.AdminKey(),
+		SkipTLSVerify: true,
+	})
+	Expect(err).NotTo(HaveOccurred(), "adding cluster")
 }

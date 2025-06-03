@@ -85,8 +85,6 @@ func NewFramework() *Framework {
 
 	_framework = f
 
-	GinkgoWriter.Println("Another debug message")
-
 	return f
 }
 

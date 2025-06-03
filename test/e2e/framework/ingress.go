@@ -40,10 +40,7 @@ func init() {
 
 type IngressDeployOpts struct {
 	ControllerName string
-	AdminKey       string
-	AdminTLSVerify bool
 	Namespace      string
-	AdminEnpoint   string
 	StatusAddress  string
 	Replicas       int
 	InitSyncDelay  time.Duration
