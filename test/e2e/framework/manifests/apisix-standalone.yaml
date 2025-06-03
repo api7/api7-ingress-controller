@@ -36,6 +36,24 @@ spec:
       labels:
         app.kubernetes.io/name: apisix
     spec:
+      initContainers:
+        - name: config-setup
+          image: apache/apisix:dev
+          command:
+            - sh
+            - -c
+            - |
+              echo "Copying default config directory to writable volume"
+              cp -r /usr/local/apisix/conf/* /tmp/apisix-conf/
+              echo "Overwriting config.yaml with custom configuration"
+              cp /tmp/config-source/config.yaml /tmp/apisix-conf/config.yaml
+              echo "Config setup completed successfully"
+              ls -la /tmp/apisix-conf/
+          volumeMounts:
+            - name: config-source
+              mountPath: /tmp/config-source
+            - name: config-writable
+              mountPath: /tmp/apisix-conf
       containers:
         - name: apisix
           image: apache/apisix:dev
@@ -50,13 +68,14 @@ spec:
               containerPort: 9180
               protocol: TCP
           volumeMounts:
-            - name: conf
-              mountPath: /usr/local/apisix/conf/config.yaml
-              subPath: config.yaml
+            - name: config-writable
+              mountPath: /usr/local/apisix/conf
       volumes:
-        - name: conf
+        - name: config-source
           configMap:
             name: apisix-conf
+        - name: config-writable
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -66,7 +85,7 @@ metadata:
     app.kubernetes.io/name: apisix
 spec:
   ports:
-    - port: {{ .ServiceHTTPPort}}
+    - port: {{ .ServiceHTTPPort }}
       name: http
       protocol: TCP
       targetPort: 9080

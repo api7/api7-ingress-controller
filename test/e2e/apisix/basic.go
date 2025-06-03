@@ -32,7 +32,7 @@ var _ = Describe("APISIX Standalone Basic Tests", func() {
 			// Test basic connectivity
 			httpClient.GET("/anything").
 				Expect().
-				Status(404).Body().Contains("404 not found")
+				Status(404).Body().Contains("404 Route Not Found")
 		})
 	})
 })

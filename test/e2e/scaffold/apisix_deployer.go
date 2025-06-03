@@ -110,8 +110,10 @@ func (s *APISIXDeployer) AfterEach() {
 
 func (s *APISIXDeployer) DeployDataplane() {
 	opts := APISIXDeployOptions{
-		Namespace: s.namespace,
-		AdminKey:  s.opts.APISIXAdminAPIKey,
+		Namespace:        s.namespace,
+		AdminKey:         s.opts.APISIXAdminAPIKey,
+		ServiceHTTPPort:  9080,
+		ServiceHTTPSPort: 9443,
 	}
 	svc := s.deployDataplane(&opts)
 	s.dataplaneService = svc
