@@ -23,7 +23,6 @@ import (
 	"text/template"
 
 	"github.com/gavv/httpexpect/v2"
-
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
 

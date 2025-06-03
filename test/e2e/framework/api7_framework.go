@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/api7/gopkg/pkg/log"
+	"github.com/gruntwork-io/terratest/modules/k8s"
 	. "github.com/onsi/ginkgo/v2" //nolint:staticcheck
 	. "github.com/onsi/gomega"    //nolint:staticcheck
 	"github.com/stretchr/testify/assert"
@@ -16,8 +17,6 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/kube"
-
-	"github.com/gruntwork-io/terratest/modules/k8s"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 )
 

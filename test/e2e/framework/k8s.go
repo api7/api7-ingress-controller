@@ -28,7 +28,6 @@ import (
 	"github.com/gavv/httpexpect/v2"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/testing"
-	"github.com/onsi/gomega"
 	. "github.com/onsi/gomega" //nolint:staticcheck
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
@@ -272,7 +271,7 @@ func waitExponentialBackoff(condFunc func() (bool, error)) error {
 
 func (f *Framework) NewExpectResponse(httpBody any) *httpexpect.Response {
 	body, err := json.Marshal(httpBody)
-	f.GomegaT.Expect(err).ShouldNot(gomega.HaveOccurred())
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred())
 
 	return httpexpect.NewResponse(f.GinkgoT, &http.Response{
 		Header: http.Header{
@@ -287,7 +286,7 @@ func (f *Framework) ListPods(selector string) []corev1.Pod {
 	pods, err := f.clientset.CoreV1().Pods(_namespace).List(context.TODO(), metav1.ListOptions{
 		LabelSelector: selector,
 	})
-	f.GomegaT.Expect(err).ShouldNot(gomega.HaveOccurred(), "list pod: ", selector)
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "list pod: ", selector)
 	return pods.Items
 }
 
@@ -295,7 +294,7 @@ func (f *Framework) ListRunningPods(selector string) []corev1.Pod {
 	pods, err := f.clientset.CoreV1().Pods(_namespace).List(context.TODO(), metav1.ListOptions{
 		LabelSelector: selector,
 	})
-	f.GomegaT.Expect(err).ShouldNot(gomega.HaveOccurred(), "list pod: ", selector)
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "list pod: ", selector)
 	runningPods := make([]corev1.Pod, 0)
 	for _, p := range pods.Items {
 		if p.Status.Phase == corev1.PodRunning && p.DeletionTimestamp == nil {
@@ -324,7 +323,7 @@ func (f *Framework) ExecCommandInPod(podName string, cmd ...string) (string, str
 
 	var stdout, stderr bytes.Buffer
 	exec, err := remotecommand.NewSPDYExecutor(f.restConfig, "POST", req.URL())
-	f.GomegaT.Expect(err).ShouldNot(gomega.HaveOccurred(), "request kubernetes exec api")
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "request kubernetes exec api")
 	_ = exec.StreamWithContext(context.TODO(), remotecommand.StreamOptions{
 		Stdin:  nil,
 		Stdout: &stdout,
@@ -338,13 +337,13 @@ func (f *Framework) GetPodLogs(name string, previous bool) string {
 		Pods(_namespace).
 		GetLogs(name, &corev1.PodLogOptions{Previous: previous}).
 		Stream(context.Background())
-	f.GomegaT.Expect(err).ShouldNot(gomega.HaveOccurred(), "get logs")
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "get logs")
 	defer func() {
 		_ = reader.Close()
 	}()
 
 	logs, err := io.ReadAll(reader)
-	f.GomegaT.Expect(err).ShouldNot(gomega.HaveOccurred(), "read all logs")
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "read all logs")
 
 	return string(logs)
 }
@@ -367,7 +366,7 @@ func (f *Framework) WaitPodsLog(selector, keyword string, sinceSeconds int64, ti
 				opts.TailLines = ptr.To(int64(0))
 			}
 			logStream, err := f.clientset.CoreV1().Pods(p.Namespace).GetLogs(p.Name, &opts).Stream(context.Background())
-			f.GomegaT.Expect(err).Should(gomega.BeNil())
+			f.GomegaT.Expect(err).Should(BeNil())
 			scanner := bufio.NewScanner(logStream)
 			scanner.Split(bufio.ScanLines)
 			for scanner.Scan() {

@@ -6,14 +6,14 @@ import (
 	"os"
 	"time"
 
-	"github.com/apache/apisix-ingress-controller/pkg/utils"
-	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	. "github.com/onsi/ginkgo/v2" //nolint:staticcheck
 	. "github.com/onsi/gomega"    //nolint:staticcheck
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/apache/apisix-ingress-controller/pkg/utils"
+	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 )
 
 type APISIXDeployOptions struct {
@@ -199,6 +199,7 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
+//nolint:unused
 func (s *APISIXDeployer) createAdminTunnel(
 	svc *corev1.Service,
 	kubectlOpts *k8s.KubectlOptions,
