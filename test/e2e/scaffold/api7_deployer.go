@@ -62,14 +62,25 @@ func (d *API7Deployer) Deploy(ctx context.Context) error {
 	// This will use the existing framework logic
 	d.framework.DeployComponents()
 
+	// Create tunnels for gateway access
+	d.createTunnels()
+
 	// Initialize data plane client
 	return d.initDataPlaneClient()
 }
 
 // Cleanup cleans up API7 resources
 func (d *API7Deployer) Cleanup(ctx context.Context) error {
-	// Cleanup logic for API7 resources
-	// This should clean up dashboard, gateway, etc.
+	// Close tunnels
+	if d.httpTunnel != nil {
+		d.httpTunnel.Close()
+	}
+	if d.httpsTunnel != nil {
+		d.httpsTunnel.Close()
+	}
+
+	// Cleanup API7 dashboard and gateway resources
+	// The framework cleanup will be handled by namespace deletion
 	return nil
 }
 
@@ -110,11 +121,11 @@ func (d *API7Deployer) GetHTTPSClient(host string) *httpexpect.Expect {
 
 // GetAdminClient returns admin client for API7 dashboard
 func (d *API7Deployer) GetAdminClient() *httpexpect.Expect {
-	// TODO: This needs to be adapted to return httpexpect/v2.Expect
-	// For now, we'll return a new client pointing to dashboard
+	// Return a new HTTP client pointing to the dashboard endpoint
+	dashboardEndpoint := d.framework.GetDashboardEndpoint()
 	u := url.URL{
 		Scheme: "http",
-		Host:   d.framework.GetDashboardEndpoint(),
+		Host:   dashboardEndpoint,
 	}
 	return httpexpect.WithConfig(httpexpect.Config{
 		BaseURL: u.String(),
@@ -184,8 +195,26 @@ func (d *API7Deployer) initDataPlaneClient() error {
 
 // createTunnels creates HTTP and HTTPS tunnels for API7 gateway
 func (d *API7Deployer) createTunnels() {
-	// TODO: Implement tunnel creation logic
-	// This should create tunnels to the API7 gateway service
+	// API7 uses a fixed gateway service name pattern
+	gatewayServiceName := "api7ee3-apisix-gateway"
+
+	// Standard API7 gateway ports
+	gatewayHTTPPort := 80
+	gatewayHTTPSPort := 443
+
+	// Create HTTP tunnel
+	if d.httpTunnel == nil {
+		httpTunnel := k8s.NewTunnel(d.kubectlOpts, k8s.ResourceTypeService, gatewayServiceName, 0, gatewayHTTPPort)
+		httpTunnel.ForwardPort(d.t)
+		d.httpTunnel = httpTunnel
+	}
+
+	// Create HTTPS tunnel
+	if d.httpsTunnel == nil {
+		httpsTunnel := k8s.NewTunnel(d.kubectlOpts, k8s.ResourceTypeService, gatewayServiceName, 0, gatewayHTTPSPort)
+		httpsTunnel.ForwardPort(d.t)
+		d.httpsTunnel = httpsTunnel
+	}
 }
 
 // newHTTPSClientWithCertificates creates HTTPS client with certificates
