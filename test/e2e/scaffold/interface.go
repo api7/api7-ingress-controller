@@ -15,11 +15,11 @@ var NewScaffold func(*Options) TestScaffold
 
 // TestScaffold defines the interface for test scaffold implementations
 type TestScaffold interface {
-	// HTTP client methods
+	// HTTP client methods - common interface but implementation may differ
 	NewAPISIXClient() *httpexpect.Expect
 	NewAPISIXHttpsClient(host string) *httpexpect.Expect
 
-	// Basic operation methods
+	// Basic operation methods - common to all implementations
 	AdminKey() string
 	GetControllerName() string
 	Namespace() string
@@ -27,7 +27,7 @@ type TestScaffold interface {
 	GetGinkgoT() ginkgo.GinkgoTInterface
 	GetK8sClient() client.Client
 
-	// Resource management methods
+	// Resource management methods - common to all implementations
 	CreateResourceFromString(resourceYaml string) error
 	CreateResourceFromStringWithNamespace(resourceYaml, namespace string) error
 	DeleteResourceFromString(resourceYaml string) error
@@ -39,40 +39,27 @@ type TestScaffold interface {
 	ApplyDefaultGatewayResource(gatewayProxy, gatewayClass, gateway, httpRoute string)
 	GetDeploymentLogs(name string) string
 
-	// Kubernetes operation methods
+	// Kubernetes operation methods - common to all implementations
 	RunKubectlAndGetOutput(args ...string) (string, error)
 	NewKubeTlsSecret(secretName, cert, key string) error
 
-	// Dataplane resource access methods
+	// Dataplane resource access methods - common interface
 	DefaultDataplaneResource() dashboard.Cluster
 	DefaultDataplaneResourceHTTPS() dashboard.Cluster
 
-	// TODO: remove it
-	// Gateway group management methods (for multi-gateway support)
+	// Common infrastructure methods
+	ScaleIngress(int)
+	DeployNginx(options framework.NginxOptions)
+
+	// Access to underlying deployer
+	GetDeployer() Deployer
+
+	// TODO: These methods should be deprecated for multi-gateway support
+	// They are API7-specific and should be moved to a separate interface
 	CreateAdditionalGatewayGroup(namePrefix string) (string, string, error)
 	GetAdditionalGatewayGroup(gatewayGroupID string) (*GatewayGroupResources, bool)
 	NewAPISIXClientForGatewayGroup(gatewayGroupID string) (*httpexpect.Expect, error)
-
-	ScaleIngress(int)
-	DeployNginx(options framework.NginxOptions)
 }
-
-//// Deployer defines the interface for deploying data plane components
-//type Deployer interface {
-//	// for api7 mode, deploy api7 dashboard and api7 gateway
-//	// fror apisix mode, deploy apisix dp only
-//	Deploy(ctx context.Context, opts *DeployOptions) (*DeployResult, error)
-//
-//	// GetClient returns HTTP client for the gateway
-//	GetHTTPClient() *httpexpect.Expect
-//
-//	// GetHTTPSClient returns HTTPS client for the gateway
-//	GetHTTPSClient() *httpexpect.Expect
-//
-//	GetAdminHTTPClient() ...
-//
-//	GetAdminKey() ...
-//}
 
 //type TestFrameWork interface {
 //	NewScaffold(*Options) TestScaffold

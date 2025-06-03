@@ -45,7 +45,8 @@ type APISIXScaffold struct {
 
 	finalizers []func()
 
-	deployer          *framework.APISIXDeployer
+	// Use the new Deployer interface
+	deployer          Deployer
 	adminClient       *httpexpect.Expect
 	apisixHttpTunnel  *k8s.Tunnel
 	apisixHttpsTunnel *k8s.Tunnel
@@ -188,18 +189,27 @@ func (s *APISIXScaffold) DeployIngress(opts framework.IngressDeployOpts) {
 
 // deployAPISIXStandalone deploys APISIX in standalone mode
 func (s *APISIXScaffold) deployAPISIXStandalone() {
-	deployOpts := &framework.APISIXDeployOptions{
+	// Create our new APISIX deployer
+	deployer, err := NewAPISIXDeployer(s.t, s.kubectlOptions, s.APISIXFramework, &DeployerOptions{
 		Namespace:   s.namespace,
 		ServiceType: "ClusterIP",
-	}
+		AdminKey:    s.opts.APISIXAdminAPIKey,
+		APISIXImage: "apache/apisix:3.8.0", // Default image
+	})
+	Expect(err).NotTo(HaveOccurred(), "creating APISIX deployer")
 
-	s.deployer = framework.NewAPISIXDeployer(s.t, s.kubectlOptions, deployOpts)
+	s.deployer = deployer
 
-	err := s.deployer.Deploy(context.Background())
+	err = s.deployer.Deploy(context.Background())
 	Expect(err).NotTo(HaveOccurred(), "deploying APISIX standalone")
 
-	// Create HTTP tunnel for APISIX
-	s.createAPISIXTunnel(s.deployer.GetService())
+	// Create HTTP tunnels for APISIX - we need to get the service from the deployer
+	apisixDeployer, ok := s.deployer.(*APISIXDeployer)
+	if !ok {
+		panic("deployer is not APISIXDeployer")
+	}
+	s.createAPISIXTunnel(apisixDeployer.service)
+
 	// init admin client
 	s.initAdminClient()
 }
@@ -438,4 +448,9 @@ func (s *APISIXScaffold) GetDeploymentLogs(name string) string {
 func (s *APISIXScaffold) DeployNginx(options framework.NginxOptions) {
 	//TODO implement me
 	panic("implement me")
+}
+
+// GetDeployer returns the underlying deployer instance
+func (s *APISIXScaffold) GetDeployer() Deployer {
+	return s.deployer
 }

@@ -93,8 +93,8 @@ type Scaffold struct {
 	// Support for multiple Gateway groups
 	additionalGatewayGroups map[string]*GatewayGroupResources
 
-	// Frameworkd interface
-	// Deployer interface
+	// Deployer interface for data plane deployment
+	deployer Deployer
 }
 
 func (s *Scaffold) DeployNginx(options framework.NginxOptions) {
@@ -787,4 +787,9 @@ func (s *Scaffold) GetGinkgoT() GinkgoTInterface {
 
 func (s *Scaffold) GetK8sClient() client.Client {
 	return s.K8sClient
+}
+
+// GetDeployer returns the underlying deployer instance
+func (s *Scaffold) GetDeployer() Deployer {
+	return s.deployer
 }
