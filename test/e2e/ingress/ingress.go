@@ -285,13 +285,13 @@ spec:
 				Expect().
 				Status(200)
 
-			s.ScaleIngress(0)
+			s.Deployer.ScaleIngress(0)
 
 			By("delete Ingress")
 			err = s.DeleteResourceFromString(defaultIngress)
 			Expect(err).NotTo(HaveOccurred(), "deleting Ingress without IngressClass")
 
-			s.ScaleIngress(1)
+			s.Deployer.ScaleIngress(1)
 			time.Sleep(1 * time.Minute)
 
 			s.NewAPISIXClient().

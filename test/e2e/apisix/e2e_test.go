@@ -20,6 +20,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
+	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
 // TestAPISIXE2E runs e2e tests using the APISIX standalone mode
@@ -28,7 +29,10 @@ func TestAPISIXE2E(t *testing.T) {
 	// init framework
 	_ = framework.NewFramework()
 
-	// TODO: init newDeployer function
+	// init newDeployer function
+	scaffold.NewDeployer = func(s *scaffold.Scaffold) scaffold.Deployer {
+		return scaffold.NewAPISIXDeployer(s)
+	}
 
 	_, _ = fmt.Fprintf(GinkgoWriter, "Starting APISIX standalone e2e suite\n")
 	RunSpecs(t, "apisix standalone e2e suite")

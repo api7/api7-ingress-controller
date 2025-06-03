@@ -16,12 +16,13 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"github.com/gavv/httpexpect/v2"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"text/template"
+
+	"github.com/gavv/httpexpect/v2"
 
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"

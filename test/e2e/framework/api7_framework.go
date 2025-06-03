@@ -11,7 +11,7 @@ import (
 	. "github.com/onsi/ginkgo/v2" //nolint:staticcheck
 	. "github.com/onsi/gomega"    //nolint:staticcheck
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/cli"
@@ -132,10 +132,15 @@ func (f *Framework) deploy() {
 		"Tag": dashboardVersion,
 	})
 
+	f.Logf("values: %s", buf.String())
+
 	var v map[string]any
 	err = yaml.Unmarshal(buf.Bytes(), &v)
 	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "unmarshal values")
 	_, err = install.Run(chart, v)
+	if err != nil {
+		f.Logf("install dashboard failed, err: %v", err)
+	}
 	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "install dashboard")
 
 	err = f.ensureService("api7ee3-dashboard", _namespace, 1)
