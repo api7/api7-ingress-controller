@@ -37,7 +37,6 @@ type ApisixUpstreamSpec struct {
 }
 
 // ApisixUpstreamStatus defines the observed state of ApisixUpstream.
-// +kubebuilder:deepcopy:generate=true
 type ApisixUpstreamStatus = ApisixStatus
 
 // +kubebuilder:object:root=true

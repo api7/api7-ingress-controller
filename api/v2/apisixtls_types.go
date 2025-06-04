@@ -32,7 +32,6 @@ type ApisixTlsSpec struct {
 }
 
 // ApisixTlsStatus defines the observed state of ApisixTls.
-// +kubebuilder:deepcopy:generate=true
 type ApisixTlsStatus = ApisixStatus
 
 // +kubebuilder:object:root=true

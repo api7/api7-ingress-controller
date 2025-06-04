@@ -15,37 +15,51 @@ package controller
 import (
 	"context"
 
+	"github.com/go-logr/logr"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	apisixapacheorgv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 )
 
 // ApisixRouteReconciler reconciles a ApisixRoute object
 type ApisixRouteReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	Log    logr.Logger
 }
 
 // +kubebuilder:rbac:groups=apisix.apache.org.github.com,resources=apisixroutes,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apisix.apache.org.github.com,resources=apisixroutes/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=apisix.apache.org.github.com,resources=apisixroutes/finalizers,verbs=update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the ApisixRoute object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.2/pkg/reconcile
 func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	r.Log.Info("reconcile", "request", req.NamespacedName)
 
-	// TODO(user): your logic here
+	var obj apiv2.ApisixRoute
+	if err := r.Get(ctx, req.NamespacedName, &obj); err != nil {
+		r.Log.Error(err, "failed to get ApisixConsumer", "request", req.NamespacedName)
+		return ctrl.Result{}, err
+	}
+
+	// FIXME: implement the reconcile logic (For now, it dose nothing other than directly accepting)
+	obj.Status.Conditions = []metav1.Condition{
+		{
+			Type:               string(gatewayv1.RouteConditionAccepted),
+			Status:             metav1.ConditionTrue,
+			ObservedGeneration: obj.GetGeneration(),
+			LastTransitionTime: metav1.Now(),
+			Reason:             string(gatewayv1.RouteReasonAccepted),
+		},
+	}
+
+	if err := r.Status().Update(ctx, &obj); err != nil {
+		r.Log.Error(err, "failed to update status", "request", req.NamespacedName)
+		return ctrl.Result{}, err
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -53,7 +67,7 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 // SetupWithManager sets up the controller with the Manager.
 func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&apisixapacheorgv2.ApisixRoute{}).
+		For(&apiv2.ApisixRoute{}).
 		Named("apisixroute").
 		Complete(r)
 }

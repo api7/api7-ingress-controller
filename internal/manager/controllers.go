@@ -104,5 +104,30 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("IngressClass"),
 			Provider: pro,
 		},
+		&controller.ApisixConsumerReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			Log:    ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixConsumer"),
+		},
+		&controller.ApisixGlobalRuleReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			Log:    ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixGlobalRule"),
+		},
+		&controller.ApisixRouteReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			Log:    ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixRoute"),
+		},
+		&controller.ApisixTlsReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			Log:    ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixTls"),
+		},
+		&controller.ApisixUpstreamReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			Log:    ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixUpstream"),
+		},
 	}, nil
 }

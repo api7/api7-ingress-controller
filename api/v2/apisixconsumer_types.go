@@ -29,7 +29,6 @@ type ApisixConsumerSpec struct {
 }
 
 // ApisixConsumerStatus defines the observed state of ApisixConsumer.
-// +kubebuilder:deepcopy:generate=true
 type ApisixConsumerStatus = ApisixStatus
 
 // +kubebuilder:object:root=true

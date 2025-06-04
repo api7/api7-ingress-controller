@@ -27,11 +27,7 @@ type ApisixGlobalRuleSpec struct {
 }
 
 // ApisixGlobalRuleStatus defines the observed state of ApisixGlobalRule.
-// +kubebuilder:deepcopy:generate=true
-type ApisixGlobalRuleStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-}
+type ApisixGlobalRuleStatus = ApisixStatus
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status

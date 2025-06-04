@@ -28,7 +28,6 @@ type ApisixPluginConfigSpec struct {
 }
 
 // ApisixPluginConfigStatus defines the observed state of ApisixPluginConfig.
-// +kubebuilder:deepcopy:generate=true
 type ApisixPluginConfigStatus ApisixStatus
 
 // +kubebuilder:object:root=true

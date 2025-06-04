@@ -26,7 +26,6 @@ type ApisixRouteSpec struct {
 }
 
 // ApisixRouteStatus defines the observed state of ApisixRoute.
-// +kubebuilder:deepcopy:generate=true
 type ApisixRouteStatus = ApisixStatus
 
 // +kubebuilder:object:root=true
