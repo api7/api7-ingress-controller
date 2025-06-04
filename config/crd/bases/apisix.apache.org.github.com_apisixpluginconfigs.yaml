@@ -4,19 +4,21 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.17.2
-  name: consumers.apisix.apache.org
+  name: apisixpluginconfigs.apisix.apache.org.github.com
 spec:
-  group: apisix.apache.org
+  group: apisix.apache.org.github.com
   names:
-    kind: Consumer
-    listKind: ConsumerList
-    plural: consumers
-    singular: consumer
+    kind: ApisixPluginConfig
+    listKind: ApisixPluginConfigList
+    plural: apisixpluginconfigs
+    singular: apisixpluginconfig
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - name: v2
     schema:
       openAPIV3Schema:
+        description: ApisixPluginConfig is the Schema for the apisixpluginconfigs
+          API.
         properties:
           apiVersion:
             description: |-
@@ -36,86 +38,44 @@ spec:
           metadata:
             type: object
           spec:
-            description: |-
-              ConsumerSpec defines the configuration for a consumer, including consumer name,
-              authentication credentials, and plugin settings.
+            description: ApisixPluginConfigSpec defines the desired state of ApisixPluginConfigSpec.
             properties:
-              credentials:
-                description: Credentials specifies the credential details of a consumer.
+              ingressClassName:
+                description: |-
+                  IngressClassName is the name of an IngressClass cluster resource.
+                  The controller uses this field to decide whether the resource should be managed or not.
+                type: string
+              plugins:
+                description: Plugins contain a list of ApisixRoutePlugin
                 items:
+                  description: ApisixRoutePlugin represents an APISIX plugin.
                   properties:
                     config:
-                      description: Config specifies the credential details for authentication.
-                      x-kubernetes-preserve-unknown-fields: true
+                      additionalProperties:
+                        x-kubernetes-preserve-unknown-fields: true
+                      description: Plugin configuration.
+                      type: object
+                    enable:
+                      description: Whether this plugin is in use, default is true.
+                      type: boolean
                     name:
-                      description: Name is the name of the credential.
+                      description: The plugin name.
                       type: string
                     secretRef:
-                      description: SecretRef references to the Secret that contains
-                        the credentials.
-                      properties:
-                        name:
-                          description: Name is the name of the secret.
-                          type: string
-                        namespace:
-                          description: Namespace is the namespace of the secret.
-                          type: string
-                      required:
-                      - name
-                      type: object
-                    type:
-                      description: |-
-                        Type specifies the type of authentication to configure credentials for.
-                        Can be one of `jwt-auth`, `basic-auth`, `key-auth`, or `hmac-auth`.
-                      enum:
-                      - jwt-auth
-                      - basic-auth
-                      - key-auth
-                      - hmac-auth
+                      description: Plugin configuration secretRef.
                       type: string
                   required:
-                  - type
-                  type: object
-                type: array
-              gatewayRef:
-                description: GatewayRef specifies the gateway details.
-                properties:
-                  group:
-                    default: gateway.networking.k8s.io
-                    description: Group is the API group the resource belongs to. Default
-                      is `gateway.networking.k8s.io`.
-                    type: string
-                  kind:
-                    default: Gateway
-                    description: Kind is the type of Kubernetes object. Default is
-                      `Gateway`.
-                    type: string
-                  name:
-                    description: Name is the name of the gateway.
-                    minLength: 1
-                    type: string
-                  namespace:
-                    description: Namespace is namespace of the resource.
-                    type: string
-                required:
-                - name
-                type: object
-              plugins:
-                description: Plugins define the plugins associated with a consumer.
-                items:
-                  properties:
-                    config:
-                      description: Config is plugin configuration details.
-                      x-kubernetes-preserve-unknown-fields: true
-                    name:
-                      description: Name is the name of the plugin.
-                      type: string
-                  required:
+                  - config
+                  - enable
                   - name
+                  - secretRef
                   type: object
                 type: array
+            required:
+            - plugins
             type: object
           status:
+            description: ApisixPluginConfigStatus defines the observed state of ApisixPluginConfig.
             properties:
               conditions:
                 items:

@@ -7,6 +7,12 @@ resources:
 - bases/apisix.apache.org_consumers.yaml
 - bases/apisix.apache.org_backendtrafficpolicies.yaml
 - bases/apisix.apache.org_httproutepolicies.yaml
+- bases/apisix.apache.org.github.com_apisixroutes.yaml
+- bases/apisix.apache.org.github.com_apisixconsumers.yaml
+- bases/apisix.apache.org.github.com_apisixglobalrules.yaml
+- bases/apisix.apache.org.github.com_apisixtls.yaml
+- bases/apisix.apache.org.github.com_apisixupstreams.yaml
+- bases/apisix.apache.org.github.com_apisixpluginconfigs.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:

@@ -18,3 +18,26 @@ resources:
 - metrics_auth_role.yaml
 - metrics_auth_role_binding.yaml
 - metrics_reader_role.yaml
+# For each CRD, "Admin", "Editor" and "Viewer" roles are scaffolded by
+# default, aiding admins in cluster management. Those roles are
+# not used by the {{ .ProjectName }} itself. You can comment the following lines
+# if you do not want those helpers be installed with your Project.
+- apisixpluginconfig_admin_role.yaml
+- apisixpluginconfig_editor_role.yaml
+- apisixpluginconfig_viewer_role.yaml
+- apisixupstream_admin_role.yaml
+- apisixupstream_editor_role.yaml
+- apisixupstream_viewer_role.yaml
+- apisixtls_admin_role.yaml
+- apisixtls_editor_role.yaml
+- apisixtls_viewer_role.yaml
+- apisixglobalrule_admin_role.yaml
+- apisixglobalrule_editor_role.yaml
+- apisixglobalrule_viewer_role.yaml
+- apisixconsumer_admin_role.yaml
+- apisixconsumer_editor_role.yaml
+- apisixconsumer_viewer_role.yaml
+- apisixroute_admin_role.yaml
+- apisixroute_editor_role.yaml
+- apisixroute_viewer_role.yaml
+

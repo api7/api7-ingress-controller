@@ -15,21 +15,7 @@ rules:
   - ""
   resources:
   - namespaces
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
   - secrets
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
   - services
   verbs:
   - get
@@ -39,6 +25,10 @@ rules:
   - apisix.apache.org
   resources:
   - backendtrafficpolicies
+  - consumers
+  - gatewayproxies
+  - httproutepolicies
+  - pluginconfigs
   verbs:
   - get
   - list
@@ -47,55 +37,49 @@ rules:
   - apisix.apache.org
   resources:
   - backendtrafficpolicies/status
-  verbs:
-  - get
-  - update
-- apiGroups:
-  - apisix.apache.org
-  resources:
-  - consumers
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - apisix.apache.org
-  resources:
   - consumers/status
-  verbs:
-  - get
-  - update
-- apiGroups:
-  - apisix.apache.org
-  resources:
-  - gatewayproxies
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - apisix.apache.org
-  resources:
-  - httproutepolicies
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - apisix.apache.org
-  resources:
   - httproutepolicies/status
   verbs:
   - get
   - update
 - apiGroups:
-  - apisix.apache.org
+  - apisix.apache.org.github.com
   resources:
-  - pluginconfigs
+  - apisixconsumers
+  - apisixglobalrules
+  - apisixroutes
+  - apisixtls
+  - apisixupstreams
   verbs:
+  - create
+  - delete
   - get
   - list
+  - patch
+  - update
   - watch
+- apiGroups:
+  - apisix.apache.org.github.com
+  resources:
+  - apisixconsumers/finalizers
+  - apisixglobalrules/finalizers
+  - apisixroutes/finalizers
+  - apisixtls/finalizers
+  - apisixupstreams/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - apisix.apache.org.github.com
+  resources:
+  - apisixconsumers/status
+  - apisixglobalrules/status
+  - apisixroutes/status
+  - apisixtls/status
+  - apisixupstreams/status
+  verbs:
+  - get
+  - patch
+  - update
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -120,21 +104,6 @@ rules:
   - gateway.networking.k8s.io
   resources:
   - gatewayclasses
-  verbs:
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - gateway.networking.k8s.io
-  resources:
-  - gatewayclasses/status
-  verbs:
-  - get
-  - update
-- apiGroups:
-  - gateway.networking.k8s.io
-  resources:
   - gateways
   verbs:
   - get
@@ -144,7 +113,9 @@ rules:
 - apiGroups:
   - gateway.networking.k8s.io
   resources:
+  - gatewayclasses/status
   - gateways/status
+  - httproutes/status
   verbs:
   - get
   - update
@@ -156,13 +127,6 @@ rules:
   - get
   - list
   - watch
-- apiGroups:
-  - gateway.networking.k8s.io
-  resources:
-  - httproutes/status
-  verbs:
-  - get
-  - update
 - apiGroups:
   - networking.k8s.io
   resources:
