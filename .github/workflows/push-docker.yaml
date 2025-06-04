@@ -11,6 +11,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.ref }}
           submodules: recursive
       - name: Setup Go Env
         uses: actions/setup-go@v4
