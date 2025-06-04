@@ -13,14 +13,19 @@
 package framework
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
-	"net/url"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/api7/gopkg/pkg/log"
-	"github.com/gavv/httpexpect"
+	"github.com/gavv/httpexpect/v2"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/testing"
 	. "github.com/onsi/gomega" //nolint:staticcheck
@@ -33,6 +38,8 @@ import (
 	applymetav1 "k8s.io/client-go/applyconfigurations/meta/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/kubectl/pkg/scheme"
 	"k8s.io/utils/ptr"
 )
 
@@ -195,97 +202,6 @@ func (f *Framework) GetPodIP(selector string) string {
 	return podList.Items[0].Status.PodIP
 }
 
-func (f *Framework) newDashboardTunnel() error {
-	var (
-		httpNodePort  int
-		httpsNodePort int
-		httpPort      int
-		httpsPort     int
-	)
-
-	service := k8s.GetService(f.GinkgoT, f.kubectlOpts, "api7ee3-dashboard")
-
-	for _, port := range service.Spec.Ports {
-		switch port.Name {
-		case "http":
-			httpNodePort = int(port.NodePort)
-			httpPort = int(port.Port)
-		case "https":
-			httpsNodePort = int(port.NodePort)
-			httpsPort = int(port.Port)
-		}
-	}
-
-	f.dashboardHTTPTunnel = k8s.NewTunnel(f.kubectlOpts, k8s.ResourceTypeService, "api7ee3-dashboard",
-		httpNodePort, httpPort)
-	f.dashboardHTTPSTunnel = k8s.NewTunnel(f.kubectlOpts, k8s.ResourceTypeService, "api7ee3-dashboard",
-		httpsNodePort, httpsPort)
-
-	if err := f.dashboardHTTPTunnel.ForwardPortE(f.GinkgoT); err != nil {
-		return err
-	}
-	if err := f.dashboardHTTPSTunnel.ForwardPortE(f.GinkgoT); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (f *Framework) shutdownDashboardTunnel() {
-	if f.dashboardHTTPTunnel != nil {
-		f.dashboardHTTPTunnel.Close()
-	}
-	if f.dashboardHTTPSTunnel != nil {
-		f.dashboardHTTPSTunnel.Close()
-	}
-}
-
-func (f *Framework) GetDashboardEndpoint() string {
-	return f.dashboardHTTPTunnel.Endpoint()
-}
-
-func (f *Framework) GetDashboardEndpointHTTPS() string {
-	return f.dashboardHTTPSTunnel.Endpoint()
-}
-
-func (f *Framework) DashboardHTTPClient() *httpexpect.Expect {
-	u := url.URL{
-		Scheme: "http",
-		Host:   f.GetDashboardEndpoint(),
-	}
-	return httpexpect.WithConfig(httpexpect.Config{
-		BaseURL: u.String(),
-		Client: &http.Client{
-			Transport: &http.Transport{},
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
-		Reporter: httpexpect.NewAssertReporter(
-			httpexpect.NewAssertReporter(f.GinkgoT),
-		),
-	})
-}
-
-func (f *Framework) DashboardHTTPSClient() *httpexpect.Expect {
-	u := url.URL{
-		Scheme: "https",
-		Host:   f.GetDashboardEndpointHTTPS(),
-	}
-	return httpexpect.WithConfig(httpexpect.Config{
-		BaseURL: u.String(),
-		Client: &http.Client{
-			Transport: &http.Transport{},
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
-		Reporter: httpexpect.NewAssertReporter(
-			httpexpect.NewAssertReporter(f.GinkgoT),
-		),
-	})
-}
-
 func (f *Framework) applySSLSecret(namespace, name string, cert, pkey, caCert []byte) {
 	kind := "Secret"
 	apiVersion := "v1"
@@ -351,4 +267,125 @@ func waitExponentialBackoff(condFunc func() (bool, error)) error {
 		Steps:    8,
 	}
 	return wait.ExponentialBackoff(backoff, condFunc)
+}
+
+func (f *Framework) NewExpectResponse(httpBody any) *httpexpect.Response {
+	body, err := json.Marshal(httpBody)
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred())
+
+	return httpexpect.NewResponse(f.GinkgoT, &http.Response{
+		Header: http.Header{
+			"Content-Type": []string{"application/json"},
+		},
+		Body: io.NopCloser(bytes.NewBuffer(body)),
+	})
+}
+
+// ListPods query pods by label selector.
+func (f *Framework) ListPods(selector string) []corev1.Pod {
+	pods, err := f.clientset.CoreV1().Pods(_namespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: selector,
+	})
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "list pod: ", selector)
+	return pods.Items
+}
+
+func (f *Framework) ListRunningPods(selector string) []corev1.Pod {
+	pods, err := f.clientset.CoreV1().Pods(_namespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: selector,
+	})
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "list pod: ", selector)
+	runningPods := make([]corev1.Pod, 0)
+	for _, p := range pods.Items {
+		if p.Status.Phase == corev1.PodRunning && p.DeletionTimestamp == nil {
+			runningPods = append(runningPods, p)
+		}
+	}
+	return runningPods
+}
+
+// ExecCommandInPod exec cmd in specify pod and return the output from stdout and stderr
+func (f *Framework) ExecCommandInPod(podName string, cmd ...string) (string, string) {
+	req := f.clientset.CoreV1().RESTClient().Post().
+		Resource("pods").
+		Name(podName).
+		Namespace(_namespace).SubResource("exec")
+	req.VersionedParams(
+		&corev1.PodExecOptions{
+			Command: cmd,
+			Stdin:   false,
+			Stdout:  true,
+			Stderr:  true,
+			TTY:     false,
+		},
+		scheme.ParameterCodec,
+	)
+
+	var stdout, stderr bytes.Buffer
+	exec, err := remotecommand.NewSPDYExecutor(f.restConfig, "POST", req.URL())
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "request kubernetes exec api")
+	_ = exec.StreamWithContext(context.TODO(), remotecommand.StreamOptions{
+		Stdin:  nil,
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+	return strings.TrimSpace(stdout.String()), strings.TrimSpace(stderr.String())
+}
+
+func (f *Framework) GetPodLogs(name string, previous bool) string {
+	reader, err := f.clientset.CoreV1().
+		Pods(_namespace).
+		GetLogs(name, &corev1.PodLogOptions{Previous: previous}).
+		Stream(context.Background())
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "get logs")
+	defer func() {
+		_ = reader.Close()
+	}()
+
+	logs, err := io.ReadAll(reader)
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "read all logs")
+
+	return string(logs)
+}
+
+func (f *Framework) WaitControllerManagerLog(keyword string, sinceSeconds int64, timeout time.Duration) {
+	f.WaitPodsLog("control-plane=controller-manager", keyword, sinceSeconds, timeout)
+}
+
+func (f *Framework) WaitPodsLog(selector, keyword string, sinceSeconds int64, timeout time.Duration) {
+	pods := f.ListRunningPods(selector)
+	wg := sync.WaitGroup{}
+	for _, p := range pods {
+		wg.Add(1)
+		go func(p corev1.Pod) {
+			defer wg.Done()
+			opts := corev1.PodLogOptions{Follow: true}
+			if sinceSeconds > 0 {
+				opts.SinceSeconds = ptr.To(sinceSeconds)
+			} else {
+				opts.TailLines = ptr.To(int64(0))
+			}
+			logStream, err := f.clientset.CoreV1().Pods(p.Namespace).GetLogs(p.Name, &opts).Stream(context.Background())
+			f.GomegaT.Expect(err).Should(BeNil())
+			scanner := bufio.NewScanner(logStream)
+			scanner.Split(bufio.ScanLines)
+			for scanner.Scan() {
+				line := scanner.Text()
+				if strings.Contains(line, keyword) {
+					return
+				}
+			}
+		}(p)
+	}
+	c := make(chan struct{})
+	go func() {
+		defer close(c)
+		wg.Wait()
+	}()
+	select {
+	case <-c:
+		return
+	case <-time.After(timeout):
+		f.GinkgoT.Error("wait log timeout")
+	}
 }

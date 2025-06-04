@@ -111,6 +111,11 @@ e2e-test:
 	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
 	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test ./test/e2e/ -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)"
 
+.PHONY: e2e-test-standalone
+e2e-test-standalone:
+	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
+	go test ./test/e2e/apisix/ -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)"
+
 .PHONY: download-api7ee3-chart
 download-api7ee3-chart:
 	@helm repo add api7 https://charts.api7.ai || true
