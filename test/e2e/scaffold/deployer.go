@@ -20,6 +20,8 @@ type Deployer interface {
 	ScaleIngress(replicas int)
 	BeforeEach()
 	AfterEach()
+	CreateAdditionalGateway(namePrefix string) (string, string, error)
+	CleanupAdditionalGateway(identifier string) error
 }
 
 var NewDeployer func(*Scaffold) Deployer

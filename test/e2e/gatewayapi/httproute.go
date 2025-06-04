@@ -303,12 +303,12 @@ spec:
 
 			By("Create additional gateway group")
 			var err error
-			additionalGatewayGroupID, additionalNamespace, err = s.CreateAdditionalGatewayGroup("multi-gw")
+			additionalGatewayGroupID, additionalNamespace, err = s.Deployer.CreateAdditionalGateway("multi-gw")
 			Expect(err).NotTo(HaveOccurred(), "creating additional gateway group")
 
 			By("Create additional GatewayProxy")
 			// Get admin key for the additional gateway group
-			resources, exists := s.GetAdditionalGatewayGroup(additionalGatewayGroupID)
+			resources, exists := s.GetAdditionalGateway(additionalGatewayGroupID)
 			Expect(exists).To(BeTrue(), "additional gateway group should exist")
 
 			By("Create additional GatewayClass")
@@ -348,7 +348,7 @@ spec:
 				Status(http.StatusOK)
 
 			By("Access through additional gateway")
-			client, err := s.NewAPISIXClientForGatewayGroup(additionalGatewayGroupID)
+			client, err := s.NewAPISIXClientForGateway(additionalGatewayGroupID)
 			Expect(err).NotTo(HaveOccurred(), "creating client for additional gateway")
 
 			client.
@@ -370,7 +370,7 @@ spec:
 				Status(http.StatusOK)
 
 			By("HTTPRoute should not be accessible through additional gateway")
-			client, err = s.NewAPISIXClientForGatewayGroup(additionalGatewayGroupID)
+			client, err = s.NewAPISIXClientForGateway(additionalGatewayGroupID)
 			Expect(err).NotTo(HaveOccurred(), "creating client for additional gateway")
 
 			client.
@@ -1671,13 +1671,13 @@ spec:
 
 			By("create additional gateway group to get new admin key")
 			var err error
-			additionalGatewayGroupID, _, err = s.CreateAdditionalGatewayGroup("gateway-proxy-update")
+			additionalGatewayGroupID, _, err = s.Deployer.CreateAdditionalGateway("gateway-proxy-update")
 			Expect(err).NotTo(HaveOccurred(), "creating additional gateway group")
 
-			resources, exists := s.GetAdditionalGatewayGroup(additionalGatewayGroupID)
+			resources, exists := s.GetAdditionalGateway(additionalGatewayGroupID)
 			Expect(exists).To(BeTrue(), "additional gateway group should exist")
 
-			client, err := s.NewAPISIXClientForGatewayGroup(additionalGatewayGroupID)
+			client, err := s.NewAPISIXClientForGateway(additionalGatewayGroupID)
 			Expect(err).NotTo(HaveOccurred(), "creating APISIX client for additional gateway group")
 
 			By("HTTPRoute not found for additional gateway group")

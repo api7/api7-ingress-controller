@@ -240,3 +240,11 @@ func (s *APISIXDeployer) createAdminTunnel(
 
 	return adminTunnel, nil
 }
+
+func (s *APISIXDeployer) CreateAdditionalGateway(namePrefix string) (string, string, error) {
+	return "", "", nil
+}
+
+func (s *APISIXDeployer) CleanupAdditionalGateway(identifier string) error {
+	return nil
+}
