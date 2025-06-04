@@ -404,11 +404,11 @@ func (f *Framework) setDpManagerEndpoints() {
 }
 
 func (f *Framework) GetDashboardEndpoint() string {
-	return f.dashboardHTTPTunnel.Endpoint()
+	return _dashboardHTTPTunnel.Endpoint()
 }
 
 func (f *Framework) GetDashboardEndpointHTTPS() string {
-	return f.dashboardHTTPSTunnel.Endpoint()
+	return _dashboardHTTPSTunnel.Endpoint()
 }
 
 func (f *Framework) DashboardHTTPClient() *httpexpect.Expect {
