@@ -71,6 +71,9 @@ func (s *APISIXDeployer) BeforeEach() {
 		s.label["apisix.ingress.watch"] = s.namespace
 	}
 
+	// Initialize additionalGateways map
+	s.additionalGateways = make(map[string]*GatewayResources)
+
 	var nsLabel map[string]string
 	if !s.opts.DisableNamespaceLabel {
 		nsLabel = s.label
@@ -105,6 +108,12 @@ func (s *APISIXDeployer) AfterEach() {
 		if output != "" {
 			_, _ = fmt.Fprintln(GinkgoWriter, output)
 		}
+	}
+
+	// Delete all additional gateways
+	for identifier := range s.additionalGateways {
+		err := s.CleanupAdditionalGateway(identifier)
+		Expect(err).NotTo(HaveOccurred(), "cleaning up additional gateway")
 	}
 
 	// if the test case is successful, just delete namespace
@@ -242,9 +251,88 @@ func (s *APISIXDeployer) createAdminTunnel(
 }
 
 func (s *APISIXDeployer) CreateAdditionalGateway(namePrefix string) (string, string, error) {
-	return "", "", nil
+	// Create a new namespace for this additional gateway
+	additionalNS := fmt.Sprintf("%s-%d", namePrefix, time.Now().Unix())
+
+	// Create namespace with the same labels
+	var nsLabel map[string]string
+	if !s.opts.DisableNamespaceLabel {
+		nsLabel = s.label
+	}
+	k8s.CreateNamespaceWithMetadata(s.t, s.kubectlOptions, metav1.ObjectMeta{Name: additionalNS, Labels: nsLabel})
+
+	// Create new kubectl options for the new namespace
+	kubectlOpts := &k8s.KubectlOptions{
+		ConfigPath: s.opts.Kubeconfig,
+		Namespace:  additionalNS,
+	}
+
+	s.Logf("additional gateway in namespace %s", additionalNS)
+
+	// Use the same admin key as the main gateway
+	adminKey := s.opts.APISIXAdminAPIKey
+	s.Logf("additional gateway admin api key: %s", adminKey)
+
+	// Store gateway resources info
+	resources := &GatewayResources{
+		Namespace:   additionalNS,
+		AdminAPIKey: adminKey,
+	}
+
+	serviceName := fmt.Sprintf("apisix-standalone-%s", namePrefix)
+
+	// Deploy dataplane for this additional gateway
+	opts := APISIXDeployOptions{
+		Namespace:        additionalNS,
+		AdminKey:         adminKey,
+		ServiceName:      serviceName,
+		ServiceHTTPPort:  9080,
+		ServiceHTTPSPort: 9443,
+	}
+	svc := s.deployDataplane(&opts)
+
+	resources.DataplaneService = svc
+
+	// Create tunnels for the dataplane
+	httpTunnel, httpsTunnel, err := s.createDataplaneTunnels(svc, kubectlOpts, serviceName)
+	if err != nil {
+		return "", "", err
+	}
+
+	resources.HttpTunnel = httpTunnel
+	resources.HttpsTunnel = httpsTunnel
+
+	// Use namespace as identifier for APISIX deployments
+	identifier := additionalNS
+
+	// Store in the map
+	s.additionalGateways[identifier] = resources
+
+	return identifier, additionalNS, nil
 }
 
 func (s *APISIXDeployer) CleanupAdditionalGateway(identifier string) error {
-	return nil
+	resources, exists := s.additionalGateways[identifier]
+	if !exists {
+		return fmt.Errorf("gateway %s not found", identifier)
+	}
+
+	// Close tunnels if they exist
+	if resources.HttpTunnel != nil {
+		resources.HttpTunnel.Close()
+	}
+	if resources.HttpsTunnel != nil {
+		resources.HttpsTunnel.Close()
+	}
+
+	// Delete the namespace
+	err := k8s.DeleteNamespaceE(s.t, &k8s.KubectlOptions{
+		ConfigPath: s.opts.Kubeconfig,
+		Namespace:  resources.Namespace,
+	}, resources.Namespace)
+
+	// Remove from the map
+	delete(s.additionalGateways, identifier)
+
+	return err
 }
