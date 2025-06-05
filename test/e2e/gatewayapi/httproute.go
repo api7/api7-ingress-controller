@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
@@ -586,13 +587,13 @@ spec:
 				Expect().
 				Status(200)
 
-			s.ScaleIngress(0)
+			s.Deployer.ScaleIngress(0)
 
 			By("delete HTTPRoute httpbin2")
 			err := s.DeleteResource("HTTPRoute", "httpbin2")
 			Expect(err).NotTo(HaveOccurred(), "deleting HTTPRoute httpbin2")
 
-			s.ScaleIngress(1)
+			s.Deployer.ScaleIngress(1)
 			time.Sleep(1 * time.Minute)
 
 			s.NewAPISIXClient().
@@ -805,25 +806,23 @@ spec:
 
 		It("HTTPRoutePolicy in effect", func() {
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", varsRoute, 1)
-
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.example").
-				WithHeader("X-Route-Name", "httpbin").
-				Expect().
-				Status(http.StatusOK)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, varsRoute)
+			request := func() int {
+				return s.NewAPISIXClient().GET("/get").
+					WithHost("httpbin.example").WithHeader("X-Route-Name", "httpbin").
+					Expect().Raw().StatusCode
+			}
+			Eventually(request).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 
 			By("create HTTPRoutePolicy")
-			ResourceApplied("HTTPRoutePolicy", "http-route-policy-0", httpRoutePolicy, 1)
+			s.ApplyHTTPRoutePolicy(
+				types.NamespacedName{Name: "apisix"},
+				types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-0"},
+				httpRoutePolicy,
+			)
 
 			By("access dataplane to check the HTTPRoutePolicy")
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.example").
-				WithHeader("X-Route-Name", "httpbin").
-				Expect().
-				Status(http.StatusNotFound)
+			Eventually(request).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 
 			s.NewAPISIXClient().
 				GET("/get").
@@ -852,7 +851,12 @@ spec:
     - ==
     - new-hrp-name
 `
-			ResourceApplied("HTTPRoutePolicy", "http-route-policy-0", changedHTTPRoutePolicy, 1)
+			s.ApplyHTTPRoutePolicy(
+				types.NamespacedName{Name: "apisix"},
+				types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-0"},
+				changedHTTPRoutePolicy,
+			)
+
 			// use the old vars cannot match any route
 			Eventually(func() int {
 				return s.NewAPISIXClient().
@@ -964,7 +968,7 @@ spec:
     - http-route-policy-0
 `
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", varsRoute, 1)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, varsRoute)
 
 			By("create HTTPRoutePolices")
 			for name, spec := range map[string]string{
@@ -972,12 +976,10 @@ spec:
 				"http-route-policy-1": httpRoutePolicy1,
 				"http-route-policy-2": httpRoutePolicy2,
 			} {
-				err := s.CreateResourceFromString(spec)
-				Expect(err).NotTo(HaveOccurred(), "creating HTTPRoutePolicy")
-				// wait for HTTPRoutePolicy is Accepted
-				framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 10*time.Second,
+				s.ApplyHTTPRoutePolicy(
 					types.NamespacedName{Namespace: s.Namespace(), Name: "apisix"},
 					types.NamespacedName{Namespace: s.Namespace(), Name: name},
+					spec,
 					metav1.Condition{
 						Type: string(v1alpha2.PolicyConditionAccepted),
 					},
@@ -1058,24 +1060,23 @@ spec:
 
 		It("HTTPRoutePolicy status changes on HTTPRoute deleting", func() {
 			By("create HTTPRoute")
-			ResourceApplied("HTTPRoute", "httpbin", varsRoute, 1)
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, varsRoute)
 
 			By("create HTTPRoutePolicy")
-			ResourceApplied("HTTPRoutePolicy", "http-route-policy-0", httpRoutePolicy, 1)
-
-			Eventually(func() string {
-				spec, err := s.GetResourceYaml("HTTPRoutePolicy", "http-route-policy-0")
-				Expect(err).NotTo(HaveOccurred(), "getting HTTPRoutePolicy")
-				return spec
-			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(ContainSubstring("type: Accepted"))
+			s.ApplyHTTPRoutePolicy(
+				types.NamespacedName{Name: "apisix"},
+				types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-0"},
+				httpRoutePolicy,
+			)
 
 			By("access dataplane to check the HTTPRoutePolicy")
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.example").
-				WithHeader("X-Route-Name", "httpbin").
-				Expect().
-				Status(http.StatusNotFound)
+			Eventually(func() int {
+				return s.NewAPISIXClient().
+					GET("/get").
+					WithHost("httpbin.example").
+					WithHeader("X-Route-Name", "httpbin").
+					Expect().Raw().StatusCode
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 
 			s.NewAPISIXClient().
 				GET("/get").
@@ -1104,11 +1105,12 @@ spec:
 			})
 			s.Logf(message)
 
-			Eventually(func() string {
-				spec, err := s.GetResourceYaml("HTTPRoutePolicy", "http-route-policy-0")
-				Expect(err).NotTo(HaveOccurred(), "getting HTTPRoutePolicy")
-				return spec
-			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).ShouldNot(ContainSubstring("ancestorRef:"))
+			err = framework.PollUntilHTTPRoutePolicyHaveStatus(s.K8sClient, 8*time.Second, types.NamespacedName{Namespace: s.Namespace(), Name: "http-route-policy-0"},
+				func(hrp *v1alpha1.HTTPRoutePolicy) bool {
+					return len(hrp.Status.Ancestors) == 0
+				},
+			)
+			Expect(err).NotTo(HaveOccurred(), "HTPRoutePolicy.Status should has no ancestor")
 		})
 	})
 

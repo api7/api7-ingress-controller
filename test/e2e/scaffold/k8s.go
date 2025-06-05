@@ -13,9 +13,9 @@
 package scaffold
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"net/url"
 	"os/exec"
 	"strings"
 	"time"
@@ -25,11 +25,15 @@ import (
 	"github.com/gruntwork-io/terratest/modules/testing"
 	. "github.com/onsi/ginkgo/v2" //nolint:staticcheck
 	. "github.com/onsi/gomega"    //nolint:staticcheck
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	"github.com/apache/apisix-ingress-controller/pkg/dashboard"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 )
 
@@ -127,38 +131,6 @@ func (s *Scaffold) DeleteResourceFromStringWithNamespace(yaml, namespace string)
 	return k8s.KubectlDeleteFromStringE(s.t, s.kubectlOptions, yaml)
 }
 
-func (s *Scaffold) NewAPISIX() (dashboard.Dashboard, error) {
-	return dashboard.NewClient()
-}
-
-func (s *Scaffold) ClusterClient() (dashboard.Cluster, error) {
-	u := url.URL{
-		Scheme: "http",
-		Host:   "localhost:7080",
-		Path:   "/apisix/admin",
-	}
-	cli, err := s.NewAPISIX()
-	if err != nil {
-		return nil, err
-	}
-	err = cli.AddCluster(context.Background(), &dashboard.ClusterOptions{
-		BaseURL:        u.String(),
-		ControllerName: s.opts.ControllerName,
-		Labels:         map[string]string{"k8s/controller-name": s.opts.ControllerName},
-		AdminKey:       s.opts.APISIXAdminAPIKey,
-		SyncCache:      true,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return cli.Cluster(""), nil
-}
-
-func (s *Scaffold) shutdownApisixTunnel() {
-	s.apisixHttpTunnel.Close()
-	s.apisixHttpsTunnel.Close()
-}
-
 // Namespace returns the current working namespace.
 func (s *Scaffold) Namespace() string {
 	return s.kubectlOptions.Namespace
@@ -201,21 +173,6 @@ func (s *Scaffold) GetKubernetesClient() *kubernetes.Clientset {
 
 func (s *Scaffold) RunKubectlAndGetOutput(args ...string) (string, error) {
 	return k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, args...)
-}
-
-func (s *Scaffold) RunDigDNSClientFromK8s(args ...string) (string, error) {
-	kubectlArgs := []string{
-		"run",
-		"dig",
-		"-i",
-		"--rm",
-		"--restart=Never",
-		"--image-pull-policy=IfNotPresent",
-		"--image=toolbelt/dig",
-		"--",
-	}
-	kubectlArgs = append(kubectlArgs, args...)
-	return s.RunKubectlAndGetOutput(kubectlArgs...)
 }
 
 func (s *Scaffold) ResourceApplied(resourType, resourceName, resourceRaw string, observedGeneration int) {
@@ -280,4 +237,37 @@ func (s *Scaffold) ApplyDefaultGatewayResource(
 	)
 
 	s.ResourceApplied("httproute", "httpbin", defaultHTTPRoute, 1)
+}
+
+func (s *Scaffold) ApplyHTTPRoute(hrNN types.NamespacedName, spec string, until ...wait.ConditionWithContextFunc) {
+	err := s.CreateResourceFromString(spec)
+	Expect(err).NotTo(HaveOccurred(), "creating HTTPRoute %s", hrNN)
+	framework.HTTPRouteMustHaveCondition(s.GinkgoT, s.K8sClient, 8*time.Second,
+		types.NamespacedName{},
+		types.NamespacedName{Namespace: cmp.Or(hrNN.Namespace, s.Namespace()), Name: hrNN.Name},
+		metav1.Condition{
+			Type:   string(gatewayv1.RouteConditionAccepted),
+			Status: metav1.ConditionTrue,
+		},
+	)
+	for i, f := range until {
+		err := wait.PollUntilContextTimeout(context.Background(), time.Second, 10*time.Second, true, f)
+		require.NoError(s.GinkgoT, err, "wait for ConditionWithContextFunc[%d] OK", i)
+	}
+}
+
+func (s *Scaffold) ApplyHTTPRoutePolicy(refNN, hrpNN types.NamespacedName, spec string, conditions ...metav1.Condition) {
+	err := s.CreateResourceFromString(spec)
+	Expect(err).NotTo(HaveOccurred(), "creating HTTPRoutePolicy %s", hrpNN)
+	if len(conditions) == 0 {
+		conditions = []metav1.Condition{
+			{
+				Type:   string(v1alpha2.PolicyConditionAccepted),
+				Status: metav1.ConditionTrue,
+			},
+		}
+	}
+	for _, condition := range conditions {
+		framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 8*time.Second, refNN, hrpNN, condition)
+	}
 }

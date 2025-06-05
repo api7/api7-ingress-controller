@@ -10,30 +10,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package scaffold
+package apisix
 
 import (
+	"fmt"
+	"testing"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
+	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-func (s *Scaffold) deployIngress() {
-	s.DeployIngress(framework.IngressDeployOpts{
-		ControllerName: s.opts.ControllerName,
-		AdminKey:       s.AdminKey(),
-		AdminTLSVerify: false,
-		Namespace:      s.namespace,
-		AdminEnpoint:   framework.DashboardTLSEndpoint,
-		Replicas:       1,
-	})
-}
+// TestAPISIXE2E runs e2e tests using the APISIX standalone mode
+func TestAPISIXE2E(t *testing.T) {
+	RegisterFailHandler(Fail)
+	// init framework
+	_ = framework.NewFramework()
 
-func (s *Scaffold) ScaleIngress(replicas int) {
-	s.DeployIngress(framework.IngressDeployOpts{
-		ControllerName: s.opts.ControllerName,
-		AdminKey:       s.AdminKey(),
-		AdminTLSVerify: false,
-		Namespace:      s.namespace,
-		AdminEnpoint:   framework.DashboardTLSEndpoint,
-		Replicas:       replicas,
-	})
+	// init newDeployer function
+	scaffold.NewDeployer = func(s *scaffold.Scaffold) scaffold.Deployer {
+		return scaffold.NewAPISIXDeployer(s)
+	}
+
+	_, _ = fmt.Fprintf(GinkgoWriter, "Starting APISIX standalone e2e suite\n")
+	RunSpecs(t, "apisix standalone e2e suite")
 }

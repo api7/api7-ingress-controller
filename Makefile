@@ -12,8 +12,8 @@ ENVTEST_K8S_VERSION = 1.30.0
 KIND_NAME ?= apisix-ingress-cluster
 GATEAY_API_VERSION ?= v1.2.0
 
-DASHBOARD_VERSION ?= v3.8.0
-TEST_TIMEOUT ?= 45m
+DASHBOARD_VERSION ?= dev
+TEST_TIMEOUT ?= 60m
 
 # CRD Reference Documentation
 CRD_REF_DOCS_VERSION ?= v0.1.0
@@ -110,6 +110,11 @@ kind-e2e-test: kind-up build-image kind-load-images e2e-test
 e2e-test:
 	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
 	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test ./test/e2e/ -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)"
+
+.PHONY: e2e-test-standalone
+e2e-test-standalone:
+	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
+	go test ./test/e2e/apisix/ -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)"
 
 .PHONY: download-api7ee3-chart
 download-api7ee3-chart:
