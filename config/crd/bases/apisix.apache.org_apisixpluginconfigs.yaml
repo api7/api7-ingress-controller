@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.17.2
-  name: apisixpluginconfigs.apisix.apache.org.github.com
+  name: apisixpluginconfigs.apisix.apache.org
 spec:
-  group: apisix.apache.org.github.com
+  group: apisix.apache.org
   names:
     kind: ApisixPluginConfig
     listKind: ApisixPluginConfigList

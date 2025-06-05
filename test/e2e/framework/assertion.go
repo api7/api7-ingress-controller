@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/gateway-api/conformance/utils/kubernetes"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
+	v2 "github.com/apache/apisix-ingress-controller/api/v2"
 )
 
 func HTTPRouteMustHaveCondition(t testing.TestingT, cli client.Client, timeout time.Duration, refNN, hrNN types.NamespacedName, condition metav1.Condition) {
@@ -95,6 +96,27 @@ func PollUntilHTTPRoutePolicyHaveStatus(cli client.Client, timeout time.Duration
 	return genericPollResource(new(v1alpha1.HTTPRoutePolicy), cli, timeout, hrpNN, f)
 }
 
+func ApisixConsumerMustHaveCondition(t testing.TestingT, cli client.Client, timeout time.Duration, nn types.NamespacedName, condition metav1.Condition) {
+	err := PollUntilApisixConsumerMustHaveStatus(cli, timeout, nn, func(consumer *v2.ApisixConsumer) bool {
+		if err := kubernetes.ConditionsHaveLatestObservedGeneration(consumer, consumer.Status.Conditions); err != nil {
+			return false
+		}
+		if findConditionInList(consumer.Status.Conditions, condition) {
+			return true
+		}
+		return false
+	})
+
+	require.NoError(t, err, "error waiting for ApisixConsumer %s status to have a Condition matching %+v", nn, condition)
+}
+
+func PollUntilApisixConsumerMustHaveStatus(cli client.Client, timeout time.Duration, nn types.NamespacedName, f func(consumer *v2.ApisixConsumer) bool) error {
+	if err := v2.AddToScheme(cli.Scheme()); err != nil {
+		return err
+	}
+	return genericPollResource(new(v2.ApisixConsumer), cli, timeout, nn, f)
+}
+
 func parentRefToString(p gatewayv1.ParentReference) string {
 	if p.Namespace != nil && *p.Namespace != "" {
 		return fmt.Sprintf("%v/%v", p.Namespace, p.Name)
@@ -119,5 +141,34 @@ func genericPollResource[Obj client.Object](obj Obj, cli client.Client, timeout 
 			return false, errors.Wrapf(err, "error fetching Object %s", nn)
 		}
 		return predicate(obj), nil
+	})
+}
+
+func NewApplier(t testing.TestingT, cli client.Client, apply func(string) error) Applier {
+	return &applier{
+		t:     t,
+		cli:   cli,
+		apply: apply,
+	}
+}
+
+type Applier interface {
+	MustApplyApisixConsumer(nn types.NamespacedName, spec string)
+}
+
+type applier struct {
+	t     testing.TestingT
+	cli   client.Client
+	apply func(string) error
+}
+
+func (a *applier) MustApplyApisixConsumer(nn types.NamespacedName, spec string) {
+	err := a.apply(spec)
+	require.NoError(a.t, err, "creating ApisixConsumer", "request", nn, "spec", spec)
+
+	ApisixConsumerMustHaveCondition(a.t, a.cli, 8*time.Second, nn, metav1.Condition{
+		Type:   string(gatewayv1.RouteConditionAccepted),
+		Status: metav1.ConditionTrue,
+		Reason: string(gatewayv1.GatewayReasonAccepted),
 	})
 }

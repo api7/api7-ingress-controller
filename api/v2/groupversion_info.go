@@ -12,7 +12,7 @@
 
 // Package v2 contains API Schema definitions for the apisix.apache.org v2 API group.
 // +kubebuilder:object:generate=true
-// +groupName=apisix.apache.org.github.com
+// +groupName=apisix.apache.org
 package v2
 
 import (

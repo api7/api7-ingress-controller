@@ -24,6 +24,12 @@ rules:
 - apiGroups:
   - apisix.apache.org
   resources:
+  - apisixconsumers
+  - apisixglobalrules
+  - apisixpluginconfigs
+  - apisixroutes
+  - apisixtls
+  - apisixupstreams
   - backendtrafficpolicies
   - consumers
   - gatewayproxies
@@ -36,6 +42,12 @@ rules:
 - apiGroups:
   - apisix.apache.org
   resources:
+  - apisixconsumers/status
+  - apisixglobalrules/status
+  - apisixpluginconfigs/status
+  - apisixroutes/status
+  - apisixtls/status
+  - apisixupstreams/status
   - backendtrafficpolicies/status
   - consumers/status
   - httproutepolicies/status

@@ -4,22 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.17.2
-  name: apisixtls.apisix.apache.org.github.com
+  name: apisixglobalrules.apisix.apache.org
 spec:
-  group: apisix.apache.org.github.com
+  group: apisix.apache.org
   names:
-    kind: ApisixTls
-    listKind: ApisixTlsList
-    plural: apisixtls
-    shortNames:
-    - atls
-    singular: apisixtls
+    kind: ApisixGlobalRule
+    listKind: ApisixGlobalRuleList
+    plural: apisixglobalrules
+    singular: apisixglobalrule
   scope: Namespaced
   versions:
   - name: v2
     schema:
       openAPIV3Schema:
-        description: ApisixTls is the Schema for the apisixtls API.
+        description: ApisixGlobalRule is the Schema for the apisixglobalrules API.
         properties:
           apiVersion:
             description: |-
@@ -39,63 +37,41 @@ spec:
           metadata:
             type: object
           spec:
-            description: ApisixTlsSpec defines the desired state of ApisixTls.
+            description: ApisixGlobalRuleSpec defines the desired state of ApisixGlobalRule.
             properties:
-              client:
-                description: ApisixMutualTlsClientConfig describes the mutual TLS
-                  CA and verify depth
-                properties:
-                  caSecret:
-                    description: ApisixSecret describes the Kubernetes Secret name
-                      and namespace.
-                    properties:
-                      name:
-                        minLength: 1
-                        type: string
-                      namespace:
-                        minLength: 1
-                        type: string
-                    required:
-                    - name
-                    - namespace
-                    type: object
-                  depth:
-                    type: integer
-                  skip_mtls_uri_regex:
-                    items:
-                      type: string
-                    type: array
-                type: object
-              hosts:
-                items:
-                  pattern: ^\*?[0-9a-zA-Z-.]+$
-                  type: string
-                minItems: 1
-                type: array
               ingressClassName:
                 description: |-
                   IngressClassName is the name of an IngressClass cluster resource.
-                  controller implementations use this field to know whether they should be
-                  serving this ApisixTls resource, by a transitive connection
-                  (controller -> IngressClass -> ApisixTls resource).
+                  The controller uses this field to decide whether the resource should be managed or not.
                 type: string
-              secret:
-                description: ApisixSecret describes the Kubernetes Secret name and
-                  namespace.
-                properties:
-                  name:
-                    minLength: 1
-                    type: string
-                  namespace:
-                    minLength: 1
-                    type: string
-                required:
-                - name
-                - namespace
-                type: object
+              plugins:
+                description: Plugins contains a list of ApisixRoutePlugin
+                items:
+                  description: ApisixRoutePlugin represents an APISIX plugin.
+                  properties:
+                    config:
+                      additionalProperties:
+                        x-kubernetes-preserve-unknown-fields: true
+                      description: Plugin configuration.
+                      type: object
+                    enable:
+                      description: Whether this plugin is in use, default is true.
+                      type: boolean
+                    name:
+                      description: The plugin name.
+                      type: string
+                    secretRef:
+                      description: Plugin configuration secretRef.
+                      type: string
+                  required:
+                  - config
+                  - enable
+                  - name
+                  - secretRef
+                  type: object
+                type: array
             required:
-            - hosts
-            - secret
+            - plugins
             type: object
           status:
             description: ApisixStatus is the status report for Apisix ingress Resources
