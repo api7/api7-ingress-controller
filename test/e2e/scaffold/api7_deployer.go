@@ -66,7 +66,7 @@ func (s *API7Deployer) BeforeEach() {
 	}
 
 	// Initialize additionalGatewayGroups map
-	s.additionalGatewayGroups = make(map[string]*GatewayGroupResources)
+	s.additionalGateways = make(map[string]*GatewayResources)
 
 	var nsLabel map[string]string
 	if !s.opts.DisableNamespaceLabel {
@@ -113,8 +113,8 @@ func (s *API7Deployer) AfterEach() {
 	}
 
 	// Delete all additional namespaces
-	for _, resources := range s.additionalGatewayGroups {
-		err := s.CleanupAdditionalGatewayGroup(resources.GatewayGroupID)
+	for identifier := range s.additionalGateways {
+		err := s.CleanupAdditionalGateway(identifier)
 		Expect(err).NotTo(HaveOccurred(), "cleaning up additional gateway group")
 	}
 
@@ -185,15 +185,15 @@ func (s *API7Deployer) initDataPlaneClient() {
 	s.apisixCli, err = dashboard.NewClient()
 	Expect(err).NotTo(HaveOccurred(), "creating apisix client")
 
-	url := fmt.Sprintf("http://%s/apisix/admin", s.GetDashboardEndpoint())
+	adminURL := fmt.Sprintf("http://%s/apisix/admin", s.GetDashboardEndpoint())
 
-	s.Logf("apisix admin: %s", url)
+	s.Logf("apisix admin: %s", adminURL)
 
 	err = s.apisixCli.AddCluster(context.Background(), &dashboard.ClusterOptions{
 		Name:           "default",
 		ControllerName: s.opts.ControllerName,
 		Labels:         map[string]string{"k8s/controller-name": s.opts.ControllerName},
-		BaseURL:        url,
+		BaseURL:        adminURL,
 		AdminKey:       s.AdminKey(),
 	})
 	Expect(err).NotTo(HaveOccurred(), "adding cluster")
@@ -206,4 +206,94 @@ func (s *API7Deployer) initDataPlaneClient() {
 		SkipTLSVerify: true,
 	})
 	Expect(err).NotTo(HaveOccurred(), "adding cluster")
+}
+
+// CreateAdditionalGateway creates a new gateway group and deploys a dataplane for it.
+// It returns the gateway group ID and namespace name where the dataplane is deployed.
+func (s *API7Deployer) CreateAdditionalGateway(namePrefix string) (string, string, error) {
+	// Create a new namespace for this gateway group
+	additionalNS := fmt.Sprintf("%s-%d", namePrefix, time.Now().Unix())
+
+	// Create namespace with the same labels
+	var nsLabel map[string]string
+	if !s.opts.DisableNamespaceLabel {
+		nsLabel = s.label
+	}
+	k8s.CreateNamespaceWithMetadata(s.t, s.kubectlOptions, metav1.ObjectMeta{Name: additionalNS, Labels: nsLabel})
+
+	// Create new kubectl options for the new namespace
+	kubectlOpts := &k8s.KubectlOptions{
+		ConfigPath: s.opts.Kubeconfig,
+		Namespace:  additionalNS,
+	}
+
+	// Create a new gateway group
+	gatewayGroupID := s.CreateNewGatewayGroupWithIngress()
+	s.Logf("additional gateway group id: %s in namespace %s", gatewayGroupID, additionalNS)
+
+	// Get the admin key for this gateway group
+	adminKey := s.GetAdminKey(gatewayGroupID)
+	s.Logf("additional gateway group admin api key: %s", adminKey)
+
+	// Store gateway group info
+	resources := &GatewayResources{
+		Namespace:   additionalNS,
+		AdminAPIKey: adminKey,
+	}
+
+	serviceName := fmt.Sprintf("api7ee3-apisix-gateway-%s", namePrefix)
+
+	// Deploy dataplane for this gateway group
+	svc := s.DeployGateway(framework.DataPlaneDeployOptions{
+		GatewayGroupID:         gatewayGroupID,
+		Namespace:              additionalNS,
+		Name:                   serviceName,
+		ServiceName:            serviceName,
+		DPManagerEndpoint:      framework.DPManagerTLSEndpoint,
+		SetEnv:                 true,
+		SSLKey:                 framework.TestKey,
+		SSLCert:                framework.TestCert,
+		TLSEnabled:             true,
+		ForIngressGatewayGroup: true,
+		ServiceHTTPPort:        9080,
+		ServiceHTTPSPort:       9443,
+	})
+
+	resources.DataplaneService = svc
+
+	// Create tunnels for the dataplane
+	httpTunnel, httpsTunnel, err := s.createDataplaneTunnels(svc, kubectlOpts, serviceName)
+	if err != nil {
+		return "", "", err
+	}
+
+	resources.HttpTunnel = httpTunnel
+	resources.HttpsTunnel = httpsTunnel
+
+	// Store in the map
+	s.additionalGateways[gatewayGroupID] = resources
+
+	return gatewayGroupID, additionalNS, nil
+}
+
+// CleanupAdditionalGateway cleans up resources associated with a specific Gateway group
+func (s *API7Deployer) CleanupAdditionalGateway(gatewayGroupID string) error {
+	resources, exists := s.additionalGateways[gatewayGroupID]
+	if !exists {
+		return fmt.Errorf("gateway group %s not found", gatewayGroupID)
+	}
+
+	// Delete the gateway group
+	s.DeleteGatewayGroup(gatewayGroupID)
+
+	// Delete the namespace
+	err := k8s.DeleteNamespaceE(s.t, &k8s.KubectlOptions{
+		ConfigPath: s.opts.Kubeconfig,
+		Namespace:  resources.Namespace,
+	}, resources.Namespace)
+
+	// Remove from the map
+	delete(s.additionalGateways, gatewayGroupID)
+
+	return err
 }
