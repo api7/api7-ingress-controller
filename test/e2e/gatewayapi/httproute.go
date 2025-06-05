@@ -587,13 +587,13 @@ spec:
 				Expect().
 				Status(200)
 
-			s.ScaleIngress(0)
+			s.Deployer.ScaleIngress(0)
 
 			By("delete HTTPRoute httpbin2")
 			err := s.DeleteResource("HTTPRoute", "httpbin2")
 			Expect(err).NotTo(HaveOccurred(), "deleting HTTPRoute httpbin2")
 
-			s.ScaleIngress(1)
+			s.Deployer.ScaleIngress(1)
 			time.Sleep(1 * time.Minute)
 
 			s.NewAPISIXClient().

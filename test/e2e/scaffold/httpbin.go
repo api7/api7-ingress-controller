@@ -129,12 +129,6 @@ func (s *Scaffold) ScaleHTTPBIN(desired int) error {
 	return nil
 }
 
-// DeleteHTTPBINService deletes the HTTPBIN service object.
-func (s *Scaffold) DeleteHTTPBINService() error {
-	return k8s.KubectlDeleteFromStringE(s.t, s.kubectlOptions, _httpService)
-}
-
-// WaitAllHTTPBINPodsAvailable waits until all httpbin pods ready.
 func (s *Scaffold) WaitAllHTTPBINPodsAvailable() error {
 	opts := metav1.ListOptions{
 		LabelSelector: "app=httpbin-deployment-e2e-test",

@@ -155,10 +155,7 @@ func TestMain(m *testing.M) {
 
 	f.DeployIngress(framework.IngressDeployOpts{
 		ControllerName: "apisix.apache.org/apisix-ingress-controller",
-		AdminKey:       adminKey,
-		AdminTLSVerify: false,
 		Namespace:      namespace,
-		AdminEnpoint:   framework.DashboardTLSEndpoint,
 		StatusAddress:  address,
 		InitSyncDelay:  1 * time.Minute,
 	})

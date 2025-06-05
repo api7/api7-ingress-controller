@@ -13,46 +13,32 @@
 package framework
 
 import (
-	"bytes"
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
+	"strings"
 	"text/template"
-	"time"
 
-	"github.com/api7/gopkg/pkg/log"
+	"github.com/gavv/httpexpect/v2"
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
-	"golang.org/x/net/html"
-	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/chart/loader"
-	"helm.sh/helm/v3/pkg/cli"
-	"helm.sh/helm/v3/pkg/kube"
-	"k8s.io/apimachinery/pkg/util/yaml"
 
 	v1 "github.com/apache/apisix-ingress-controller/api/dashboard/v1"
 )
 
 var (
-	API7EELicense string
-
 	valuesTemplate *template.Template
-
-	dashboardVersion string
+	_db            string
 )
 
 func init() {
-	API7EELicense = os.Getenv("API7_EE_LICENSE")
-	if API7EELicense == "" {
-		panic("env {API7_EE_LICENSE} is required")
+	_db = os.Getenv("DB")
+	if _db == "" {
+		_db = postgres
 	}
-
-	dashboardVersion = os.Getenv("DASHBOARD_VERSION")
-	if dashboardVersion == "" {
-		dashboardVersion = "dev"
-	}
-
 	tmpl, err := template.New("values.yaml").Parse(`
 dashboard:
   image:
@@ -258,6 +244,45 @@ api_usage:
 	valuesTemplate = tmpl
 }
 
+// DatabaseConfig is the database related configuration entrypoint.
+type DatabaseConfig struct {
+	DSN string `json:"dsn" yaml:"dsn" mapstructure:"dsn"`
+
+	MaxOpenConns int `json:"max_open_conns" yaml:"max_open_conns" mapstructure:"max_open_conns"`
+	MaxIdleConns int `json:"max_idle_conns" yaml:"max_idle_conns" mapstructure:"max_idle_conns"`
+}
+
+type LogOptions struct {
+	// Level is the minimum logging level that a logging message should have
+	// to output itself.
+	Level string `json:"level" yaml:"level"`
+	// Output defines the destination file path to output logging messages.
+	// Two keywords "stderr" and "stdout" can be specified so that message will
+	// be written to stderr or stdout.
+	Output string `json:"output" yaml:"output"`
+}
+
+func (conf *DatabaseConfig) GetType() string {
+	parts := strings.SplitN(conf.DSN, "://", 2)
+	if len(parts) > 1 {
+		return parts[0]
+	}
+	return ""
+}
+
+//nolint:unused
+func getDSN() string {
+	switch _db {
+	case postgres:
+		return postgresDSN
+	case oceanbase:
+		return oceanbaseDSN
+	case mysql:
+		return mysqlDSN
+	}
+	panic("unknown database")
+}
+
 type responseCreateGateway struct {
 	Value    responseCreateGatewayValue `json:"value"`
 	ErrorMsg string                     `json:"error_msg"`
@@ -267,107 +292,6 @@ type responseCreateGatewayValue struct {
 	ID             string `json:"id"`
 	TokenPlainText string `json:"token_plain_text"`
 	Key            string `json:"key"`
-}
-
-func (f *Framework) deploy() {
-	debug := func(format string, v ...any) {
-		log.Infof(format, v...)
-	}
-
-	kubeConfigPath := os.Getenv("KUBECONFIG")
-	actionConfig := new(action.Configuration)
-
-	err := actionConfig.Init(
-		kube.GetConfig(kubeConfigPath, "", f.kubectlOpts.Namespace),
-		f.kubectlOpts.Namespace,
-		"memory",
-		debug,
-	)
-	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "init helm action config")
-
-	install := action.NewInstall(actionConfig)
-	install.Namespace = f.kubectlOpts.Namespace
-	install.ReleaseName = "api7ee3"
-
-	chartPath, err := install.LocateChart("api7/api7ee3", cli.New())
-	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "locate helm chart")
-
-	chart, err := loader.Load(chartPath)
-	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "load helm chart")
-
-	buf := bytes.NewBuffer(nil)
-	_ = valuesTemplate.Execute(buf, map[string]any{
-		"DB":  _db,
-		"DSN": getDSN(),
-		"Tag": dashboardVersion,
-	})
-
-	var v map[string]any
-	err = yaml.Unmarshal(buf.Bytes(), &v)
-	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "unmarshal values")
-	_, err = install.Run(chart, v)
-	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "install dashboard")
-
-	err = f.ensureService("api7ee3-dashboard", _namespace, 1)
-	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "ensuring dashboard service")
-
-	err = f.ensureService("api7-postgresql", _namespace, 1)
-	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "ensuring postgres service")
-
-	err = f.ensureService("api7-prometheus-server", _namespace, 1)
-	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "ensuring prometheus-server service")
-}
-
-func (f *Framework) initDashboard() {
-	f.deletePods("app.kubernetes.io/name=api7ee3")
-	time.Sleep(5 * time.Second)
-}
-
-// ParseHTML will parse the doc from login page and generate a map contains id and action.
-func (f *Framework) ParseHTML(doc *html.Node) map[string]string {
-	var fu func(*html.Node)
-	htmlMap := make(map[string]string)
-	fu = func(n *html.Node) {
-		var (
-			name  string
-			value string
-		)
-		for _, attr := range n.Attr {
-			if attr.Key == "id" || attr.Key == "name" {
-				name = attr.Val
-			}
-			if attr.Key == "action" || attr.Key == "value" {
-				value = attr.Val
-			}
-
-			htmlMap[name] = value
-		}
-
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			fu(c)
-		}
-	}
-	fu(doc)
-
-	return htmlMap
-}
-
-func (f *Framework) GetTokenFromDashboard(gatewayGroupID string) (string, error) {
-	respExp := f.DashboardHTTPClient().
-		POST("/api/gateway_groups/"+gatewayGroupID+"/instance_token").
-		WithHeader("Content-Type", "application/json").
-		WithBasicAuth("admin", "admin").
-		Expect()
-
-	respExp.Status(200).Body().Contains("token_plain_text")
-	body := respExp.Body().Raw()
-	// unmarshal into responseCreateGateway
-	var response responseCreateGateway
-	err := json.Unmarshal([]byte(body), &response)
-	if err != nil {
-		return "", err
-	}
-	return response.Value.TokenPlainText, nil
 }
 
 func (f *Framework) GetDataplaneCertificates(gatewayGroupID string) *v1.DataplaneCertificate {
@@ -460,4 +384,67 @@ func (f *Framework) CreateNewGatewayGroupWithIngressE() (string, error) {
 		return "", fmt.Errorf("error creating gateway group: %s", response.ErrorMsg)
 	}
 	return response.Value.ID, nil
+}
+
+func (f *Framework) setDpManagerEndpoints() {
+	payload := []byte(fmt.Sprintf(`{"control_plane_address":["%s"]}`, DPManagerTLSEndpoint))
+
+	respExp := f.DashboardHTTPClient().
+		PUT("/api/system_settings").
+		WithBasicAuth("admin", "admin").
+		WithHeader("Content-Type", "application/json").
+		WithBytes(payload).
+		Expect()
+
+	respExp.Raw()
+	f.Logf("set dp manager endpoints response: %s", respExp.Body().Raw())
+
+	respExp.Status(200).
+		Body().Contains("control_plane_address")
+}
+
+func (f *Framework) GetDashboardEndpoint() string {
+	return f.dashboardHTTPTunnel.Endpoint()
+}
+
+func (f *Framework) GetDashboardEndpointHTTPS() string {
+	return f.dashboardHTTPSTunnel.Endpoint()
+}
+
+func (f *Framework) DashboardHTTPClient() *httpexpect.Expect {
+	u := url.URL{
+		Scheme: "http",
+		Host:   f.GetDashboardEndpoint(),
+	}
+	return httpexpect.WithConfig(httpexpect.Config{
+		BaseURL: u.String(),
+		Client: &http.Client{
+			Transport: &http.Transport{},
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
+		Reporter: httpexpect.NewAssertReporter(
+			httpexpect.NewAssertReporter(f.GinkgoT),
+		),
+	})
+}
+
+func (f *Framework) DashboardHTTPSClient() *httpexpect.Expect {
+	u := url.URL{
+		Scheme: "https",
+		Host:   f.GetDashboardEndpointHTTPS(),
+	}
+	return httpexpect.WithConfig(httpexpect.Config{
+		BaseURL: u.String(),
+		Client: &http.Client{
+			Transport: &http.Transport{},
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
+		Reporter: httpexpect.NewAssertReporter(
+			httpexpect.NewAssertReporter(f.GinkgoT),
+		),
+	})
 }
