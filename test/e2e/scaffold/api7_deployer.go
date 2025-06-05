@@ -87,7 +87,7 @@ func (s *API7Deployer) BeforeEach() {
 	e := utils.ParallelExecutor{}
 
 	e.Add(func() {
-		s.DeployDataplane()
+		s.DeployDataplane(DeployDataplaneOptions{})
 		s.DeployIngress()
 		s.initDataPlaneClient()
 	})
@@ -131,8 +131,8 @@ func (s *API7Deployer) AfterEach() {
 	time.Sleep(3 * time.Second)
 }
 
-func (s *API7Deployer) DeployDataplane() {
-	svc := s.DeployGateway(framework.DataPlaneDeployOptions{
+func (s *API7Deployer) DeployDataplane(deployOpts DeployDataplaneOptions) {
+	opts := framework.API7DeployOptions{
 		GatewayGroupID:         s.gatewayGroupID,
 		Namespace:              s.namespace,
 		Name:                   "api7ee3-apisix-gateway-mtls",
@@ -144,12 +144,28 @@ func (s *API7Deployer) DeployDataplane() {
 		ForIngressGatewayGroup: true,
 		ServiceHTTPPort:        9080,
 		ServiceHTTPSPort:       9443,
-	})
+	}
+	if deployOpts.Namespace != "" {
+		opts.Namespace = deployOpts.Namespace
+	}
+	if deployOpts.ServiceType != "" {
+		opts.ServiceType = deployOpts.ServiceType
+	}
+	if deployOpts.ServiceHTTPPort != 0 {
+		opts.ServiceHTTPPort = deployOpts.ServiceHTTPPort
+	}
+	if deployOpts.ServiceHTTPSPort != 0 {
+		opts.ServiceHTTPSPort = deployOpts.ServiceHTTPSPort
+	}
+
+	svc := s.DeployGateway(opts)
 
 	s.dataplaneService = svc
 
-	err := s.newAPISIXTunnels()
-	Expect(err).ToNot(HaveOccurred(), "creating apisix tunnels")
+	if !deployOpts.SkipCreateTunnels {
+		err := s.newAPISIXTunnels()
+		Expect(err).ToNot(HaveOccurred(), "creating apisix tunnels")
+	}
 }
 
 func (s *API7Deployer) newAPISIXTunnels() error {
@@ -244,7 +260,7 @@ func (s *API7Deployer) CreateAdditionalGateway(namePrefix string) (string, strin
 	serviceName := fmt.Sprintf("api7ee3-apisix-gateway-%s", namePrefix)
 
 	// Deploy dataplane for this gateway group
-	svc := s.DeployGateway(framework.DataPlaneDeployOptions{
+	svc := s.DeployGateway(framework.API7DeployOptions{
 		GatewayGroupID:         gatewayGroupID,
 		Namespace:              additionalNS,
 		Name:                   serviceName,

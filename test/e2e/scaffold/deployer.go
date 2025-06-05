@@ -14,8 +14,7 @@ package scaffold
 
 // Deployer defines the interface for deploying data plane components
 type Deployer interface {
-	// Deploy deploys components for scaffold
-	DeployDataplane()
+	DeployDataplane(opts DeployDataplaneOptions)
 	DeployIngress()
 	ScaleIngress(replicas int)
 	BeforeEach()
@@ -25,3 +24,11 @@ type Deployer interface {
 }
 
 var NewDeployer func(*Scaffold) Deployer
+
+type DeployDataplaneOptions struct {
+	Namespace         string
+	ServiceType       string
+	SkipCreateTunnels bool
+	ServiceHTTPPort   int
+	ServiceHTTPSPort  int
+}

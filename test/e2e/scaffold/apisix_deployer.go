@@ -89,7 +89,7 @@ func (s *APISIXDeployer) BeforeEach() {
 	e := utils.ParallelExecutor{}
 
 	e.Add(func() {
-		s.DeployDataplane()
+		s.DeployDataplane(DeployDataplaneOptions{})
 		s.DeployIngress()
 	})
 	e.Add(s.DeployTestService)
@@ -129,18 +129,34 @@ func (s *APISIXDeployer) AfterEach() {
 	time.Sleep(3 * time.Second)
 }
 
-func (s *APISIXDeployer) DeployDataplane() {
+func (s *APISIXDeployer) DeployDataplane(deployOpts DeployDataplaneOptions) {
 	opts := APISIXDeployOptions{
 		Namespace:        s.namespace,
 		AdminKey:         s.opts.APISIXAdminAPIKey,
 		ServiceHTTPPort:  9080,
 		ServiceHTTPSPort: 9443,
 	}
+
+	if deployOpts.Namespace != "" {
+		opts.Namespace = deployOpts.Namespace
+	}
+	if deployOpts.ServiceType != "" {
+		opts.ServiceType = deployOpts.ServiceType
+	}
+	if deployOpts.ServiceHTTPPort != 0 {
+		opts.ServiceHTTPPort = deployOpts.ServiceHTTPPort
+	}
+	if deployOpts.ServiceHTTPSPort != 0 {
+		opts.ServiceHTTPSPort = deployOpts.ServiceHTTPSPort
+	}
+
 	svc := s.deployDataplane(&opts)
 	s.dataplaneService = svc
 
-	err := s.newAPISIXTunnels(opts.ServiceName)
-	Expect(err).ToNot(HaveOccurred(), "creating apisix tunnels")
+	if !deployOpts.SkipCreateTunnels {
+		err := s.newAPISIXTunnels(opts.ServiceName)
+		Expect(err).ToNot(HaveOccurred(), "creating apisix tunnels")
+	}
 }
 
 func (s *APISIXDeployer) newAPISIXTunnels(serviceName string) error {
