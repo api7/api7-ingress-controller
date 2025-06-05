@@ -336,17 +336,15 @@ func prepareSyncFile(resources any) (string, func(), error) {
 	if err != nil {
 		return "", nil, err
 	}
-
-	if _, err := tmpFile.Write(data); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpFile.Name())
-		return "", nil, err
-	}
-
 	cleanup := func() {
 		_ = tmpFile.Close()
 		_ = os.Remove(tmpFile.Name())
 	}
+	if _, err := tmpFile.Write(data); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+
 	log.Debugf("generated adc file, filename: %s, json: %s\n", tmpFile.Name(), string(data))
 
 	return tmpFile.Name(), cleanup, nil
