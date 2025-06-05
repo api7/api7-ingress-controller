@@ -53,10 +53,6 @@ type Framework struct {
 	clientset   *kubernetes.Clientset
 	restConfig  *rest.Config
 	K8sClient   client.Client
-
-	// TODO: remove these tunnels
-	dashboardHTTPTunnel  *k8s.Tunnel
-	dashboardHTTPSTunnel *k8s.Tunnel
 }
 
 // NewFramework create a global framework with special settings.

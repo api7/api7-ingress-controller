@@ -476,13 +476,13 @@ spec:
 
 			By("create additional gateway group to get new admin key")
 			var err error
-			additionalGatewayGroupID, _, err = s.CreateAdditionalGatewayGroup("gateway-proxy-update")
+			additionalGatewayGroupID, _, err = s.Deployer.CreateAdditionalGateway("gateway-proxy-update")
 			Expect(err).NotTo(HaveOccurred(), "creating additional gateway group")
 
-			resources, exists := s.GetAdditionalGatewayGroup(additionalGatewayGroupID)
+			resources, exists := s.GetAdditionalGateway(additionalGatewayGroupID)
 			Expect(exists).To(BeTrue(), "additional gateway group should exist")
 
-			client, err := s.NewAPISIXClientForGatewayGroup(additionalGatewayGroupID)
+			client, err := s.NewAPISIXClientForGateway(additionalGatewayGroupID)
 			Expect(err).NotTo(HaveOccurred(), "creating APISIX client for additional gateway group")
 
 			By("Consumer not found for additional gateway group")
