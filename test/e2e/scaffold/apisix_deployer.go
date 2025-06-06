@@ -92,7 +92,9 @@ func (s *APISIXDeployer) BeforeEach() {
 	e.Add(func() {
 		s.DeployDataplane()
 		s.DeployIngress()
-		s.createAdminTunnel(s.dataplaneService)
+		adminTunnel, err := s.createAdminTunnel(s.dataplaneService)
+		Expect(err).NotTo(HaveOccurred())
+		s.adminTunnel = adminTunnel
 	})
 	e.Add(s.DeployTestService)
 	e.Wait()

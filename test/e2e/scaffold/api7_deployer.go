@@ -276,7 +276,7 @@ func (s *API7Deployer) GetAdminEndpoint(_ ...*corev1.Service) string {
 func (s *API7Deployer) DefaultDataplaneResource() DataplaneResource {
 	return newADCDataplaneResource(
 		"api7ee",
-		fmt.Sprintf("http://%s", s.Framework.GetDashboardEndpoint()),
+		fmt.Sprintf("http://%s", s.GetDashboardEndpoint()),
 		s.AdminKey(),
 		false,
 	)

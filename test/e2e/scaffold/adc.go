@@ -20,12 +20,12 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/api7/gopkg/pkg/log"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/internal/provider/adc/translator"
-	"github.com/api7/gopkg/pkg/log"
 )
 
 // DataplaneResource defines the interface for accessing dataplane resources
