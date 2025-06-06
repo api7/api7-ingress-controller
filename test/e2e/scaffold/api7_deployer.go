@@ -272,3 +272,12 @@ func (s *API7Deployer) GetAdminEndpoint(_ ...*corev1.Service) string {
 	// always return the default dashboard endpoint
 	return framework.DashboardTLSEndpoint
 }
+
+func (s *API7Deployer) DefaultDataplaneResource() DataplaneResource {
+	return newADCDataplaneResource(
+		"api7ee",
+		s.Framework.GetDashboardEndpoint(),
+		s.AdminKey(),
+		false,
+	)
+}

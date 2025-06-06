@@ -40,6 +40,7 @@ type APISIXDeployOptions struct {
 
 type APISIXDeployer struct {
 	*Scaffold
+	adminTunnel *k8s.Tunnel
 }
 
 func NewAPISIXDeployer(s *Scaffold) *APISIXDeployer {
@@ -91,6 +92,7 @@ func (s *APISIXDeployer) BeforeEach() {
 	e.Add(func() {
 		s.DeployDataplane()
 		s.DeployIngress()
+		s.createAdminTunnel(s.dataplaneService)
 	})
 	e.Add(s.DeployTestService)
 	e.Wait()
@@ -220,12 +222,7 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
-//nolint:unused
-func (s *APISIXDeployer) createAdminTunnel(
-	svc *corev1.Service,
-	kubectlOpts *k8s.KubectlOptions,
-	serviceName string,
-) (*k8s.Tunnel, error) {
+func (s *APISIXDeployer) createAdminTunnel(svc *corev1.Service) (*k8s.Tunnel, error) {
 	var (
 		adminNodePort int
 		adminPort     int
@@ -239,7 +236,9 @@ func (s *APISIXDeployer) createAdminTunnel(
 		}
 	}
 
-	adminTunnel := k8s.NewTunnel(kubectlOpts, k8s.ResourceTypeService, serviceName,
+	kubectlOpts := k8s.NewKubectlOptions("", "", svc.Namespace)
+
+	adminTunnel := k8s.NewTunnel(kubectlOpts, k8s.ResourceTypeService, svc.Name,
 		adminNodePort, adminPort)
 
 	if err := adminTunnel.ForwardPortE(s.t); err != nil {
@@ -342,4 +341,13 @@ func (s *APISIXDeployer) GetAdminEndpoint(svc ...*corev1.Service) string {
 		return fmt.Sprintf("http://%s.%s:9180", s.dataplaneService.Name, s.dataplaneService.Namespace)
 	}
 	return fmt.Sprintf("http://%s.%s:9180", svc[0].Name, svc[0].Namespace)
+}
+
+func (s *APISIXDeployer) DefaultDataplaneResource() DataplaneResource {
+	return newADCDataplaneResource(
+		"apisix-standalone",
+		s.adminTunnel.Endpoint(),
+		s.AdminKey(),
+		false, // tlsVerify
+	)
 }

@@ -29,7 +29,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/apisix-ingress-controller/pkg/dashboard"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 )
 
@@ -188,8 +187,8 @@ func (s *Scaffold) NewAPISIXHttpsClient(host string) *httpexpect.Expect {
 	})
 }
 
-func (s *Scaffold) DefaultDataplaneResource() dashboard.Cluster {
-	return nil
+func (s *Scaffold) DefaultDataplaneResource() DataplaneResource {
+	return s.Deployer.DefaultDataplaneResource()
 }
 
 func (s *Scaffold) DeployTestService() {

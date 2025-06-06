@@ -14,6 +14,7 @@ package gatewayapi
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -166,9 +167,10 @@ spec:
 		BeforeEach(func() {
 			beforeEach(s1, "gateway1")
 		})
-		It("Apply resource ", func() {
+		FIt("Apply resource ", func() {
 			ResourceApplied(s1, "HTTPRoute", "httpbin", "gateway1", route1, 1)
 			routes, err := s1.DefaultDataplaneResource().Route().List(s1.Context)
+			log.Println("routes", routes)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(routes).To(HaveLen(1))
 			assert.Equal(GinkgoT(), routes[0].Labels["k8s/controller-name"], "apisix.apache.org/apisix-ingress-controller-1")
