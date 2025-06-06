@@ -15,13 +15,17 @@ package scaffold
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"time"
 
+	"go.uber.org/zap"
+	"gopkg.in/yaml.v3"
+
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/internal/provider/adc/translator"
+	"github.com/api7/gopkg/pkg/log"
 )
 
 // DataplaneResource defines the interface for accessing dataplane resources
@@ -88,6 +92,19 @@ func (a *adcDataplaneResource) Consumer() ConsumerResource {
 	return &adcConsumerResource{a}
 }
 
+func init() {
+	// dashboard sdk log
+	l, err := log.NewLogger(
+		log.WithOutputFile("stderr"),
+		log.WithLogLevel("debug"),
+		log.WithSkipFrames(3),
+	)
+	if err != nil {
+		panic(err)
+	}
+	log.DefaultLogger = l
+}
+
 // dumpResources executes adc dump command and returns the resources
 func (a *adcDataplaneResource) dumpResources(ctx context.Context) (*translator.TranslateResult, error) {
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, a.syncTimeout)
@@ -99,6 +116,7 @@ func (a *adcDataplaneResource) dumpResources(ctx context.Context) (*translator.T
 	}
 
 	adcEnv := []string{
+		"ADC_RUNNING_MODE=", // need to set empty
 		"ADC_BACKEND=" + a.backend,
 		"ADC_SERVER=" + a.serverAddr,
 		"ADC_TOKEN=" + a.token,
@@ -111,12 +129,31 @@ func (a *adcDataplaneResource) dumpResources(ctx context.Context) (*translator.T
 	cmd.Env = append(cmd.Env, os.Environ()...)
 	cmd.Env = append(cmd.Env, adcEnv...)
 
+	log.Debug("running adc command", zap.String("command", cmd.String()), zap.Strings("env", adcEnv))
+
 	if err := cmd.Run(); err != nil {
+		stderrStr := stderr.String()
+		stdoutStr := stdout.String()
+		errMsg := stderrStr
+		if errMsg == "" {
+			errMsg = stdoutStr
+		}
+		log.Errorw("failed to run adc",
+			zap.Error(err),
+			zap.String("output", stdoutStr),
+			zap.String("stderr", stderrStr),
+		)
+		return nil, errors.New("failed to dump resources: " + errMsg + ", exit err: " + err.Error())
+	}
+
+	// Read the YAML file that was created by adc dump
+	yamlData, err := os.ReadFile("/tmp/dump.yaml")
+	if err != nil {
 		return nil, err
 	}
 
 	var resources adctypes.Resources
-	if err := json.Unmarshal(stdout.Bytes(), &resources); err != nil {
+	if err := yaml.Unmarshal(yamlData, &resources); err != nil {
 		return nil, err
 	}
 
