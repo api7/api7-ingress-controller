@@ -81,6 +81,10 @@ type GatewayResources struct {
 	AdminAPIKey      string
 }
 
+func (g *GatewayResources) GetAdminEndpoint() string {
+	return fmt.Sprintf("http://%s.%s:9180", g.DataplaneService.Name, g.DataplaneService.Namespace)
+}
+
 func (s *Scaffold) AdminKey() string {
 	return s.opts.APISIXAdminAPIKey
 }
