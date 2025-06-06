@@ -107,7 +107,7 @@ spec:
 
 		It("Create Gateway", func() {
 			By("create GatewayProxy")
-			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 			err := s.CreateResourceFromString(gatewayProxy)
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
@@ -150,7 +150,7 @@ spec:
 	Context("Gateway SSL", func() {
 		It("Check if SSL resource was created", func() {
 			By("create GatewayProxy")
-			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 			err := s.CreateResourceFromString(gatewayProxy)
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
@@ -211,7 +211,7 @@ spec:
 		Context("Gateway SSL with and without hostname", func() {
 			It("Check if SSL resource was created and updated", func() {
 				By("create GatewayProxy")
-				gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+				gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 				err := s.CreateResourceFromString(gatewayProxy)
 				Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 				time.Sleep(5 * time.Second)

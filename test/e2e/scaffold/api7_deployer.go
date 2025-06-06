@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	. "github.com/onsi/ginkgo/v2" //nolint:staticcheck
 	. "github.com/onsi/gomega"    //nolint:staticcheck
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/apisix-ingress-controller/pkg/dashboard"
@@ -296,4 +297,9 @@ func (s *API7Deployer) CleanupAdditionalGateway(gatewayGroupID string) error {
 	delete(s.additionalGateways, gatewayGroupID)
 
 	return err
+}
+
+func (s *API7Deployer) GetAdminEndpoint(_ ...*corev1.Service) string {
+	// always return the default dashboard endpoint
+	return framework.DashboardTLSEndpoint
 }

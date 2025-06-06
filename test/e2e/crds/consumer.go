@@ -20,7 +20,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
@@ -494,7 +493,7 @@ spec:
 				Status(404)
 
 			By("update GatewayProxy with new admin key")
-			updatedProxy := fmt.Sprintf(updatedGatewayProxy, framework.DashboardTLSEndpoint, resources.AdminAPIKey)
+			updatedProxy := fmt.Sprintf(updatedGatewayProxy, s.Deployer.GetAdminEndpoint(resources.DataplaneService), resources.AdminAPIKey)
 			err = s.CreateResourceFromString(updatedProxy)
 			Expect(err).NotTo(HaveOccurred(), "updating GatewayProxy")
 			time.Sleep(5 * time.Second)

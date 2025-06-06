@@ -123,7 +123,7 @@ spec:
 
 	var beforeEachHTTP = func() {
 		By("create GatewayProxy")
-		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 		err := s.CreateResourceFromString(gatewayProxy)
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 		time.Sleep(5 * time.Second)
@@ -154,7 +154,7 @@ spec:
 
 	var beforeEachHTTPS = func() {
 		By("create GatewayProxy")
-		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 		err := s.CreateResourceFromString(gatewayProxy)
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 		time.Sleep(5 * time.Second)
@@ -322,7 +322,7 @@ spec:
 			Expect(gcyaml).To(ContainSubstring(`status: "True"`), "checking additional GatewayClass condition status")
 			Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the apisix-ingress-controller"), "checking additional GatewayClass condition message")
 
-			additionalGatewayProxy := fmt.Sprintf(additionalGatewayProxyYaml, framework.DashboardTLSEndpoint, resources.AdminAPIKey)
+			additionalGatewayProxy := fmt.Sprintf(additionalGatewayProxyYaml, s.Deployer.GetAdminEndpoint(resources.DataplaneService), resources.AdminAPIKey)
 			err = s.CreateResourceFromStringWithNamespace(additionalGatewayProxy, additionalNamespace)
 			Expect(err).NotTo(HaveOccurred(), "creating additional GatewayProxy")
 
@@ -1688,7 +1688,7 @@ spec:
 				Status(404)
 
 			By("update GatewayProxy with new admin key")
-			updatedProxy := fmt.Sprintf(updatedGatewayProxy, framework.DashboardTLSEndpoint, resources.AdminAPIKey)
+			updatedProxy := fmt.Sprintf(updatedGatewayProxy, s.Deployer.GetAdminEndpoint(resources.DataplaneService), resources.AdminAPIKey)
 			err = s.CreateResourceFromString(updatedProxy)
 			Expect(err).NotTo(HaveOccurred(), "updating GatewayProxy")
 			time.Sleep(5 * time.Second)
