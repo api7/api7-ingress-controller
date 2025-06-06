@@ -66,9 +66,6 @@ type Scaffold struct {
 
 	additionalGateways map[string]*GatewayResources
 
-	// TODO: move to deployer
-	apisixCli dashboard.Dashboard
-
 	Deployer Deployer
 }
 
@@ -192,15 +189,7 @@ func (s *Scaffold) NewAPISIXHttpsClient(host string) *httpexpect.Expect {
 }
 
 func (s *Scaffold) DefaultDataplaneResource() dashboard.Cluster {
-	return s.apisixCli.Cluster("default")
-}
-
-func (s *Scaffold) DefaultDataplaneResourceHTTPS() dashboard.Cluster {
-	return s.apisixCli.Cluster("default-https")
-}
-
-func (s *Scaffold) DataPlaneClient() dashboard.Dashboard {
-	return s.apisixCli
+	return nil
 }
 
 func (s *Scaffold) DeployTestService() {
