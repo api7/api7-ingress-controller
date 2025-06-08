@@ -20,7 +20,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
@@ -214,7 +213,7 @@ spec:
 		Expect(gcYaml).To(ContainSubstring("message: the gatewayclass has been accepted by the apisix-ingress-controller"), "checking GatewayClass condition message")
 
 		By("Create GatewayProxy with enabled plugin")
-		err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxyWithEnabledPlugin, framework.DashboardEndpoint, s.AdminKey()))
+		err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxyWithEnabledPlugin, s.Deployer.GetAdminEndpoint(), s.AdminKey()))
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy with enabled plugin")
 		time.Sleep(5 * time.Second)
 
@@ -234,7 +233,7 @@ spec:
 		By("Clean up resources")
 		_ = s.DeleteResourceFromString(fmt.Sprintf(httpRouteForTest, "apisix"))
 		_ = s.DeleteResourceFromString(fmt.Sprintf(gatewayWithProxy, gatewayClassName))
-		_ = s.DeleteResourceFromString(fmt.Sprintf(gatewayProxyWithEnabledPlugin, framework.DashboardEndpoint, s.AdminKey()))
+		_ = s.DeleteResourceFromString(fmt.Sprintf(gatewayProxyWithEnabledPlugin, s.Deployer.GetAdminEndpoint(), s.AdminKey()))
 	})
 
 	Context("Test Gateway with enabled GatewayProxy plugin", func() {
@@ -252,7 +251,7 @@ spec:
 			resp.Header("X-Proxy-Test").IsEqual("enabled")
 
 			By("Update GatewayProxy with disabled plugin")
-			err := s.CreateResourceFromString(fmt.Sprintf(gatewayProxyWithDisabledPlugin, framework.DashboardEndpoint, s.AdminKey()))
+			err := s.CreateResourceFromString(fmt.Sprintf(gatewayProxyWithDisabledPlugin, s.Deployer.GetAdminEndpoint(), s.AdminKey()))
 			Expect(err).NotTo(HaveOccurred(), "updating GatewayProxy with disabled plugin")
 			time.Sleep(5 * time.Second)
 
@@ -277,7 +276,7 @@ spec:
 
 		PIt("Should work OK with error-page", func() {
 			By("Update GatewayProxy with PluginMetadata")
-			err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxyWithPluginMetadata0, framework.DashboardEndpoint, s.AdminKey()))
+			err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxyWithPluginMetadata0, s.Deployer.GetAdminEndpoint(), s.AdminKey()))
 			Expect(err).ShouldNot(HaveOccurred())
 			time.Sleep(5 * time.Second)
 
@@ -294,7 +293,7 @@ spec:
 				Body().Contains("404 from plugin metadata")
 
 			By("Update GatewayProxy with PluginMetadata")
-			err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxyWithPluginMetadata1, framework.DashboardEndpoint, s.AdminKey()))
+			err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxyWithPluginMetadata1, s.Deployer.GetAdminEndpoint(), s.AdminKey()))
 			Expect(err).ShouldNot(HaveOccurred())
 			time.Sleep(5 * time.Second)
 
@@ -307,7 +306,7 @@ spec:
 				Body().Contains(`{"error_msg":"404 Route Not Found"}`)
 
 			By("Delete GatewayProxy")
-			err = s.DeleteResourceFromString(fmt.Sprintf(gatewayProxyWithPluginMetadata0, framework.DashboardEndpoint, s.AdminKey()))
+			err = s.DeleteResourceFromString(fmt.Sprintf(gatewayProxyWithPluginMetadata0, s.Deployer.GetAdminEndpoint(), s.AdminKey()))
 			Expect(err).ShouldNot(HaveOccurred())
 			time.Sleep(5 * time.Second)
 

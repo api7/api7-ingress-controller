@@ -20,7 +20,6 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
@@ -101,7 +100,7 @@ metadata:
 		By(fmt.Sprintf("create GatewayClass for controller %s", s.GetControllerName()))
 
 		By("create GatewayProxy")
-		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 		err = s.CreateResourceFromStringWithNamespace(gatewayProxy, gatewayName)
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 		time.Sleep(5 * time.Second)

@@ -300,3 +300,8 @@ func (s *API7Deployer) CleanupAdditionalGateway(gatewayGroupID string) error {
 
 	return err
 }
+
+func (s *API7Deployer) GetAdminEndpoint(_ ...*corev1.Service) string {
+	// always return the default dashboard endpoint
+	return framework.DashboardTLSEndpoint
+}

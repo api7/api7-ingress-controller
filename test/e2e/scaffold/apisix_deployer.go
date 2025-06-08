@@ -335,3 +335,10 @@ func (s *APISIXDeployer) CleanupAdditionalGateway(identifier string) error {
 
 	return err
 }
+
+func (s *APISIXDeployer) GetAdminEndpoint(svc ...*corev1.Service) string {
+	if len(svc) == 0 {
+		return fmt.Sprintf("http://%s.%s:9180", s.dataplaneService.Name, s.dataplaneService.Namespace)
+	}
+	return fmt.Sprintf("http://%s.%s:9180", svc[0].Name, svc[0].Namespace)
+}
