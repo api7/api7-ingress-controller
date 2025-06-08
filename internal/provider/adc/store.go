@@ -176,7 +176,7 @@ func (s *Store) GetResources(name string) (*adctypes.Resources, error) {
 	defer s.Unlock()
 	targetCache, ok := s.cacheMap[name]
 	if !ok {
-		return nil, nil
+		return &adctypes.Resources{}, nil
 	}
 	var globalrule adctypes.GlobalRule
 	var metadata adctypes.PluginMetadata

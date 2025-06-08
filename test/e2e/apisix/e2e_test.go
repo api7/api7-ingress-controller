@@ -20,6 +20,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
+	_ "github.com/apache/apisix-ingress-controller/test/e2e/gatewayapi"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 

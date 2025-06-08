@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	. "github.com/onsi/ginkgo/v2" //nolint:staticcheck
 	. "github.com/onsi/gomega"    //nolint:staticcheck
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/apache/apisix-ingress-controller/pkg/dashboard"
@@ -166,6 +167,7 @@ func (s *API7Deployer) newAPISIXTunnels() error {
 
 func (s *API7Deployer) DeployIngress() {
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
+		ProviderType:   "api7ee",
 		ControllerName: s.opts.ControllerName,
 		Namespace:      s.namespace,
 		Replicas:       1,
@@ -174,6 +176,7 @@ func (s *API7Deployer) DeployIngress() {
 
 func (s *API7Deployer) ScaleIngress(replicas int) {
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
+		ProviderType:   "api7ee",
 		ControllerName: s.opts.ControllerName,
 		Namespace:      s.namespace,
 		Replicas:       replicas,
@@ -210,7 +213,7 @@ func (s *API7Deployer) initDataPlaneClient() {
 
 // CreateAdditionalGateway creates a new gateway group and deploys a dataplane for it.
 // It returns the gateway group ID and namespace name where the dataplane is deployed.
-func (s *API7Deployer) CreateAdditionalGateway(namePrefix string) (string, string, error) {
+func (s *API7Deployer) CreateAdditionalGateway(namePrefix string) (string, *corev1.Service, error) {
 	// Create a new namespace for this gateway group
 	additionalNS := fmt.Sprintf("%s-%d", namePrefix, time.Now().Unix())
 
@@ -264,7 +267,7 @@ func (s *API7Deployer) CreateAdditionalGateway(namePrefix string) (string, strin
 	// Create tunnels for the dataplane
 	httpTunnel, httpsTunnel, err := s.createDataplaneTunnels(svc, kubectlOpts, serviceName)
 	if err != nil {
-		return "", "", err
+		return "", nil, err
 	}
 
 	resources.HttpTunnel = httpTunnel
@@ -273,7 +276,7 @@ func (s *API7Deployer) CreateAdditionalGateway(namePrefix string) (string, strin
 	// Store in the map
 	s.additionalGateways[gatewayGroupID] = resources
 
-	return gatewayGroupID, additionalNS, nil
+	return gatewayGroupID, svc, nil
 }
 
 // CleanupAdditionalGateway cleans up resources associated with a specific Gateway group

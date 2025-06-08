@@ -19,6 +19,13 @@ data:
       role: traditional
       role_traditional:
           config_provider: yaml
+      admin:
+        allow_admin:
+        - 0.0.0.0/0
+        admin_key:
+        - key: edd1c9f034335f136f87ad84b625c8f1
+          name: admin
+          role: admin
 ---
 apiVersion: apps/v1
 kind: Deployment

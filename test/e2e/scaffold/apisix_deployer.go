@@ -198,17 +198,19 @@ func (s *APISIXDeployer) deployDataplane(opts *APISIXDeployOptions) *corev1.Serv
 
 func (s *APISIXDeployer) DeployIngress() {
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
-		ControllerName: s.opts.ControllerName,
-		Namespace:      s.namespace,
-		Replicas:       1,
+		ProviderSyncPeriod: time.Second,
+		ControllerName:     s.opts.ControllerName,
+		Namespace:          s.namespace,
+		Replicas:           1,
 	})
 }
 
 func (s *APISIXDeployer) ScaleIngress(replicas int) {
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
-		ControllerName: s.opts.ControllerName,
-		Namespace:      s.namespace,
-		Replicas:       replicas,
+		ProviderSyncPeriod: time.Second,
+		ControllerName:     s.opts.ControllerName,
+		Namespace:          s.namespace,
+		Replicas:           replicas,
 	})
 }
 
@@ -250,7 +252,7 @@ func (s *APISIXDeployer) createAdminTunnel(
 	return adminTunnel, nil
 }
 
-func (s *APISIXDeployer) CreateAdditionalGateway(namePrefix string) (string, string, error) {
+func (s *APISIXDeployer) CreateAdditionalGateway(namePrefix string) (string, *corev1.Service, error) {
 	// Create a new namespace for this additional gateway
 	additionalNS := fmt.Sprintf("%s-%d", namePrefix, time.Now().Unix())
 
@@ -279,13 +281,10 @@ func (s *APISIXDeployer) CreateAdditionalGateway(namePrefix string) (string, str
 		AdminAPIKey: adminKey,
 	}
 
-	serviceName := fmt.Sprintf("apisix-standalone-%s", namePrefix)
-
 	// Deploy dataplane for this additional gateway
 	opts := APISIXDeployOptions{
 		Namespace:        additionalNS,
 		AdminKey:         adminKey,
-		ServiceName:      serviceName,
 		ServiceHTTPPort:  9080,
 		ServiceHTTPSPort: 9443,
 	}
@@ -294,9 +293,9 @@ func (s *APISIXDeployer) CreateAdditionalGateway(namePrefix string) (string, str
 	resources.DataplaneService = svc
 
 	// Create tunnels for the dataplane
-	httpTunnel, httpsTunnel, err := s.createDataplaneTunnels(svc, kubectlOpts, serviceName)
+	httpTunnel, httpsTunnel, err := s.createDataplaneTunnels(svc, kubectlOpts, svc.Name)
 	if err != nil {
-		return "", "", err
+		return "", nil, err
 	}
 
 	resources.HttpTunnel = httpTunnel
@@ -308,7 +307,7 @@ func (s *APISIXDeployer) CreateAdditionalGateway(namePrefix string) (string, str
 	// Store in the map
 	s.additionalGateways[identifier] = resources
 
-	return identifier, additionalNS, nil
+	return identifier, svc, nil
 }
 
 func (s *APISIXDeployer) CleanupAdditionalGateway(identifier string) error {

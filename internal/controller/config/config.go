@@ -105,18 +105,23 @@ func (c *Config) Validate() error {
 	if c.ControllerName == "" {
 		return fmt.Errorf("controller_name is required")
 	}
-	if err := validateProviderType(c.ProviderConfig.Type); err != nil {
+	if err := validateProvider(c.ProviderConfig); err != nil {
 		return err
 	}
 	return nil
 }
 
-func validateProviderType(providerType ProviderType) error {
-	switch providerType {
-	case ProviderTypeStandalone, ProviderTypeAPI7EE:
+func validateProvider(config ProviderConfig) error {
+	switch config.Type {
+	case ProviderTypeStandalone:
+		if config.SyncPeriod.Duration <= 0 {
+			return fmt.Errorf("sync_period must be greater than 0 for standalone provider")
+		}
+		return nil
+	case ProviderTypeAPI7EE:
 		return nil
 	default:
-		return fmt.Errorf("unsupported provider type: %s", providerType)
+		return fmt.Errorf("unsupported provider type: %s", config.Type)
 	}
 }
 

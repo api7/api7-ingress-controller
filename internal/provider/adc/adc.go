@@ -227,6 +227,12 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 
 	switch d.BackendMode {
 	case BackendModeAPISIXStandalone:
+		if len(resourceTypes) == 0 {
+			return d.sync(ctx, Task{
+				Name:    obj.GetName(),
+				configs: configs,
+			})
+		}
 		return nil
 	case BackendModeAPI7EE:
 		return d.sync(ctx, Task{
@@ -277,6 +283,8 @@ func (d *adcClient) Sync(ctx context.Context) error {
 	for _, config := range d.configs {
 		cfg[config.Name] = config
 	}
+
+	log.Debugw("syncing resources with multiple configs", zap.Any("configs", cfg))
 
 	for name, config := range cfg {
 		resources, err := d.store.GetResources(name)
