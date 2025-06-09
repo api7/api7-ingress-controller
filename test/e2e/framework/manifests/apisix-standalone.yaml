@@ -4,21 +4,20 @@ metadata:
   name: apisix-conf
 data:
   config.yaml: |
-    apisix:
-      enable_admin: true
-      admin_key:
-        - name: admin
-          key: {{ .AdminKey }}
-          role: admin
-      ssl:
-        enabled: true
-    nginx_config:
-      worker_processes: 2
-      error_log_level: info
     deployment:
       role: traditional
       role_traditional:
           config_provider: yaml
+      admin:
+        allow_admin:
+        - 0.0.0.0/0
+        admin_key:
+        - key: {{ .AdminKey }}
+          name: admin
+          role: admin
+    nginx_config:
+      worker_processes: 2
+      error_log_level: info
 ---
 apiVersion: apps/v1
 kind: Deployment
