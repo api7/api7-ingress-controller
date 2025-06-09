@@ -204,7 +204,8 @@ spec:
 			tls, err := s.DefaultDataplaneResource().SSL().List(context.Background())
 			assert.Nil(GinkgoT(), err, "list tls error")
 			assert.Len(GinkgoT(), tls, 1, "tls number not expect")
-			assert.Equal(GinkgoT(), Cert, tls[0].Cert, "tls cert not expect")
+			assert.Len(GinkgoT(), tls[0].Certificates, 1, "length of certificates not expect")
+			assert.Equal(GinkgoT(), Cert, tls[0].Certificates[0].Certificate, "tls cert not expect")
 			assert.ElementsMatch(GinkgoT(), []string{host, "*.api6.com"}, tls[0].Snis)
 		})
 
@@ -284,12 +285,27 @@ spec:
 			Expect(err).NotTo(HaveOccurred(), "update secret")
 			Eventually(func() string {
 				tls, err := s.DefaultDataplaneResource().SSL().List(context.Background())
-				Expect(err).NotTo(HaveOccurred(), "list ssl from dashboard")
-				if len(tls) < 1 {
-					return ""
-				}
-				return tls[0].Cert
-			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(framework.TestCert))
+				assert.Nil(GinkgoT(), err, "list tls error")
+				assert.Len(GinkgoT(), tls, 1, "tls number not expect")
+				assert.Len(GinkgoT(), tls[0].Certificates, 1, "length of certificates not expect")
+				assert.Equal(GinkgoT(), Cert, tls[0].Certificates[0].Certificate, "tls cert not expect")
+				assert.Equal(GinkgoT(), tls[0].Labels["k8s/controller-name"], "apisix.apache.org/apisix-ingress-controller")
+
+				By("update secret")
+				err = s.NewKubeTlsSecret(secretName, framework.TestCert, framework.TestKey)
+				Expect(err).NotTo(HaveOccurred(), "update secret")
+				Eventually(func() string {
+					tls, err := s.DefaultDataplaneResource().SSL().List(context.Background())
+					Expect(err).NotTo(HaveOccurred(), "list ssl from dashboard")
+					if len(tls) < 1 {
+						return ""
+					}
+					if len(tls[0].Certificates) < 1 {
+						return ""
+					}
+					return tls[0].Certificates[0].Certificate
+				}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(framework.TestCert))
+			})
 		})
 	})
 

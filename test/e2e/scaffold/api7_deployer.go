@@ -13,7 +13,6 @@
 package scaffold
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"time"
@@ -24,7 +23,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/apisix-ingress-controller/pkg/dashboard"
 	"github.com/apache/apisix-ingress-controller/pkg/utils"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 )
@@ -90,7 +88,6 @@ func (s *API7Deployer) BeforeEach() {
 	e.Add(func() {
 		s.DeployDataplane()
 		s.DeployIngress()
-		s.initDataPlaneClient()
 	})
 	e.Add(s.DeployTestService)
 	e.Wait()
@@ -181,34 +178,6 @@ func (s *API7Deployer) ScaleIngress(replicas int) {
 		Namespace:      s.namespace,
 		Replicas:       replicas,
 	})
-}
-
-func (s *API7Deployer) initDataPlaneClient() {
-	var err error
-	s.apisixCli, err = dashboard.NewClient()
-	Expect(err).NotTo(HaveOccurred(), "creating apisix client")
-
-	adminURL := fmt.Sprintf("http://%s/apisix/admin", s.GetDashboardEndpoint())
-
-	s.Logf("apisix admin: %s", adminURL)
-
-	err = s.apisixCli.AddCluster(context.Background(), &dashboard.ClusterOptions{
-		Name:           "default",
-		ControllerName: s.opts.ControllerName,
-		Labels:         map[string]string{"k8s/controller-name": s.opts.ControllerName},
-		BaseURL:        adminURL,
-		AdminKey:       s.AdminKey(),
-	})
-	Expect(err).NotTo(HaveOccurred(), "adding cluster")
-
-	httpsURL := fmt.Sprintf("https://%s/apisix/admin", s.GetDashboardEndpointHTTPS())
-	err = s.apisixCli.AddCluster(context.Background(), &dashboard.ClusterOptions{
-		Name:          "default-https",
-		BaseURL:       httpsURL,
-		AdminKey:      s.AdminKey(),
-		SkipTLSVerify: true,
-	})
-	Expect(err).NotTo(HaveOccurred(), "adding cluster")
 }
 
 // CreateAdditionalGateway creates a new gateway group and deploys a dataplane for it.
@@ -304,4 +273,13 @@ func (s *API7Deployer) CleanupAdditionalGateway(gatewayGroupID string) error {
 func (s *API7Deployer) GetAdminEndpoint(_ ...*corev1.Service) string {
 	// always return the default dashboard endpoint
 	return framework.DashboardTLSEndpoint
+}
+
+func (s *API7Deployer) DefaultDataplaneResource() DataplaneResource {
+	return newADCDataplaneResource(
+		"api7ee",
+		fmt.Sprintf("http://%s", s.GetDashboardEndpoint()),
+		s.AdminKey(),
+		false,
+	)
 }
