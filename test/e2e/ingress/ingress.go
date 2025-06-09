@@ -67,7 +67,7 @@ spec:
 	Context("Ingress TLS", func() {
 		It("Check if SSL resource was created", func() {
 			By("create GatewayProxy")
-			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 
 			By("create GatewayProxy")
 			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
@@ -131,7 +131,8 @@ spec:
 			tls, err := s.DefaultDataplaneResource().SSL().List(context.Background())
 			assert.Nil(GinkgoT(), err, "list tls error")
 			assert.Len(GinkgoT(), tls, 1, "tls number not expect")
-			assert.Equal(GinkgoT(), Cert, tls[0].Cert, "tls cert not expect")
+			assert.Len(GinkgoT(), tls[0].Certificates, 1, "length of certificates not expect")
+			assert.Equal(GinkgoT(), Cert, tls[0].Certificates[0].Certificate, "tls cert not expect")
 			assert.ElementsMatch(GinkgoT(), []string{host}, tls[0].Snis)
 		})
 	})
@@ -202,7 +203,7 @@ spec:
 
 		It("Test IngressClass Selection", func() {
 			By("create GatewayProxy")
-			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
@@ -227,7 +228,7 @@ spec:
 
 		It("Proxy External Service", func() {
 			By("create GatewayProxy")
-			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
@@ -252,7 +253,7 @@ spec:
 
 		It("Delete Ingress during restart", func() {
 			By("create GatewayProxy")
-			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
@@ -434,7 +435,7 @@ spec:
 
 		It("Test IngressClass with GatewayProxy", func() {
 			By("create GatewayProxy")
-			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 
 			By("create GatewayProxy")
 			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
@@ -477,7 +478,7 @@ stringData:
 			time.Sleep(5 * time.Second)
 
 			By("create GatewayProxy with Secret reference")
-			gatewayProxy := fmt.Sprintf(gatewayProxyWithSecretYaml, framework.DashboardTLSEndpoint)
+			gatewayProxy := fmt.Sprintf(gatewayProxyWithSecretYaml, s.Deployer.GetAdminEndpoint())
 			err = s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy with Secret")
 			time.Sleep(5 * time.Second)
@@ -520,7 +521,7 @@ spec:
         type: AdminKey
         adminKey:
           value: "%s"
-`, framework.DashboardTLSEndpoint, s.AdminKey())
+`, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 		}
 
 		const ingressClassSpec = `
@@ -806,7 +807,7 @@ spec:
 
 		BeforeEach(func() {
 			By("create GatewayProxy")
-			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
@@ -848,7 +849,7 @@ spec:
 			Expect(exists).To(BeTrue(), "additional gateway group should exist")
 
 			By("update GatewayProxy with new admin key")
-			updatedProxy := fmt.Sprintf(updatedGatewayProxy, framework.DashboardTLSEndpoint, resources.AdminAPIKey)
+			updatedProxy := fmt.Sprintf(updatedGatewayProxy, s.Deployer.GetAdminEndpoint(resources.DataplaneService), resources.AdminAPIKey)
 			err = s.CreateResourceFromStringWithNamespace(updatedProxy, "default")
 			Expect(err).NotTo(HaveOccurred(), "updating GatewayProxy")
 			time.Sleep(5 * time.Second)
@@ -940,7 +941,7 @@ spec:
 			Expect(err).NotTo(HaveOccurred(), "creating secret")
 
 			By("create GatewayProxy")
-			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewayProxySpec, framework.DashboardTLSEndpoint), s.Namespace())
+			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewayProxySpec, s.Deployer.GetAdminEndpoint()), s.Namespace())
 			Expect(err).NotTo(HaveOccurred(), "creating gateway proxy")
 
 			By("create IngressClass")

@@ -29,7 +29,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/apisix-ingress-controller/pkg/dashboard"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 )
 
@@ -67,9 +66,6 @@ type Scaffold struct {
 
 	additionalGateways map[string]*GatewayResources
 
-	// TODO: move to deployer
-	apisixCli dashboard.Dashboard
-
 	Deployer Deployer
 }
 
@@ -80,6 +76,10 @@ type GatewayResources struct {
 	HttpTunnel       *k8s.Tunnel
 	HttpsTunnel      *k8s.Tunnel
 	AdminAPIKey      string
+}
+
+func (g *GatewayResources) GetAdminEndpoint() string {
+	return fmt.Sprintf("http://%s.%s:9180", g.DataplaneService.Name, g.DataplaneService.Namespace)
 }
 
 func (s *Scaffold) AdminKey() string {
@@ -190,16 +190,8 @@ func (s *Scaffold) NewAPISIXHttpsClient(host string) *httpexpect.Expect {
 	})
 }
 
-func (s *Scaffold) DefaultDataplaneResource() dashboard.Cluster {
-	return s.apisixCli.Cluster("default")
-}
-
-func (s *Scaffold) DefaultDataplaneResourceHTTPS() dashboard.Cluster {
-	return s.apisixCli.Cluster("default-https")
-}
-
-func (s *Scaffold) DataPlaneClient() dashboard.Dashboard {
-	return s.apisixCli
+func (s *Scaffold) DefaultDataplaneResource() DataplaneResource {
+	return s.Deployer.DefaultDataplaneResource()
 }
 
 func (s *Scaffold) DeployTestService() {

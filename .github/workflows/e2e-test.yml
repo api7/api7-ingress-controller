@@ -70,6 +70,18 @@ jobs:
           echo "building images..."
           make build-image
 
+      - name: Build Dockerfile.dev and extract adc binary
+        run: |
+          echo "Building Dockerfile.dev..."
+          docker build -f Dockerfile.dev -t adc-builder:latest .
+          echo "Extracting adc binary..."
+          docker run --name adc-temp --entrypoint="" adc-builder:latest /bin/true
+          docker cp adc-temp:/bin/adc ./bin/adc
+          docker rm adc-temp
+          chmod +x ./bin/adc
+          mv ./bin/adc /usr/local/bin/adc
+          echo "ADC binary extracted to /usr/local/bin/adc"
+
       - name: Launch Kind Cluster
         run: |
           make kind-up
