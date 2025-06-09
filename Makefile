@@ -21,8 +21,7 @@ CRD_REF_DOCS ?= $(LOCALBIN)/crd-ref-docs
 CRD_DOCS_CONFIG ?= docs/crd/config.yaml
 CRD_DOCS_OUTPUT ?= docs/crd/api.md
 
-KUBECONFIG_FILE := /tmp/$(KIND_NAME).kubeconfig
-export KUBECONFIG := $(if $(wildcard $(KUBECONFIG_FILE)),$(KUBECONFIG_FILE))
+export KUBECONFIG = /tmp/$(KIND_NAME).kubeconfig
 
 # go 
 VERSYM="github.com/apache/apisix-ingress-controller/internal/version._buildVersion"
