@@ -110,7 +110,17 @@ func (a *adcDataplaneResource) dumpResources(ctx context.Context) (*translator.T
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, a.syncTimeout)
 	defer cancel()
 
-	args := []string{"dump", "-o", "/tmp/dump.yaml"}
+	// Create a temporary file for the adc dump
+	tempFile, err := os.CreateTemp("", "adc-dump-*.yaml")
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = tempFile.Close()
+		_ = os.Remove(tempFile.Name())
+	}()
+
+	args := []string{"dump", "-o", tempFile.Name()}
 	if !a.tlsVerify {
 		args = append(args, "--tls-skip-verify")
 	}
@@ -147,7 +157,7 @@ func (a *adcDataplaneResource) dumpResources(ctx context.Context) (*translator.T
 	}
 
 	// Read the YAML file that was created by adc dump
-	yamlData, err := os.ReadFile("/tmp/dump.yaml")
+	yamlData, err := os.ReadFile(tempFile.Name())
 	if err != nil {
 		return nil, err
 	}
