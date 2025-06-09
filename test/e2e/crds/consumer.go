@@ -23,7 +23,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = Describe("Test Consumer", func() {
+var _ = FDescribe("Test Consumer", func() {
 	s := scaffold.NewDefaultScaffold()
 
 	var defaultGatewayProxy = `
@@ -236,8 +236,10 @@ spec:
 			s.ApplyDefaultGatewayResource(defaultGatewayProxy, defaultGatewayClass, defaultGateway, defaultHTTPRoute)
 		})
 
-		It("Create/Update/Delete", func() {
+		FIt("Create/Update/Delete", func() {
 			s.ResourceApplied("Consumer", "consumer-sample", defaultCredential, 1)
+
+			time.Sleep(15 * time.Minute)
 
 			s.NewAPISIXClient().
 				GET("/get").

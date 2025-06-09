@@ -324,7 +324,7 @@ spec:
 			Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the apisix-ingress-controller"), "checking additional GatewayClass condition message")
 
 			additionalGatewayProxy := fmt.Sprintf(additionalGatewayProxyYaml, s.Deployer.GetAdminEndpoint(resources.DataplaneService), resources.AdminAPIKey)
-			err = s.CreateResourceFromStringWithNamespace(additionalGatewayProxy, additionalNamespace)
+			err = s.CreateResourceFromStringWithNamespace(additionalGatewayProxy, resources.DataplaneService.Namespace)
 			Expect(err).NotTo(HaveOccurred(), "creating additional GatewayProxy")
 
 			By("Create additional Gateway")
@@ -1619,7 +1619,6 @@ spec:
 
 	Context("HTTPRoute with GatewayProxy Update", func() {
 		var additionalGatewayGroupID string
-		var additionalGatewaySvc *corev1.Service
 
 		var exactRouteByGet = `
 apiVersion: gateway.networking.k8s.io/v1
@@ -1673,7 +1672,7 @@ spec:
 
 			By("create additional gateway group to get new admin key")
 			var err error
-			additionalGatewayGroupID, additionalGatewaySvc, err = s.Deployer.CreateAdditionalGateway("gateway-proxy-update")
+			additionalGatewayGroupID, _, err = s.Deployer.CreateAdditionalGateway("gateway-proxy-update")
 			Expect(err).NotTo(HaveOccurred(), "creating additional gateway group")
 
 			resources, exists := s.GetAdditionalGateway(additionalGatewayGroupID)

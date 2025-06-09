@@ -192,7 +192,7 @@ linux-build:
 build-image: docker-build
 
 .PHONY: build-image-with-adc-dev
-build-image-with-adc-dev:
+build-image-with-adc-dev: build
 	$(CONTAINER_TOOL) build -t ${IMG} -f Dockerfile.dev .
 
 .PHONY: build-push-image

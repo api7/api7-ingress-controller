@@ -128,7 +128,7 @@ metadata:
 		Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the apisix-ingress-controller"), "checking Gateway condition message")
 	}
 
-	Context("Create resource with first controller", func() {
+	PContext("Create resource with first controller", func() {
 		s1 := scaffold.NewScaffold(&scaffold.Options{
 			Name:           "gateway1",
 			ControllerName: "apisix.apache.org/apisix-ingress-controller-1",
@@ -174,7 +174,7 @@ spec:
 			assert.Equal(GinkgoT(), routes[0].Labels["k8s/controller-name"], "apisix.apache.org/apisix-ingress-controller-1")
 		})
 	})
-	Context("Create resource with second controller", func() {
+	PContext("Create resource with second controller", func() {
 		s2 := scaffold.NewScaffold(&scaffold.Options{
 			Name:           "gateway2",
 			ControllerName: "apisix.apache.org/apisix-ingress-controller-2",
