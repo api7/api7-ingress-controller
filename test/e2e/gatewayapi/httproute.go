@@ -555,7 +555,7 @@ spec:
 				Status(200)
 		})
 
-		PIt("Match Port", func() {
+		It("Match Port", func() {
 			By("create HTTPRoute")
 			ResourceApplied("HTTPRoute", "httpbin", invalidBackendPort, 1)
 
