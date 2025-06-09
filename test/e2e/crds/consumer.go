@@ -239,8 +239,6 @@ spec:
 		It("Create/Update/Delete", func() {
 			s.ResourceApplied("Consumer", "consumer-sample", defaultCredential, 1)
 
-			time.Sleep(15 * time.Minute)
-
 			s.NewAPISIXClient().
 				GET("/get").
 				WithHeader("apikey", "sample-key").

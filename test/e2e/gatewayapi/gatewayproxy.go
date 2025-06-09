@@ -283,7 +283,7 @@ spec:
 			By("Create HTTPRoute for Gateway with GatewayProxy")
 			resourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "apisix"), 1)
 
-			time.Sleep(5 * time.Minute)
+			time.Sleep(5 * time.Second)
 			By("Check PluginMetadata working")
 			s.NewAPISIXClient().
 				GET("/not-found").
