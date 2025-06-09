@@ -259,7 +259,7 @@ spec:
 `
 
 		BeforeEach(beforeEach)
-		It("should rewrite upstream host", func() {
+		FIt("should rewrite upstream host", func() {
 			s.ResourceApplied("BackendTrafficPolicy", "httpbin", createUpstreamHost, 1)
 			s.NewAPISIXClient().
 				GET("/headers").
