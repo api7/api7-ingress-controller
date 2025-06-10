@@ -1,4 +1,4 @@
-name: E2E Test
+name: APISIX E2E Test
 
 on:
   push:
@@ -32,12 +32,6 @@ jobs:
         run: |
           go install sigs.k8s.io/kind@v0.23.0
 
-      - name: Install Helm
-        run: |
-          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-          chmod 700 get_helm.sh
-          ./get_helm.sh
-
   e2e-test:
     needs: 
       - prepare
@@ -53,13 +47,6 @@ jobs:
         with:
           go-version: "1.22"
 
-      - name: Login to Private Registry
-        uses: docker/login-action@v1
-        with:
-          registry: hkccr.ccs.tencentyun.com
-          username: ${{ secrets.PRIVATE_DOCKER_USERNAME }}
-          password: ${{ secrets.PRIVATE_DOCKER_PASSWORD }}
-
       - name: Build images
         env:
           TAG: dev
@@ -70,18 +57,6 @@ jobs:
           echo "building images..."
           make build-image
 
-      - name: Build Dockerfile.dev and extract adc binary
-        run: |
-          echo "Building Dockerfile.dev..."
-          docker build -f Dockerfile.dev -t adc-builder:latest .
-          echo "Extracting adc binary..."
-          docker run --name adc-temp --entrypoint="" adc-builder:latest /bin/true
-          docker cp adc-temp:/bin/adc ./bin/adc
-          docker rm adc-temp
-          chmod +x ./bin/adc
-          mv ./bin/adc /usr/local/bin/adc
-          echo "ADC binary extracted to /usr/local/bin/adc"
-
       - name: Launch Kind Cluster
         run: |
           make kind-up
@@ -90,17 +65,7 @@ jobs:
         run: |
           make install
 
-      - name: Download API7EE3 Chart
-        run: |
-          make download-api7ee3-chart
-
-      - name: Loading Docker Image to Kind Cluster
-        run: |
-          make kind-load-images
-
       - name: Run E2E test suite
         shell: bash
-        env:
-          API7_EE_LICENSE: ${{ secrets.API7_EE_LICENSE }}
         run: |
-          make e2e-test
+          make e2e-test-standalone

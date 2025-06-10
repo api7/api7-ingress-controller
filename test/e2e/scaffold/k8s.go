@@ -16,7 +16,6 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	"net/url"
 	"os/exec"
 	"strings"
 	"time"
@@ -35,7 +34,6 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	"github.com/apache/apisix-ingress-controller/pkg/dashboard"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 )
 
@@ -133,38 +131,6 @@ func (s *Scaffold) DeleteResourceFromStringWithNamespace(yaml, namespace string)
 	return k8s.KubectlDeleteFromStringE(s.t, s.kubectlOptions, yaml)
 }
 
-func (s *Scaffold) NewAPISIX() (dashboard.Dashboard, error) {
-	return dashboard.NewClient()
-}
-
-func (s *Scaffold) ClusterClient() (dashboard.Cluster, error) {
-	u := url.URL{
-		Scheme: "http",
-		Host:   "localhost:7080",
-		Path:   "/apisix/admin",
-	}
-	cli, err := s.NewAPISIX()
-	if err != nil {
-		return nil, err
-	}
-	err = cli.AddCluster(context.Background(), &dashboard.ClusterOptions{
-		BaseURL:        u.String(),
-		ControllerName: s.opts.ControllerName,
-		Labels:         map[string]string{"k8s/controller-name": s.opts.ControllerName},
-		AdminKey:       s.opts.APISIXAdminAPIKey,
-		SyncCache:      true,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return cli.Cluster(""), nil
-}
-
-func (s *Scaffold) shutdownApisixTunnel() {
-	s.apisixHttpTunnel.Close()
-	s.apisixHttpsTunnel.Close()
-}
-
 // Namespace returns the current working namespace.
 func (s *Scaffold) Namespace() string {
 	return s.kubectlOptions.Namespace
@@ -209,21 +175,6 @@ func (s *Scaffold) RunKubectlAndGetOutput(args ...string) (string, error) {
 	return k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, args...)
 }
 
-func (s *Scaffold) RunDigDNSClientFromK8s(args ...string) (string, error) {
-	kubectlArgs := []string{
-		"run",
-		"dig",
-		"-i",
-		"--rm",
-		"--restart=Never",
-		"--image-pull-policy=IfNotPresent",
-		"--image=toolbelt/dig",
-		"--",
-	}
-	kubectlArgs = append(kubectlArgs, args...)
-	return s.RunKubectlAndGetOutput(kubectlArgs...)
-}
-
 func (s *Scaffold) ResourceApplied(resourType, resourceName, resourceRaw string, observedGeneration int) {
 	Expect(s.CreateResourceFromString(resourceRaw)).
 		NotTo(HaveOccurred(), fmt.Sprintf("creating %s", resourType))
@@ -250,7 +201,7 @@ func (s *Scaffold) ApplyDefaultGatewayResource(
 	defaultHTTPRoute string,
 ) {
 	By("create GatewayProxy")
-	gatewayProxy := fmt.Sprintf(defaultGatewayProxy, framework.DashboardTLSEndpoint, s.AdminKey())
+	gatewayProxy := fmt.Sprintf(defaultGatewayProxy, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 	err := s.CreateResourceFromString(gatewayProxy)
 	Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 	time.Sleep(5 * time.Second)

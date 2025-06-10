@@ -14,24 +14,21 @@ package framework
 
 import (
 	_ "embed"
-	"encoding/json"
+	"text/template"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/Masterminds/sprig/v3"
 )
 
-func (f *Framework) UploadLicense() {
-	payload := map[string]any{"data": API7EELicense}
-	payloadBytes, err := json.Marshal(payload)
-	assert.Nil(f.GinkgoT, err)
+var (
+	//go:embed manifests/apisix-standalone.yaml
+	apisixStandaloneTemplate string
+	APISIXStandaloneTpl      *template.Template
+)
 
-	respExpect := f.DashboardHTTPClient().PUT("/api/license").
-		WithBasicAuth("admin", "admin").
-		WithHeader("Content-Type", "application/json").
-		WithBytes(payloadBytes).
-		Expect()
-
-	body := respExpect.Body().Raw()
-	f.Logf("request /api/license, response body: %s", body)
-
-	respExpect.Status(200)
+func init() {
+	tpl, err := template.New("apisix-standalone").Funcs(sprig.TxtFuncMap()).Parse(apisixStandaloneTemplate)
+	if err != nil {
+		panic(err)
+	}
+	APISIXStandaloneTpl = tpl
 }

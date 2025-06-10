@@ -106,7 +106,7 @@ spec:
 `
 	var beforeEachHTTP = func() {
 		By("create GatewayProxy")
-		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 		err := s.CreateResourceFromString(gatewayProxy)
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 		time.Sleep(5 * time.Second)
@@ -143,7 +143,7 @@ spec:
 
 	var beforeEachHTTPS = func() {
 		By("create GatewayProxy")
-		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 		err := s.CreateResourceFromString(gatewayProxy)
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 		time.Sleep(5 * time.Second)
@@ -297,12 +297,12 @@ spec:
 
 			By("Create additional gateway group")
 			var err error
-			additionalGatewayGroupID, additionalNamespace, err = s.CreateAdditionalGatewayGroup("multi-gw")
+			additionalGatewayGroupID, additionalNamespace, err = s.Deployer.CreateAdditionalGateway("multi-gw")
 			Expect(err).NotTo(HaveOccurred(), "creating additional gateway group")
 
 			By("Create additional GatewayProxy")
 			// Get admin key for the additional gateway group
-			resources, exists := s.GetAdditionalGatewayGroup(additionalGatewayGroupID)
+			resources, exists := s.GetAdditionalGateway(additionalGatewayGroupID)
 			Expect(exists).To(BeTrue(), "additional gateway group should exist")
 
 			By("Create additional GatewayClass")
@@ -320,7 +320,7 @@ spec:
 				},
 			)
 
-			additionalGatewayProxy := fmt.Sprintf(additionalGatewayProxyYaml, framework.DashboardTLSEndpoint, resources.AdminAPIKey)
+			additionalGatewayProxy := fmt.Sprintf(additionalGatewayProxyYaml, s.Deployer.GetAdminEndpoint(resources.DataplaneService), resources.AdminAPIKey)
 			err = s.CreateResourceFromStringWithNamespace(additionalGatewayProxy, additionalNamespace)
 			Expect(err).NotTo(HaveOccurred(), "creating additional GatewayProxy")
 
@@ -347,7 +347,7 @@ spec:
 				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 
 			By("Access through additional gateway")
-			client, err := s.NewAPISIXClientForGatewayGroup(additionalGatewayGroupID)
+			client, err := s.NewAPISIXClientForGateway(additionalGatewayGroupID)
 			Expect(err).NotTo(HaveOccurred(), "creating client for additional gateway")
 			Eventually(request).WithArguments(client, "httpbin-additional.example").
 				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
@@ -364,7 +364,7 @@ spec:
 				Status(http.StatusOK)
 
 			By("HTTPRoute should not be accessible through additional gateway")
-			client, err = s.NewAPISIXClientForGatewayGroup(additionalGatewayGroupID)
+			client, err = s.NewAPISIXClientForGateway(additionalGatewayGroupID)
 			Expect(err).NotTo(HaveOccurred(), "creating client for additional gateway")
 			Eventually(request).WithArguments(client, "httpbin-additional.example").
 				WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
@@ -559,15 +559,26 @@ spec:
 			Eventually(request).WithArguments("httpbin.example").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 			Eventually(request).WithArguments("httpbin2.example").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 
-			s.ScaleIngress(0)
+			s.Deployer.ScaleIngress(0)
 
 			By("delete HTTPRoute httpbin2")
 			err := s.DeleteResource("HTTPRoute", "httpbin2")
 			Expect(err).NotTo(HaveOccurred(), "deleting HTTPRoute httpbin2")
 
-			s.ScaleIngress(1)
-			Eventually(request).WithArguments("httpbin.example").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
-			Eventually(request).WithArguments("httpbin2.example").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
+			s.Deployer.ScaleIngress(1)
+			time.Sleep(1 * time.Minute)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin.example").
+				Expect().
+				Status(200)
+
+			s.NewAPISIXClient().
+				GET("/get").
+				WithHost("httpbin2.example").
+				Expect().
+				Status(404)
 		})
 	})
 
@@ -1674,13 +1685,13 @@ spec:
 
 			By("create additional gateway group to get new admin key")
 			var err error
-			additionalGatewayGroupID, _, err = s.CreateAdditionalGatewayGroup("gateway-proxy-update")
+			additionalGatewayGroupID, _, err = s.Deployer.CreateAdditionalGateway("gateway-proxy-update")
 			Expect(err).NotTo(HaveOccurred(), "creating additional gateway group")
 
-			resources, exists := s.GetAdditionalGatewayGroup(additionalGatewayGroupID)
+			resources, exists := s.GetAdditionalGateway(additionalGatewayGroupID)
 			Expect(exists).To(BeTrue(), "additional gateway group should exist")
 
-			client, err := s.NewAPISIXClientForGatewayGroup(additionalGatewayGroupID)
+			client, err := s.NewAPISIXClientForGateway(additionalGatewayGroupID)
 			Expect(err).NotTo(HaveOccurred(), "creating APISIX client for additional gateway group")
 
 			By("HTTPRoute not found for additional gateway group")
@@ -1691,7 +1702,7 @@ spec:
 				Status(404)
 
 			By("update GatewayProxy with new admin key")
-			updatedProxy := fmt.Sprintf(updatedGatewayProxy, framework.DashboardTLSEndpoint, resources.AdminAPIKey)
+			updatedProxy := fmt.Sprintf(updatedGatewayProxy, s.Deployer.GetAdminEndpoint(resources.DataplaneService), resources.AdminAPIKey)
 			err = s.CreateResourceFromString(updatedProxy)
 			Expect(err).NotTo(HaveOccurred(), "updating GatewayProxy")
 
