@@ -61,7 +61,7 @@ jobs:
       - name: Extract adc binary
         run: |
           echo "Extracting adc binary..."
-          docker run --name adc-temp --entrypoint="" api7/api7-ingress-controller:dev /bin/true
+          docker create --name adc-temp api7/api7-ingress-controller:dev
           docker cp adc-temp:/bin/adc /usr/local/bin/adc
           docker rm adc-temp
           chmod +x /usr/local/bin/adc
