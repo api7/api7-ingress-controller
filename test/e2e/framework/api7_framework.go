@@ -66,7 +66,7 @@ func (f *Framework) BeforeSuite() {
 
 	time.Sleep(1 * time.Minute)
 	err := f.newDashboardTunnel()
-	f.Logf("Dashboard HTTP Tunnel:" + f.dashboardHTTPTunnel.Endpoint())
+	f.Logf("Dashboard HTTP Tunnel:" + _dashboardHTTPTunnel.Endpoint())
 	Expect(err).ShouldNot(HaveOccurred(), "creating dashboard tunnel")
 
 	f.UploadLicense()
@@ -82,15 +82,6 @@ func (f *Framework) AfterSuite() {
 func (f *Framework) DeployComponents() {
 	f.deploy()
 	f.initDashboard()
-}
-
-func (f *Framework) shutdownDashboardTunnel() {
-	if f.dashboardHTTPTunnel != nil {
-		f.dashboardHTTPTunnel.Close()
-	}
-	if f.dashboardHTTPSTunnel != nil {
-		f.dashboardHTTPSTunnel.Close()
-	}
 }
 
 func (f *Framework) UploadLicense() {
@@ -169,6 +160,11 @@ func (f *Framework) initDashboard() {
 	time.Sleep(5 * time.Second)
 }
 
+var (
+	_dashboardHTTPTunnel  *k8s.Tunnel
+	_dashboardHTTPSTunnel *k8s.Tunnel
+)
+
 func (f *Framework) newDashboardTunnel() error {
 	var (
 		httpNodePort  int
@@ -190,17 +186,26 @@ func (f *Framework) newDashboardTunnel() error {
 		}
 	}
 
-	f.dashboardHTTPTunnel = k8s.NewTunnel(f.kubectlOpts, k8s.ResourceTypeService, "api7ee3-dashboard",
+	_dashboardHTTPTunnel = k8s.NewTunnel(f.kubectlOpts, k8s.ResourceTypeService, "api7ee3-dashboard",
 		httpNodePort, httpPort)
-	f.dashboardHTTPSTunnel = k8s.NewTunnel(f.kubectlOpts, k8s.ResourceTypeService, "api7ee3-dashboard",
+	_dashboardHTTPSTunnel = k8s.NewTunnel(f.kubectlOpts, k8s.ResourceTypeService, "api7ee3-dashboard",
 		httpsNodePort, httpsPort)
 
-	if err := f.dashboardHTTPTunnel.ForwardPortE(f.GinkgoT); err != nil {
+	if err := _dashboardHTTPTunnel.ForwardPortE(f.GinkgoT); err != nil {
 		return err
 	}
-	if err := f.dashboardHTTPSTunnel.ForwardPortE(f.GinkgoT); err != nil {
+	if err := _dashboardHTTPSTunnel.ForwardPortE(f.GinkgoT); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (f *Framework) shutdownDashboardTunnel() {
+	if _dashboardHTTPTunnel != nil {
+		_dashboardHTTPTunnel.Close()
+	}
+	if _dashboardHTTPSTunnel != nil {
+		_dashboardHTTPSTunnel.Close()
+	}
 }

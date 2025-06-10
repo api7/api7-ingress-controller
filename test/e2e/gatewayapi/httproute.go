@@ -123,7 +123,7 @@ spec:
 
 	var beforeEachHTTP = func() {
 		By("create GatewayProxy")
-		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 		err := s.CreateResourceFromString(gatewayProxy)
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 		time.Sleep(5 * time.Second)
@@ -154,7 +154,7 @@ spec:
 
 	var beforeEachHTTPS = func() {
 		By("create GatewayProxy")
-		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.DashboardTLSEndpoint, s.AdminKey())
+		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 		err := s.CreateResourceFromString(gatewayProxy)
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 		time.Sleep(5 * time.Second)
@@ -303,12 +303,12 @@ spec:
 
 			By("Create additional gateway group")
 			var err error
-			additionalGatewayGroupID, additionalNamespace, err = s.CreateAdditionalGatewayGroup("multi-gw")
+			additionalGatewayGroupID, additionalNamespace, err = s.Deployer.CreateAdditionalGateway("multi-gw")
 			Expect(err).NotTo(HaveOccurred(), "creating additional gateway group")
 
 			By("Create additional GatewayProxy")
 			// Get admin key for the additional gateway group
-			resources, exists := s.GetAdditionalGatewayGroup(additionalGatewayGroupID)
+			resources, exists := s.GetAdditionalGateway(additionalGatewayGroupID)
 			Expect(exists).To(BeTrue(), "additional gateway group should exist")
 
 			By("Create additional GatewayClass")
@@ -322,7 +322,7 @@ spec:
 			Expect(gcyaml).To(ContainSubstring(`status: "True"`), "checking additional GatewayClass condition status")
 			Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the apisix-ingress-controller"), "checking additional GatewayClass condition message")
 
-			additionalGatewayProxy := fmt.Sprintf(additionalGatewayProxyYaml, framework.DashboardTLSEndpoint, resources.AdminAPIKey)
+			additionalGatewayProxy := fmt.Sprintf(additionalGatewayProxyYaml, s.Deployer.GetAdminEndpoint(resources.DataplaneService), resources.AdminAPIKey)
 			err = s.CreateResourceFromStringWithNamespace(additionalGatewayProxy, additionalNamespace)
 			Expect(err).NotTo(HaveOccurred(), "creating additional GatewayProxy")
 
@@ -348,7 +348,7 @@ spec:
 				Status(http.StatusOK)
 
 			By("Access through additional gateway")
-			client, err := s.NewAPISIXClientForGatewayGroup(additionalGatewayGroupID)
+			client, err := s.NewAPISIXClientForGateway(additionalGatewayGroupID)
 			Expect(err).NotTo(HaveOccurred(), "creating client for additional gateway")
 
 			client.
@@ -370,7 +370,7 @@ spec:
 				Status(http.StatusOK)
 
 			By("HTTPRoute should not be accessible through additional gateway")
-			client, err = s.NewAPISIXClientForGatewayGroup(additionalGatewayGroupID)
+			client, err = s.NewAPISIXClientForGateway(additionalGatewayGroupID)
 			Expect(err).NotTo(HaveOccurred(), "creating client for additional gateway")
 
 			client.
@@ -1671,13 +1671,13 @@ spec:
 
 			By("create additional gateway group to get new admin key")
 			var err error
-			additionalGatewayGroupID, _, err = s.CreateAdditionalGatewayGroup("gateway-proxy-update")
+			additionalGatewayGroupID, _, err = s.Deployer.CreateAdditionalGateway("gateway-proxy-update")
 			Expect(err).NotTo(HaveOccurred(), "creating additional gateway group")
 
-			resources, exists := s.GetAdditionalGatewayGroup(additionalGatewayGroupID)
+			resources, exists := s.GetAdditionalGateway(additionalGatewayGroupID)
 			Expect(exists).To(BeTrue(), "additional gateway group should exist")
 
-			client, err := s.NewAPISIXClientForGatewayGroup(additionalGatewayGroupID)
+			client, err := s.NewAPISIXClientForGateway(additionalGatewayGroupID)
 			Expect(err).NotTo(HaveOccurred(), "creating APISIX client for additional gateway group")
 
 			By("HTTPRoute not found for additional gateway group")
@@ -1688,7 +1688,7 @@ spec:
 				Status(404)
 
 			By("update GatewayProxy with new admin key")
-			updatedProxy := fmt.Sprintf(updatedGatewayProxy, framework.DashboardTLSEndpoint, resources.AdminAPIKey)
+			updatedProxy := fmt.Sprintf(updatedGatewayProxy, s.Deployer.GetAdminEndpoint(resources.DataplaneService), resources.AdminAPIKey)
 			err = s.CreateResourceFromString(updatedProxy)
 			Expect(err).NotTo(HaveOccurred(), "updating GatewayProxy")
 			time.Sleep(5 * time.Second)

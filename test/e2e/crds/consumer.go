@@ -20,7 +20,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
@@ -476,13 +475,13 @@ spec:
 
 			By("create additional gateway group to get new admin key")
 			var err error
-			additionalGatewayGroupID, _, err = s.CreateAdditionalGatewayGroup("gateway-proxy-update")
+			additionalGatewayGroupID, _, err = s.Deployer.CreateAdditionalGateway("gateway-proxy-update")
 			Expect(err).NotTo(HaveOccurred(), "creating additional gateway group")
 
-			resources, exists := s.GetAdditionalGatewayGroup(additionalGatewayGroupID)
+			resources, exists := s.GetAdditionalGateway(additionalGatewayGroupID)
 			Expect(exists).To(BeTrue(), "additional gateway group should exist")
 
-			client, err := s.NewAPISIXClientForGatewayGroup(additionalGatewayGroupID)
+			client, err := s.NewAPISIXClientForGateway(additionalGatewayGroupID)
 			Expect(err).NotTo(HaveOccurred(), "creating APISIX client for additional gateway group")
 
 			By("Consumer not found for additional gateway group")
@@ -494,7 +493,7 @@ spec:
 				Status(404)
 
 			By("update GatewayProxy with new admin key")
-			updatedProxy := fmt.Sprintf(updatedGatewayProxy, framework.DashboardTLSEndpoint, resources.AdminAPIKey)
+			updatedProxy := fmt.Sprintf(updatedGatewayProxy, s.Deployer.GetAdminEndpoint(resources.DataplaneService), resources.AdminAPIKey)
 			err = s.CreateResourceFromString(updatedProxy)
 			Expect(err).NotTo(HaveOccurred(), "updating GatewayProxy")
 			time.Sleep(5 * time.Second)

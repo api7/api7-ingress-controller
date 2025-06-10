@@ -12,6 +12,10 @@
 
 package scaffold
 
+import (
+	corev1 "k8s.io/api/core/v1"
+)
+
 // Deployer defines the interface for deploying data plane components
 type Deployer interface {
 	// Deploy deploys components for scaffold
@@ -20,6 +24,10 @@ type Deployer interface {
 	ScaleIngress(replicas int)
 	BeforeEach()
 	AfterEach()
+	CreateAdditionalGateway(namePrefix string) (string, string, error)
+	CleanupAdditionalGateway(identifier string) error
+	GetAdminEndpoint(...*corev1.Service) string
+	DefaultDataplaneResource() DataplaneResource
 }
 
 var NewDeployer func(*Scaffold) Deployer

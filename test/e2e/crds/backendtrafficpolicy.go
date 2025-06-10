@@ -19,7 +19,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
@@ -216,7 +215,7 @@ spec:
 `
 	var beforeEach = func() {
 		By("create GatewayProxy")
-		gatewayProxy := fmt.Sprintf(defaultGatewayProxy, framework.DashboardTLSEndpoint, s.AdminKey())
+		gatewayProxy := fmt.Sprintf(defaultGatewayProxy, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 		err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 

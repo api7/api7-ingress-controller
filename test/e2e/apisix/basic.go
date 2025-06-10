@@ -34,5 +34,19 @@ var _ = Describe("APISIX Standalone Basic Tests", func() {
 				Expect().
 				Status(404).Body().Contains("404 Route Not Found")
 		})
+
+		It("should handle basic HTTP requests with additional gateway", func() {
+			additionalGatewayID, _, err := s.Deployer.CreateAdditionalGateway("additional-gw")
+			Expect(err).NotTo(HaveOccurred())
+
+			httpClient, err := s.NewAPISIXClientForGateway(additionalGatewayID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(httpClient).NotTo(BeNil())
+
+			httpClient.GET("/anything").
+				Expect().
+				Status(404).Body().Contains("404 Route Not Found")
+		})
+
 	})
 })

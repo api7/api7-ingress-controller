@@ -13,7 +13,6 @@
 package scaffold
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"time"
@@ -21,9 +20,9 @@ import (
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	. "github.com/onsi/ginkgo/v2" //nolint:staticcheck
 	. "github.com/onsi/gomega"    //nolint:staticcheck
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/apache/apisix-ingress-controller/pkg/dashboard"
 	"github.com/apache/apisix-ingress-controller/pkg/utils"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 )
@@ -66,7 +65,7 @@ func (s *API7Deployer) BeforeEach() {
 	}
 
 	// Initialize additionalGatewayGroups map
-	s.additionalGatewayGroups = make(map[string]*GatewayGroupResources)
+	s.additionalGateways = make(map[string]*GatewayResources)
 
 	var nsLabel map[string]string
 	if !s.opts.DisableNamespaceLabel {
@@ -89,7 +88,6 @@ func (s *API7Deployer) BeforeEach() {
 	e.Add(func() {
 		s.DeployDataplane()
 		s.DeployIngress()
-		s.initDataPlaneClient()
 	})
 	e.Add(s.DeployTestService)
 	e.Wait()
@@ -113,8 +111,8 @@ func (s *API7Deployer) AfterEach() {
 	}
 
 	// Delete all additional namespaces
-	for _, resources := range s.additionalGatewayGroups {
-		err := s.CleanupAdditionalGatewayGroup(resources.GatewayGroupID)
+	for identifier := range s.additionalGateways {
+		err := s.CleanupAdditionalGateway(identifier)
 		Expect(err).NotTo(HaveOccurred(), "cleaning up additional gateway group")
 	}
 
@@ -180,30 +178,106 @@ func (s *API7Deployer) ScaleIngress(replicas int) {
 	})
 }
 
-func (s *API7Deployer) initDataPlaneClient() {
-	var err error
-	s.apisixCli, err = dashboard.NewClient()
-	Expect(err).NotTo(HaveOccurred(), "creating apisix client")
+// CreateAdditionalGateway creates a new gateway group and deploys a dataplane for it.
+// It returns the gateway group ID and namespace name where the dataplane is deployed.
+func (s *API7Deployer) CreateAdditionalGateway(namePrefix string) (string, string, error) {
+	// Create a new namespace for this gateway group
+	additionalNS := fmt.Sprintf("%s-%d", namePrefix, time.Now().Unix())
 
-	url := fmt.Sprintf("http://%s/apisix/admin", s.GetDashboardEndpoint())
+	// Create namespace with the same labels
+	var nsLabel map[string]string
+	if !s.opts.DisableNamespaceLabel {
+		nsLabel = s.label
+	}
+	k8s.CreateNamespaceWithMetadata(s.t, s.kubectlOptions, metav1.ObjectMeta{Name: additionalNS, Labels: nsLabel})
 
-	s.Logf("apisix admin: %s", url)
+	// Create new kubectl options for the new namespace
+	kubectlOpts := &k8s.KubectlOptions{
+		ConfigPath: s.opts.Kubeconfig,
+		Namespace:  additionalNS,
+	}
 
-	err = s.apisixCli.AddCluster(context.Background(), &dashboard.ClusterOptions{
-		Name:           "default",
-		ControllerName: s.opts.ControllerName,
-		Labels:         map[string]string{"k8s/controller-name": s.opts.ControllerName},
-		BaseURL:        url,
-		AdminKey:       s.AdminKey(),
+	// Create a new gateway group
+	gatewayGroupID := s.CreateNewGatewayGroupWithIngress()
+	s.Logf("additional gateway group id: %s in namespace %s", gatewayGroupID, additionalNS)
+
+	// Get the admin key for this gateway group
+	adminKey := s.GetAdminKey(gatewayGroupID)
+	s.Logf("additional gateway group admin api key: %s", adminKey)
+
+	// Store gateway group info
+	resources := &GatewayResources{
+		Namespace:   additionalNS,
+		AdminAPIKey: adminKey,
+	}
+
+	serviceName := fmt.Sprintf("api7ee3-apisix-gateway-%s", namePrefix)
+
+	// Deploy dataplane for this gateway group
+	svc := s.DeployGateway(framework.DataPlaneDeployOptions{
+		GatewayGroupID:         gatewayGroupID,
+		Namespace:              additionalNS,
+		Name:                   serviceName,
+		ServiceName:            serviceName,
+		DPManagerEndpoint:      framework.DPManagerTLSEndpoint,
+		SetEnv:                 true,
+		SSLKey:                 framework.TestKey,
+		SSLCert:                framework.TestCert,
+		TLSEnabled:             true,
+		ForIngressGatewayGroup: true,
+		ServiceHTTPPort:        9080,
+		ServiceHTTPSPort:       9443,
 	})
-	Expect(err).NotTo(HaveOccurred(), "adding cluster")
 
-	httpsURL := fmt.Sprintf("https://%s/apisix/admin", s.GetDashboardEndpointHTTPS())
-	err = s.apisixCli.AddCluster(context.Background(), &dashboard.ClusterOptions{
-		Name:          "default-https",
-		BaseURL:       httpsURL,
-		AdminKey:      s.AdminKey(),
-		SkipTLSVerify: true,
-	})
-	Expect(err).NotTo(HaveOccurred(), "adding cluster")
+	resources.DataplaneService = svc
+
+	// Create tunnels for the dataplane
+	httpTunnel, httpsTunnel, err := s.createDataplaneTunnels(svc, kubectlOpts, serviceName)
+	if err != nil {
+		return "", "", err
+	}
+
+	resources.HttpTunnel = httpTunnel
+	resources.HttpsTunnel = httpsTunnel
+
+	// Store in the map
+	s.additionalGateways[gatewayGroupID] = resources
+
+	return gatewayGroupID, additionalNS, nil
+}
+
+// CleanupAdditionalGateway cleans up resources associated with a specific Gateway group
+func (s *API7Deployer) CleanupAdditionalGateway(gatewayGroupID string) error {
+	resources, exists := s.additionalGateways[gatewayGroupID]
+	if !exists {
+		return fmt.Errorf("gateway group %s not found", gatewayGroupID)
+	}
+
+	// Delete the gateway group
+	s.DeleteGatewayGroup(gatewayGroupID)
+
+	// Delete the namespace
+	err := k8s.DeleteNamespaceE(s.t, &k8s.KubectlOptions{
+		ConfigPath: s.opts.Kubeconfig,
+		Namespace:  resources.Namespace,
+	}, resources.Namespace)
+
+	// Remove from the map
+	delete(s.additionalGateways, gatewayGroupID)
+
+	return err
+}
+
+func (s *API7Deployer) GetAdminEndpoint(_ ...*corev1.Service) string {
+	// always return the default dashboard endpoint
+	return framework.DashboardTLSEndpoint
+}
+
+func (s *API7Deployer) DefaultDataplaneResource() DataplaneResource {
+	return newADCDataplaneResource(
+		"api7ee",
+		fmt.Sprintf("http://%s", s.GetDashboardEndpoint()),
+		s.AdminKey(),
+		false,
+	)
 }
