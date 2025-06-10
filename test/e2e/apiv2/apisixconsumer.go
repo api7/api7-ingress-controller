@@ -20,17 +20,18 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = FDescribe("Test ApisixConsumer", func() {
+var _ = Describe("Test ApisixConsumer", func() {
 	var (
 		s       = scaffold.NewDefaultScaffold()
 		applier = framework.NewApplier(s.GinkgoT, s.K8sClient, s.CreateResourceFromString)
 	)
-
-	var apisixConsumerSpec = `
+	Context("Test ApisixConsumer", func() {
+		It("Test ApisixConsumer", func() {
+			var apisixConsumerSpec = `
 apiVersion: apisix.apache.org/v2
 kind: ApisixConsumer
 metadata:
-  name: defaultApisixConsumer
+  name: defaultapisixconsumer
 spec:
   authParameter:
     basicAuth:
@@ -38,5 +39,7 @@ spec:
         username: jack
         password: jack-password
 `
-	applier.MustApplyApisixConsumer(types.NamespacedName{Name: "defaultApisixConsumer", Namespace: s.Namespace()}, apisixConsumerSpec)
+			applier.MustApplyApisixConsumer(types.NamespacedName{Name: "defaultapisixconsumer", Namespace: s.Namespace()}, apisixConsumerSpec)
+		})
+	})
 })
