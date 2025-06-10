@@ -201,6 +201,8 @@ _Appears in:_
 _Appears in:_
 - [Consumer](#consumer)
 
+
+
 #### ControlPlaneAuth
 
 
@@ -227,6 +229,7 @@ ControlPlaneProvider defines the configuration for control plane provider.
 | Field | Description |
 | --- | --- |
 | `endpoints` _string array_ | Endpoints specifies the list of control plane endpoints. |
+| `service` _[ProviderService](#providerservice)_ |  |
 | `tlsVerify` _boolean_ | TlsVerify specifies whether to verify the TLS certificate of the control plane. |
 | `auth` _[ControlPlaneAuth](#controlplaneauth)_ | Auth specifies the authentication configurations. |
 
@@ -402,6 +405,22 @@ _Appears in:_
 
 
 
+#### ProviderService
+
+
+
+
+
+
+| Field | Description |
+| --- | --- |
+| `name` _string_ |  |
+| `port` _integer_ |  |
+
+
+_Appears in:_
+- [ControlPlaneProvider](#controlplaneprovider)
+
 #### ProviderType
 _Base type:_ `string`
 
@@ -446,7 +465,20 @@ _Appears in:_
 _Appears in:_
 - [Credential](#credential)
 
+#### Status
 
+
+
+
+
+
+| Field | Description |
+| --- | --- |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#condition-v1-meta) array_ |  |
+
+
+_Appears in:_
+- [ConsumerStatus](#consumerstatus)
 
 #### Timeout
 

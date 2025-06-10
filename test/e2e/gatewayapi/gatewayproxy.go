@@ -193,6 +193,7 @@ spec:
 				),
 				fmt.Sprintf("checking %s condition status", resourceType),
 			)
+		time.Sleep(3 * time.Second)
 	}
 
 	var (
