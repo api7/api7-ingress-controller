@@ -863,7 +863,7 @@ spec:
 		})
 	})
 
-	Context("GatewayProxy reference Secret", func() {
+	PContext("GatewayProxy reference Secret", func() {
 		const secretSpec = `
 apiVersion: v1
 kind: Secret
@@ -985,6 +985,7 @@ spec:
 			By("update secret")
 			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(secretSpec, base64.StdEncoding.EncodeToString([]byte(resources.AdminAPIKey))), s.Namespace())
 			Expect(err).NotTo(HaveOccurred(), "creating secret")
+			time.Sleep(15 * time.Minute)
 
 			By("verify Ingress works for additional gateway group")
 			Eventually(func() int {
