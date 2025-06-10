@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
+	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller"
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
@@ -50,6 +51,9 @@ func init() {
 		panic(err)
 	}
 	if err := v1alpha1.AddToScheme(scheme); err != nil {
+		panic(err)
+	}
+	if err := apiv2.AddToScheme(scheme); err != nil {
 		panic(err)
 	}
 	if err := v1beta1.Install(scheme); err != nil {
