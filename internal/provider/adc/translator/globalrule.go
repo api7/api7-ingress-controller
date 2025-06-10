@@ -20,7 +20,6 @@ import (
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
-	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 )
 
@@ -37,37 +36,29 @@ func (t *Translator) TranslateApisixGlobalRule(tctx *provider.TranslateContext, 
 	// Translate each plugin from the spec
 	for _, plugin := range obj.Spec.Plugins {
 		// Check if plugin is enabled (default to true if not specified)
-		enabled := plugin.Enable
+		if !plugin.Enable {
+			continue
+		}
 
-		if enabled {
-			// Parse plugin configuration
-			var pluginConfig map[string]any
-			if plugin.Config != nil {
-				pluginConfig = make(map[string]any)
-				// Convert map[string]apiextensionsv1.JSON to map[string]any
-				for key, jsonValue := range plugin.Config {
-					var value any
-					if err := json.Unmarshal(jsonValue.Raw, &value); err != nil {
-						log.Errorw("failed to parse plugin config",
-							zap.String("plugin", plugin.Name),
-							zap.String("key", key),
-							zap.Error(err),
-						)
-						return nil, err
-					}
-					pluginConfig[key] = value
+		// Parse plugin configuration
+		var pluginConfig map[string]any
+		if plugin.Config != nil {
+			pluginConfig = make(map[string]any)
+			// Convert map[string]apiextensionsv1.JSON to map[string]any
+			for key, jsonValue := range plugin.Config {
+				var value any
+				if err := json.Unmarshal(jsonValue.Raw, &value); err != nil {
+					log.Errorw("failed to parse plugin config",
+						zap.String("plugin", plugin.Name),
+						zap.String("key", key),
+						zap.Error(err),
+					)
+					return nil, err
 				}
+				pluginConfig[key] = value
 			}
-			plugins[plugin.Name] = pluginConfig
 		}
-	}
-
-	// Add labels to global rule
-	labels := label.GenLabel(obj)
-	if labels != nil {
-		plugins["_meta"] = map[string]any{
-			"labels": labels,
-		}
+		plugins[plugin.Name] = pluginConfig
 	}
 
 	return &TranslateResult{

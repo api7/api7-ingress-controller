@@ -23,7 +23,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -43,9 +42,8 @@ type ApisixGlobalRuleReconciler struct {
 	Updater  status.Updater
 }
 
-// +kubebuilder:rbac:groups=apisix.apache.org.github.com,resources=apisixglobalrules,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=apisix.apache.org.github.com,resources=apisixglobalrules/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=apisix.apache.org.github.com,resources=apisixglobalrules/finalizers,verbs=update
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixglobalrules,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixglobalrules/status,verbs=get;update;patch
 
 // Reconcile implements the reconciliation logic for ApisixGlobalRule
 func (r *ApisixGlobalRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -76,29 +74,11 @@ func (r *ApisixGlobalRuleReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	// Check if the global rule is being deleted
 	if !globalRule.DeletionTimestamp.IsZero() {
-		// Remove finalizer and let Kubernetes delete it
-		if controllerutil.ContainsFinalizer(&globalRule, "apisix.apache.org/finalizer") {
-			if err := r.Provider.Delete(ctx, &globalRule); err != nil {
-				log.Error(err, "failed to delete global rule from provider")
-				return ctrl.Result{}, err
-			}
-			controllerutil.RemoveFinalizer(&globalRule, "apisix.apache.org/finalizer")
-			if err := r.Update(ctx, &globalRule); err != nil {
-				log.Error(err, "failed to remove finalizer")
-				return ctrl.Result{}, err
-			}
-		}
-		return ctrl.Result{}, nil
-	}
-
-	// Add finalizer if not present
-	if !controllerutil.ContainsFinalizer(&globalRule, "apisix.apache.org/finalizer") {
-		controllerutil.AddFinalizer(&globalRule, "apisix.apache.org/finalizer")
-		if err := r.Update(ctx, &globalRule); err != nil {
-			log.Error(err, "failed to add finalizer")
+		if err := r.Provider.Delete(ctx, &globalRule); err != nil {
+			log.Error(err, "failed to delete global rule from provider")
 			return ctrl.Result{}, err
 		}
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{}, nil
 	}
 
 	// Sync the global rule to APISIX

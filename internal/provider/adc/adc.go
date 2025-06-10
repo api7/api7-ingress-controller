@@ -196,8 +196,8 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 	case *networkingv1.IngressClass:
 		// delete all resources
 	case *apiv2.ApisixGlobalRule:
+		// don't need gen labels for global rule?
 		resourceTypes = append(resourceTypes, "global_rule")
-		labels = label.GenLabel(obj)
 	}
 
 	rk := provider.ResourceKind{

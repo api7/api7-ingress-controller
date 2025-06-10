@@ -32,9 +32,9 @@ type ApisixUpstreamReconciler struct {
 	Log    logr.Logger
 }
 
-// +kubebuilder:rbac:groups=apisix.apache.org.github.com,resources=apisixupstreams,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=apisix.apache.org.github.com,resources=apisixupstreams/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=apisix.apache.org.github.com,resources=apisixupstreams/finalizers,verbs=update
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixupstreams,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixupstreams/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixupstreams/finalizers,verbs=update
 
 // Reconcile FIXME: implement the reconcile logic (For now, it dose nothing other than directly accepting)
 func (r *ApisixUpstreamReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

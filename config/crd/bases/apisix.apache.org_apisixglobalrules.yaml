@@ -55,6 +55,7 @@ spec:
                       description: Plugin configuration.
                       type: object
                     enable:
+                      default: true
                       description: Whether this plugin is in use, default is true.
                       type: boolean
                     name:
