@@ -16,50 +16,115 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
+	networkingv1 "k8s.io/api/networking/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	"github.com/apache/apisix-ingress-controller/internal/controller/config"
+	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
+	"github.com/apache/apisix-ingress-controller/internal/controller/status"
+	"github.com/apache/apisix-ingress-controller/internal/provider"
 )
 
 // ApisixGlobalRuleReconciler reconciles a ApisixGlobalRule object
 type ApisixGlobalRuleReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-	Log    logr.Logger
+	Scheme   *runtime.Scheme
+	Log      logr.Logger
+	Provider provider.Provider
+	Updater  status.Updater
 }
 
 // +kubebuilder:rbac:groups=apisix.apache.org.github.com,resources=apisixglobalrules,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apisix.apache.org.github.com,resources=apisixglobalrules/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=apisix.apache.org.github.com,resources=apisixglobalrules/finalizers,verbs=update
 
-// Reconcile FIXME: implement the reconcile logic (For now, it dose nothing other than directly accepting)
+// Reconcile implements the reconciliation logic for ApisixGlobalRule
 func (r *ApisixGlobalRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	r.Log.Info("reconcile", "request", req.NamespacedName)
+	log := r.Log.WithValues("apisixglobalrule", req.NamespacedName)
+	log.Info("reconciling")
 
-	var obj apiv2.ApisixGlobalRule
-	if err := r.Get(ctx, req.NamespacedName, &obj); err != nil {
-		r.Log.Error(err, "failed to get ApisixConsumer", "request", req.NamespacedName)
+	var globalRule apiv2.ApisixGlobalRule
+	if err := r.Get(ctx, req.NamespacedName, &globalRule); err != nil {
+		if k8serrors.IsNotFound(err) {
+			log.Info("global rule not found, possibly deleted")
+			// Create a minimal object for deletion
+			globalRule.Namespace = req.Namespace
+			globalRule.Name = req.Name
+			globalRule.TypeMeta = metav1.TypeMeta{
+				Kind:       "ApisixGlobalRule",
+				APIVersion: apiv2.GroupVersion.String(),
+			}
+			// Delete from provider
+			if err := r.Provider.Delete(ctx, &globalRule); err != nil {
+				log.Error(err, "failed to delete global rule from provider")
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{}, nil
+		}
+		log.Error(err, "failed to get ApisixGlobalRule")
 		return ctrl.Result{}, err
 	}
 
-	obj.Status.Conditions = []metav1.Condition{
-		{
+	// Check if the global rule is being deleted
+	if !globalRule.DeletionTimestamp.IsZero() {
+		// Remove finalizer and let Kubernetes delete it
+		if controllerutil.ContainsFinalizer(&globalRule, "apisix.apache.org/finalizer") {
+			if err := r.Provider.Delete(ctx, &globalRule); err != nil {
+				log.Error(err, "failed to delete global rule from provider")
+				return ctrl.Result{}, err
+			}
+			controllerutil.RemoveFinalizer(&globalRule, "apisix.apache.org/finalizer")
+			if err := r.Update(ctx, &globalRule); err != nil {
+				log.Error(err, "failed to remove finalizer")
+				return ctrl.Result{}, err
+			}
+		}
+		return ctrl.Result{}, nil
+	}
+
+	// Add finalizer if not present
+	if !controllerutil.ContainsFinalizer(&globalRule, "apisix.apache.org/finalizer") {
+		controllerutil.AddFinalizer(&globalRule, "apisix.apache.org/finalizer")
+		if err := r.Update(ctx, &globalRule); err != nil {
+			log.Error(err, "failed to add finalizer")
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	// Sync the global rule to APISIX
+	if err := r.Provider.Update(ctx, &provider.TranslateContext{}, &globalRule); err != nil {
+		log.Error(err, "failed to sync global rule to provider")
+		// Update status with failure condition
+		r.updateStatus(&globalRule, metav1.Condition{
 			Type:               string(gatewayv1.RouteConditionAccepted),
-			Status:             metav1.ConditionTrue,
-			ObservedGeneration: obj.GetGeneration(),
+			Status:             metav1.ConditionFalse,
+			ObservedGeneration: globalRule.Generation,
 			LastTransitionTime: metav1.Now(),
-			Reason:             string(gatewayv1.RouteReasonAccepted),
-		},
-	}
-
-	if err := r.Status().Update(ctx, &obj); err != nil {
-		r.Log.Error(err, "failed to update status", "request", req.NamespacedName)
+			Reason:             "SyncFailed",
+			Message:            err.Error(),
+		})
 		return ctrl.Result{}, err
 	}
+
+	// Update status with success condition
+	r.updateStatus(&globalRule, metav1.Condition{
+		Type:               string(gatewayv1.RouteConditionAccepted),
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: globalRule.Generation,
+		LastTransitionTime: metav1.Now(),
+		Reason:             string(gatewayv1.RouteReasonAccepted),
+		Message:            "The global rule has been accepted and synced to APISIX",
+	})
 
 	return ctrl.Result{}, nil
 }
@@ -67,7 +132,68 @@ func (r *ApisixGlobalRuleReconciler) Reconcile(ctx context.Context, req ctrl.Req
 // SetupWithManager sets up the controller with the Manager.
 func (r *ApisixGlobalRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&apiv2.ApisixGlobalRule{}).
+		For(&apiv2.ApisixGlobalRule{},
+			builder.WithPredicates(
+				predicate.NewPredicateFuncs(r.checkIngressClass),
+			),
+		).
 		Named("apisixglobalrule").
 		Complete(r)
+}
+
+// checkIngressClass checks if the ApisixGlobalRule uses the ingress class that we control
+func (r *ApisixGlobalRuleReconciler) checkIngressClass(obj client.Object) bool {
+	globalRule, ok := obj.(*apiv2.ApisixGlobalRule)
+	if !ok {
+		return false
+	}
+
+	return r.matchesIngressClass(globalRule.Spec.IngressClassName)
+}
+
+// matchesIngressClass checks if the given ingress class name matches our controlled classes
+func (r *ApisixGlobalRuleReconciler) matchesIngressClass(ingressClassName string) bool {
+	if ingressClassName == "" {
+		// Check for default ingress class
+		ingressClassList := &networkingv1.IngressClassList{}
+		if err := r.List(context.Background(), ingressClassList, client.MatchingFields{
+			indexer.IngressClass: config.GetControllerName(),
+		}); err != nil {
+			r.Log.Error(err, "failed to list ingress classes")
+			return false
+		}
+
+		// Find the ingress class that is marked as default
+		for _, ic := range ingressClassList.Items {
+			if IsDefaultIngressClass(&ic) && matchesController(ic.Spec.Controller) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Check if the specified ingress class is controlled by us
+	var ingressClass networkingv1.IngressClass
+	if err := r.Get(context.Background(), client.ObjectKey{Name: ingressClassName}, &ingressClass); err != nil {
+		r.Log.Error(err, "failed to get ingress class", "ingressClass", ingressClassName)
+		return false
+	}
+
+	return matchesController(ingressClass.Spec.Controller)
+}
+
+// updateStatus updates the ApisixGlobalRule status with the given condition
+func (r *ApisixGlobalRuleReconciler) updateStatus(globalRule *apiv2.ApisixGlobalRule, condition metav1.Condition) {
+	r.Updater.Update(status.Update{
+		NamespacedName: NamespacedName(globalRule),
+		Resource:       globalRule.DeepCopy(),
+		Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
+			gr, ok := obj.(*apiv2.ApisixGlobalRule)
+			if !ok {
+				return nil
+			}
+			gr.Status.Conditions = []metav1.Condition{condition}
+			return gr
+		}),
+	})
 }

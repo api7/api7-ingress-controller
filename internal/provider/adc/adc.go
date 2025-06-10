@@ -30,6 +30,7 @@ import (
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
+	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
@@ -106,6 +107,9 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 	case *networkingv1.IngressClass:
 		result, err = d.translator.TranslateIngressClass(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "global_rule", "plugin_metadata")
+	case *apiv2.ApisixGlobalRule:
+		result, err = d.translator.TranslateApisixGlobalRule(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, "global_rule")
 	}
 	if err != nil {
 		return err
@@ -191,6 +195,9 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 		labels = label.GenLabel(obj)
 	case *networkingv1.IngressClass:
 		// delete all resources
+	case *apiv2.ApisixGlobalRule:
+		resourceTypes = append(resourceTypes, "global_rule")
+		labels = label.GenLabel(obj)
 	}
 
 	rk := provider.ResourceKind{
