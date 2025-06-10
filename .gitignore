@@ -36,3 +36,4 @@ apisix-ingress-controller-conformance-report.yaml
 .env
 
 charts/api7ee3
+docs/api
