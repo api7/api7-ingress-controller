@@ -171,6 +171,9 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 
 	switch d.BackendMode {
 	case BackendModeAPISIXStandalone:
+		// This mode is full synchronization,
+		// which only needs to be saved in cache
+		// and triggered by a timer for synchronization
 		return nil
 	case BackendModeAPI7EE:
 		return d.sync(ctx, Task{
@@ -226,6 +229,9 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 
 	switch d.BackendMode {
 	case BackendModeAPISIXStandalone:
+		// Full synchronization is performed on a gateway by gateway basis
+		// and it is not possible to perform scheduled synchronization
+		// on deleted gateway level resources
 		if len(resourceTypes) == 0 {
 			return d.sync(ctx, Task{
 				Name:    obj.GetName(),
