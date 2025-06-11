@@ -73,7 +73,7 @@ jobs:
 
       - name: Loading Docker Image to Kind Cluster
         run: |
-          make kind-load-images
+          make kind-load-ingress-image
 
       - name: Run Conformance Test
         shell: bash
