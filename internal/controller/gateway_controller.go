@@ -37,6 +37,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
 // GatewayReconciler reconciles a Gateway object.
@@ -142,11 +143,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	var addrs []gatewayv1.GatewayStatusAddress
 
-	rk := provider.ResourceKind{
-		Kind:      gateway.Kind,
-		Namespace: gateway.Namespace,
-		Name:      gateway.Name,
-	}
+	rk := utils.NamespacedNameKind(gateway)
 
 	gatewayProxy, ok := tctx.GatewayProxies[rk]
 	if !ok {
@@ -169,17 +166,17 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 	}
 
+	listenerStatuses, err := getListenerStatus(ctx, r.Client, gateway)
+	if err != nil {
+		r.Log.Error(err, "failed to get listener status", "gateway", req.NamespacedName)
+		return ctrl.Result{}, err
+	}
+
 	if err := r.Provider.Update(ctx, tctx, gateway); err != nil {
 		acceptStatus = conditionStatus{
 			status: false,
 			msg:    err.Error(),
 		}
-	}
-
-	listenerStatuses, err := getListenerStatus(ctx, r.Client, gateway)
-	if err != nil {
-		r.Log.Error(err, "failed to get listener status", "gateway", req.NamespacedName)
-		return ctrl.Result{}, err
 	}
 
 	accepted := SetGatewayConditionAccepted(gateway, acceptStatus.status, acceptStatus.msg)
@@ -194,15 +191,16 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		r.Updater.Update(status.Update{
 			NamespacedName: NamespacedName(gateway),
-			Resource:       gateway.DeepCopy(),
+			Resource:       &gatewayv1.Gateway{},
 			Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
 				t, ok := obj.(*gatewayv1.Gateway)
 				if !ok {
 					err := fmt.Errorf("unsupported object type %T", obj)
 					panic(err)
 				}
-				t.Status = gateway.Status
-				return t
+				tCopy := t.DeepCopy()
+				tCopy.Status = gateway.Status
+				return tCopy
 			}),
 		})
 
@@ -412,12 +410,7 @@ func (r *GatewayReconciler) listReferenceGrantsForGateway(ctx context.Context, o
 }
 
 func (r *GatewayReconciler) processInfrastructure(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway) error {
-	rk := provider.ResourceKind{
-		Kind:      gateway.Kind,
-		Namespace: gateway.Namespace,
-		Name:      gateway.Name,
-	}
-	return ProcessGatewayProxy(r.Client, tctx, gateway, rk)
+	return ProcessGatewayProxy(r.Client, tctx, gateway, utils.NamespacedNameKind(gateway))
 }
 
 func (r *GatewayReconciler) processListenerConfig(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway) {

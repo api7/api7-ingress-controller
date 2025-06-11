@@ -54,6 +54,7 @@ jobs:
           ARCH: amd64
           ENABLE_PROXY: "false"
           BASE_IMAGE_TAG: "debug"
+          ADC_VERSION: "dev"
         run: |
           echo "building images..."
           make build-image
@@ -73,7 +74,7 @@ jobs:
 
       - name: Loading Docker Image to Kind Cluster
         run: |
-          make kind-load-images
+          make kind-load-ingress-image
 
       - name: Run Conformance Test
         shell: bash
@@ -106,6 +107,6 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         uses: mshick/add-pr-comment@v2
         with:
-          message-id: '${{ matrix.target }}'
+          message-id: 'apisix-conformance-test-report'
           message-path: |
             report.md

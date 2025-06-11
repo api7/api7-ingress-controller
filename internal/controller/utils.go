@@ -30,7 +30,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -41,6 +41,8 @@ import (
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	"github.com/apache/apisix-ingress-controller/internal/types"
+	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
 const (
@@ -772,7 +774,7 @@ func getListenerStatus(
 					break
 				}
 
-				secretNN := types.NamespacedName{
+				secretNN := k8stypes.NamespacedName{
 					Namespace: string(*cmp.Or(ref.Namespace, (*gatewayv1.Namespace)(&gateway.Namespace))),
 					Name:      string(ref.Name),
 				}
@@ -855,7 +857,7 @@ func SplitMetaNamespaceKey(key string) (namespace, name string, err error) {
 	return "", "", fmt.Errorf("unexpected key format: %q", key)
 }
 
-func ProcessGatewayProxy(r client.Client, tctx *provider.TranslateContext, gateway *gatewayv1.Gateway, rk provider.ResourceKind) error {
+func ProcessGatewayProxy(r client.Client, tctx *provider.TranslateContext, gateway *gatewayv1.Gateway, rk types.NamespacedNameKind) error {
 	if gateway == nil {
 		return nil
 	}
@@ -864,11 +866,7 @@ func ProcessGatewayProxy(r client.Client, tctx *provider.TranslateContext, gatew
 		return nil
 	}
 
-	gatewayKind := provider.ResourceKind{
-		Kind:      gateway.Kind,
-		Namespace: gateway.Namespace,
-		Name:      gateway.Name,
-	}
+	gatewayKind := utils.NamespacedNameKind(gateway)
 
 	ns := gateway.GetNamespace()
 	paramRef := infra.ParametersRef
@@ -910,7 +908,7 @@ func ProcessGatewayProxy(r client.Client, tctx *provider.TranslateContext, gatew
 						"gatewayproxy", gatewayProxy.Name,
 						"secret", secretRef.Name)
 
-					tctx.Secrets[types.NamespacedName{
+					tctx.Secrets[k8stypes.NamespacedName{
 						Namespace: ns,
 						Name:      secretRef.Name,
 					}] = secret
@@ -1148,8 +1146,8 @@ func checkReferenceGrant(ctx context.Context, cli client.Client, obj v1beta1.Ref
 	return false
 }
 
-func NamespacedName(obj client.Object) types.NamespacedName {
-	return types.NamespacedName{
+func NamespacedName(obj client.Object) k8stypes.NamespacedName {
+	return k8stypes.NamespacedName{
 		Namespace: obj.GetNamespace(),
 		Name:      obj.GetName(),
 	}

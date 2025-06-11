@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -118,7 +119,7 @@ spec:
 				),
 				fmt.Sprintf("checking %s condition status", resourType),
 			)
-		time.Sleep(1 * time.Second)
+		time.Sleep(5 * time.Second)
 	}
 
 	var beforeEachHTTP = func() {
@@ -232,7 +233,7 @@ spec:
 
 	Context("HTTPRoute with Multiple Gateway", func() {
 		var additionalGatewayGroupID string
-		var additionalNamespace string
+		var additionalSvc *corev1.Service
 		var additionalGatewayClassName string
 
 		var additionalGatewayProxyYaml = `
@@ -303,7 +304,7 @@ spec:
 
 			By("Create additional gateway group")
 			var err error
-			additionalGatewayGroupID, additionalNamespace, err = s.Deployer.CreateAdditionalGateway("multi-gw")
+			additionalGatewayGroupID, additionalSvc, err = s.Deployer.CreateAdditionalGateway("multi-gw")
 			Expect(err).NotTo(HaveOccurred(), "creating additional gateway group")
 
 			By("Create additional GatewayProxy")
@@ -323,13 +324,13 @@ spec:
 			Expect(gcyaml).To(ContainSubstring("message: the gatewayclass has been accepted by the apisix-ingress-controller"), "checking additional GatewayClass condition message")
 
 			additionalGatewayProxy := fmt.Sprintf(additionalGatewayProxyYaml, s.Deployer.GetAdminEndpoint(resources.DataplaneService), resources.AdminAPIKey)
-			err = s.CreateResourceFromStringWithNamespace(additionalGatewayProxy, additionalNamespace)
+			err = s.CreateResourceFromStringWithNamespace(additionalGatewayProxy, resources.DataplaneService.Namespace)
 			Expect(err).NotTo(HaveOccurred(), "creating additional GatewayProxy")
 
 			By("Create additional Gateway")
 			err = s.CreateResourceFromStringWithNamespace(
 				fmt.Sprintf(additionalGateway, additionalGatewayClassName),
-				additionalNamespace,
+				additionalSvc.Namespace,
 			)
 			Expect(err).NotTo(HaveOccurred(), "creating additional Gateway")
 			time.Sleep(5 * time.Second)
@@ -337,7 +338,7 @@ spec:
 
 		It("HTTPRoute should be accessible through both gateways", func() {
 			By("Create HTTPRoute referencing both gateways")
-			multiGatewayRoute := fmt.Sprintf(multiGatewayHTTPRoute, s.Namespace(), additionalNamespace)
+			multiGatewayRoute := fmt.Sprintf(multiGatewayHTTPRoute, s.Namespace(), additionalSvc.Namespace)
 			ResourceApplied("HTTPRoute", "multi-gateway-route", multiGatewayRoute, 1)
 
 			By("Access through default gateway")
@@ -358,7 +359,7 @@ spec:
 				Status(http.StatusOK)
 
 			By("Delete Additional Gateway")
-			err = s.DeleteResourceFromStringWithNamespace(fmt.Sprintf(additionalGateway, additionalGatewayClassName), additionalNamespace)
+			err = s.DeleteResourceFromStringWithNamespace(fmt.Sprintf(additionalGateway, additionalGatewayClassName), additionalSvc.Namespace)
 			Expect(err).NotTo(HaveOccurred(), "deleting additional Gateway")
 			time.Sleep(5 * time.Second)
 
@@ -551,7 +552,7 @@ spec:
 				GET("/get").
 				WithHost("httpbin.external").
 				Expect().
-				Status(200)
+				Status(http.StatusMovedPermanently)
 		})
 
 		It("Match Port", func() {

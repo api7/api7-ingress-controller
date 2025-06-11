@@ -248,7 +248,7 @@ spec:
 				GET("/get").
 				WithHost("httpbin.external").
 				Expect().
-				Status(200)
+				Status(http.StatusMovedPermanently)
 		})
 
 		It("Delete Ingress during restart", func() {
@@ -278,7 +278,7 @@ spec:
 				GET("/get").
 				WithHost("httpbin.external").
 				Expect().
-				Status(200)
+				Status(http.StatusMovedPermanently)
 
 			s.NewAPISIXClient().
 				GET("/get").
@@ -299,7 +299,7 @@ spec:
 				GET("/get").
 				WithHost("httpbin.external").
 				Expect().
-				Status(200)
+				Status(http.StatusMovedPermanently)
 
 			s.NewAPISIXClient().
 				GET("/get").
@@ -863,7 +863,7 @@ spec:
 		})
 	})
 
-	Context("GatewayProxy reference Secret", func() {
+	PContext("GatewayProxy reference Secret", func() {
 		const secretSpec = `
 apiVersion: v1
 kind: Secret

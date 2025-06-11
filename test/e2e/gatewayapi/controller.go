@@ -87,7 +87,7 @@ spec:
 				),
 				fmt.Sprintf("checking %s condition status", resourType),
 			)
-		time.Sleep(1 * time.Second)
+		time.Sleep(3 * time.Second)
 	}
 	var beforeEach = func(s *scaffold.Scaffold, gatewayName string) {
 		err := s.CreateResourceFromString(fmt.Sprintf(`

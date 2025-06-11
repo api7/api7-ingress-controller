@@ -125,6 +125,6 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         uses: mshick/add-pr-comment@v2
         with:
-          message-id: '${{ matrix.target }}'
+          message-id: 'conformance-test-report'
           message-path: |
             report.md

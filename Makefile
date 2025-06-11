@@ -8,12 +8,14 @@ IMAGE_TAG ?= dev
 IMG ?= api7/api7-ingress-controller:$(IMAGE_TAG)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.30.0
-
 KIND_NAME ?= apisix-ingress-cluster
-GATEAY_API_VERSION ?= v1.2.0
 
+GATEAY_API_VERSION ?= v1.2.0
 DASHBOARD_VERSION ?= dev
+ADC_VERSION ?= 0.19.0
+
 TEST_TIMEOUT ?= 60m
+TEST_DIR ?= ./test/e2e/
 
 # CRD Reference Documentation
 CRD_REF_DOCS_VERSION ?= v0.1.0
@@ -109,12 +111,7 @@ kind-e2e-test: kind-up build-image kind-load-images e2e-test
 .PHONY: e2e-test
 e2e-test:
 	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
-	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test ./test/e2e/ -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)"
-
-.PHONY: e2e-test-standalone
-e2e-test-standalone:
-	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
-	go test ./test/e2e/apisix/ -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)"
+	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test $(TEST_DIR) -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)"
 
 .PHONY: download-api7ee3-chart
 download-api7ee3-chart:
@@ -207,11 +204,11 @@ build-multi-arch:
 .PHONY: build-multi-arch-image
 build-multi-arch-image: build-multi-arch
     # daemon.json: "features":{"containerd-snapshotter": true}
-	@docker buildx build --load --platform linux/amd64,linux/arm64 -t $(IMG) .
+	@docker buildx build --load --platform linux/amd64,linux/arm64 --build-arg ADC_VERSION=$(ADC_VERSION) -t $(IMG) .
 
 .PHONY: build-push-multi-arch-image
 build-push-multi-arch-image: build-multi-arch
-	@docker buildx build --push --platform linux/amd64,linux/arm64 -t $(IMG) .
+	@docker buildx build --push --platform linux/amd64,linux/arm64 --build-arg ADC_VERSION=$(ADC_VERSION) -t $(IMG) .
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
@@ -222,7 +219,12 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
 docker-build: set-e2e-goos build ## Build docker image with the manager.
-	$(CONTAINER_TOOL) build -t ${IMG} -f Dockerfile .
+	@echo "Building with ADC_VERSION=$(ADC_VERSION)"
+	@if [ "$(strip $(ADC_VERSION))" = "dev" ]; then \
+		$(CONTAINER_TOOL) build -t ${IMG} -f Dockerfile.dev . ; \
+	else \
+		$(CONTAINER_TOOL) build --build-arg ADC_VERSION=${ADC_VERSION} -t ${IMG} -f Dockerfile . ; \
+	fi
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
