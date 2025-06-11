@@ -1,4 +1,4 @@
-log_level: "debug"                               # The log level of the APISIX Ingress Controller.
+log_level: "info"                               # The log level of the APISIX Ingress Controller.
                                                 # the default value is "info".
 
 controller_name: apisix.apache.org/apisix-ingress-controller  # The controller name of the APISIX Ingress Controller,

@@ -29,7 +29,6 @@ import (
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
-	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/provider/adc/translator"
 	types "github.com/apache/apisix-ingress-controller/internal/types"
@@ -74,7 +73,7 @@ type Task struct {
 	configs       []adcConfig
 }
 
-func New(updater status.Updater, opts ...Option) (provider.Provider, error) {
+func New(opts ...Option) (provider.Provider, error) {
 	o := Options{}
 	o.ApplyOptions(opts)
 
