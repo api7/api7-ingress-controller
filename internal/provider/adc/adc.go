@@ -53,6 +53,8 @@ const (
 type adcClient struct {
 	sync.Mutex
 
+	syncLock sync.Mutex
+
 	translator *translator.Translator
 	// gateway/ingressclass -> adcConfig
 	configs map[types.NamespacedNameKind]adcConfig
@@ -220,8 +222,8 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 	case *networkingv1.IngressClass:
 		// delete all resources
 	case *apiv2.ApisixGlobalRule:
-		// don't need gen labels for global rule?
 		resourceTypes = append(resourceTypes, "global_rule")
+		labels = label.GenLabel(obj)
 	}
 
 	rk := utils.NamespacedNameKind(obj)
@@ -292,6 +294,9 @@ func (d *adcClient) Start(ctx context.Context) error {
 }
 
 func (d *adcClient) Sync(ctx context.Context) error {
+	d.syncLock.Lock()
+	defer d.syncLock.Unlock()
+
 	log.Debug("syncing all resources")
 
 	if len(d.configs) == 0 {

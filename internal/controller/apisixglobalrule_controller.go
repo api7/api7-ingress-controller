@@ -18,7 +18,6 @@ import (
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -59,13 +58,13 @@ func (r *ApisixGlobalRuleReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	var globalRule apiv2.ApisixGlobalRule
 	if err := r.Get(ctx, req.NamespacedName, &globalRule); err != nil {
-		if k8serrors.IsNotFound(err) {
+		if client.IgnoreNotFound(err) == nil {
 			log.Info("global rule not found, possibly deleted")
 			// Create a minimal object for deletion
 			globalRule.Namespace = req.Namespace
 			globalRule.Name = req.Name
 			globalRule.TypeMeta = metav1.TypeMeta{
-				Kind:       "ApisixGlobalRule",
+				Kind:       KindApisixGlobalRule,
 				APIVersion: apiv2.GroupVersion.String(),
 			}
 			// Delete from provider
@@ -75,17 +74,7 @@ func (r *ApisixGlobalRuleReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			}
 			return ctrl.Result{}, nil
 		}
-		log.Error(err, "failed to get ApisixGlobalRule")
 		return ctrl.Result{}, err
-	}
-
-	// Check if the global rule is being deleted
-	if !globalRule.DeletionTimestamp.IsZero() {
-		if err := r.Provider.Delete(ctx, &globalRule); err != nil {
-			log.Error(err, "failed to delete global rule from provider")
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{}, nil
 	}
 
 	// create a translate context
@@ -146,6 +135,12 @@ func (r *ApisixGlobalRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				predicate.NewPredicateFuncs(r.checkIngressClass),
 			),
 		).
+		WithEventFilter(
+			predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				predicate.AnnotationChangedPredicate{},
+			),
+		).
 		Watches(
 			&networkingv1.IngressClass{},
 			handler.EnqueueRequestsFromMapFunc(r.listGlobalRulesForIngressClass),
@@ -156,7 +151,6 @@ func (r *ApisixGlobalRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&v1alpha1.GatewayProxy{},
 			handler.EnqueueRequestsFromMapFunc(r.listGlobalRulesForGatewayProxy),
 		).
-		Named("apisixglobalrule").
 		Complete(r)
 }
 

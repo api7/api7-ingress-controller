@@ -46,14 +46,15 @@ import (
 )
 
 const (
-	KindGateway      = "Gateway"
-	KindHTTPRoute    = "HTTPRoute"
-	KindGatewayClass = "GatewayClass"
-	KindIngress      = "Ingress"
-	KindIngressClass = "IngressClass"
-	KindGatewayProxy = "GatewayProxy"
-	KindSecret       = "Secret"
-	KindService      = "Service"
+	KindGateway          = "Gateway"
+	KindHTTPRoute        = "HTTPRoute"
+	KindGatewayClass     = "GatewayClass"
+	KindIngress          = "Ingress"
+	KindIngressClass     = "IngressClass"
+	KindGatewayProxy     = "GatewayProxy"
+	KindSecret           = "Secret"
+	KindService          = "Service"
+	KindApisixGlobalRule = "ApisixGlobalRule"
 )
 
 const defaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
