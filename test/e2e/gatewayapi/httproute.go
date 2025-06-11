@@ -552,7 +552,7 @@ spec:
 				GET("/get").
 				WithHost("httpbin.external").
 				Expect().
-				Status(200)
+				Status(http.StatusMovedPermanently)
 		})
 
 		It("Match Port", func() {
