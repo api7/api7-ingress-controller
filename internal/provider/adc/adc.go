@@ -181,6 +181,12 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		// and triggered by a timer for synchronization
 		return nil
 	case BackendModeAPI7EE:
+		// TODO: sync global rule in api7ee mode if we need
+		if _, ok := obj.(*apiv2.ApisixGlobalRule); ok {
+			log.Debugw("apisix global rule, skip sync", zap.Any("obj", obj))
+			return nil
+		}
+
 		return d.sync(ctx, Task{
 			Name:          obj.GetName(),
 			Labels:        label.GenLabel(obj),

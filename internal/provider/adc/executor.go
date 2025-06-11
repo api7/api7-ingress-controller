@@ -45,10 +45,9 @@ func (e *DefaultADCExecutor) Execute(ctx context.Context, mode string, config ad
 }
 
 func (e *DefaultADCExecutor) runADC(ctx context.Context, mode string, config adcConfig, args []string) error {
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
 	for _, addr := range config.ServerAddrs {
+		ctxWithTimeout, cancel := context.WithTimeout(ctx, 15*time.Second)
+		defer cancel()
 		if err := e.runForSingleServer(ctxWithTimeout, addr, mode, config, args); err != nil {
 			return err
 		}
@@ -61,6 +60,8 @@ func (e *DefaultADCExecutor) runForSingleServer(ctx context.Context, serverAddr,
 	if !config.TlsVerify {
 		cmdArgs = append(cmdArgs, "--tls-skip-verify")
 	}
+
+	cmdArgs = append(cmdArgs, "--timeout", "15s")
 
 	env := e.prepareEnv(serverAddr, mode, config.Token)
 
