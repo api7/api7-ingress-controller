@@ -18,16 +18,23 @@ import (
 
 // Deployer defines the interface for deploying data plane components
 type Deployer interface {
-	// Deploy deploys components for scaffold
-	DeployDataplane()
+	DeployDataplane(opts DeployDataplaneOptions)
 	DeployIngress()
 	ScaleIngress(replicas int)
 	BeforeEach()
 	AfterEach()
-	CreateAdditionalGateway(namePrefix string) (string, string, error)
+	CreateAdditionalGateway(namePrefix string) (string, *corev1.Service, error)
 	CleanupAdditionalGateway(identifier string) error
 	GetAdminEndpoint(...*corev1.Service) string
 	DefaultDataplaneResource() DataplaneResource
 }
 
 var NewDeployer func(*Scaffold) Deployer
+
+type DeployDataplaneOptions struct {
+	Namespace         string
+	ServiceType       string
+	SkipCreateTunnels bool
+	ServiceHTTPPort   int
+	ServiceHTTPSPort  int
+}

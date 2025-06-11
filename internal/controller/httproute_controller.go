@@ -44,6 +44,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
 // HTTPRouteReconciler reconciles a GatewayClass object.
@@ -169,11 +170,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	tctx := provider.NewDefaultTranslateContext(ctx)
 
 	tctx.RouteParentRefs = hr.Spec.ParentRefs
-	rk := provider.ResourceKind{
-		Kind:      hr.Kind,
-		Namespace: hr.Namespace,
-		Name:      hr.Name,
-	}
+	rk := utils.NamespacedNameKind(hr)
 	for _, gateway := range gateways {
 		if err := ProcessGatewayProxy(r.Client, tctx, gateway.Gateway, rk); err != nil {
 			acceptStatus.status = false
@@ -211,18 +208,6 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		acceptStatus.msg = err.Error()
 	}
 
-	if isRouteAccepted(gateways) && err == nil {
-		routeToUpdate := hr
-		if filteredHTTPRoute != nil {
-			log.Debugw("filteredHTTPRoute", zap.Any("filteredHTTPRoute", filteredHTTPRoute))
-			routeToUpdate = filteredHTTPRoute
-		}
-		if err := r.Provider.Update(ctx, tctx, routeToUpdate); err != nil {
-			acceptStatus.status = false
-			acceptStatus.msg = err.Error()
-		}
-	}
-
 	// TODO: diff the old and new status
 	hr.Status.Parents = make([]gatewayv1.RouteParentStatus, 0, len(gateways))
 	for _, gateway := range gateways {
@@ -236,20 +221,33 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 		hr.Status.Parents = append(hr.Status.Parents, parentStatus)
 	}
+
 	r.Updater.Update(status.Update{
 		NamespacedName: NamespacedName(hr),
-		Resource:       hr.DeepCopy(),
+		Resource:       &gatewayv1.HTTPRoute{},
 		Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
 			h, ok := obj.(*gatewayv1.HTTPRoute)
 			if !ok {
 				err := fmt.Errorf("unsupported object type %T", obj)
 				panic(err)
 			}
-			h.Status = hr.Status
-			return h
+			hCopy := h.DeepCopy()
+			hCopy.Status = hr.Status
+			return hCopy
 		}),
 	})
 	UpdateStatus(r.Updater, r.Log, tctx)
+
+	if isRouteAccepted(gateways) && err == nil {
+		routeToUpdate := hr
+		if filteredHTTPRoute != nil {
+			log.Debugw("filteredHTTPRoute", zap.Any("filteredHTTPRoute", filteredHTTPRoute))
+			routeToUpdate = filteredHTTPRoute
+		}
+		if err := r.Provider.Update(ctx, tctx, routeToUpdate); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
 	return ctrl.Result{}, nil
 }
 

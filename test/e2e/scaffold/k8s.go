@@ -191,7 +191,7 @@ func (s *Scaffold) ResourceApplied(resourType, resourceName, resourceRaw string,
 			),
 			fmt.Sprintf("checking %s condition status", resourType),
 		)
-	time.Sleep(1 * time.Second)
+	time.Sleep(3 * time.Second)
 }
 
 func (s *Scaffold) ApplyDefaultGatewayResource(

@@ -38,7 +38,7 @@ func init() {
 	DPSpecTpl = tpl
 }
 
-type DataPlaneDeployOptions struct {
+type API7DeployOptions struct {
 	Namespace string
 	Name      string
 
@@ -56,7 +56,7 @@ type DataPlaneDeployOptions struct {
 	ServiceHTTPSPort int
 }
 
-func (f *Framework) DeployGateway(opts DataPlaneDeployOptions) *corev1.Service {
+func (f *Framework) DeployGateway(opts API7DeployOptions) *corev1.Service {
 	if opts.ServiceName == "" {
 		opts.ServiceName = "api7ee3-apisix-gateway-mtls"
 	}

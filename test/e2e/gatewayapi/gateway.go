@@ -206,20 +206,19 @@ spec:
 			assert.Len(GinkgoT(), tls, 1, "tls number not expect")
 			assert.Len(GinkgoT(), tls[0].Certificates, 1, "length of certificates not expect")
 			assert.Equal(GinkgoT(), Cert, tls[0].Certificates[0].Certificate, "tls cert not expect")
-			assert.ElementsMatch(GinkgoT(), []string{host, "*.api6.com"}, tls[0].Snis)
+			assert.ElementsMatch(GinkgoT(), []string{host}, tls[0].Snis)
 		})
 
-		Context("Gateway SSL with and without hostname", func() {
-			It("Check if SSL resource was created and updated", func() {
-				By("create GatewayProxy")
-				gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
-				err := s.CreateResourceFromString(gatewayProxy)
-				Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
-				time.Sleep(5 * time.Second)
+		It("Gateway SSL with and without hostname", func() {
+			By("create GatewayProxy")
+			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
+			err := s.CreateResourceFromString(gatewayProxy)
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+			time.Sleep(5 * time.Second)
 
-				secretName := _secretName
-				createSecret(s, secretName)
-				var defaultGatewayClass = `
+			secretName := _secretName
+			createSecret(s, secretName)
+			var defaultGatewayClass = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
@@ -228,7 +227,7 @@ spec:
   controllerName: "apisix.apache.org/apisix-ingress-controller"
 `
 
-				var defaultGateway = fmt.Sprintf(`
+			var defaultGateway = fmt.Sprintf(`
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -265,39 +264,37 @@ spec:
       kind: GatewayProxy
       name: apisix-proxy-config
 `, secretName, secretName)
-				By("create GatewayClass")
-				err = s.CreateResourceFromStringWithNamespace(defaultGatewayClass, "")
-				Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
-				time.Sleep(5 * time.Second)
+			By("create GatewayClass")
+			err = s.CreateResourceFromStringWithNamespace(defaultGatewayClass, "")
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
+			time.Sleep(5 * time.Second)
 
-				By("create Gateway")
-				err = s.CreateResourceFromStringWithNamespace(defaultGateway, s.Namespace())
-				Expect(err).NotTo(HaveOccurred(), "creating Gateway")
-				time.Sleep(10 * time.Second)
+			By("create Gateway")
+			err = s.CreateResourceFromStringWithNamespace(defaultGateway, s.Namespace())
+			Expect(err).NotTo(HaveOccurred(), "creating Gateway")
+			time.Sleep(10 * time.Second)
 
+			tls, err := s.DefaultDataplaneResource().SSL().List(context.Background())
+			assert.Nil(GinkgoT(), err, "list tls error")
+			assert.Len(GinkgoT(), tls, 1, "tls number not expect")
+			assert.Len(GinkgoT(), tls[0].Certificates, 1, "length of certificates not expect")
+			assert.Equal(GinkgoT(), Cert, tls[0].Certificates[0].Certificate, "tls cert not expect")
+			assert.Equal(GinkgoT(), tls[0].Labels["k8s/controller-name"], "apisix.apache.org/apisix-ingress-controller")
+
+			By("update secret")
+			err = s.NewKubeTlsSecret(secretName, framework.TestCert, framework.TestKey)
+			Expect(err).NotTo(HaveOccurred(), "update secret")
+			Eventually(func() string {
 				tls, err := s.DefaultDataplaneResource().SSL().List(context.Background())
-				assert.Nil(GinkgoT(), err, "list tls error")
-				assert.Len(GinkgoT(), tls, 1, "tls number not expect")
-				assert.Len(GinkgoT(), tls[0].Certificates, 1, "length of certificates not expect")
-				assert.Equal(GinkgoT(), Cert, tls[0].Certificates[0].Certificate, "tls cert not expect")
-				assert.Equal(GinkgoT(), tls[0].Labels["k8s/controller-name"], "apisix.apache.org/apisix-ingress-controller")
-
-				By("update secret")
-				err = s.NewKubeTlsSecret(secretName, framework.TestCert, framework.TestKey)
-				Expect(err).NotTo(HaveOccurred(), "update secret")
-				Eventually(func() string {
-					tls, err := s.DefaultDataplaneResource().SSL().List(context.Background())
-					Expect(err).NotTo(HaveOccurred(), "list ssl from dashboard")
-					if len(tls) < 1 {
-						return ""
-					}
-					if len(tls[0].Certificates) < 1 {
-						return ""
-					}
-					return tls[0].Certificates[0].Certificate
-				}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(framework.TestCert))
-			})
+				Expect(err).NotTo(HaveOccurred(), "list ssl from dashboard")
+				if len(tls) < 1 {
+					return ""
+				}
+				if len(tls[0].Certificates) < 1 {
+					return ""
+				}
+				return tls[0].Certificates[0].Certificate
+			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(framework.TestCert))
 		})
 	})
-
 })

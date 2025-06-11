@@ -1,4 +1,4 @@
-name: Conformance Test
+name: APISIX Conformance Test
 
 on:
   push:
@@ -32,12 +32,6 @@ jobs:
         run: |
           go install sigs.k8s.io/kind@v0.23.0
 
-      - name: Install Helm
-        run: |
-          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-          chmod 700 get_helm.sh
-          ./get_helm.sh
-
   conformance-test:
     timeout-minutes: 60
     needs: 
@@ -54,19 +48,13 @@ jobs:
         with:
           go-version: "1.22"
 
-      - name: Login to Private Registry
-        uses: docker/login-action@v1
-        with:
-          registry: hkccr.ccs.tencentyun.com
-          username: ${{ secrets.PRIVATE_DOCKER_USERNAME }}
-          password: ${{ secrets.PRIVATE_DOCKER_PASSWORD }}
-
       - name: Build images
         env:
           TAG: dev
           ARCH: amd64
           ENABLE_PROXY: "false"
           BASE_IMAGE_TAG: "debug"
+          ADC_VERSION: "dev"
         run: |
           echo "building images..."
           make build-image
@@ -86,19 +74,13 @@ jobs:
 
       - name: Loading Docker Image to Kind Cluster
         run: |
-          make kind-load-images
-
-      - name: Install API7EE3
-        run: |
-          make download-api7ee3-chart
+          make kind-load-ingress-image
 
       - name: Run Conformance Test
         shell: bash
-        env:
-          API7_EE_LICENSE: ${{ secrets.API7_EE_LICENSE }}
         continue-on-error: true
         run: |
-          make conformance-test
+          make conformance-test-standalone
       
       - name: Get Logs from api7-ingress-controller
         shell: bash
@@ -125,6 +107,6 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         uses: mshick/add-pr-comment@v2
         with:
-          message-id: 'conformance-test-report'
+          message-id: 'apisix-conformance-test-report'
           message-path: |
             report.md

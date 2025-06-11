@@ -37,6 +37,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
 // ApisixGlobalRuleReconciler reconciles a ApisixGlobalRule object
@@ -335,17 +336,8 @@ func (r *ApisixGlobalRuleReconciler) processIngressClassParameters(ctx context.C
 		return nil
 	}
 
-	ingressClassKind := provider.ResourceKind{
-		Kind:      ingressClass.Kind,
-		Namespace: ingressClass.Namespace,
-		Name:      ingressClass.Name,
-	}
-
-	globalRuleKind := provider.ResourceKind{
-		Kind:      globalRule.Kind,
-		Namespace: globalRule.Namespace,
-		Name:      globalRule.Name,
-	}
+	ingressClassKind := utils.NamespacedNameKind(ingressClass)
+	globalRuleKind := utils.NamespacedNameKind(globalRule)
 
 	parameters := ingressClass.Spec.Parameters
 	// check if the parameters reference GatewayProxy
