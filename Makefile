@@ -124,6 +124,11 @@ download-api7ee3-chart:
 conformance-test:
 	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test -v ./test/conformance -tags=conformance -timeout 60m
 
+.PHONY: conformance-test-standalone
+conformance-test-standalone:
+	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
+	go test -v ./test/conformance/apisix -tags=conformance -timeout 60m
+
 .PHONY: lint
 lint: sort-import golangci-lint ## Run golangci-lint linter
 	$(GOLANGCI_LINT) run
@@ -299,7 +304,7 @@ GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.4.2
-CONTROLLER_TOOLS_VERSION ?= v0.15.0
+CONTROLLER_TOOLS_VERSION ?= v0.17.2
 ENVTEST_VERSION ?= release-0.18
 GOLANGCI_LINT_VERSION ?= v2.1.5
 

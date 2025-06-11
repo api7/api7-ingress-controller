@@ -32,6 +32,22 @@ import (
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
 
+// CustomResourceDefinition v2
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixconsumers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixglobalrules,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixpluginconfigs,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixroutes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixtls,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixupstreams,verbs=get;list;watch
+
+// CustomResourceDefinition v2 status
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixconsumers/status,verbs=get;update
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixglobalrules/status,verbs=get;update
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixpluginconfigs/status,verbs=get;update
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixroutes/status,verbs=get;update
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixtls/status,verbs=get;update
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixupstreams/status,verbs=get;update
+
 // CustomResourceDefinition
 // +kubebuilder:rbac:groups=apisix.apache.org,resources=pluginconfigs,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apisix.apache.org,resources=gatewayproxies,verbs=get;list;watch
@@ -103,6 +119,31 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Scheme:   mgr.GetScheme(),
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("IngressClass"),
 			Provider: pro,
+		},
+		&controller.ApisixConsumerReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			Log:    ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixConsumer"),
+		},
+		&controller.ApisixGlobalRuleReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			Log:    ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixGlobalRule"),
+		},
+		&controller.ApisixRouteReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			Log:    ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixRoute"),
+		},
+		&controller.ApisixTlsReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			Log:    ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixTls"),
+		},
+		&controller.ApisixUpstreamReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			Log:    ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixUpstream"),
 		},
 	}, nil
 }

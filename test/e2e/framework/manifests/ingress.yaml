@@ -109,79 +109,36 @@ rules:
 - apiGroups:
   - apisix.apache.org
   resources:
+  - apisixconsumers
+  - apisixglobalrules
+  - apisixpluginconfigs
+  - apisixroutes
+  - apisixtls
+  - apisixupstreams
   - backendtrafficpolicies
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - apisix.apache.org
-  resources:
-  - backendtrafficpolicies/status
-  verbs:
-  - get
-  - update
-- apiGroups:
-  - apisix.apache.org
-  resources:
   - consumers
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - apisix.apache.org
-  resources:
-  - consumers/status
-  verbs:
-  - get
-  - update
-- apiGroups:
-  - apisix.apache.org
-  resources:
   - gatewayproxies
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-    - apisix.apache.org
-  resources:
-    - httproutepolicies
-  verbs:
-    - get
-    - list
-    - watch
-- apiGroups:
-    - apisix.apache.org
-  resources:
-    - httproutepolicies/status
-  verbs:
-    - get
-    - update
-- apiGroups:
-  - apisix.apache.org
-  resources:
   - httproutepolicies
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - apisix.apache.org
-  resources:
-  - httproutepolicies/status
-  verbs:
-  - get
-  - update
-- apiGroups:
-  - apisix.apache.org
-  resources:
   - pluginconfigs
   verbs:
   - get
   - list
   - watch
+- apiGroups:
+  - apisix.apache.org
+  resources:
+  - apisixconsumers/status
+  - apisixglobalrules/status
+  - apisixpluginconfigs/status
+  - apisixroutes/status
+  - apisixtls/status
+  - apisixupstreams/status
+  - backendtrafficpolicies/status
+  - consumers/status
+  - httproutepolicies/status
+  verbs:
+  - get
+  - update
 - apiGroups:
   - gateway.networking.k8s.io
   resources:

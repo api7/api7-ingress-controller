@@ -44,6 +44,7 @@ type Options struct {
 
 	NamespaceSelectorLabel map[string][]string
 	DisableNamespaceLabel  bool
+	SkipHooks              bool
 }
 
 type Scaffold struct {
@@ -104,8 +105,10 @@ func NewScaffold(o *Options) *Scaffold {
 
 	s.Deployer = NewDeployer(s)
 
-	BeforeEach(s.Deployer.BeforeEach)
-	AfterEach(s.Deployer.AfterEach)
+	if !s.opts.SkipHooks {
+		BeforeEach(s.Deployer.BeforeEach)
+		AfterEach(s.Deployer.AfterEach)
+	}
 
 	return s
 }
@@ -394,4 +397,8 @@ func (s *Scaffold) GetGatewayHTTPSEndpoint(identifier string) (string, error) {
 	}
 
 	return resources.HttpsTunnel.Endpoint(), nil
+}
+
+func (s *Scaffold) GetDataplaneService() *corev1.Service {
+	return s.dataplaneService
 }

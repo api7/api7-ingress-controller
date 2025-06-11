@@ -26,6 +26,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
+	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
 var gatewayClassName = "apisix"
@@ -117,7 +118,10 @@ func TestMain(m *testing.M) {
 	RegisterFailHandler(Fail)
 	f := framework.NewFramework()
 
-	f.BeforeSuite()
+	// init newDeployer function
+	scaffold.NewDeployer = func(s *scaffold.Scaffold) scaffold.Deployer {
+		return scaffold.NewAPISIXDeployer(s)
+	}
 
 	// Check and delete specific namespaces if they exist
 	kubectl := k8s.NewKubectlOptions("", "", "default")
@@ -130,22 +134,20 @@ func TestMain(m *testing.M) {
 	k8s.CreateNamespace(GinkgoT(), kubectl, namespace)
 	defer k8s.DeleteNamespace(GinkgoT(), kubectl, namespace)
 
-	gatewayGroupId := f.CreateNewGatewayGroupWithIngress()
-	adminKey := f.GetAdminKey(gatewayGroupId)
-
-	svc := f.DeployGateway(framework.API7DeployOptions{
-		Namespace:              namespace,
-		GatewayGroupID:         gatewayGroupId,
-		DPManagerEndpoint:      framework.DPManagerTLSEndpoint,
-		SetEnv:                 true,
-		SSLKey:                 framework.TestKey,
-		SSLCert:                framework.TestCert,
-		TLSEnabled:             true,
-		ForIngressGatewayGroup: true,
-		ServiceType:            "LoadBalancer",
-		ServiceHTTPPort:        80,
-		ServiceHTTPSPort:       443,
+	s := scaffold.NewScaffold(&scaffold.Options{
+		ControllerName:    "apisix.apache.org/apisix-ingress-controller",
+		SkipHooks:         true,
+		APISIXAdminAPIKey: getEnvOrDefault("APISIX_ADMIN_KEY", "edd1c9f034335f136f87ad84b625c8f1"),
 	})
+
+	s.Deployer.DeployDataplane(scaffold.DeployDataplaneOptions{
+		Namespace:         namespace,
+		SkipCreateTunnels: true,
+		ServiceType:       "LoadBalancer",
+		ServiceHTTPPort:   80,
+		ServiceHTTPSPort:  443,
+	})
+	svc := s.GetDataplaneService()
 
 	if len(svc.Status.LoadBalancer.Ingress) == 0 {
 		Fail("No LoadBalancer found for the service")
@@ -154,24 +156,23 @@ func TestMain(m *testing.M) {
 	address := svc.Status.LoadBalancer.Ingress[0].IP
 
 	f.DeployIngress(framework.IngressDeployOpts{
-		ControllerName: "apisix.apache.org/apisix-ingress-controller",
+		ControllerName: s.GetControllerName(),
 		Namespace:      namespace,
 		StatusAddress:  address,
 		InitSyncDelay:  1 * time.Minute,
-		ProviderType:   "api7ee",
 	})
+
+	adminEndpoint := fmt.Sprintf("http://%s.%s:9180", svc.Name, namespace)
 
 	defaultGatewayProxyOpts = GatewayProxyOpts{
 		StatusAddress: address,
-		AdminKey:      adminKey,
-		AdminEndpoint: framework.DashboardTLSEndpoint,
+		AdminKey:      s.AdminKey(),
+		AdminEndpoint: adminEndpoint,
 	}
 
 	patchGatewaysForConformanceTest(context.Background(), f.K8sClient)
 
 	code := m.Run()
-
-	f.AfterSuite()
 
 	os.Exit(code)
 }
@@ -251,4 +252,12 @@ func patchGatewaysForConformanceTest(ctx context.Context, k8sClient client.Clien
 			}
 		}
 	}()
+}
+
+// getEnvOrDefault returns environment variable value or default
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
