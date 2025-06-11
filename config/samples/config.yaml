@@ -1,4 +1,4 @@
-log_level: "info"                               # The log level of the APISIX Ingress Controller.
+log_level: "debug"                               # The log level of the APISIX Ingress Controller.
                                                 # the default value is "info".
 
 controller_name: apisix.apache.org/apisix-ingress-controller  # The controller name of the APISIX Ingress Controller,
@@ -25,7 +25,7 @@ enable_http2: false                     # Whether to enable HTTP/2 for the serve
 probe_addr: ":8081"                     # The address the probe endpoint binds to.
                                         # The default value is ":8081".
 
-secure_metrics: ""                      # The secure metrics configuration.
+secure_metrics: false                      # The secure metrics configuration.
                                         # The default value is "" (empty).
 
 exec_adc_timeout: 15s                   # The timeout for the ADC to execute.

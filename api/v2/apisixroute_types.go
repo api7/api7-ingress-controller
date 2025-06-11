@@ -133,8 +133,10 @@ type ApisixRoutePlugin struct {
 	// +kubebuilder:default=true
 	Enable bool `json:"enable" yaml:"enable"`
 	// Plugin configuration.
+	// +kubebuilder:validation:Optional
 	Config ApisixRoutePluginConfig `json:"config" yaml:"config"`
 	// Plugin configuration secretRef.
+	// +kubebuilder:validation:Optional
 	SecretRef string `json:"secretRef" yaml:"secretRef"`
 }
 

@@ -155,6 +155,7 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		SSLs:           result.SSL,
 		Consumers:      result.Consumers,
 	}
+	log.Debugw("update resources", zap.Any("resources", resources))
 
 	for _, config := range configs {
 		if err := d.store.Insert(config.Name, resourceTypes, resources, label.GenLabel(obj)); err != nil {

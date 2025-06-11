@@ -66,10 +66,8 @@ spec:
                       description: Plugin configuration secretRef.
                       type: string
                   required:
-                  - config
                   - enable
                   - name
-                  - secretRef
                   type: object
                 type: array
             required:
