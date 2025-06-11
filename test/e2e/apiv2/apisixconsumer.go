@@ -11,35 +11,3 @@
 // limitations under the License.
 
 package apiv2
-
-import (
-	. "github.com/onsi/ginkgo/v2"
-	"k8s.io/apimachinery/pkg/types"
-
-	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
-	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
-)
-
-var _ = Describe("Test ApisixConsumer", func() {
-	var (
-		s       = scaffold.NewDefaultScaffold()
-		applier = framework.NewApplier(s.GinkgoT, s.K8sClient, s.CreateResourceFromString)
-	)
-	Context("Test ApisixConsumer", func() {
-		It("Test ApisixConsumer", func() {
-			var apisixConsumerSpec = `
-apiVersion: apisix.apache.org/v2
-kind: ApisixConsumer
-metadata:
-  name: defaultapisixconsumer
-spec:
-  authParameter:
-    basicAuth:
-      value:
-        username: jack
-        password: jack-password
-`
-			applier.MustApplyApisixConsumer(types.NamespacedName{Name: "defaultapisixconsumer", Namespace: s.Namespace()}, apisixConsumerSpec)
-		})
-	})
-})
