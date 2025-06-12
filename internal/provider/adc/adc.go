@@ -53,6 +53,8 @@ const (
 type adcClient struct {
 	sync.Mutex
 
+	syncLock sync.Mutex
+
 	translator *translator.Translator
 	// gateway/ingressclass -> adcConfig
 	configs map[types.NamespacedNameKind]adcConfig
@@ -117,6 +119,9 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 	case *apiv2.ApisixRoute:
 		result, err = d.translator.TranslateApisixRoute(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "service")
+	case *apiv2.ApisixGlobalRule:
+		result, err = d.translator.TranslateApisixGlobalRule(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, "global_rule")
 	}
 	if err != nil {
 		return err
@@ -162,6 +167,7 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		SSLs:           result.SSL,
 		Consumers:      result.Consumers,
 	}
+	log.Debugw("update resources", zap.Any("resources", resources))
 
 	for _, config := range configs {
 		if err := d.store.Insert(config.Name, resourceTypes, resources, label.GenLabel(obj)); err != nil {
@@ -180,6 +186,12 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		// and triggered by a timer for synchronization
 		return nil
 	case BackendModeAPI7EE:
+		// if api version is v2, then skip sync
+		if obj.GetObjectKind().GroupVersionKind().GroupVersion() == apiv2.GroupVersion {
+			log.Debugw("api version is v2, skip sync", zap.Any("obj", obj))
+			return nil
+		}
+
 		return d.sync(ctx, Task{
 			Name:          obj.GetName(),
 			Labels:        label.GenLabel(obj),
@@ -212,6 +224,9 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 		labels = label.GenLabel(obj)
 	case *networkingv1.IngressClass:
 		// delete all resources
+	case *apiv2.ApisixGlobalRule:
+		resourceTypes = append(resourceTypes, "global_rule")
+		labels = label.GenLabel(obj)
 	}
 
 	rk := utils.NamespacedNameKind(obj)
@@ -282,6 +297,9 @@ func (d *adcClient) Start(ctx context.Context) error {
 }
 
 func (d *adcClient) Sync(ctx context.Context) error {
+	d.syncLock.Lock()
+	defer d.syncLock.Unlock()
+
 	log.Debug("syncing all resources")
 
 	if len(d.configs) == 0 {

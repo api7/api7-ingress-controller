@@ -50,6 +50,8 @@ func (c *dbCache) Insert(obj any) error {
 		return c.InsertService(t)
 	case *types.Consumer:
 		return c.InsertConsumer(t)
+	case *types.GlobalRuleItem:
+		return c.InsertGlobalRule(t)
 	default:
 		return errors.New("unsupported type")
 	}
@@ -65,6 +67,8 @@ func (c *dbCache) Delete(obj any) error {
 		return c.DeleteService(t)
 	case *types.Consumer:
 		return c.DeleteConsumer(t)
+	case *types.GlobalRuleItem:
+		return c.DeleteGlobalRule(t)
 	default:
 		return errors.New("unsupported type")
 	}
@@ -85,6 +89,10 @@ func (c *dbCache) InsertService(u *types.Service) error {
 
 func (c *dbCache) InsertConsumer(consumer *types.Consumer) error {
 	return c.insert("consumer", consumer.DeepCopy())
+}
+
+func (c *dbCache) InsertGlobalRule(globalRule *types.GlobalRuleItem) error {
+	return c.insert("global_rule", globalRule.DeepCopy())
 }
 
 func (c *dbCache) insert(table string, obj any) error {
@@ -127,6 +135,14 @@ func (c *dbCache) GetConsumer(username string) (*types.Consumer, error) {
 		return nil, err
 	}
 	return obj.(*types.Consumer).DeepCopy(), nil
+}
+
+func (c *dbCache) GetGlobalRule(id string) (*types.GlobalRuleItem, error) {
+	obj, err := c.get("global_rule", id)
+	if err != nil {
+		return nil, err
+	}
+	return obj.(*types.GlobalRuleItem).DeepCopy(), nil
 }
 
 func (c *dbCache) GetStreamRoute(id string) (*types.StreamRoute, error) {
@@ -201,6 +217,18 @@ func (c *dbCache) ListConsumers(opts ...ListOption) ([]*types.Consumer, error) {
 	return consumers, nil
 }
 
+func (c *dbCache) ListGlobalRules(opts ...ListOption) ([]*types.GlobalRuleItem, error) {
+	raws, err := c.list("global_rule", opts...)
+	if err != nil {
+		return nil, err
+	}
+	globalRules := make([]*types.GlobalRuleItem, 0, len(raws))
+	for _, raw := range raws {
+		globalRules = append(globalRules, raw.(*types.GlobalRuleItem).DeepCopy())
+	}
+	return globalRules, nil
+}
+
 func (c *dbCache) list(table string, opts ...ListOption) ([]any, error) {
 	txn := c.db.Txn(false)
 	defer txn.Abort()
@@ -237,6 +265,10 @@ func (c *dbCache) DeleteService(u *types.Service) error {
 
 func (c *dbCache) DeleteConsumer(consumer *types.Consumer) error {
 	return c.delete("consumer", consumer)
+}
+
+func (c *dbCache) DeleteGlobalRule(globalRule *types.GlobalRuleItem) error {
+	return c.delete("global_rule", globalRule)
 }
 
 func (c *dbCache) delete(table string, obj any) error {

@@ -10,4 +10,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package apiv2
+package v2
+
+type Reason string
+
+const (
+	ReasonSyncFailed Reason = "SyncFailed"
+)

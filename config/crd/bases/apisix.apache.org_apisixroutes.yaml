@@ -255,6 +255,7 @@ spec:
                             description: Plugin configuration.
                             type: object
                           enable:
+                            default: true
                             description: Whether this plugin is in use, default is
                               true.
                             type: boolean
@@ -265,10 +266,8 @@ spec:
                             description: Plugin configuration secretRef.
                             type: string
                         required:
-                        - config
                         - enable
                         - name
-                        - secretRef
                         type: object
                       type: array
                     priority:
@@ -374,6 +373,7 @@ spec:
                             description: Plugin configuration.
                             type: object
                           enable:
+                            default: true
                             description: Whether this plugin is in use, default is
                               true.
                             type: boolean
@@ -384,10 +384,8 @@ spec:
                             description: Plugin configuration secretRef.
                             type: string
                         required:
-                        - config
                         - enable
                         - name
-                        - secretRef
                         type: object
                       type: array
                     protocol:
