@@ -13,9 +13,10 @@
 package utils
 
 import (
-	"github.com/apache/apisix-ingress-controller/internal/types"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/apache/apisix-ingress-controller/internal/types"
 )
 
 func NamespacedName(obj client.Object) k8stypes.NamespacedName {

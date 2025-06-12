@@ -32,10 +32,6 @@ type ApisixRouteReconciler struct {
 	Log    logr.Logger
 }
 
-// +kubebuilder:rbac:groups=apisix.apache.org.github.com,resources=apisixroutes,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=apisix.apache.org.github.com,resources=apisixroutes/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=apisix.apache.org.github.com,resources=apisixroutes/finalizers,verbs=update
-
 func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log.Info("reconcile", "request", req.NamespacedName)
 
