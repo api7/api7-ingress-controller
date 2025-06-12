@@ -33,12 +33,14 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	"sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
+	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 )
@@ -52,6 +54,7 @@ const (
 	KindGatewayProxy = "GatewayProxy"
 	KindSecret       = "Secret"
 	KindService      = "Service"
+	KindApisixRoute  = "ApisixRoute"
 )
 
 const defaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
@@ -403,6 +406,28 @@ func ParseRouteParentRefs(
 	}
 
 	return gateways, nil
+}
+
+func SetApisixRouteConditionAccepted(status *apiv2.ApisixStatus, generation int64, err error) {
+	var condition = metav1.Condition{
+		Type:               string(apiv2.ApisixRouteConditionTypeAccepted),
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: generation,
+		LastTransitionTime: metav1.Now(),
+		Reason:             string(apiv2.ApisixRouteConditionReasonAccepted),
+	}
+	if err != nil {
+		condition.Status = metav1.ConditionFalse
+		condition.Reason = string(apiv2.ApisixRouteConditionReasonInvalidHTTP)
+		condition.Message = err.Error()
+
+		var re ReasonError
+		if errors.As(err, &re) {
+			condition.Reason = re.Reason
+		}
+	}
+
+	status.Conditions = []metav1.Condition{condition}
 }
 
 func checkRouteAcceptedByListener(
@@ -1153,4 +1178,22 @@ func NamespacedName(obj client.Object) types.NamespacedName {
 		Namespace: obj.GetNamespace(),
 		Name:      obj.GetName(),
 	}
+}
+
+func WrapMapFuncDedup(mapFunc handler.MapFunc) handler.MapFunc {
+	return func(ctx context.Context, object client.Object) (result []reconcile.Request) {
+		return DedupComparable(mapFunc(ctx, object))
+	}
+}
+
+func DedupComparable[T comparable](s []T) []T {
+	var keys = make(map[T]struct{})
+	var results []T
+	for _, item := range s {
+		if _, ok := keys[item]; !ok {
+			keys[item] = struct{}{}
+			results = append(results, item)
+		}
+	}
+	return results
 }

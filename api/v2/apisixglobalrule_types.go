@@ -51,5 +51,8 @@ type ApisixGlobalRuleList struct {
 }
 
 func init() {
+	var a ApisixGlobalRule
+	a.GetResourceVersion()
+	a.GetResourceVersion()
 	SchemeBuilder.Register(&ApisixGlobalRule{}, &ApisixGlobalRuleList{})
 }

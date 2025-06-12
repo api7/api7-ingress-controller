@@ -13,7 +13,8 @@
 package v2
 
 import (
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"encoding/json"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -218,7 +219,21 @@ type ApisixRouteHTTPMatchExpr struct {
 
 // ApisixRoutePluginConfig is the configuration for
 // any plugins.
-type ApisixRoutePluginConfig map[string]apiextensionsv1.JSON
+type ApisixRoutePluginConfig map[string]any
+
+func (p ApisixRoutePluginConfig) DeepCopyInto(out *ApisixRoutePluginConfig) {
+	b, _ := json.Marshal(&p)
+	_ = json.Unmarshal(b, out)
+}
+
+func (p *ApisixRoutePluginConfig) DeepCopy() *ApisixRoutePluginConfig {
+	if p == nil {
+		return nil
+	}
+	out := new(ApisixRoutePluginConfig)
+	p.DeepCopyInto(out)
+	return out
+}
 
 // ApisixRouteAuthenticationKeyAuth is the keyAuth-related
 // configuration in ApisixRouteAuthentication.

@@ -30,6 +30,7 @@ import (
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
+	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
@@ -106,6 +107,9 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 	case *networkingv1.IngressClass:
 		result, err = d.translator.TranslateIngressClass(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "global_rule", "plugin_metadata")
+	case *apiv2.ApisixRoute:
+		result, err = d.translator.TranslateApisixRoute(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, "service")
 	}
 	if err != nil {
 		return err

@@ -33,7 +33,7 @@ import (
 )
 
 func (r *HTTPRouteReconciler) processHTTPRoutePolicies(tctx *provider.TranslateContext, httpRoute *gatewayv1.HTTPRoute) error {
-	// list HTTPRoutePolices which sectionName is not specified
+	// list HTTPRoutePolicies, which sectionName is not specified
 	var (
 		list v1alpha1.HTTPRoutePolicyList
 		key  = indexer.GenIndexKeyWithGK(gatewayv1.GroupName, "HTTPRoute", httpRoute.GetNamespace(), httpRoute.GetName())

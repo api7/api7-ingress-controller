@@ -23,6 +23,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
+	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 )
 
 const (
@@ -50,6 +51,7 @@ func SetupIndexer(mgr ctrl.Manager) error {
 		setupGatewayProxyIndexer,
 		setupGatewaySecretIndex,
 		setupGatewayClassIndexer,
+		setupApisixRouteIndexer,
 	} {
 		if err := setup(mgr); err != nil {
 			return err
@@ -87,6 +89,20 @@ func setupConsumerIndexer(mgr ctrl.Manager) error {
 	); err != nil {
 		return err
 	}
+	return nil
+}
+
+func setupApisixRouteIndexer(mgr ctrl.Manager) error {
+	var indexers = map[string]func(client.Object) []string{
+		ServiceIndexRef: ApisixRouteServiceIndexFunc,
+		SecretIndexRef:  ApisixRouteRouteSecretIndexFunc,
+	}
+	for key, f := range indexers {
+		if err := mgr.GetFieldIndexer().IndexField(context.Background(), &apiv2.ApisixRoute{}, key, f); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -410,6 +426,38 @@ func HTTPRouteServiceIndexFunc(rawObj client.Object) []string {
 		}
 	}
 	return keys
+}
+
+func ApisixRouteServiceIndexFunc(obj client.Object) (keys []string) {
+	ar := obj.(*apiv2.ApisixRoute)
+	for _, http := range ar.Spec.HTTP {
+		for _, backend := range http.Backends {
+			keys = append(keys, GenIndexKey(ar.GetNamespace(), backend.ServiceName))
+		}
+	}
+	for _, stream := range ar.Spec.Stream {
+		keys = append(keys, stream.Backend.ServiceName)
+	}
+	return
+}
+
+func ApisixRouteRouteSecretIndexFunc(obj client.Object) (keys []string) {
+	ar := obj.(*apiv2.ApisixRoute)
+	for _, http := range ar.Spec.HTTP {
+		for _, plugin := range http.Plugins {
+			if plugin.Enable && plugin.SecretRef != "" {
+				keys = append(keys, GenIndexKey(ar.GetNamespace(), plugin.SecretRef))
+			}
+		}
+	}
+	for _, stream := range ar.Spec.Stream {
+		for _, plugin := range stream.Plugins {
+			if plugin.Enable && plugin.SecretRef != "" {
+				keys = append(keys, GenIndexKey(ar.GetNamespace(), plugin.SecretRef))
+			}
+		}
+	}
+	return
 }
 
 func HTTPRouteExtensionIndexFunc(rawObj client.Object) []string {
