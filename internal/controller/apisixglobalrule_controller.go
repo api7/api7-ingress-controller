@@ -14,6 +14,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/api7/gopkg/pkg/log"
@@ -211,42 +212,23 @@ func (r *ApisixGlobalRuleReconciler) listGlobalRulesForIngressClass(ctx context.
 
 	var requests []reconcile.Request
 
-	// Check if it's the default ingress class
-	if IsDefaultIngressClass(ingressClass) {
-		// List all global rules without ingress class or with this ingress class
-		globalRuleList := &apiv2.ApisixGlobalRuleList{}
-		if err := r.List(ctx, globalRuleList); err != nil {
-			r.Log.Error(err, "failed to list global rules")
-			return nil
-		}
+	// List all global rules and filter based on ingress class
+	globalRuleList := &apiv2.ApisixGlobalRuleList{}
+	if err := r.List(ctx, globalRuleList); err != nil {
+		r.Log.Error(err, "failed to list global rules")
+		return nil
+	}
 
-		for _, globalRule := range globalRuleList.Items {
-			if globalRule.Spec.IngressClassName == "" || globalRule.Spec.IngressClassName == ingressClass.Name {
-				requests = append(requests, reconcile.Request{
-					NamespacedName: client.ObjectKey{
-						Namespace: globalRule.Namespace,
-						Name:      globalRule.Name,
-					},
-				})
-			}
-		}
-	} else {
-		// List global rules that specifically use this ingress class
-		globalRuleList := &apiv2.ApisixGlobalRuleList{}
-		if err := r.List(ctx, globalRuleList); err != nil {
-			r.Log.Error(err, "failed to list global rules")
-			return nil
-		}
-
-		for _, globalRule := range globalRuleList.Items {
-			if globalRule.Spec.IngressClassName == ingressClass.Name {
-				requests = append(requests, reconcile.Request{
-					NamespacedName: client.ObjectKey{
-						Namespace: globalRule.Namespace,
-						Name:      globalRule.Name,
-					},
-				})
-			}
+	isDefaultClass := IsDefaultIngressClass(ingressClass)
+	for _, globalRule := range globalRuleList.Items {
+		if (isDefaultClass && globalRule.Spec.IngressClassName == "") ||
+			globalRule.Spec.IngressClassName == ingressClass.Name {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: client.ObjectKey{
+					Namespace: globalRule.Namespace,
+					Name:      globalRule.Name,
+				},
+			})
 		}
 	}
 
@@ -306,7 +288,8 @@ func (r *ApisixGlobalRuleReconciler) getIngressClass(globalRule *apiv2.ApisixGlo
 				return &ic, nil
 			}
 		}
-		return nil, nil
+		log.Debugw("no default ingress class found")
+		return nil, errors.New("no default ingress class found")
 	}
 
 	// Check if the specified ingress class is controlled by us
@@ -319,7 +302,7 @@ func (r *ApisixGlobalRuleReconciler) getIngressClass(globalRule *apiv2.ApisixGlo
 		return &ingressClass, nil
 	}
 
-	return nil, nil
+	return nil, errors.New("ingress class is not controlled by us")
 }
 
 // processIngressClassParameters processes the IngressClass parameters that reference GatewayProxy
