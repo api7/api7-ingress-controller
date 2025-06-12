@@ -181,3 +181,7 @@ func (d *dashboardProvider) Delete(ctx context.Context, obj client.Object) error
 func (d *dashboardProvider) Sync(ctx context.Context) error {
 	return nil
 }
+
+func (d *dashboardProvider) Start(ctx context.Context) error {
+	return nil
+}

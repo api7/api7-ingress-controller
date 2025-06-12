@@ -156,10 +156,12 @@ func TestMain(m *testing.M) {
 	address := svc.Status.LoadBalancer.Ingress[0].IP
 
 	f.DeployIngress(framework.IngressDeployOpts{
-		ControllerName: s.GetControllerName(),
-		Namespace:      namespace,
-		StatusAddress:  address,
-		InitSyncDelay:  1 * time.Minute,
+		ControllerName:     s.GetControllerName(),
+		Namespace:          namespace,
+		StatusAddress:      address,
+		InitSyncDelay:      1 * time.Minute,
+		ProviderType:       "apisix-standalone",
+		ProviderSyncPeriod: 10 * time.Millisecond,
 	})
 
 	adminEndpoint := fmt.Sprintf("http://%s.%s:9180", svc.Name, namespace)

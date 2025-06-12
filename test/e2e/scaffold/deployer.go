@@ -23,7 +23,7 @@ type Deployer interface {
 	ScaleIngress(replicas int)
 	BeforeEach()
 	AfterEach()
-	CreateAdditionalGateway(namePrefix string) (string, string, error)
+	CreateAdditionalGateway(namePrefix string) (string, *corev1.Service, error)
 	CleanupAdditionalGateway(identifier string) error
 	GetAdminEndpoint(...*corev1.Service) string
 	DefaultDataplaneResource() DataplaneResource

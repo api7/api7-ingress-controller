@@ -158,6 +158,7 @@ func TestMain(m *testing.M) {
 		Namespace:      namespace,
 		StatusAddress:  address,
 		InitSyncDelay:  1 * time.Minute,
+		ProviderType:   "api7ee",
 	})
 
 	defaultGatewayProxyOpts = GatewayProxyOpts{

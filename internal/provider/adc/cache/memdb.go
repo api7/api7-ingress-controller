@@ -15,9 +15,7 @@ package cache
 import (
 	"errors"
 
-	"github.com/api7/gopkg/pkg/log"
 	"github.com/hashicorp/go-memdb"
-	"go.uber.org/zap"
 
 	types "github.com/apache/apisix-ingress-controller/api/adc"
 )
@@ -214,7 +212,6 @@ func (c *dbCache) list(table string, opts ...ListOption) ([]any, error) {
 		index = KindLabelIndex
 		args = []any{listOpts.KindLabelSelector.Kind, listOpts.KindLabelSelector.Namespace, listOpts.KindLabelSelector.Name}
 	}
-	log.Debugw("list objects", zap.String("table", table), zap.String("index", index), zap.Any("args", args))
 	iter, err := txn.Get(table, index, args...)
 	if err != nil {
 		return nil, err

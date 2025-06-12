@@ -43,6 +43,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
 // IngressReconciler reconciles a Ingress object.
@@ -601,11 +602,7 @@ func (r *IngressReconciler) processBackendService(tctx *provider.TranslateContex
 func (r *IngressReconciler) updateStatus(ctx context.Context, tctx *provider.TranslateContext, ingress *networkingv1.Ingress, ingressClass *networkingv1.IngressClass) error {
 	var loadBalancerStatus networkingv1.IngressLoadBalancerStatus
 
-	ingressClassKind := provider.ResourceKind{
-		Kind:      ingressClass.Kind,
-		Namespace: ingressClass.Namespace,
-		Name:      ingressClass.Name,
-	}
+	ingressClassKind := utils.NamespacedNameKind(ingressClass)
 
 	gatewayProxy, ok := tctx.GatewayProxies[ingressClassKind]
 	if !ok {
@@ -689,17 +686,8 @@ func (r *IngressReconciler) processIngressClassParameters(ctx context.Context, t
 		return nil
 	}
 
-	ingressClassKind := provider.ResourceKind{
-		Kind:      ingressClass.Kind,
-		Namespace: ingressClass.Namespace,
-		Name:      ingressClass.Name,
-	}
-
-	ingressKind := provider.ResourceKind{
-		Kind:      ingress.Kind,
-		Namespace: ingress.Namespace,
-		Name:      ingress.Name,
-	}
+	ingressClassKind := utils.NamespacedNameKind(ingressClass)
+	ingressKind := utils.NamespacedNameKind(ingress)
 
 	parameters := ingressClass.Spec.Parameters
 	// check if the parameters reference GatewayProxy

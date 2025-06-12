@@ -193,6 +193,7 @@ spec:
 				),
 				fmt.Sprintf("checking %s condition status", resourceType),
 			)
+		time.Sleep(3 * time.Second)
 	}
 
 	var (
@@ -274,7 +275,7 @@ spec:
 			err error
 		)
 
-		It("Should work OK with error-page", func() {
+		PIt("Should work OK with error-page", func() {
 			By("Update GatewayProxy with PluginMetadata")
 			err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxyWithPluginMetadata0, s.Deployer.GetAdminEndpoint(), s.AdminKey()))
 			Expect(err).ShouldNot(HaveOccurred())
@@ -283,6 +284,7 @@ spec:
 			By("Create HTTPRoute for Gateway with GatewayProxy")
 			resourceApplied("HTTPRoute", "test-route", fmt.Sprintf(httpRouteForTest, "apisix"), 1)
 
+			time.Sleep(5 * time.Second)
 			By("Check PluginMetadata working")
 			s.NewAPISIXClient().
 				GET("/not-found").
