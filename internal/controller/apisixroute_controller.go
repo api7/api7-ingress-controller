@@ -40,6 +40,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/provider/adc/translator"
+	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
 // ApisixRouteReconciler reconciles a ApisixRoute object
@@ -103,38 +104,32 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, err
 	}
 
-	tctx := provider.NewDefaultTranslateContext(ctx)
+	var (
+		tctx = provider.NewDefaultTranslateContext(ctx)
+		ic   *networkingv1.IngressClass
+		err  error
+	)
+	defer func() {
+		r.updateStatus(&ar, err)
+	}()
 
-	ic, err := r.getIngressClass(&ar)
-	if err == nil {
-		err = r.processIngressClassParameters(ctx, tctx, &ar, ic)
-		if err == nil {
-			err = r.processApisixRoute(ctx, tctx, &ar)
-			if err == nil {
-				err = r.Provider.Update(ctx, tctx, &ar)
-			}
-		}
+	if ic, err = r.getIngressClass(&ar); err != nil {
+		return ctrl.Result{}, err
 	}
-	if err != nil {
+	if err = r.processIngressClassParameters(ctx, tctx, &ar, ic); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err = r.processApisixRoute(ctx, tctx, &ar); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err = r.Provider.Update(ctx, tctx, &ar); err != nil {
+		err = ReasonError{
+			Reason:  "SyncFailed",
+			Message: err.Error(),
+		}
 		r.Log.Error(err, "failed to process", "apisixroute", ar)
 		return ctrl.Result{}, err
 	}
-
-	SetApisixRouteConditionAccepted(&ar.Status, ar.GetGeneration(), err)
-	r.Updater.Update(status.Update{
-		NamespacedName: req.NamespacedName,
-		Resource:       ar.DeepCopy(),
-		Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
-			ar_, ok := obj.(*apiv2.ApisixRoute)
-			if !ok {
-				err := fmt.Errorf("unsupported object type %T", obj)
-				panic(err)
-			}
-			ar_.Status = ar.Status
-			return ar_
-		}),
-	})
-	UpdateStatus(r.Updater, r.Log, tctx)
 
 	return ctrl.Result{}, nil
 }
@@ -387,22 +382,79 @@ func (r *ApisixRouteReconciler) getDefaultIngressClass() (*networkingv1.IngressC
 	}}
 }
 
-func (r *ApisixRouteReconciler) processIngressClassParameters(ctx context.Context, _ *provider.TranslateContext, ar *apiv2.ApisixRoute, ic *networkingv1.IngressClass) error {
-	if ic == nil || ic.Spec.Parameters == nil || ic.Spec.Parameters.APIGroup == nil {
-		return nil
-	}
-	if *ic.Spec.Parameters.APIGroup != apiv2.GroupVersion.Group || ic.Spec.Parameters.Kind != KindGatewayProxy {
+// processIngressClassParameters processes the IngressClass parameters that reference GatewayProxy
+func (r *ApisixRouteReconciler) processIngressClassParameters(ctx context.Context, tc *provider.TranslateContext, ar *apiv2.ApisixRoute, ingressClass *networkingv1.IngressClass) error {
+	if ingressClass == nil || ingressClass.Spec.Parameters == nil {
 		return nil
 	}
 
-	parameters := ic.Spec.Parameters
-	ns := *cmp.Or(parameters.Namespace, &ar.Namespace)
+	var (
+		ingressClassKind = utils.NamespacedNameKind(ingressClass)
+		globalRuleKind   = utils.NamespacedNameKind(ar)
+		parameters       = ingressClass.Spec.Parameters
+	)
+	if parameters.APIGroup == nil || *parameters.APIGroup != v1alpha1.GroupVersion.Group || parameters.Kind != KindGatewayProxy {
+		return nil
+	}
 
-	var gp v1alpha1.GatewayProxy
-	if err := r.Get(ctx, client.ObjectKey{Namespace: ns, Name: parameters.Name}, &gp); err != nil {
-		r.Log.Error(err, "failed to get gateway proxy", "gatewayproxy", parameters.Name)
+	// check if the parameters reference GatewayProxy
+	var (
+		gatewayProxy v1alpha1.GatewayProxy
+		ns           = *cmp.Or(parameters.Namespace, &ar.Namespace)
+	)
+
+	if err := r.Get(ctx, client.ObjectKey{Namespace: ns, Name: parameters.Name}, &gatewayProxy); err != nil {
+		r.Log.Error(err, "failed to get GatewayProxy", "namespace", ns, "name", parameters.Name)
 		return err
 	}
 
+	tc.GatewayProxies[ingressClassKind] = gatewayProxy
+	tc.ResourceParentRefs[globalRuleKind] = append(tc.ResourceParentRefs[globalRuleKind], ingressClassKind)
+
+	// check if the provider field references a secret
+	if gatewayProxy.Spec.Provider != nil && gatewayProxy.Spec.Provider.Type == v1alpha1.ProviderTypeControlPlane {
+		if gatewayProxy.Spec.Provider.ControlPlane != nil &&
+			gatewayProxy.Spec.Provider.ControlPlane.Auth.Type == v1alpha1.AuthTypeAdminKey &&
+			gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey != nil &&
+			gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom != nil &&
+			gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
+
+			secretRef := gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef
+			secret := &corev1.Secret{}
+			if err := r.Get(ctx, client.ObjectKey{
+				Namespace: ns,
+				Name:      secretRef.Name,
+			}, secret); err != nil {
+				r.Log.Error(err, "failed to get secret for GatewayProxy provider",
+					"namespace", ns,
+					"name", secretRef.Name)
+				return err
+			}
+
+			r.Log.Info("found secret for GatewayProxy provider",
+				"ingressClass", ingressClass.Name,
+				"gatewayproxy", gatewayProxy.Name,
+				"secret", secretRef.Name)
+
+			tc.Secrets[types.NamespacedName{
+				Namespace: ns,
+				Name:      secretRef.Name,
+			}] = secret
+		}
+	}
+
 	return nil
+}
+
+func (r *ApisixRouteReconciler) updateStatus(ar *apiv2.ApisixRoute, err error) {
+	SetApisixRouteConditionAccepted(&ar.Status, ar.GetGeneration(), err)
+	r.Updater.Update(status.Update{
+		NamespacedName: NamespacedName(ar),
+		Resource:       ar.DeepCopy(),
+		Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
+			cp := obj.(*apiv2.ApisixRoute).DeepCopy()
+			cp.Status = ar.Status
+			return cp
+		}),
+	})
 }
