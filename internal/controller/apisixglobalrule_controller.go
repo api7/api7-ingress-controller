@@ -24,7 +24,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -85,12 +84,6 @@ func (r *ApisixGlobalRuleReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		log.Error(err, "failed to get IngressClass")
 		return ctrl.Result{}, err
 	}
-
-	tctx.RouteParentRefs = append(tctx.RouteParentRefs, gatewayv1.ParentReference{
-		Group: ptr.To(gatewayv1.Group(ingressClass.GroupVersionKind().Group)),
-		Kind:  ptr.To(gatewayv1.Kind(KindIngressClass)),
-		Name:  gatewayv1.ObjectName(ingressClass.Name),
-	})
 
 	// process IngressClass parameters if they reference GatewayProxy
 	if err := r.processIngressClassParameters(ctx, tctx, &globalRule, ingressClass); err != nil {
