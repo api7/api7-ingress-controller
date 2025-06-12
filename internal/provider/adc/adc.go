@@ -184,8 +184,7 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		return nil
 	case BackendModeAPI7EE:
 		// if api version is v2, then skip sync
-		if obj.GetObjectKind().GroupVersionKind().Group == "apisix.apache.org" &&
-			obj.GetObjectKind().GroupVersionKind().Version == "v2" {
+		if obj.GetObjectKind().GroupVersionKind().GroupVersion() == apiv2.GroupVersion {
 			log.Debugw("api version is v2, skip sync", zap.Any("obj", obj))
 			return nil
 		}
