@@ -129,7 +129,13 @@ spec:
 			By("create ApisixGlobalRule with response-rewrite plugin")
 			err := s.CreateResourceFromString(globalRuleYaml)
 			Expect(err).NotTo(HaveOccurred(), "creating ApisixGlobalRule")
+
+			By("verify ApisixGlobalRule status condition")
 			time.Sleep(5 * time.Second)
+			gryaml, err := s.GetResourceYaml("ApisixGlobalRule", "test-global-rule-response-rewrite")
+			Expect(err).NotTo(HaveOccurred(), "getting ApisixGlobalRule yaml")
+			Expect(gryaml).To(ContainSubstring(`status: "True"`))
+			Expect(gryaml).To(ContainSubstring("message: The global rule has been accepted and synced to APISIX"))
 
 			By("verify global rule is applied - response should have custom headers")
 			resp := s.NewAPISIXClient().
@@ -190,7 +196,13 @@ spec:
 			By("create initial ApisixGlobalRule")
 			err := s.CreateResourceFromString(globalRuleYaml)
 			Expect(err).NotTo(HaveOccurred(), "creating ApisixGlobalRule")
+
+			By("verify initial ApisixGlobalRule status condition")
 			time.Sleep(5 * time.Second)
+			gryaml, err := s.GetResourceYaml("ApisixGlobalRule", "test-global-rule-update")
+			Expect(err).NotTo(HaveOccurred(), "getting ApisixGlobalRule yaml")
+			Expect(gryaml).To(ContainSubstring(`status: "True"`))
+			Expect(gryaml).To(ContainSubstring("message: The global rule has been accepted and synced to APISIX"))
 
 			By("verify initial configuration")
 			resp := s.NewAPISIXClient().
@@ -204,7 +216,14 @@ spec:
 			By("update ApisixGlobalRule")
 			err = s.CreateResourceFromString(updatedGlobalRuleYaml)
 			Expect(err).NotTo(HaveOccurred(), "updating ApisixGlobalRule")
+
+			By("verify updated ApisixGlobalRule status condition")
 			time.Sleep(5 * time.Second)
+			gryaml, err = s.GetResourceYaml("ApisixGlobalRule", "test-global-rule-update")
+			Expect(err).NotTo(HaveOccurred(), "getting updated ApisixGlobalRule yaml")
+			Expect(gryaml).To(ContainSubstring(`status: "True"`))
+			Expect(gryaml).To(ContainSubstring("message: The global rule has been accepted and synced to APISIX"))
+			Expect(gryaml).To(ContainSubstring("observedGeneration: 2"))
 
 			By("verify updated configuration")
 			resp = s.NewAPISIXClient().

@@ -26,42 +26,10 @@ rules:
   resources:
   - apisixconsumers
   - apisixglobalrules
+  - apisixpluginconfigs
   - apisixroutes
   - apisixtls
   - apisixupstreams
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - apisix.apache.org
-  resources:
-  - apisixconsumers/finalizers
-  - apisixroutes/finalizers
-  - apisixtls/finalizers
-  - apisixupstreams/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - apisix.apache.org
-  resources:
-  - apisixconsumers/status
-  - apisixglobalrules/status
-  - apisixroutes/status
-  - apisixtls/status
-  - apisixupstreams/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - apisix.apache.org
-  resources:
-  - apisixpluginconfigs
   - backendtrafficpolicies
   - consumers
   - gatewayproxies
@@ -74,7 +42,12 @@ rules:
 - apiGroups:
   - apisix.apache.org
   resources:
+  - apisixconsumers/status
+  - apisixglobalrules/status
   - apisixpluginconfigs/status
+  - apisixroutes/status
+  - apisixtls/status
+  - apisixupstreams/status
   - backendtrafficpolicies/status
   - consumers/status
   - httproutepolicies/status
