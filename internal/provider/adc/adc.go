@@ -183,9 +183,10 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		// and triggered by a timer for synchronization
 		return nil
 	case BackendModeAPI7EE:
-		// TODO: sync global rule in api7ee mode if we need
-		if _, ok := obj.(*apiv2.ApisixGlobalRule); ok {
-			log.Debugw("apisix global rule, skip sync", zap.Any("obj", obj))
+		// if api version is v2, then skip sync
+		if obj.GetObjectKind().GroupVersionKind().Group == "apisix.apache.org" &&
+			obj.GetObjectKind().GroupVersionKind().Version == "v2" {
+			log.Debugw("api version is v2, skip sync", zap.Any("obj", obj))
 			return nil
 		}
 

@@ -14,7 +14,9 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -48,18 +50,11 @@ type ApisixGlobalRuleReconciler struct {
 	Updater  status.Updater
 }
 
-// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixglobalrules,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixglobalrules/status,verbs=get;update;patch
-
 // Reconcile implements the reconciliation logic for ApisixGlobalRule
 func (r *ApisixGlobalRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues("apisixglobalrule", req.NamespacedName)
-	log.Info("reconciling")
-
 	var globalRule apiv2.ApisixGlobalRule
 	if err := r.Get(ctx, req.NamespacedName, &globalRule); err != nil {
 		if client.IgnoreNotFound(err) == nil {
-			log.Info("global rule not found, possibly deleted")
 			// Create a minimal object for deletion
 			globalRule.Namespace = req.Namespace
 			globalRule.Name = req.Name
@@ -69,13 +64,16 @@ func (r *ApisixGlobalRuleReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			}
 			// Delete from provider
 			if err := r.Provider.Delete(ctx, &globalRule); err != nil {
-				log.Error(err, "failed to delete global rule from provider")
+				r.Log.Error(err, "failed to delete global rule from provider")
 				return ctrl.Result{}, err
 			}
+			r.Log.Info("deleted global rule", "globalrule", globalRule.Name)
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
 	}
+
+	r.Log.Info("reconciling global rule", "globalrule", globalRule.Name)
 
 	// create a translate context
 	tctx := provider.NewDefaultTranslateContext(ctx)
@@ -108,7 +106,7 @@ func (r *ApisixGlobalRuleReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			Status:             metav1.ConditionFalse,
 			ObservedGeneration: globalRule.Generation,
 			LastTransitionTime: metav1.Now(),
-			Reason:             "SyncFailed",
+			Reason:             string(apiv2.ReasonSyncFailed),
 			Message:            err.Error(),
 		})
 		return ctrl.Result{}, err
@@ -394,14 +392,16 @@ func (r *ApisixGlobalRuleReconciler) processIngressClassParameters(ctx context.C
 func (r *ApisixGlobalRuleReconciler) updateStatus(globalRule *apiv2.ApisixGlobalRule, condition metav1.Condition) {
 	r.Updater.Update(status.Update{
 		NamespacedName: NamespacedName(globalRule),
-		Resource:       globalRule.DeepCopy(),
+		Resource:       &apiv2.ApisixGlobalRule{},
 		Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
 			gr, ok := obj.(*apiv2.ApisixGlobalRule)
 			if !ok {
-				return nil
+				err := fmt.Errorf("unsupported object type %T", obj)
+				panic(err)
 			}
-			gr.Status.Conditions = []metav1.Condition{condition}
-			return gr
+			grCopy := gr.DeepCopy()
+			grCopy.Status.Conditions = []metav1.Condition{condition}
+			return grCopy
 		}),
 	})
 }

@@ -32,10 +32,6 @@ type ApisixConsumerReconciler struct {
 	Log    logr.Logger
 }
 
-// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixconsumers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixconsumers/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixconsumers/finalizers,verbs=update
-
 // Reconcile FIXME: implement the reconcile logic (For now, it dose nothing other than directly accepting)
 func (r *ApisixConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log.Info("reconcile", "request", req.NamespacedName)
