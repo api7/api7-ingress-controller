@@ -238,5 +238,100 @@ spec:
 			err = s.DeleteResource("ApisixGlobalRule", "test-global-rule-update")
 			Expect(err).NotTo(HaveOccurred(), "deleting ApisixGlobalRule")
 		})
+
+		It("Test multiple GlobalRules with different plugins", func() {
+			proxyRewriteGlobalRuleYaml := `
+apiVersion: apisix.apache.org/v2
+kind: ApisixGlobalRule
+metadata:
+  name: test-global-rule-proxy-rewrite
+spec:
+  ingressClassName: apisix
+  plugins:
+  - name: proxy-rewrite
+    enable: true
+    config:
+      headers:
+        add:
+          X-Global-Proxy: "test"
+`
+
+			responseRewriteGlobalRuleYaml := `
+apiVersion: apisix.apache.org/v2
+kind: ApisixGlobalRule
+metadata:
+  name: test-global-rule-response-rewrite-multi
+spec:
+  ingressClassName: apisix
+  plugins:
+  - name: response-rewrite
+    enable: true
+    config:
+      headers:
+        X-Global-Multi: "test-multi-rule"
+        X-Response-Type: "rewrite"
+`
+
+			By("create ApisixGlobalRule with proxy-rewrite plugin")
+			err := s.CreateResourceFromString(proxyRewriteGlobalRuleYaml)
+			Expect(err).NotTo(HaveOccurred(), "creating ApisixGlobalRule with proxy-rewrite")
+
+			By("create ApisixGlobalRule with response-rewrite plugin")
+			err = s.CreateResourceFromString(responseRewriteGlobalRuleYaml)
+			Expect(err).NotTo(HaveOccurred(), "creating ApisixGlobalRule with response-rewrite")
+
+			By("verify both ApisixGlobalRule status conditions")
+			time.Sleep(5 * time.Second)
+
+			proxyRewriteYaml, err := s.GetResourceYaml("ApisixGlobalRule", "test-global-rule-proxy-rewrite")
+			Expect(err).NotTo(HaveOccurred(), "getting proxy-rewrite ApisixGlobalRule yaml")
+			Expect(proxyRewriteYaml).To(ContainSubstring(`status: "True"`))
+			Expect(proxyRewriteYaml).To(ContainSubstring("message: The global rule has been accepted and synced to APISIX"))
+
+			responseRewriteYaml, err := s.GetResourceYaml("ApisixGlobalRule", "test-global-rule-response-rewrite-multi")
+			Expect(err).NotTo(HaveOccurred(), "getting response-rewrite ApisixGlobalRule yaml")
+			Expect(responseRewriteYaml).To(ContainSubstring(`status: "True"`))
+			Expect(responseRewriteYaml).To(ContainSubstring("message: The global rule has been accepted and synced to APISIX"))
+
+			By("verify both global rules are applied on GET request")
+			getResp := s.NewAPISIXClient().
+				GET("/get").
+				WithHost("globalrule.example.com").
+				Expect().
+				Status(http.StatusOK)
+			getResp.Header("X-Global-Multi").IsEqual("test-multi-rule")
+			getResp.Header("X-Response-Type").IsEqual("rewrite")
+			getResp.Body().Contains(`"X-Global-Proxy": "test"`)
+
+			By("delete proxy-rewrite ApisixGlobalRule")
+			err = s.DeleteResource("ApisixGlobalRule", "test-global-rule-proxy-rewrite")
+			Expect(err).NotTo(HaveOccurred(), "deleting proxy-rewrite ApisixGlobalRule")
+			time.Sleep(5 * time.Second)
+
+			By("verify only response-rewrite global rule remains - proxy-rewrite headers should be removed")
+			getRespAfterProxyDelete := s.NewAPISIXClient().
+				GET("/get").
+				WithHost("globalrule.example.com").
+				Expect().
+				Status(http.StatusOK)
+			getRespAfterProxyDelete.Header("X-Global-Multi").IsEqual("test-multi-rule")
+			getRespAfterProxyDelete.Header("X-Response-Type").IsEqual("rewrite")
+			getRespAfterProxyDelete.Body().NotContains(`"X-Global-Proxy": "test"`)
+
+			By("delete response-rewrite ApisixGlobalRule")
+			err = s.DeleteResource("ApisixGlobalRule", "test-global-rule-response-rewrite-multi")
+			Expect(err).NotTo(HaveOccurred(), "deleting response-rewrite ApisixGlobalRule")
+			time.Sleep(5 * time.Second)
+
+			By("verify all global rules are removed")
+			finalResp := s.NewAPISIXClient().
+				GET("/get").
+				WithHost("globalrule.example.com").
+				Expect().
+				Status(http.StatusOK)
+			finalResp.Header("X-Global-Multi").IsEmpty()
+			finalResp.Header("X-Response-Type").IsEmpty()
+			finalResp.Body().NotContains(`"X-Global-Proxy": "test"`)
+		})
 	})
 })
