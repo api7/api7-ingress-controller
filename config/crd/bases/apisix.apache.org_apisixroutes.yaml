@@ -192,9 +192,7 @@ spec:
                                 type: string
                             required:
                             - op
-                            - set
                             - subject
-                            - value
                             type: object
                           type: array
                         filter_func:

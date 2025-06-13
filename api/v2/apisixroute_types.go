@@ -219,11 +219,13 @@ type ApisixRouteHTTPMatchExpr struct {
 	Op string `json:"op" yaml:"op"`
 	// Set is an array type object of the expression.
 	// It should be used when the Op is "in" or "not_in";
+	// +kubebuilder:validation:Optional
 	Set []string `json:"set" yaml:"set"`
 	// Value is the normal type object for the expression,
 	// it should be used when the Op is not "in" and "not_in".
 	// Set and Value are exclusive so only of them can be set
 	// in the same time.
+	// +kubebuilder:validation:Optional
 	Value *string `json:"value" yaml:"value"`
 }
 
