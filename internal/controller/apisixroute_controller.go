@@ -65,7 +65,7 @@ func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				}),
 			),
 		).
-		Watches(&networkingv1.Ingress{},
+		Watches(&networkingv1.IngressClass{},
 			handler.EnqueueRequestsFromMapFunc(r.listApiRouteForIngressClass),
 			builder.WithPredicates(
 				predicate.NewPredicateFuncs(r.matchesIngressController),
@@ -138,7 +138,6 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 	var (
 		rules = make(map[string]struct{})
 	)
-
 	for httpIndex, http := range in.Spec.HTTP {
 		// check rule names
 		if _, ok := rules[http.Name]; ok {
@@ -181,7 +180,7 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 		}
 
 		// check vars
-		// todo: cache the result
+		// todo: cache the result to tctx
 		if _, err := http.Match.NginxVars.ToVars(); err != nil {
 			return ReasonError{
 				Reason:  string(apiv2.ConditionReasonInvalidSpec),
