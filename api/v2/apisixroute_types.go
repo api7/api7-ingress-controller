@@ -13,7 +13,6 @@
 package v2
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -290,7 +289,7 @@ func (exprs ApisixRouteHTTPMatchExprs) ToVars() (result adc.Vars, err error) {
 		default:
 			return result, errors.New("unknown operator")
 		}
-		if invert := slices.Contains([]string{OpNotIn, OpRegexNotMatch, OpRegexNotMatchCaseInsensitive}, op); invert {
+		if expr.Op == OpNotIn || expr.Op == OpRegexNotMatch || expr.Op == OpRegexNotMatchCaseInsensitive {
 			this.SliceVal = append(this.SliceVal, adc.StringOrSlice{StrVal: "!"})
 		}
 		this.SliceVal = append(this.SliceVal, adc.StringOrSlice{StrVal: op})

@@ -436,7 +436,7 @@ func ApisixRouteServiceIndexFunc(obj client.Object) (keys []string) {
 		}
 	}
 	for _, stream := range ar.Spec.Stream {
-		keys = append(keys, stream.Backend.ServiceName)
+		keys = append(keys, GenIndexKey(ar.GetNamespace(), stream.Backend.ServiceName))
 	}
 	return
 }

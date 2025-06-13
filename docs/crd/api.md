@@ -959,8 +959,6 @@ ApisixPluginConfigSpec defines the desired state of ApisixPluginConfigSpec.
 _Appears in:_
 - [ApisixPluginConfig](#apisixpluginconfig)
 
-
-
 #### ApisixRouteAuthentication
 
 
@@ -1290,95 +1288,19 @@ _Appears in:_
 - [ApisixUpstreamSpec](#apisixupstreamspec)
 - [PortLevelSettings](#portlevelsettings)
 
-#### ApisixStatus
-
-
-ApisixStatus is the status report for Apisix ingress Resources
 
 
 
-| Field | Description |
-| --- | --- |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#condition-v1-meta) array_ |  |
-
-
-_Appears in:_
-- [ApisixPluginConfigStatus](#apisixpluginconfigstatus)
-
-#### ApisixStatus
-
-
-ApisixStatus is the status report for Apisix ingress Resources
 
 
 
-| Field | Description |
-| --- | --- |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#condition-v1-meta) array_ |  |
-
-
-_Appears in:_
-- [ApisixPluginConfigStatus](#apisixpluginconfigstatus)
-
-#### ApisixStatus
-
-
-ApisixStatus is the status report for Apisix ingress Resources
 
 
 
-| Field | Description |
-| --- | --- |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#condition-v1-meta) array_ |  |
-
-
-_Appears in:_
-- [ApisixPluginConfigStatus](#apisixpluginconfigstatus)
-
-#### ApisixStatus
-
-
-ApisixStatus is the status report for Apisix ingress Resources
 
 
 
-| Field | Description |
-| --- | --- |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#condition-v1-meta) array_ |  |
 
-
-_Appears in:_
-- [ApisixPluginConfigStatus](#apisixpluginconfigstatus)
-
-#### ApisixStatus
-
-
-ApisixStatus is the status report for Apisix ingress Resources
-
-
-
-| Field | Description |
-| --- | --- |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#condition-v1-meta) array_ |  |
-
-
-_Appears in:_
-- [ApisixPluginConfigStatus](#apisixpluginconfigstatus)
-
-#### ApisixStatus
-
-
-ApisixStatus is the status report for Apisix ingress Resources
-
-
-
-| Field | Description |
-| --- | --- |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#condition-v1-meta) array_ |  |
-
-
-_Appears in:_
-- [ApisixPluginConfigStatus](#apisixpluginconfigstatus)
 
 #### ApisixTlsSpec
 
@@ -1649,8 +1571,6 @@ them if they are set on the port level.
 
 _Appears in:_
 - [ApisixUpstreamSpec](#apisixupstreamspec)
-
-
 
 
 
