@@ -96,11 +96,11 @@ func (r *ApisixGlobalRuleReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		log.Error(err, "failed to sync global rule to provider")
 		// Update status with failure condition
 		r.updateStatus(&globalRule, metav1.Condition{
-			Type:               string(gatewayv1.RouteConditionAccepted),
+			Type:               string(apiv2.ConditionTypeAccepted),
 			Status:             metav1.ConditionFalse,
 			ObservedGeneration: globalRule.Generation,
 			LastTransitionTime: metav1.Now(),
-			Reason:             string(apiv2.ReasonSyncFailed),
+			Reason:             string(apiv2.ConditionReasonSyncFailed),
 			Message:            err.Error(),
 		})
 		return ctrl.Result{}, err

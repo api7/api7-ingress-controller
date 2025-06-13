@@ -143,7 +143,7 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 		// check rule names
 		if _, ok := rules[http.Name]; ok {
 			return ReasonError{
-				Reason:  string(apiv2.ApisixRouteConditionReasonInvalidHTTP),
+				Reason:  string(apiv2.ConditionReasonInvalidSpec),
 				Message: "duplicate route rule name",
 			}
 		}
@@ -172,7 +172,7 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 			)
 			if err := r.Get(ctx, secretNN, &secret); err != nil {
 				return ReasonError{
-					Reason:  string(apiv2.ApisixRouteConditionReasonInvalidHTTP),
+					Reason:  string(apiv2.ConditionReasonInvalidSpec),
 					Message: fmt.Sprintf("failed to get Secret: %s", secretNN),
 				}
 			}
@@ -184,7 +184,7 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 		// todo: cache the result
 		if _, err := http.Match.NginxVars.ToVars(); err != nil {
 			return ReasonError{
-				Reason:  string(apiv2.ApisixRouteConditionReasonInvalidHTTP),
+				Reason:  string(apiv2.ConditionReasonInvalidSpec),
 				Message: fmt.Sprintf(".spec.http[%d].match.exprs: %s", httpIndex, err.Error()),
 			}
 		}
@@ -192,7 +192,7 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 		// validate remote address
 		if err := utils.ValidateRemoteAddrs(http.Match.RemoteAddrs); err != nil {
 			return ReasonError{
-				Reason:  string(apiv2.ApisixRouteConditionReasonInvalidHTTP),
+				Reason:  string(apiv2.ConditionReasonInvalidSpec),
 				Message: fmt.Sprintf(".spec.http[%d].match.remoteAddrs: %s", httpIndex, err.Error()),
 			}
 		}
@@ -211,7 +211,7 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 			)
 			if _, ok := backends[serviceNN]; ok {
 				return ReasonError{
-					Reason:  string(apiv2.ApisixRouteConditionReasonInvalidHTTP),
+					Reason:  string(apiv2.ConditionReasonInvalidSpec),
 					Message: fmt.Sprintf("duplicate backend service: %s", serviceNN),
 				}
 			}
@@ -219,7 +219,7 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 
 			if err := r.Get(ctx, serviceNN, &service); err != nil {
 				return ReasonError{
-					Reason:  string(apiv2.ApisixRouteConditionReasonInvalidHTTP),
+					Reason:  string(apiv2.ConditionReasonInvalidSpec),
 					Message: fmt.Sprintf("failed to get Service: %s", serviceNN),
 				}
 			}
@@ -230,7 +230,7 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 
 			if backend.ResolveGranularity == "service" && service.Spec.ClusterIP == "" {
 				return ReasonError{
-					Reason:  string(apiv2.ApisixRouteConditionReasonInvalidHTTP),
+					Reason:  string(apiv2.ConditionReasonInvalidSpec),
 					Message: fmt.Sprintf("service %s has no cluster IP", serviceNN),
 				}
 			}
@@ -239,7 +239,7 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 				return port.Port == int32(backend.ServicePort.IntValue())
 			}) {
 				return ReasonError{
-					Reason:  string(apiv2.ApisixRouteConditionReasonInvalidHTTP),
+					Reason:  string(apiv2.ConditionReasonInvalidSpec),
 					Message: fmt.Sprintf("port %s not found in service %s", backend.ServicePort.String(), serviceNN),
 				}
 			}
@@ -253,7 +253,7 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 				},
 			); err != nil {
 				return ReasonError{
-					Reason:  string(apiv2.ApisixRouteConditionReasonInvalidHTTP),
+					Reason:  string(apiv2.ConditionReasonInvalidSpec),
 					Message: fmt.Sprintf("failed to list endpoint slices: %v", err),
 				}
 			}

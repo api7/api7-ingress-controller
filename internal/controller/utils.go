@@ -412,15 +412,15 @@ func ParseRouteParentRefs(
 
 func SetApisixRouteConditionAccepted(status *apiv2.ApisixStatus, generation int64, err error) {
 	var condition = metav1.Condition{
-		Type:               string(apiv2.ApisixRouteConditionTypeAccepted),
+		Type:               string(apiv2.ConditionTypeAccepted),
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: generation,
 		LastTransitionTime: metav1.Now(),
-		Reason:             string(apiv2.ApisixRouteConditionReasonAccepted),
+		Reason:             string(apiv2.ConditionReasonAccepted),
 	}
 	if err != nil {
 		condition.Status = metav1.ConditionFalse
-		condition.Reason = string(apiv2.ApisixRouteConditionReasonInvalidHTTP)
+		condition.Reason = string(apiv2.ConditionReasonInvalidSpec)
 		condition.Message = err.Error()
 
 		var re ReasonError

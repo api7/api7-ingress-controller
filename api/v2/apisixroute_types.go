@@ -72,6 +72,7 @@ type ApisixRouteHTTP struct {
 	// Upstreams refer to ApisixUpstream CRD
 	Upstreams []ApisixRouteUpstreamReference `json:"upstreams,omitempty" yaml:"upstreams,omitempty"`
 
+	// +kubebuilder:validation:Optional
 	Websocket        bool   `json:"websocket" yaml:"websocket"`
 	PluginConfigName string `json:"plugin_config_name,omitempty" yaml:"plugin_config_name,omitempty"`
 	// By default, PluginConfigNamespace will be the same as the namespace of ApisixRoute
@@ -159,6 +160,7 @@ type ApisixRouteHTTPBackend struct {
 	// default is endpoints.
 	ResolveGranularity string `json:"resolveGranularity,omitempty" yaml:"resolveGranularity,omitempty"`
 	// Weight of this backend.
+	// +kubebuilder:validation:Optional
 	Weight *int `json:"weight" yaml:"weight"`
 	// Subset specifies a subset for the target Service. The subset should be pre-defined
 	// in ApisixUpstream about this service.

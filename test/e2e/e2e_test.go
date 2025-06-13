@@ -19,7 +19,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	_ "github.com/apache/apisix-ingress-controller/test/e2e/apiv2"
 	_ "github.com/apache/apisix-ingress-controller/test/e2e/crds"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	_ "github.com/apache/apisix-ingress-controller/test/e2e/gatewayapi"

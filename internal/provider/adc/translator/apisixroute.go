@@ -119,8 +119,11 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 			weight := int32(*cmp.Or(backend.Weight, ptr.To(apiv2.DefaultWeight)))
 			backendRef := gatewayv1.BackendRef{
 				BackendObjectReference: gatewayv1.BackendObjectReference{
-					Name: gatewayv1.ObjectName(backend.ServiceName),
-					Port: (*gatewayv1.PortNumber)(&backend.ServicePort.IntVal),
+					Group:     (*gatewayv1.Group)(&apiv2.GroupVersion.Group),
+					Kind:      (*gatewayv1.Kind)(ptr.To("Service")),
+					Name:      gatewayv1.ObjectName(backend.ServiceName),
+					Namespace: (*gatewayv1.Namespace)(&ar.Namespace),
+					Port:      (*gatewayv1.PortNumber)(&backend.ServicePort.IntVal),
 				},
 				Weight: &weight,
 			}
@@ -138,9 +141,12 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 		}
 
 		// translate to adc.Service
-		service.Labels = ar.Labels
 		service.Name = adc.ComposeServiceNameWithRule(ar.Namespace, ar.Name, fmt.Sprintf("%d", ruleIndex))
+		service.ID = id.GenID(service.Name)
+		service.Labels = ar.Labels
 		service.Hosts = http.Match.Hosts
+		service.Upstream = upstream
+		service.Routes = []*adc.Route{route}
 
 		if backendErr != nil && len(upstream.Nodes) == 0 {
 			if service.Plugins == nil {
@@ -154,8 +160,6 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 			}
 		}
 
-		service.Upstream = upstream
-		service.Routes = []*adc.Route{route}
 		result.Services = append(result.Services, service)
 	}
 

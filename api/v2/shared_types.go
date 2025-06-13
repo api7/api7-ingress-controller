@@ -26,9 +26,10 @@ type (
 )
 
 const (
-	ApisixRouteConditionTypeAccepted      ApisixRouteConditionType   = gatewayv1.RouteConditionAccepted
-	ApisixRouteConditionReasonAccepted    ApisixRouteConditionReason = gatewayv1.RouteReasonAccepted
-	ApisixRouteConditionReasonInvalidHTTP ApisixRouteConditionReason = "InvalidHTTP"
+	ConditionTypeAccepted      ApisixRouteConditionType   = gatewayv1.RouteConditionAccepted
+	ConditionReasonAccepted    ApisixRouteConditionReason = gatewayv1.RouteReasonAccepted
+	ConditionReasonInvalidSpec ApisixRouteConditionReason = "InvalidSpec"
+	ConditionReasonSyncFailed  ApisixRouteConditionReason = "SyncFailed"
 )
 
 const (
