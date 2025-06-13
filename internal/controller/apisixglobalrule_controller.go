@@ -367,7 +367,7 @@ func (r *ApisixGlobalRuleReconciler) processIngressClassParameters(ctx context.C
 // updateStatus updates the ApisixGlobalRule status with the given condition
 func (r *ApisixGlobalRuleReconciler) updateStatus(globalRule *apiv2.ApisixGlobalRule, condition metav1.Condition) {
 	r.Updater.Update(status.Update{
-		NamespacedName: NamespacedName(globalRule),
+		NamespacedName: utils.NamespacedName(globalRule),
 		Resource:       &apiv2.ApisixGlobalRule{},
 		Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
 			gr, ok := obj.(*apiv2.ApisixGlobalRule)

@@ -32,7 +32,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/provider/adc/translator"
-	types "github.com/apache/apisix-ingress-controller/internal/types"
+	"github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
@@ -223,7 +223,10 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 		resourceTypes = append(resourceTypes, "consumer")
 		labels = label.GenLabel(obj)
 	case *networkingv1.IngressClass:
-		// delete all resources
+	// delete all resources
+	case *apiv2.ApisixRoute:
+		resourceTypes = append(resourceTypes, "service")
+		labels = label.GenLabel(obj)
 	case *apiv2.ApisixGlobalRule:
 		resourceTypes = append(resourceTypes, "global_rule")
 		labels = label.GenLabel(obj)

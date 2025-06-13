@@ -39,8 +39,8 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
-	"github.com/apache/apisix-ingress-controller/internal/provider/adc/translator"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
+	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
 // ApisixRouteReconciler reconciles a ApisixRoute object
@@ -66,19 +66,19 @@ func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			),
 		).
 		Watches(&networkingv1.Ingress{},
-			handler.EnqueueRequestsFromMapFunc(WrapMapFuncDedup(r.listApiRouteForIngressClass)),
+			handler.EnqueueRequestsFromMapFunc(r.listApiRouteForIngressClass),
 			builder.WithPredicates(
 				predicate.NewPredicateFuncs(r.matchesIngressController),
 			),
 		).
 		Watches(&v1alpha1.GatewayProxy{},
-			handler.EnqueueRequestsFromMapFunc(WrapMapFuncDedup(r.listApisixRouteForGatewayProxy)),
+			handler.EnqueueRequestsFromMapFunc(r.listApisixRouteForGatewayProxy),
 		).
 		Watches(&discoveryv1.EndpointSlice{},
-			handler.EnqueueRequestsFromMapFunc(WrapMapFuncDedup(r.listApisixRoutesForService)),
+			handler.EnqueueRequestsFromMapFunc(r.listApisixRoutesForService),
 		).
 		Watches(&corev1.Secret{},
-			handler.EnqueueRequestsFromMapFunc(WrapMapFuncDedup(r.listApisixRoutesForSecret)),
+			handler.EnqueueRequestsFromMapFunc(r.listApisixRoutesForSecret),
 		).
 		Named("apisixroute").
 		Complete(r)
@@ -168,7 +168,7 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 						Namespace: in.Namespace,
 					},
 				}
-				secretNN = NamespacedName(&secret)
+				secretNN = utils.NamespacedName(&secret)
 			)
 			if err := r.Get(ctx, secretNN, &secret); err != nil {
 				return ReasonError{
@@ -177,12 +177,12 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 				}
 			}
 
-			tc.Secrets[NamespacedName(&secret)] = &secret
+			tc.Secrets[utils.NamespacedName(&secret)] = &secret
 		}
 
 		// check vars
 		// todo: cache the result
-		if _, err := translator.TranslateApisixRouteVars(http.Match.NginxVars); err != nil {
+		if _, err := http.Match.NginxVars.ToVars(); err != nil {
 			return ReasonError{
 				Reason:  string(apiv2.ApisixRouteConditionReasonInvalidHTTP),
 				Message: fmt.Sprintf(".spec.http[%d].match.exprs: %s", httpIndex, err.Error()),
@@ -190,7 +190,7 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 		}
 
 		// validate remote address
-		if err := translator.ValidateRemoteAddrs(http.Match.RemoteAddrs); err != nil {
+		if err := utils.ValidateRemoteAddrs(http.Match.RemoteAddrs); err != nil {
 			return ReasonError{
 				Reason:  string(apiv2.ApisixRouteConditionReasonInvalidHTTP),
 				Message: fmt.Sprintf(".spec.http[%d].match.remoteAddrs: %s", httpIndex, err.Error()),
@@ -207,7 +207,7 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 						Namespace: in.Namespace,
 					},
 				}
-				serviceNN = NamespacedName(&service)
+				serviceNN = utils.NamespacedName(&service)
 			)
 			if _, ok := backends[serviceNN]; ok {
 				return ReasonError{
@@ -226,6 +226,13 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 			if service.Spec.Type == corev1.ServiceTypeExternalName {
 				tc.Services[serviceNN] = &service
 				continue
+			}
+
+			if backend.ResolveGranularity == "service" && service.Spec.ClusterIP == "" {
+				return ReasonError{
+					Reason:  string(apiv2.ApisixRouteConditionReasonInvalidHTTP),
+					Message: fmt.Sprintf("service %s has no cluster IP", serviceNN),
+				}
 			}
 
 			if !slices.ContainsFunc(service.Spec.Ports, func(port corev1.ServicePort) bool {
@@ -276,9 +283,9 @@ func (r *ApisixRouteReconciler) listApisixRoutesForService(ctx context.Context, 
 	}
 	requests := make([]reconcile.Request, 0, len(arList.Items))
 	for _, ar := range arList.Items {
-		requests = append(requests, reconcile.Request{NamespacedName: NamespacedName(&ar)})
+		requests = append(requests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
 	}
-	return requests
+	return pkgutils.DedupComparable(requests)
 }
 
 func (r *ApisixRouteReconciler) listApisixRoutesForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
@@ -298,9 +305,9 @@ func (r *ApisixRouteReconciler) listApisixRoutesForSecret(ctx context.Context, o
 	}
 	requests := make([]reconcile.Request, 0, len(arList.Items))
 	for _, ar := range arList.Items {
-		requests = append(requests, reconcile.Request{NamespacedName: NamespacedName(&ar)})
+		requests = append(requests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
 	}
-	return requests
+	return pkgutils.DedupComparable(requests)
 }
 
 func (r *ApisixRouteReconciler) listApiRouteForIngressClass(ctx context.Context, object client.Object) (requests []reconcile.Request) {
@@ -316,10 +323,10 @@ func (r *ApisixRouteReconciler) listApiRouteForIngressClass(ctx context.Context,
 	}
 	for _, ar := range arList.Items {
 		if ar.Spec.IngressClassName == ic.Name || (isDefaultIngressClass && ar.Spec.IngressClassName == "") {
-			requests = append(requests, reconcile.Request{NamespacedName: NamespacedName(&ar)})
+			requests = append(requests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
 		}
 	}
-	return requests
+	return pkgutils.DedupComparable(requests)
 }
 
 func (r *ApisixRouteReconciler) listApisixRouteForGatewayProxy(ctx context.Context, object client.Object) (requests []reconcile.Request) {
@@ -340,7 +347,7 @@ func (r *ApisixRouteReconciler) listApisixRouteForGatewayProxy(ctx context.Conte
 		requests = append(requests, r.listApiRouteForIngressClass(ctx, &ic)...)
 	}
 
-	return requests
+	return pkgutils.DedupComparable(requests)
 }
 
 func (r *ApisixRouteReconciler) matchesIngressController(obj client.Object) bool {
@@ -449,7 +456,7 @@ func (r *ApisixRouteReconciler) processIngressClassParameters(ctx context.Contex
 func (r *ApisixRouteReconciler) updateStatus(ar *apiv2.ApisixRoute, err error) {
 	SetApisixRouteConditionAccepted(&ar.Status, ar.GetGeneration(), err)
 	r.Updater.Update(status.Update{
-		NamespacedName: NamespacedName(ar),
+		NamespacedName: utils.NamespacedName(ar),
 		Resource:       ar.DeepCopy(),
 		Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
 			cp := obj.(*apiv2.ApisixRoute).DeepCopy()

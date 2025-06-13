@@ -1091,7 +1091,7 @@ ApisixRouteHTTPMatch represents the match condition for hitting this route.
 | `methods` _string array_ | HTTP request method predicates. |
 | `hosts` _string array_ | HTTP Host predicates, host can be a wildcard domain or an exact domain. For wildcard domain, only one generic level is allowed, for instance, "*.foo.com" is valid but "*.*.foo.com" is not. |
 | `remoteAddrs` _string array_ | Remote address predicates, items can be valid IPv4 address or IPv6 address or CIDR. |
-| `exprs` _[ApisixRouteHTTPMatchExpr](#apisixroutehttpmatchexpr) array_ | NginxVars represents generic match predicates, it uses Nginx variable systems, so any predicate like headers, querystring and etc can be leveraged here to match the route. For instance, it can be: nginxVars:   - subject: "$remote_addr"     op: in     value:       - "127.0.0.1"       - "10.0.5.11" |
+| `exprs` _[ApisixRouteHTTPMatchExprs](#apisixroutehttpmatchexprs)_ | NginxVars represents generic match predicates, it uses Nginx variable systems, so any predicate like headers, querystring and etc can be leveraged here to match the route. For instance, it can be: nginxVars:   - subject: "$remote_addr"     op: in     value:       - "127.0.0.1"       - "10.0.5.11" |
 | `filter_func` _string_ | Matches based on a user-defined filtering function. These functions can accept an input parameter `vars` which can be used to access the Nginx variables. |
 
 
@@ -1114,7 +1114,7 @@ ApisixRouteHTTPMatchExpr represents a binary route match expression .
 
 
 _Appears in:_
-- [ApisixRouteHTTPMatch](#apisixroutehttpmatch)
+- [ApisixRouteHTTPMatchExprs](#apisixroutehttpmatchexprs)
 
 #### ApisixRouteHTTPMatchExprSubject
 
@@ -1131,6 +1131,24 @@ ApisixRouteHTTPMatchExprSubject describes the route match expression subject.
 
 _Appears in:_
 - [ApisixRouteHTTPMatchExpr](#apisixroutehttpmatchexpr)
+
+#### ApisixRouteHTTPMatchExprs
+_Base type:_ `[ApisixRouteHTTPMatchExpr](#apisixroutehttpmatchexpr)`
+
+
+
+
+
+| Field | Description |
+| --- | --- |
+| `subject` _[ApisixRouteHTTPMatchExprSubject](#apisixroutehttpmatchexprsubject)_ | Subject is the expression subject, it can be any string composed by literals and nginx vars. |
+| `op` _string_ | Op is the operator. |
+| `set` _string array_ | Set is an array type object of the expression. It should be used when the Op is "in" or "not_in"; |
+| `value` _string_ | Value is the normal type object for the expression, it should be used when the Op is not "in" and "not_in". Set and Value are exclusive so only of them can be set in the same time. |
+
+
+_Appears in:_
+- [ApisixRouteHTTPMatch](#apisixroutehttpmatch)
 
 #### ApisixRoutePlugin
 
@@ -1631,6 +1649,10 @@ them if they are set on the port level.
 
 _Appears in:_
 - [ApisixUpstreamSpec](#apisixupstreamspec)
+
+
+
+
 
 
 

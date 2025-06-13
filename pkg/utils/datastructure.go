@@ -41,3 +41,15 @@ func InsertKeyInMap(key string, value any, dest map[string]any) {
 	}
 	InsertKeyInMap(restKey, value, newDest)
 }
+
+func DedupComparable[T comparable](s []T) []T {
+	var keys = make(map[T]struct{})
+	var results []T
+	for _, item := range s {
+		if _, ok := keys[item]; !ok {
+			keys[item] = struct{}{}
+			results = append(results, item)
+		}
+	}
+	return results
+}

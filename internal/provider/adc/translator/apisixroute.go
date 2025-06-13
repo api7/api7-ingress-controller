@@ -13,119 +13,151 @@
 package translator
 
 import (
-	"net"
-	"slices"
-	"strings"
+	"cmp"
+	"encoding/json"
+	"fmt"
 
-	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/apache/apisix-ingress-controller/api/adc"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	"github.com/apache/apisix-ingress-controller/pkg/id"
+	"github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
-func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, obj *apiv2.ApisixRoute) (*TranslateResult, error) {
-
-	return nil, errors.New("not implemented yet")
-}
-
-func TranslateApisixRouteVars(exprs []apiv2.ApisixRouteHTTPMatchExpr) (result adc.StringOrSlice, err error) {
-	for _, expr := range exprs {
-		if expr.Subject.Name == "" && expr.Subject.Scope != apiv2.ScopePath {
-			return result, errors.New("empty subject.name")
+func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *apiv2.ApisixRoute) (result *TranslateResult, err error) {
+	result = &TranslateResult{}
+	for ruleIndex, http := range ar.Spec.HTTP {
+		var timeout *adc.Timeout
+		if http.Timeout != nil {
+			defaultTimeout := metav1.Duration{Duration: apiv2.DefaultUpstreamTimeout}
+			timeout = &adc.Timeout{
+				Connect: cmp.Or(int(http.Timeout.Connect.Seconds()), int(defaultTimeout.Seconds())),
+				Read:    cmp.Or(int(http.Timeout.Connect.Seconds()), int(defaultTimeout.Seconds())),
+				Send:    cmp.Or(int(http.Timeout.Connect.Seconds()), int(defaultTimeout.Seconds())),
+			}
 		}
 
-		// process key
+		var plugins = make(adc.Plugins)
+		// todo: need unit test or e2e test
+		for _, plugin := range http.Plugins {
+			if !plugin.Enable {
+				continue
+			}
+
+			config := make(map[string]any)
+			if plugin.Config != nil {
+				for key, value := range plugin.Config {
+					config[key] = json.RawMessage(value.Raw)
+				}
+			}
+			if plugin.SecretRef != "" {
+				if secret, ok := tctx.Secrets[types.NamespacedName{Namespace: ar.Namespace, Name: plugin.SecretRef}]; ok {
+					for key, value := range secret.Data {
+						utils.InsertKeyInMap(key, string(value), config)
+					}
+				}
+			}
+			plugins[plugin.Name] = config
+		}
+
+		// add Authentication plugins
+		if http.Authentication.Enable {
+			switch http.Authentication.Type {
+			case "keyAuth":
+				plugins["key-auth"] = http.Authentication.KeyAuth
+			case "basicAuth":
+				plugins["basic-auth"] = make(map[string]any)
+			case "wolfRBAC":
+				plugins["wolf-rbac"] = make(map[string]any)
+			case "jwtAuth":
+				plugins["jwt-auth"] = http.Authentication.JwtAuth
+			case "hmacAuth":
+				plugins["hmac-auth"] = make(map[string]any)
+			case "ldapAuth":
+				plugins["ldap-auth"] = http.Authentication.LDAPAuth
+			default:
+				plugins["basic-auth"] = make(map[string]any)
+			}
+		}
+
+		vars, err := http.Match.NginxVars.ToVars()
+		if err != nil {
+			return nil, err
+		}
+
 		var (
-			subj string
-			this adc.StringOrSlice
+			route    = adc.NewDefaultRoute()
+			upstream = adc.NewDefaultUpstream()
+			service  = adc.NewDefaultService()
+			labels   = label.GenLabel(ar)
 		)
-		switch expr.Subject.Scope {
-		case apiv2.ScopeQuery:
-			subj = "arg_" + expr.Subject.Name
-		case apiv2.ScopeHeader:
-			subj = "http_" + strings.ReplaceAll(strings.ToLower(expr.Subject.Name), "-", "_")
-		case apiv2.ScopeCookie:
-			subj = "cookie_" + expr.Subject.Name
-		case apiv2.ScopePath:
-			subj = "uri"
-		case apiv2.ScopeVariable:
-			subj = expr.Subject.Name
-		default:
-			return result, errors.New("invalid http match expr: subject.scope should be one of [query, header, cookie, path, variable]")
-		}
-		this.SliceVal = append(this.SliceVal, adc.StringOrSlice{StrVal: subj})
+		// translate to adc.Route
+		route.Name = adc.ComposeRouteName(ar.Namespace, ar.Name, http.Name)
+		route.ID = id.GenID(route.Name)
+		route.Desc = "Created by apisix-ingress-controller, DO NOT modify it manually"
+		route.Labels = labels
+		route.EnableWebsocket = ptr.To(true)
+		route.FilterFunc = http.Match.FilterFunc
+		route.Hosts = http.Match.Hosts
+		route.Methods = http.Match.Methods
+		route.Plugins = plugins
+		route.Priority = ptr.To(int64(http.Priority))
+		route.RemoteAddrs = http.Match.RemoteAddrs
+		route.Timeout = timeout
+		route.Uris = http.Match.Paths
+		route.Vars = vars
 
-		// process operator
-		var (
-			op string
-		)
-		switch expr.Op {
-		case apiv2.OpEqual:
-			op = "=="
-		case apiv2.OpGreaterThan:
-			op = ">"
-		case apiv2.OpGreaterThanEqual:
-			op = ">="
-		case apiv2.OpIn:
-			op = "in"
-		case apiv2.OpLessThan:
-			op = "<"
-		case apiv2.OpLessThanEqual:
-			op = "<="
-		case apiv2.OpNotEqual:
-			op = "~="
-		case apiv2.OpNotIn:
-			op = "in"
-		case apiv2.OpRegexMatch:
-			op = "~~"
-		case apiv2.OpRegexMatchCaseInsensitive:
-			op = "~*"
-		case apiv2.OpRegexNotMatch:
-			op = "~~"
-		case apiv2.OpRegexNotMatchCaseInsensitive:
-			op = "~*"
-		default:
-			return result, errors.New("unknown operator")
+		// translate to adc.Upstream
+		var backendErr error
+		for _, backend := range http.Backends {
+			weight := int32(*cmp.Or(backend.Weight, ptr.To(apiv2.DefaultWeight)))
+			backendRef := gatewayv1.BackendRef{
+				BackendObjectReference: gatewayv1.BackendObjectReference{
+					Name: gatewayv1.ObjectName(backend.ServiceName),
+					Port: (*gatewayv1.PortNumber)(&backend.ServicePort.IntVal),
+				},
+				Weight: &weight,
+			}
+			upNodes, err := t.translateBackendRef(tctx, backendRef)
+			if err != nil {
+				backendErr = err
+				continue
+			}
+			t.AttachBackendTrafficPolicyToUpstream(backendRef, tctx.BackendTrafficPolicies, upstream)
+			upstream.Nodes = append(upstream.Nodes, upNodes...)
 		}
-		if invert := slices.Contains([]string{apiv2.OpNotIn, apiv2.OpRegexNotMatch, apiv2.OpRegexNotMatchCaseInsensitive}, op); invert {
-			this.SliceVal = append(this.SliceVal, adc.StringOrSlice{StrVal: "!"})
-		}
-		this.SliceVal = append(this.SliceVal, adc.StringOrSlice{StrVal: op})
-
-		// process value
-		switch expr.Op {
-		case apiv2.OpIn, apiv2.OpNotIn:
-			if expr.Set == nil {
-				return result, errors.New("empty set value")
-			}
-			var value adc.StringOrSlice
-			for _, item := range expr.Set {
-				value.SliceVal = append(value.SliceVal, adc.StringOrSlice{StrVal: item})
-			}
-			this.SliceVal = append(this.SliceVal, value)
-		default:
-			if expr.Value == nil {
-				return result, errors.New("empty value")
-			}
-			this.SliceVal = append(this.SliceVal, adc.StringOrSlice{StrVal: *expr.Value})
+		//nolint:staticcheck
+		if len(http.Backends) == 0 && len(http.Upstreams) > 0 {
+			// FIXME: when the API ApisixUpstream is supported
 		}
 
-		// append to result
-		result.SliceVal = append(result.SliceVal, this)
+		// translate to adc.Service
+		service.Labels = ar.Labels
+		service.Name = adc.ComposeServiceNameWithRule(ar.Namespace, ar.Name, fmt.Sprintf("%d", ruleIndex))
+		service.Hosts = http.Match.Hosts
+
+		if backendErr != nil && len(upstream.Nodes) == 0 {
+			if service.Plugins == nil {
+				service.Plugins = make(map[string]any)
+			}
+			service.Plugins["fault-injection"] = map[string]any{
+				"abort": map[string]any{
+					"http_status": 500,
+					"body":        "No existing backendRef provided",
+				},
+			}
+		}
+
+		service.Upstream = upstream
+		service.Routes = []*adc.Route{route}
+		result.Services = append(result.Services, service)
 	}
 
 	return result, nil
-}
-
-func ValidateRemoteAddrs(remoteAddrs []string) error {
-	for _, addr := range remoteAddrs {
-		if ip := net.ParseIP(addr); ip == nil {
-			// addr is not an IP address, try to parse it as a CIDR.
-			if _, _, err := net.ParseCIDR(addr); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }

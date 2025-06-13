@@ -33,7 +33,6 @@ import (
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -1170,29 +1169,4 @@ func checkReferenceGrant(ctx context.Context, cli client.Client, obj v1beta1.Ref
 		}
 	}
 	return false
-}
-
-func NamespacedName(obj client.Object) k8stypes.NamespacedName {
-	return k8stypes.NamespacedName{
-		Namespace: obj.GetNamespace(),
-		Name:      obj.GetName(),
-	}
-}
-
-func WrapMapFuncDedup(mapFunc handler.MapFunc) handler.MapFunc {
-	return func(ctx context.Context, object client.Object) (result []reconcile.Request) {
-		return DedupComparable(mapFunc(ctx, object))
-	}
-}
-
-func DedupComparable[T comparable](s []T) []T {
-	var keys = make(map[T]struct{})
-	var results []T
-	for _, item := range s {
-		if _, ok := keys[item]; !ok {
-			keys[item] = struct{}{}
-			results = append(results, item)
-		}
-	}
-	return results
 }

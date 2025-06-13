@@ -13,6 +13,8 @@
 package utils
 
 import (
+	"net"
+
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -32,4 +34,16 @@ func NamespacedNameKind(obj client.Object) types.NamespacedNameKind {
 		Name:      obj.GetName(),
 		Kind:      obj.GetObjectKind().GroupVersionKind().Kind,
 	}
+}
+
+func ValidateRemoteAddrs(remoteAddrs []string) error {
+	for _, addr := range remoteAddrs {
+		if ip := net.ParseIP(addr); ip == nil {
+			// addr is not an IP address, try to parse it as a CIDR.
+			if _, _, err := net.ParseCIDR(addr); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
