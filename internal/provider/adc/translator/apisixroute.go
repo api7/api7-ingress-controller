@@ -44,7 +44,6 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 		}
 
 		var plugins = make(adc.Plugins)
-		// todo: need unit test or e2e test
 		for _, plugin := range http.Plugins {
 			if !plugin.Enable {
 				continue
@@ -143,7 +142,7 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 		// translate to adc.Service
 		service.Name = adc.ComposeServiceNameWithRule(ar.Namespace, ar.Name, fmt.Sprintf("%d", ruleIndex))
 		service.ID = id.GenID(service.Name)
-		service.Labels = ar.Labels
+		service.Labels = label.GenLabel(ar)
 		service.Hosts = http.Match.Hosts
 		service.Upstream = upstream
 		service.Routes = []*adc.Route{route}

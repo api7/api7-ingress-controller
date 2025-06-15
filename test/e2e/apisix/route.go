@@ -35,25 +35,6 @@ var _ = Describe("Test ApisixRoute", func() {
 	)
 
 	Context("Test ApisixRoute", func() {
-		const apisixRouteSpec = `
-apiVersion: apisix.apache.org/v2
-kind: ApisixRoute
-metadata:
-  name: default
-spec:
-  ingressClassName: apisix
-  http:
-  - name: rule0
-    match:
-      hosts:
-      - httpbin
-      paths:
-      - /get
-    backends:
-    - serviceName: httpbin-service-e2e-test
-      servicePort: 80
-`
-
 		BeforeEach(func() {
 			By("create GatewayProxy")
 			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
@@ -68,15 +49,44 @@ spec:
 		})
 
 		It("Basic tests", func() {
+			const apisixRouteSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: default
+spec:
+  ingressClassName: apisix
+  http:
+  - name: rule0
+    match:
+      hosts:
+      - httpbin
+      paths:
+      - %s
+    backends:
+    - serviceName: httpbin-service-e2e-test
+      servicePort: 80
+`
+			request := func(path string) int {
+				return s.NewAPISIXClient().GET(path).WithHost("httpbin").Expect().Raw().StatusCode
+			}
+
 			By("apply ApisixRoute")
 			var apisixRoute apiv2.ApisixRoute
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisixRoute, apisixRouteSpec)
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisixRoute, fmt.Sprintf(apisixRouteSpec, "/get"))
 
 			By("verify ApisixRoute works")
-			request := func() int {
-				return s.NewAPISIXClient().GET("/get").WithHost("httpbin").Expect().Raw().StatusCode
-			}
-			Eventually(request).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+
+			By("update ApisixRoute")
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisixRoute, fmt.Sprintf(apisixRouteSpec, "/headers"))
+			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
+			s.NewAPISIXClient().GET("/headers").WithHost("httpbin").Expect().Status(http.StatusOK)
+
+			By("delete ApisixRoute")
+			err := s.DeleteResource("ApisixRoute", "default")
+			Expect(err).ShouldNot(HaveOccurred(), "deleting ApisixRoute")
+			Eventually(request).WithArguments("/headers").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 		})
 
 		It("Test plugins in ApisixRoute", func() {

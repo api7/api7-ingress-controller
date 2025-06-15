@@ -201,7 +201,7 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 	var resourceTypes []string
 	var labels map[string]string
 	switch obj.(type) {
-	case *gatewayv1.HTTPRoute:
+	case *gatewayv1.HTTPRoute, *apiv2.ApisixRoute:
 		resourceTypes = append(resourceTypes, "service")
 		labels = label.GenLabel(obj)
 	case *gatewayv1.Gateway:
@@ -213,10 +213,7 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 		resourceTypes = append(resourceTypes, "consumer")
 		labels = label.GenLabel(obj)
 	case *networkingv1.IngressClass:
-	// delete all resources
-	case *apiv2.ApisixRoute:
-		resourceTypes = append(resourceTypes, "service")
-		labels = label.GenLabel(obj)
+		// delete all resources
 	case *apiv2.ApisixGlobalRule:
 		resourceTypes = append(resourceTypes, "global_rule")
 		labels = label.GenLabel(obj)

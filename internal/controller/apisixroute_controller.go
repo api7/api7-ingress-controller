@@ -22,7 +22,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -124,7 +123,7 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 	if err = r.Provider.Update(ctx, tctx, &ar); err != nil {
 		err = ReasonError{
-			Reason:  "SyncFailed",
+			Reason:  string(apiv2.ConditionReasonSyncFailed),
 			Message: err.Error(),
 		}
 		r.Log.Error(err, "failed to process", "apisixroute", ar)
@@ -382,10 +381,10 @@ func (r *ApisixRouteReconciler) getDefaultIngressClass() (*networkingv1.IngressC
 			return &ic, nil
 		}
 	}
-	return nil, &errors.StatusError{ErrStatus: metav1.Status{
-		Reason:  metav1.StatusReasonNotFound,
+	return nil, ReasonError{
+		Reason:  string(metav1.StatusReasonNotFound),
 		Message: "default ingress class not found or dose not match the controller",
-	}}
+	}
 }
 
 // processIngressClassParameters processes the IngressClass parameters that reference GatewayProxy
