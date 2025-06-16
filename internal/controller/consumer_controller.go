@@ -279,7 +279,7 @@ func (r *ConsumerReconciler) updateStatus(consumer *v1alpha1.Consumer, err error
 	meta.SetStatusCondition(&consumer.Status.Conditions, condition)
 
 	r.Updater.Update(status.Update{
-		NamespacedName: NamespacedName(consumer),
+		NamespacedName: utils.NamespacedName(consumer),
 		Resource:       consumer.DeepCopy(),
 		Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
 			t, ok := obj.(*v1alpha1.Consumer)

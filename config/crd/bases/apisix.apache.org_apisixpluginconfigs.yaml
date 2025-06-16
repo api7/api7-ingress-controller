@@ -74,7 +74,7 @@ spec:
             - plugins
             type: object
           status:
-            description: ApisixPluginConfigStatus defines the observed state of ApisixPluginConfig.
+            description: ApisixStatus is the status report for Apisix ingress Resources
             properties:
               conditions:
                 items:

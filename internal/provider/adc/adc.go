@@ -32,7 +32,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/provider/adc/translator"
-	types "github.com/apache/apisix-ingress-controller/internal/types"
+	"github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
@@ -116,6 +116,9 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 	case *networkingv1.IngressClass:
 		result, err = d.translator.TranslateIngressClass(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "global_rule", "plugin_metadata")
+	case *apiv2.ApisixRoute:
+		result, err = d.translator.TranslateApisixRoute(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, "service")
 	case *apiv2.ApisixGlobalRule:
 		result, err = d.translator.TranslateApisixGlobalRule(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "global_rule")
@@ -176,30 +179,20 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		}
 	}
 
-	switch d.BackendMode {
-	case BackendModeAPISIXStandalone:
-		// This mode is full synchronization,
-		// which only needs to be saved in cache
-		// and triggered by a timer for synchronization
+	// This mode is full synchronization,
+	// which only needs to be saved in cache
+	// and triggered by a timer for synchronization
+	if d.BackendMode == BackendModeAPISIXStandalone || apiv2.Is(obj) {
 		return nil
-	case BackendModeAPI7EE:
-		// if api version is v2, then skip sync
-		if obj.GetObjectKind().GroupVersionKind().GroupVersion() == apiv2.GroupVersion {
-			log.Debugw("api version is v2, skip sync", zap.Any("obj", obj))
-			return nil
-		}
-
-		return d.sync(ctx, Task{
-			Name:          obj.GetName(),
-			Labels:        label.GenLabel(obj),
-			Resources:     resources,
-			ResourceTypes: resourceTypes,
-			configs:       configs,
-		})
-	default:
-		log.Errorw("unknown backend mode", zap.String("mode", d.BackendMode))
-		return errors.New("unknown backend mode: " + d.BackendMode)
 	}
+
+	return d.sync(ctx, Task{
+		Name:          obj.GetName(),
+		Labels:        label.GenLabel(obj),
+		Resources:     resources,
+		ResourceTypes: resourceTypes,
+		configs:       configs,
+	})
 }
 
 func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
@@ -208,7 +201,7 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 	var resourceTypes []string
 	var labels map[string]string
 	switch obj.(type) {
-	case *gatewayv1.HTTPRoute:
+	case *gatewayv1.HTTPRoute, *apiv2.ApisixRoute:
 		resourceTypes = append(resourceTypes, "service")
 		labels = label.GenLabel(obj)
 	case *gatewayv1.Gateway:

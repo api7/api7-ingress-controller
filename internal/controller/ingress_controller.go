@@ -662,7 +662,7 @@ func (r *IngressReconciler) updateStatus(ctx context.Context, tctx *provider.Tra
 	if len(loadBalancerStatus.Ingress) > 0 && !reflect.DeepEqual(ingress.Status.LoadBalancer, loadBalancerStatus) {
 		ingress.Status.LoadBalancer = loadBalancerStatus
 		r.Updater.Update(status.Update{
-			NamespacedName: NamespacedName(ingress),
+			NamespacedName: utils.NamespacedName(ingress),
 			Resource:       ingress.DeepCopy(),
 			Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
 				t, ok := obj.(*networkingv1.Ingress)

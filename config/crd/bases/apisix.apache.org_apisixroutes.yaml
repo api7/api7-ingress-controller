@@ -130,7 +130,6 @@ spec:
                         required:
                         - serviceName
                         - servicePort
-                        - weight
                         type: object
                       type: array
                     match:
@@ -193,9 +192,7 @@ spec:
                                 type: string
                             required:
                             - op
-                            - set
                             - subject
-                            - value
                             type: object
                           type: array
                         filter_func:
@@ -303,7 +300,6 @@ spec:
                       type: boolean
                   required:
                   - name
-                  - websocket
                   type: object
                 type: array
               ingressClassName:

@@ -127,5 +127,12 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Provider: pro,
 			Updater:  updater,
 		},
+		&controller.ApisixRouteReconciler{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixRoute"),
+			Provider: pro,
+			Updater:  updater,
+		},
 	}, nil
 }

@@ -39,6 +39,7 @@ import (
 	"sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
+	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/types"
@@ -54,6 +55,7 @@ const (
 	KindGatewayProxy     = "GatewayProxy"
 	KindSecret           = "Secret"
 	KindService          = "Service"
+	KindApisixRoute      = "ApisixRoute"
 	KindApisixGlobalRule = "ApisixGlobalRule"
 )
 
@@ -406,6 +408,28 @@ func ParseRouteParentRefs(
 	}
 
 	return gateways, nil
+}
+
+func SetApisixRouteConditionAccepted(status *apiv2.ApisixStatus, generation int64, err error) {
+	var condition = metav1.Condition{
+		Type:               string(apiv2.ConditionTypeAccepted),
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: generation,
+		LastTransitionTime: metav1.Now(),
+		Reason:             string(apiv2.ConditionReasonAccepted),
+	}
+	if err != nil {
+		condition.Status = metav1.ConditionFalse
+		condition.Reason = string(apiv2.ConditionReasonInvalidSpec)
+		condition.Message = err.Error()
+
+		var re ReasonError
+		if errors.As(err, &re) {
+			condition.Reason = re.Reason
+		}
+	}
+
+	status.Conditions = []metav1.Condition{condition}
 }
 
 func checkRouteAcceptedByListener(
@@ -1145,11 +1169,4 @@ func checkReferenceGrant(ctx context.Context, cli client.Client, obj v1beta1.Ref
 		}
 	}
 	return false
-}
-
-func NamespacedName(obj client.Object) k8stypes.NamespacedName {
-	return k8stypes.NamespacedName{
-		Namespace: obj.GetNamespace(),
-		Name:      obj.GetName(),
-	}
 }
