@@ -32,19 +32,19 @@ import (
 
 func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *apiv2.ApisixRoute) (result *TranslateResult, err error) {
 	result = &TranslateResult{}
-	for ruleIndex, http := range ar.Spec.HTTP {
+	for ruleIndex, rule := range ar.Spec.HTTP {
 		var timeout *adc.Timeout
-		if http.Timeout != nil {
+		if rule.Timeout != nil {
 			defaultTimeout := metav1.Duration{Duration: apiv2.DefaultUpstreamTimeout}
 			timeout = &adc.Timeout{
-				Connect: cmp.Or(int(http.Timeout.Connect.Seconds()), int(defaultTimeout.Seconds())),
-				Read:    cmp.Or(int(http.Timeout.Connect.Seconds()), int(defaultTimeout.Seconds())),
-				Send:    cmp.Or(int(http.Timeout.Connect.Seconds()), int(defaultTimeout.Seconds())),
+				Connect: cmp.Or(int(rule.Timeout.Connect.Seconds()), int(defaultTimeout.Seconds())),
+				Read:    cmp.Or(int(rule.Timeout.Read.Seconds()), int(defaultTimeout.Seconds())),
+				Send:    cmp.Or(int(rule.Timeout.Send.Seconds()), int(defaultTimeout.Seconds())),
 			}
 		}
 
 		var plugins = make(adc.Plugins)
-		for _, plugin := range http.Plugins {
+		for _, plugin := range rule.Plugins {
 			if !plugin.Enable {
 				continue
 			}
@@ -66,26 +66,26 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 		}
 
 		// add Authentication plugins
-		if http.Authentication.Enable {
-			switch http.Authentication.Type {
+		if rule.Authentication.Enable {
+			switch rule.Authentication.Type {
 			case "keyAuth":
-				plugins["key-auth"] = http.Authentication.KeyAuth
+				plugins["key-auth"] = rule.Authentication.KeyAuth
 			case "basicAuth":
 				plugins["basic-auth"] = make(map[string]any)
 			case "wolfRBAC":
 				plugins["wolf-rbac"] = make(map[string]any)
 			case "jwtAuth":
-				plugins["jwt-auth"] = http.Authentication.JwtAuth
+				plugins["jwt-auth"] = rule.Authentication.JwtAuth
 			case "hmacAuth":
 				plugins["hmac-auth"] = make(map[string]any)
 			case "ldapAuth":
-				plugins["ldap-auth"] = http.Authentication.LDAPAuth
+				plugins["ldap-auth"] = rule.Authentication.LDAPAuth
 			default:
 				plugins["basic-auth"] = make(map[string]any)
 			}
 		}
 
-		vars, err := http.Match.NginxVars.ToVars()
+		vars, err := rule.Match.NginxVars.ToVars()
 		if err != nil {
 			return nil, err
 		}
@@ -97,24 +97,24 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 			labels   = label.GenLabel(ar)
 		)
 		// translate to adc.Route
-		route.Name = adc.ComposeRouteName(ar.Namespace, ar.Name, http.Name)
+		route.Name = adc.ComposeRouteName(ar.Namespace, ar.Name, rule.Name)
 		route.ID = id.GenID(route.Name)
 		route.Desc = "Created by apisix-ingress-controller, DO NOT modify it manually"
 		route.Labels = labels
 		route.EnableWebsocket = ptr.To(true)
-		route.FilterFunc = http.Match.FilterFunc
-		route.Hosts = http.Match.Hosts
-		route.Methods = http.Match.Methods
+		route.FilterFunc = rule.Match.FilterFunc
+		route.Hosts = rule.Match.Hosts
+		route.Methods = rule.Match.Methods
 		route.Plugins = plugins
-		route.Priority = ptr.To(int64(http.Priority))
-		route.RemoteAddrs = http.Match.RemoteAddrs
+		route.Priority = ptr.To(int64(rule.Priority))
+		route.RemoteAddrs = rule.Match.RemoteAddrs
 		route.Timeout = timeout
-		route.Uris = http.Match.Paths
+		route.Uris = rule.Match.Paths
 		route.Vars = vars
 
 		// translate to adc.Upstream
 		var backendErr error
-		for _, backend := range http.Backends {
+		for _, backend := range rule.Backends {
 			weight := int32(*cmp.Or(backend.Weight, ptr.To(apiv2.DefaultWeight)))
 			backendRef := gatewayv1.BackendRef{
 				BackendObjectReference: gatewayv1.BackendObjectReference{
@@ -135,7 +135,7 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 			upstream.Nodes = append(upstream.Nodes, upNodes...)
 		}
 		//nolint:staticcheck
-		if len(http.Backends) == 0 && len(http.Upstreams) > 0 {
+		if len(rule.Backends) == 0 && len(rule.Upstreams) > 0 {
 			// FIXME: when the API ApisixUpstream is supported
 		}
 
@@ -143,7 +143,7 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 		service.Name = adc.ComposeServiceNameWithRule(ar.Namespace, ar.Name, fmt.Sprintf("%d", ruleIndex))
 		service.ID = id.GenID(service.Name)
 		service.Labels = label.GenLabel(ar)
-		service.Hosts = http.Match.Hosts
+		service.Hosts = rule.Match.Hosts
 		service.Upstream = upstream
 		service.Routes = []*adc.Route{route}
 
