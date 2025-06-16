@@ -14,29 +14,9 @@ package v2
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // ApisixStatus is the status report for Apisix ingress Resources
 type ApisixStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty" yaml:"conditions,omitempty"`
-}
-
-func GetStatus(object client.Object) ApisixStatus {
-	switch t := object.(type) {
-	case *ApisixConsumer:
-		return t.Status
-	case *ApisixGlobalRule:
-		return t.Status
-	case *ApisixPluginConfig:
-		return t.Status
-	case *ApisixRoute:
-		return t.Status
-	case *ApisixTls:
-		return t.Status
-	case *ApisixUpstream:
-		return t.Status
-	default:
-		return ApisixStatus{}
-	}
 }

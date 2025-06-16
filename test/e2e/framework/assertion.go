@@ -16,6 +16,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -97,13 +98,21 @@ func PollUntilHTTPRoutePolicyHaveStatus(cli client.Client, timeout time.Duration
 }
 
 func APIv2MustHaveCondition(t testing.TestingT, cli client.Client, timeout time.Duration, nn types.NamespacedName, obj client.Object, cond metav1.Condition) {
-	err := PollUntilAPIv2MustHaveStatus(cli, timeout, nn, obj, func(object client.Object) bool {
-		conditions := apiv2.GetStatus(object).Conditions
-		if err := kubernetes.ConditionsHaveLatestObservedGeneration(object, conditions); err != nil {
+	f := func(object client.Object) bool {
+		if !apiv2.Is(object) {
 			return false
 		}
-		return findConditionInList(conditions, cond)
-	})
+		value := reflect.Indirect(reflect.ValueOf(object))
+		status, ok := value.FieldByName("Status").Interface().(apiv2.ApisixStatus)
+		if !ok {
+			return false
+		}
+		if err := kubernetes.ConditionsHaveLatestObservedGeneration(object, status.Conditions); err != nil {
+			return false
+		}
+		return findConditionInList(status.Conditions, cond)
+	}
+	err := PollUntilAPIv2MustHaveStatus(cli, timeout, nn, obj, f)
 
 	require.NoError(t, err, "error waiting status to have a Condition matching %+v", nn, cond)
 }

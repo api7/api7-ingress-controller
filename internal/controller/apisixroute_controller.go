@@ -149,16 +149,9 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 
 		// check secret
 		for _, plugin := range http.Plugins {
-			if !plugin.Enable {
+			if !plugin.Enable || plugin.Config == nil || plugin.SecretRef == "" {
 				continue
 			}
-			if plugin.Config == nil {
-				continue
-			}
-			if plugin.SecretRef == "" {
-				continue
-			}
-
 			var (
 				secret = corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
@@ -455,7 +448,7 @@ func (r *ApisixRouteReconciler) updateStatus(ar *apiv2.ApisixRoute, err error) {
 	SetApisixRouteConditionAccepted(&ar.Status, ar.GetGeneration(), err)
 	r.Updater.Update(status.Update{
 		NamespacedName: utils.NamespacedName(ar),
-		Resource:       ar.DeepCopy(),
+		Resource:       &apiv2.ApisixRoute{},
 		Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
 			cp := obj.(*apiv2.ApisixRoute).DeepCopy()
 			cp.Status = ar.Status
