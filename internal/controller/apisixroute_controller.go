@@ -79,6 +79,9 @@ func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.listApisixRoutesForSecret),
 		).
+		Watches(&apiv2.ApisixUpstream{},
+			handler.EnqueueRequestsFromMapFunc(r.listApisixRouteForApisixUpstream),
+		).
 		Named("apisixroute").
 		Complete(r)
 }
@@ -250,6 +253,27 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 			}
 			tc.EndpointSlices[serviceNN] = endpoints.Items
 		}
+
+		for _, upstream := range http.Upstreams {
+			if upstream.Name == "" {
+				continue
+			}
+			var ups = apiv2.ApisixUpstream{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:     upstream.Name,
+					SelfLink: in.GetNamespace(),
+				},
+			}
+			upsNN := utils.NamespacedName(&ups)
+			if err := r.Get(ctx, upsNN, &ups); err != nil {
+				if client.IgnoreNotFound(err) == nil {
+					r.Log.Error(err, "ApisixUpstream not found")
+					continue
+				}
+				return err
+			}
+			tc.Upstreams[utils.NamespacedNameKind(&ups)] = &ups
+		}
 	}
 
 	return nil
@@ -338,6 +362,24 @@ func (r *ApisixRouteReconciler) listApisixRouteForGatewayProxy(ctx context.Conte
 		requests = append(requests, r.listApiRouteForIngressClass(ctx, &ic)...)
 	}
 
+	return pkgutils.DedupComparable(requests)
+}
+
+func (r *ApisixRouteReconciler) listApisixRouteForApisixUpstream(ctx context.Context, object client.Object) (requests []reconcile.Request) {
+	au, ok := object.(*apiv2.ApisixUpstream)
+	if !ok {
+		return nil
+	}
+
+	var arList apiv2.ApisixRouteList
+	if err := r.List(ctx, &arList, client.MatchingFields{indexer.ApisixUpstreamRef: indexer.GenIndexKey(au.GetNamespace(), au.GetName())}); err != nil {
+		r.Log.Error(err, "failed to list ApisixUpstreams")
+		return nil
+	}
+
+	for _, ar := range arList.Items {
+		requests = append(requests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
+	}
 	return pkgutils.DedupComparable(requests)
 }
 

@@ -38,6 +38,7 @@ const (
 	ConsumerGatewayRef        = "consumerGatewayRef"
 	PolicyTargetRefs          = "targetRefs"
 	GatewayClassIndexRef      = "gatewayClassRef"
+	ApisixUpstreamRef         = "apisixUpstreamRef"
 )
 
 func SetupIndexer(mgr ctrl.Manager) error {
@@ -94,8 +95,9 @@ func setupConsumerIndexer(mgr ctrl.Manager) error {
 
 func setupApisixRouteIndexer(mgr ctrl.Manager) error {
 	var indexers = map[string]func(client.Object) []string{
-		ServiceIndexRef: ApisixRouteServiceIndexFunc,
-		SecretIndexRef:  ApisixRouteRouteSecretIndexFunc,
+		ServiceIndexRef:   ApisixRouteServiceIndexFunc,
+		SecretIndexRef:    ApisixRouteSecretIndexFunc,
+		ApisixUpstreamRef: ApisixRouteApisixUpstreamIndexFunc,
 	}
 	for key, f := range indexers {
 		if err := mgr.GetFieldIndexer().IndexField(context.Background(), &apiv2.ApisixRoute{}, key, f); err != nil {
@@ -441,7 +443,7 @@ func ApisixRouteServiceIndexFunc(obj client.Object) (keys []string) {
 	return
 }
 
-func ApisixRouteRouteSecretIndexFunc(obj client.Object) (keys []string) {
+func ApisixRouteSecretIndexFunc(obj client.Object) (keys []string) {
 	ar := obj.(*apiv2.ApisixRoute)
 	for _, http := range ar.Spec.HTTP {
 		for _, plugin := range http.Plugins {
@@ -454,6 +456,18 @@ func ApisixRouteRouteSecretIndexFunc(obj client.Object) (keys []string) {
 		for _, plugin := range stream.Plugins {
 			if plugin.Enable && plugin.SecretRef != "" {
 				keys = append(keys, GenIndexKey(ar.GetNamespace(), plugin.SecretRef))
+			}
+		}
+	}
+	return
+}
+
+func ApisixRouteApisixUpstreamIndexFunc(obj client.Object) (keys []string) {
+	ar := obj.(*apiv2.ApisixRoute)
+	for _, rule := range ar.Spec.HTTP {
+		for _, upstream := range rule.Upstreams {
+			if upstream.Name != "" {
+				keys = append(keys, GenIndexKey(ar.GetNamespace(), upstream.Name))
 			}
 		}
 	}

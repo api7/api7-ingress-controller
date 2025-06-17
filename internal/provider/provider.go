@@ -22,6 +22,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
+	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/types"
 )
@@ -47,6 +48,7 @@ type TranslateContext struct {
 	BackendTrafficPolicies map[k8stypes.NamespacedName]*v1alpha1.BackendTrafficPolicy
 	GatewayProxies         map[types.NamespacedNameKind]v1alpha1.GatewayProxy
 	ResourceParentRefs     map[types.NamespacedNameKind][]types.NamespacedNameKind
+	Upstreams              map[types.NamespacedNameKind]*apiv2.ApisixUpstream
 	HTTPRoutePolicies      []v1alpha1.HTTPRoutePolicy
 
 	StatusUpdaters []status.Update
@@ -62,5 +64,6 @@ func NewDefaultTranslateContext(ctx context.Context) *TranslateContext {
 		BackendTrafficPolicies: make(map[k8stypes.NamespacedName]*v1alpha1.BackendTrafficPolicy),
 		GatewayProxies:         make(map[types.NamespacedNameKind]v1alpha1.GatewayProxy),
 		ResourceParentRefs:     make(map[types.NamespacedNameKind][]types.NamespacedNameKind),
+		Upstreams:              make(map[types.NamespacedNameKind]*apiv2.ApisixUpstream),
 	}
 }
