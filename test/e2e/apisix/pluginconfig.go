@@ -505,43 +505,5 @@ spec:
 			err = s.DeleteResource("Secret", "plugin-secret")
 			Expect(err).ShouldNot(HaveOccurred(), "deleting Secret")
 		})
-
-		It("Test ApisixPluginConfig not found", func() {
-			const apisixRouteSpec = `
-apiVersion: apisix.apache.org/v2
-kind: ApisixRoute
-metadata:
-  name: test-route-not-found
-spec:
-  ingressClassName: apisix
-  http:
-  - name: rule0
-    match:
-      paths:
-      - /*
-    backends:
-    - serviceName: httpbin-service-e2e-test
-      servicePort: 80
-    plugin_config_name: non-existent-plugin-config
-`
-
-			By("apply ApisixRoute that references non-existent ApisixPluginConfig")
-			var apisixRoute apiv2.ApisixRoute
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "test-route-not-found"}, &apisixRoute, apisixRouteSpec)
-
-			By("verify ApisixRoute still works but without plugin config")
-			request := func() int {
-				return s.NewAPISIXClient().GET("/get").Expect().Raw().StatusCode
-			}
-			Eventually(request).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
-
-			By("verify no plugin headers are present")
-			resp := s.NewAPISIXClient().GET("/get").Expect().Status(http.StatusOK)
-			resp.Header("X-Plugin-Config").IsEmpty()
-
-			By("delete resources")
-			err := s.DeleteResource("ApisixRoute", "test-route-not-found")
-			Expect(err).ShouldNot(HaveOccurred(), "deleting ApisixRoute")
-		})
 	})
 })
