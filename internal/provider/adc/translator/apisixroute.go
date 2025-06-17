@@ -127,9 +127,9 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 					continue
 				}
 			} else {
-				upNodes, backendErr = t.translateApisixRouteBackendResolveGranularityEndpint(tctx, utils.NamespacedName(ar), backend)
+				upNodes, backendErr = t.translateApisixRouteBackendResolveGranularityEndpoint(tctx, utils.NamespacedName(ar), backend)
 				if backendErr != nil {
-					t.Log.Error(backendErr, "failed to translate ApisixRoute backend with ResolveGranularity Service")
+					t.Log.Error(backendErr, "failed to translate ApisixRoute backend with ResolveGranularity Endpoint")
 					continue
 				}
 			}
@@ -178,7 +178,7 @@ func (t *Translator) translateApisixRouteBackendResolveGranularityService(tctx *
 		return nil, errors.Errorf("service not found, ApisixRoute: %s, Service: %s", arNN, serviceNN)
 	}
 	if svc.Spec.ClusterIP == "" {
-		return nil, errors.Errorf("conflict headless service and backend resolve granularity, Apisixroute: %s, Service: %s", arNN, serviceNN)
+		return nil, errors.Errorf("conflict headless service and backend resolve granularity, ApisixRoute: %s, Service: %s", arNN, serviceNN)
 	}
 	return adc.UpstreamNodes{
 		{
@@ -189,7 +189,7 @@ func (t *Translator) translateApisixRouteBackendResolveGranularityService(tctx *
 	}, nil
 }
 
-func (t *Translator) translateApisixRouteBackendResolveGranularityEndpint(tctx *provider.TranslateContext, arNN types.NamespacedName, backend apiv2.ApisixRouteHTTPBackend) (adc.UpstreamNodes, error) {
+func (t *Translator) translateApisixRouteBackendResolveGranularityEndpoint(tctx *provider.TranslateContext, arNN types.NamespacedName, backend apiv2.ApisixRouteHTTPBackend) (adc.UpstreamNodes, error) {
 	weight := int32(*cmp.Or(backend.Weight, ptr.To(apiv2.DefaultWeight)))
 	backendRef := gatewayv1.BackendRef{
 		BackendObjectReference: gatewayv1.BackendObjectReference{
