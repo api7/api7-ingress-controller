@@ -79,6 +79,9 @@ func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.listApisixRoutesForSecret),
 		).
+		Watches(&apiv2.ApisixPluginConfig{},
+			handler.EnqueueRequestsFromMapFunc(r.listApisixRoutesForPluginConfig),
+		).
 		Named("apisixroute").
 		Complete(r)
 }
@@ -168,6 +171,24 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 					Message: fmt.Sprintf("failed to get ApisixPluginConfig: %s", pcNN),
 				}
 			}
+
+			// Check if ApisixPluginConfig has IngressClassName and if it matches
+			if pc.Spec.IngressClassName != "" {
+				var pcIC networkingv1.IngressClass
+				if err := r.Get(ctx, client.ObjectKey{Name: pc.Spec.IngressClassName}, &pcIC); err != nil {
+					return ReasonError{
+						Reason:  string(apiv2.ConditionReasonInvalidSpec),
+						Message: fmt.Sprintf("failed to get IngressClass %s for ApisixPluginConfig %s: %v", pc.Spec.IngressClassName, pcNN, err),
+					}
+				}
+				if !matchesController(pcIC.Spec.Controller) {
+					return ReasonError{
+						Reason:  string(apiv2.ConditionReasonInvalidSpec),
+						Message: fmt.Sprintf("ApisixPluginConfig %s references IngressClass %s with non-matching controller", pcNN, pc.Spec.IngressClassName),
+					}
+				}
+			}
+
 			tc.ApisixPluginConfigs[pcNN] = &pc
 
 			// Also check secrets referenced by plugin config
@@ -502,4 +523,38 @@ func (r *ApisixRouteReconciler) updateStatus(ar *apiv2.ApisixRoute, err error) {
 			return cp
 		}),
 	})
+}
+
+func (r *ApisixRouteReconciler) listApisixRoutesForPluginConfig(ctx context.Context, obj client.Object) []reconcile.Request {
+	pc, ok := obj.(*apiv2.ApisixPluginConfig)
+	if !ok {
+		return nil
+	}
+
+	// First check if the ApisixPluginConfig has matching IngressClassName
+	if pc.Spec.IngressClassName != "" {
+		var ic networkingv1.IngressClass
+		if err := r.Get(ctx, client.ObjectKey{Name: pc.Spec.IngressClassName}, &ic); err != nil {
+			if client.IgnoreNotFound(err) != nil {
+				r.Log.Error(err, "failed to get IngressClass for ApisixPluginConfig", "pluginconfig", pc.Name)
+			}
+			return nil
+		}
+		if !matchesController(ic.Spec.Controller) {
+			return nil
+		}
+	}
+
+	var arList apiv2.ApisixRouteList
+	if err := r.List(ctx, &arList, client.MatchingFields{
+		indexer.PluginConfigIndexRef: indexer.GenIndexKey(pc.GetNamespace(), pc.GetName()),
+	}); err != nil {
+		r.Log.Error(err, "failed to list apisixroutes by plugin config", "pluginconfig", pc.Name)
+		return nil
+	}
+	requests := make([]reconcile.Request, 0, len(arList.Items))
+	for _, ar := range arList.Items {
+		requests = append(requests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
+	}
+	return pkgutils.DedupComparable(requests)
 }

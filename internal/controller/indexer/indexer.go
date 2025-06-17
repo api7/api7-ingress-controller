@@ -38,6 +38,7 @@ const (
 	ConsumerGatewayRef        = "consumerGatewayRef"
 	PolicyTargetRefs          = "targetRefs"
 	GatewayClassIndexRef      = "gatewayClassRef"
+	PluginConfigIndexRef      = "pluginConfigRefs"
 )
 
 func SetupIndexer(mgr ctrl.Manager) error {
@@ -94,8 +95,9 @@ func setupConsumerIndexer(mgr ctrl.Manager) error {
 
 func setupApisixRouteIndexer(mgr ctrl.Manager) error {
 	var indexers = map[string]func(client.Object) []string{
-		ServiceIndexRef: ApisixRouteServiceIndexFunc,
-		SecretIndexRef:  ApisixRouteRouteSecretIndexFunc,
+		ServiceIndexRef:      ApisixRouteServiceIndexFunc,
+		SecretIndexRef:       ApisixRouteRouteSecretIndexFunc,
+		PluginConfigIndexRef: ApisixRoutePluginConfigIndexFunc,
 	}
 	for key, f := range indexers {
 		if err := mgr.GetFieldIndexer().IndexField(context.Background(), &apiv2.ApisixRoute{}, key, f); err != nil {
@@ -454,6 +456,25 @@ func ApisixRouteRouteSecretIndexFunc(obj client.Object) (keys []string) {
 		for _, plugin := range stream.Plugins {
 			if plugin.Enable && plugin.SecretRef != "" {
 				keys = append(keys, GenIndexKey(ar.GetNamespace(), plugin.SecretRef))
+			}
+		}
+	}
+	return
+}
+
+func ApisixRoutePluginConfigIndexFunc(obj client.Object) (keys []string) {
+	ar := obj.(*apiv2.ApisixRoute)
+	m := make(map[string]struct{})
+	for _, http := range ar.Spec.HTTP {
+		if http.PluginConfigName != "" {
+			ns := ar.GetNamespace()
+			if http.PluginConfigNamespace != "" {
+				ns = http.PluginConfigNamespace
+			}
+			key := GenIndexKey(ns, http.PluginConfigName)
+			if _, ok := m[key]; !ok {
+				m[key] = struct{}{}
+				keys = append(keys, key)
 			}
 		}
 	}
