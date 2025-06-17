@@ -16,6 +16,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,11 +28,13 @@ import (
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	types2 "github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
 	"github.com/apache/apisix-ingress-controller/pkg/id"
 	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
+//nolint:gocyclo
 func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *apiv2.ApisixRoute) (result *TranslateResult, err error) {
 	result = &TranslateResult{}
 	for ruleIndex, rule := range ar.Spec.HTTP {
@@ -113,8 +116,16 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 		route.Timeout = timeout
 		route.Uris = rule.Match.Paths
 		route.Vars = vars
+		for key, value := range ar.GetObjectMeta().GetLabels() {
+			route.Labels[key] = value
+		}
 
-		// translate to adc.Upstream
+		//nolint:staticcheck
+		if rule.PluginConfigName != "" {
+			// FIXME: handle PluginConfig
+		}
+
+		// translate backends
 		var backendErr error
 		for _, backend := range rule.Backends {
 			var (
@@ -137,9 +148,61 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 			upstream.Nodes = append(upstream.Nodes, upNodes...)
 		}
 
-		//nolint:staticcheck
-		if len(rule.Backends) == 0 && len(rule.Upstreams) > 0 {
-			// FIXME: when the API ApisixUpstream is supported
+		var (
+			apisixUpstreams []*apiv2.ApisixUpstream
+			adcUpstreams    []*adc.Upstream
+		)
+		for _, upstreamRef := range rule.Upstreams {
+			refKey := types2.NamespacedNameKind{
+				Namespace: ar.GetNamespace(),
+				Name:      upstreamRef.Name,
+				Kind:      "ApisixUpstream",
+			}
+			apisixUpstream, ok := tctx.Upstreams[refKey]
+			if !ok {
+				continue
+			}
+
+			// todo: translate external upstream
+			adcUpstream, err := t.translateApisixUpstream(tctx, apisixUpstream)
+			if err != nil {
+				t.Log.Error(err, "failed to translate ApisixUpstream", "ApisixUpstream", utils.NamespacedName(apisixUpstream))
+				continue
+			}
+
+			apisixUpstreams = append(apisixUpstreams, apisixUpstream)
+			adcUpstreams = append(adcUpstreams, adcUpstream)
+		}
+
+		_ = apisixUpstreams
+
+		// If no .http[].backends is used and only .http[].upstreams is used, the first valid upstream is used as service.upstream;
+		// Other upstreams are configured in the traffic-split plugin
+		if len(rule.Backends) == 0 && len(adcUpstreams) > 0 {
+			service.Upstream = adcUpstreams[0]
+			adcUpstreams = adcUpstreams[1:]
+		}
+
+		var wups []adc.TrafficSplitConfigRuleWeightedUpstream
+		for _, adcUpstream := range adcUpstreams {
+			weight, err := strconv.Atoi(adcUpstream.Labels["meta_weight"])
+			if err != nil {
+				t.Log.Error(err, "failed to parse meta_weight from upstream labels", "labels", adcUpstream.GetLabels())
+				weight = apiv2.DefaultWeight
+			}
+			wups = append(wups, adc.TrafficSplitConfigRuleWeightedUpstream{
+				Upstream: adcUpstream,
+				Weight:   weight,
+			})
+		}
+		if len(wups) > 0 {
+			route.Plugins["traffic-split"] = &adc.TrafficSplitConfig{
+				Rules: []adc.TrafficSplitConfigRule{
+					{
+						WeightedUpstreams: wups,
+					},
+				},
+			}
 		}
 
 		// translate to adc.Service

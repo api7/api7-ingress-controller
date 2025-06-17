@@ -296,10 +296,45 @@ spec:
 			// So the case is pending for now
 		})
 
-		PIt("Test ApisixRoute reference ApisixUpstream", func() {
-			// This case depends on ApisixUpstream.
-			// ApisixUpstream is not implemented yet.
-			// So the case is pending for now.
+		It("Test ApisixRoute reference ApisixUpstream", func() {
+			const apisixRouteSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: default
+spec:
+  ingressClassName: apisix
+  http:
+  - name: rule0
+    match:
+      paths:
+      - /*
+    upstreams:
+    - name: default-upstream 
+`
+			const apisixUpstreamSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: default-upstream
+spec:
+  ingressClassName: apisix
+  externalNodes:
+  - type: Service
+    name: httpbin-service-e2e-test
+`
+			By("create ApisixUpstream and ApisixRoute")
+			err := s.CreateResourceFromString(apisixUpstreamSpec)
+			Expect(err).ShouldNot(HaveOccurred(), "apply apisixUpstreamSpec")
+
+			var apisxiRoute apiv2.ApisixRoute
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisxiRoute, apisixRouteSpec)
+
+			By("verify ApisixRoute and ApisixUpstream works")
+			request := func(path string) int {
+				return s.NewAPISIXClient().GET(path).WithHost("httpbin").Expect().Raw().StatusCode
+			}
+			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 		})
 	})
 })

@@ -14,13 +14,23 @@ package translator
 
 import (
 	"cmp"
-	"errors"
+	"fmt"
+
+	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/apache/apisix-ingress-controller/api/adc"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	"github.com/apache/apisix-ingress-controller/internal/provider"
+	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
-func (t *Translator) TranslateApisixUpstream(au *apiv2.ApisixUpstream) (ups *adc.Upstream, err error) {
+func (t *Translator) translateApisixUpstream(tctx *provider.TranslateContext, au *apiv2.ApisixUpstream) (ups *adc.Upstream, err error) {
+	if len(au.Spec.ExternalNodes) == 0 && au.Spec.Discovery == nil {
+		return nil, errors.Errorf("%s has empty externalNodes or discovery configuration", utils.NamespacedName(au))
+	}
+
 	ups = adc.NewDefaultUpstream()
 	for _, f := range []func(*apiv2.ApisixUpstream, *adc.Upstream) error{
 		translateApisixUpstreamScheme,
@@ -32,6 +42,13 @@ func (t *Translator) TranslateApisixUpstream(au *apiv2.ApisixUpstream) (ups *adc
 		translateApisixUpstreamDiscovery,
 	} {
 		if err = f(au, ups); err != nil {
+			return
+		}
+	}
+	for _, f := range []func(*provider.TranslateContext, *apiv2.ApisixUpstream, *adc.Upstream) error{
+		translateApisixUpstreamExternalNodes,
+	} {
+		if err = f(tctx, au, ups); err != nil {
 			return
 		}
 	}
@@ -143,5 +160,80 @@ func translateApisixUpstreamPassHost(au *apiv2.ApisixUpstream, ups *adc.Upstream
 
 func translateApisixUpstreamDiscovery(upstream *apiv2.ApisixUpstream, upstream2 *adc.Upstream) error {
 	// todo: no filed `.Discovery*` in adc.Upstream
+	return nil
+}
+
+func translateApisixUpstreamExternalNodes(tctx *provider.TranslateContext, au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
+	for _, node := range au.Spec.ExternalNodes {
+		switch node.Type {
+		case apiv2.ExternalTypeDomain:
+			if err := translateApisixUpstreamExternalNodesDomain(au, ups, node); err != nil {
+				return err
+			}
+		default: // apiv2.ExternalTypeService or default
+			if err := translateApisixUpstreamExternalNodesExternalName(tctx, au, ups, node); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+func translateApisixUpstreamExternalNodesDomain(au *apiv2.ApisixUpstream, ups *adc.Upstream, node apiv2.ApisixUpstreamExternalNode) error {
+	weight := apiv2.DefaultWeight
+	if node.Weight != nil {
+		weight = *node.Weight
+	}
+
+	if !utils.MatchHostDef(node.Name) {
+		return fmt.Errorf("ApisixUpstream %s/%s ExternalNodes[]'s name %s as Domain must match lowercase RFC 1123 subdomain.  "+
+			"a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character",
+			au.Namespace, au.Name, node.Name)
+	}
+
+	n := adc.UpstreamNode{
+		Host:   node.Name,
+		Weight: weight,
+	}
+
+	if node.Port != nil {
+		n.Port = *node.Port
+	} else {
+		n.Port = apiv2.SchemeToPort(au.Spec.Scheme)
+	}
+
+	ups.Nodes = append(ups.Nodes, n)
+
+	return nil
+}
+
+func translateApisixUpstreamExternalNodesExternalName(tctx *provider.TranslateContext, au *apiv2.ApisixUpstream, ups *adc.Upstream, node apiv2.ApisixUpstreamExternalNode) error {
+	serviceNN := types.NamespacedName{Namespace: au.GetNamespace(), Name: node.Name}
+	svc, ok := tctx.Services[serviceNN]
+	if !ok {
+		return errors.Errorf("service not found, service: %s", serviceNN)
+	}
+
+	if svc.Spec.Type != corev1.ServiceTypeExternalName {
+		return errors.Errorf("ApisixUpstream %s ExternalNodes[] must refers to a ExternalName service: %s", utils.NamespacedName(au), node.Name)
+	}
+
+	weight := apiv2.DefaultWeight
+	if node.Weight != nil {
+		weight = *node.Weight
+	}
+	n := adc.UpstreamNode{
+		Host:   svc.Spec.ExternalName,
+		Weight: weight,
+	}
+
+	if node.Port != nil {
+		n.Port = *node.Port
+	} else {
+		n.Port = apiv2.SchemeToPort(au.Spec.Scheme)
+	}
+
+	ups.Nodes = append(ups.Nodes, n)
+
 	return nil
 }

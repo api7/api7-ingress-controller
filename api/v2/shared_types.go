@@ -125,3 +125,29 @@ const (
 	// PassHostPass represents rewrite option for pass_host Upstream settings.
 	PassHostRewrite = "rewrite"
 )
+
+const (
+	// ExternalTypeDomain type is a domain
+	// +k8s:deepcopy-gen=false
+	ExternalTypeDomain ApisixUpstreamExternalType = "Domain"
+
+	// ExternalTypeService type is a K8s ExternalName service
+	// +k8s:deepcopy-gen=false
+	ExternalTypeService ApisixUpstreamExternalType = "Service"
+)
+
+var schemeToPortMaps = map[string]int{
+	SchemeHTTP:  80,
+	SchemeHTTPS: 443,
+	SchemeGRPC:  80,
+	SchemeGRPCS: 443,
+}
+
+// SchemeToPort scheme converts to the default port
+// ref https://github.com/apache/apisix/blob/c5fc10d9355a0c177a7532f01c77745ff0639a7f/apisix/upstream.lua#L167-L172
+func SchemeToPort(schema string) int {
+	if val, ok := schemeToPortMaps[schema]; ok {
+		return val
+	}
+	return 80
+}
