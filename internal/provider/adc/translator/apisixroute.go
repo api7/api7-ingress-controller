@@ -44,6 +44,42 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 		}
 
 		var plugins = make(adc.Plugins)
+
+		// First, load plugins from referenced PluginConfig if specified
+		if rule.PluginConfigName != "" {
+			pcNamespace := ar.Namespace
+			if rule.PluginConfigNamespace != "" {
+				pcNamespace = rule.PluginConfigNamespace
+			}
+
+			// Get the ApisixPluginConfig from context
+			pcKey := types.NamespacedName{Namespace: pcNamespace, Name: rule.PluginConfigName}
+			if pc, ok := tctx.ApisixPluginConfigs[pcKey]; ok && pc != nil {
+				// Load plugins from PluginConfig
+				for _, plugin := range pc.Spec.Plugins {
+					if !plugin.Enable {
+						continue
+					}
+
+					config := make(map[string]any)
+					if plugin.Config != nil {
+						for key, value := range plugin.Config {
+							config[key] = json.RawMessage(value.Raw)
+						}
+					}
+					if plugin.SecretRef != "" {
+						if secret, ok := tctx.Secrets[types.NamespacedName{Namespace: pc.Namespace, Name: plugin.SecretRef}]; ok {
+							for key, value := range secret.Data {
+								utils.InsertKeyInMap(key, string(value), config)
+							}
+						}
+					}
+					plugins[plugin.Name] = config
+				}
+			}
+		}
+
+		// Then, apply plugins from the route itself (which can override PluginConfig plugins)
 		for _, plugin := range rule.Plugins {
 			if !plugin.Enable {
 				continue

@@ -22,6 +22,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
+	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/types"
 )
@@ -43,6 +44,7 @@ type TranslateContext struct {
 	EndpointSlices         map[k8stypes.NamespacedName][]discoveryv1.EndpointSlice
 	Secrets                map[k8stypes.NamespacedName]*corev1.Secret
 	PluginConfigs          map[k8stypes.NamespacedName]*v1alpha1.PluginConfig
+	ApisixPluginConfigs    map[k8stypes.NamespacedName]*apiv2.ApisixPluginConfig
 	Services               map[k8stypes.NamespacedName]*corev1.Service
 	BackendTrafficPolicies map[k8stypes.NamespacedName]*v1alpha1.BackendTrafficPolicy
 	GatewayProxies         map[types.NamespacedNameKind]v1alpha1.GatewayProxy
@@ -58,6 +60,7 @@ func NewDefaultTranslateContext(ctx context.Context) *TranslateContext {
 		EndpointSlices:         make(map[k8stypes.NamespacedName][]discoveryv1.EndpointSlice),
 		Secrets:                make(map[k8stypes.NamespacedName]*corev1.Secret),
 		PluginConfigs:          make(map[k8stypes.NamespacedName]*v1alpha1.PluginConfig),
+		ApisixPluginConfigs:    make(map[k8stypes.NamespacedName]*apiv2.ApisixPluginConfig),
 		Services:               make(map[k8stypes.NamespacedName]*corev1.Service),
 		BackendTrafficPolicies: make(map[k8stypes.NamespacedName]*v1alpha1.BackendTrafficPolicy),
 		GatewayProxies:         make(map[types.NamespacedNameKind]v1alpha1.GatewayProxy),

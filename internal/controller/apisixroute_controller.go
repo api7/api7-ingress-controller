@@ -147,6 +147,53 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 		}
 		rules[http.Name] = struct{}{}
 
+		// check plugin config reference
+		if http.PluginConfigName != "" {
+			pcNamespace := in.Namespace
+			if http.PluginConfigNamespace != "" {
+				pcNamespace = http.PluginConfigNamespace
+			}
+			var (
+				pc = apiv2.ApisixPluginConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      http.PluginConfigName,
+						Namespace: pcNamespace,
+					},
+				}
+				pcNN = utils.NamespacedName(&pc)
+			)
+			if err := r.Get(ctx, pcNN, &pc); err != nil {
+				return ReasonError{
+					Reason:  string(apiv2.ConditionReasonInvalidSpec),
+					Message: fmt.Sprintf("failed to get ApisixPluginConfig: %s", pcNN),
+				}
+			}
+			tc.ApisixPluginConfigs[pcNN] = &pc
+
+			// Also check secrets referenced by plugin config
+			for _, plugin := range pc.Spec.Plugins {
+				if !plugin.Enable || plugin.Config == nil || plugin.SecretRef == "" {
+					continue
+				}
+				var (
+					secret = corev1.Secret{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      plugin.SecretRef,
+							Namespace: pc.Namespace,
+						},
+					}
+					secretNN = utils.NamespacedName(&secret)
+				)
+				if err := r.Get(ctx, secretNN, &secret); err != nil {
+					return ReasonError{
+						Reason:  string(apiv2.ConditionReasonInvalidSpec),
+						Message: fmt.Sprintf("failed to get Secret: %s", secretNN),
+					}
+				}
+				tc.Secrets[secretNN] = &secret
+			}
+		}
+
 		// check secret
 		for _, plugin := range http.Plugins {
 			if !plugin.Enable || plugin.Config == nil || plugin.SecretRef == "" {
