@@ -366,7 +366,7 @@ spec:
 			Expect(err).ShouldNot(HaveOccurred(), "deleting ApisixPluginConfig")
 		})
 
-		FIt("Test cross-namespace ApisixPluginConfig reference", func() {
+		It("Test cross-namespace ApisixPluginConfig reference", func() {
 			const crossNamespaceApisixPluginConfigSpec = `
 apiVersion: apisix.apache.org/v2
 kind: ApisixPluginConfig
@@ -404,8 +404,9 @@ spec:
 `
 
 			By("apply ApisixPluginConfig in default namespace")
-			var apisixPluginConfig apiv2.ApisixPluginConfig
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: "default", Name: "cross-ns-plugin-config"}, &apisixPluginConfig, crossNamespaceApisixPluginConfigSpec)
+			err := s.CreateResourceFromStringWithNamespace(crossNamespaceApisixPluginConfigSpec, "default")
+			Expect(err).NotTo(HaveOccurred(), "creating default/cross-ns-plugin-config")
+			time.Sleep(5 * time.Second)
 
 			By("apply ApisixRoute in test namespace that references ApisixPluginConfig in default namespace")
 			var apisixRoute apiv2.ApisixRoute
@@ -422,7 +423,7 @@ spec:
 			resp.Header("X-Namespace").IsEqual("default")
 
 			By("delete resources")
-			err := s.DeleteResource("ApisixRoute", "test-route-cross-ns")
+			err = s.DeleteResource("ApisixRoute", "test-route-cross-ns")
 			Expect(err).ShouldNot(HaveOccurred(), "deleting ApisixRoute")
 			err = s.DeleteResourceFromStringWithNamespace(crossNamespaceApisixPluginConfigSpec, "default")
 			Expect(err).ShouldNot(HaveOccurred(), "deleting ApisixPluginConfig")
