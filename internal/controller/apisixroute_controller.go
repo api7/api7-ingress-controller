@@ -214,6 +214,7 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 					r.Log.Error(errors.New("service not found"), "Service", serviceNN)
 					continue
 				}
+				return err
 			}
 			if service.Spec.Type == corev1.ServiceTypeExternalName {
 				tc.Services[serviceNN] = &service

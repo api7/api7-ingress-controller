@@ -121,13 +121,13 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 				upNodes adc.UpstreamNodes
 			)
 			if backend.ResolveGranularity == "service" {
-				upNodes, backendErr = t.translateApisixBackendResolveGranularityService(tctx, utils.NamespacedName(ar), backend)
+				upNodes, backendErr = t.translateApisixRouteBackendResolveGranularityService(tctx, utils.NamespacedName(ar), backend)
 				if backendErr != nil {
 					t.Log.Error(backendErr, "failed to translate ApisixRoute backend with ResolveGranularity Service")
 					continue
 				}
 			} else {
-				upNodes, backendErr = t.translateApisixBackendResolveGranularityEndpint(tctx, utils.NamespacedName(ar), backend)
+				upNodes, backendErr = t.translateApisixRouteBackendResolveGranularityEndpint(tctx, utils.NamespacedName(ar), backend)
 				if backendErr != nil {
 					t.Log.Error(backendErr, "failed to translate ApisixRoute backend with ResolveGranularity Service")
 					continue
@@ -168,7 +168,7 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 	return result, nil
 }
 
-func (t *Translator) translateApisixBackendResolveGranularityService(tctx *provider.TranslateContext, arNN types.NamespacedName, backend apiv2.ApisixRouteHTTPBackend) (adc.UpstreamNodes, error) {
+func (t *Translator) translateApisixRouteBackendResolveGranularityService(tctx *provider.TranslateContext, arNN types.NamespacedName, backend apiv2.ApisixRouteHTTPBackend) (adc.UpstreamNodes, error) {
 	serviceNN := types.NamespacedName{
 		Namespace: arNN.Namespace,
 		Name:      backend.ServiceName,
@@ -189,7 +189,7 @@ func (t *Translator) translateApisixBackendResolveGranularityService(tctx *provi
 	}, nil
 }
 
-func (t *Translator) translateApisixBackendResolveGranularityEndpint(tctx *provider.TranslateContext, arNN types.NamespacedName, backend apiv2.ApisixRouteHTTPBackend) (adc.UpstreamNodes, error) {
+func (t *Translator) translateApisixRouteBackendResolveGranularityEndpint(tctx *provider.TranslateContext, arNN types.NamespacedName, backend apiv2.ApisixRouteHTTPBackend) (adc.UpstreamNodes, error) {
 	weight := int32(*cmp.Or(backend.Weight, ptr.To(apiv2.DefaultWeight)))
 	backendRef := gatewayv1.BackendRef{
 		BackendObjectReference: gatewayv1.BackendObjectReference{
