@@ -14,6 +14,7 @@ package apisix
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -213,12 +214,80 @@ spec:
 			s.NewAPISIXClient().GET("/get").Expect().Status(http.StatusNotFound)
 		})
 
-		PIt("Test ApisixRoute resolveGranularity", func() {
-			// The `.Spec.HTTP[0].Backends[0].ResolveGranularity` can be "endpoints" or "service",
-			// when set to "endpoints", the pod ips will be used; or the service ClusterIP or ExternalIP will be used when it set to "service",
+		It("Test ApisixRoute service not found", func() {
+			const apisixRouteSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: default
+spec:
+  ingressClassName: apisix
+  http:
+  - name: rule0
+    match:
+      hosts:
+      - httpbin
+      paths:
+      - %s
+    backends:
+    - serviceName: service-not-found
+      servicePort: 80
+`
+			request := func(path string) int {
+				return s.NewAPISIXClient().GET(path).WithHost("httpbin").Expect().Raw().StatusCode
+			}
 
-			// In the current implementation, pod ips are always used.
-			// So the case is pending for now.
+			By("apply ApisixRoute")
+			var apisixRoute apiv2.ApisixRoute
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisixRoute, fmt.Sprintf(apisixRouteSpec, "/get"))
+
+			By("when there is no replica got 500 by fault-injection")
+			err := s.ScaleHTTPBIN(0)
+			Expect(err).ShouldNot(HaveOccurred(), "scale httpbin to 0")
+			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusInternalServerError))
+			s.NewAPISIXClient().GET("/get").WithHost("httpbin").Expect().Body().IsEqual("No existing backendRef provided")
+		})
+
+		It("Test ApisixRoute resolveGranularity", func() {
+			const apisixRouteSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: default
+spec:
+  ingressClassName: apisix
+  http:
+  - name: rule0
+    match:
+      paths:
+      - /*
+    backends:
+    - serviceName: httpbin-service-e2e-test
+      servicePort: 80
+      resolveGranularity: service
+    plugins:
+    - name: response-rewrite
+      enable: true
+      config:
+        headers:
+          set:
+            "X-Upstream-IP": "$upstream_addr"
+`
+			By("apply ApisixRoute")
+			var apisixRoute apiv2.ApisixRoute
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisixRoute, apisixRouteSpec)
+
+			By("verify ApisixRoute works")
+			request := func() int {
+				return s.NewAPISIXClient().GET("/get").Expect().Raw().StatusCode
+			}
+			Eventually(request).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+
+			By("assert that the request is proxied to the Service ClusterIP")
+			service, err := s.GetServiceByName("httpbin-service-e2e-test")
+			Expect(err).ShouldNot(HaveOccurred(), "get service")
+			clusterIP := net.JoinHostPort(service.Spec.ClusterIP, "80")
+			s.NewAPISIXClient().GET("/get").Expect().Header("X-Upstream-IP").IsEqual(clusterIP)
 		})
 
 		PIt("Test ApisixRoute subset", func() {

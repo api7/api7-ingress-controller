@@ -15,6 +15,7 @@ package controller
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -212,10 +213,11 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 			backends[serviceNN] = struct{}{}
 
 			if err := r.Get(ctx, serviceNN, &service); err != nil {
-				return ReasonError{
-					Reason:  string(apiv2.ConditionReasonInvalidSpec),
-					Message: fmt.Sprintf("failed to get Service: %s", serviceNN),
+				if err := client.IgnoreNotFound(err); err == nil {
+					r.Log.Error(errors.New("service not found"), "Service", serviceNN)
+					continue
 				}
+				return err
 			}
 			if service.Spec.Type == corev1.ServiceTypeExternalName {
 				tc.Services[serviceNN] = &service
@@ -223,19 +225,15 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 			}
 
 			if backend.ResolveGranularity == "service" && service.Spec.ClusterIP == "" {
-				return ReasonError{
-					Reason:  string(apiv2.ConditionReasonInvalidSpec),
-					Message: fmt.Sprintf("service %s has no cluster IP", serviceNN),
-				}
+				r.Log.Error(errors.New("service has no ClusterIP"), "Service", serviceNN, "ResolveGranularity", backend.ResolveGranularity)
+				continue
 			}
 
 			if !slices.ContainsFunc(service.Spec.Ports, func(port corev1.ServicePort) bool {
 				return port.Port == int32(backend.ServicePort.IntValue())
 			}) {
-				return ReasonError{
-					Reason:  string(apiv2.ConditionReasonInvalidSpec),
-					Message: fmt.Sprintf("port %s not found in service %s", backend.ServicePort.String(), serviceNN),
-				}
+				r.Log.Error(errors.New("port not found in service"), "Service", serviceNN, "port", backend.ServicePort.String())
+				continue
 			}
 			tc.Services[serviceNN] = &service
 
