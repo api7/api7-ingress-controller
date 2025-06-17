@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
@@ -26,8 +27,9 @@ import (
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	"github.com/apache/apisix-ingress-controller/internal/utils"
 	"github.com/apache/apisix-ingress-controller/pkg/id"
-	"github.com/apache/apisix-ingress-controller/pkg/utils"
+	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
 func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *apiv2.ApisixRoute) (result *TranslateResult, err error) {
@@ -58,7 +60,7 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 			if plugin.SecretRef != "" {
 				if secret, ok := tctx.Secrets[types.NamespacedName{Namespace: ar.Namespace, Name: plugin.SecretRef}]; ok {
 					for key, value := range secret.Data {
-						utils.InsertKeyInMap(key, string(value), config)
+						pkgutils.InsertKeyInMap(key, string(value), config)
 					}
 				}
 			}
@@ -115,25 +117,26 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 		// translate to adc.Upstream
 		var backendErr error
 		for _, backend := range rule.Backends {
-			weight := int32(*cmp.Or(backend.Weight, ptr.To(apiv2.DefaultWeight)))
-			backendRef := gatewayv1.BackendRef{
-				BackendObjectReference: gatewayv1.BackendObjectReference{
-					Group:     (*gatewayv1.Group)(&apiv2.GroupVersion.Group),
-					Kind:      (*gatewayv1.Kind)(ptr.To("Service")),
-					Name:      gatewayv1.ObjectName(backend.ServiceName),
-					Namespace: (*gatewayv1.Namespace)(&ar.Namespace),
-					Port:      (*gatewayv1.PortNumber)(&backend.ServicePort.IntVal),
-				},
-				Weight: &weight,
+			var (
+				upNodes adc.UpstreamNodes
+			)
+			if backend.ResolveGranularity == "service" {
+				upNodes, backendErr = t.translateApisixBackendResolveGranularityService(tctx, utils.NamespacedName(ar), backend)
+				if backendErr != nil {
+					t.Log.Error(backendErr, "failed to translate ApisixRoute backend with ResolveGranularity Service")
+					continue
+				}
+			} else {
+				upNodes, backendErr = t.translateApisixBackendResolveGranularityEndpint(tctx, utils.NamespacedName(ar), backend)
+				if backendErr != nil {
+					t.Log.Error(backendErr, "failed to translate ApisixRoute backend with ResolveGranularity Service")
+					continue
+				}
 			}
-			upNodes, err := t.translateBackendRef(tctx, backendRef)
-			if err != nil {
-				backendErr = err
-				continue
-			}
-			t.AttachBackendTrafficPolicyToUpstream(backendRef, tctx.BackendTrafficPolicies, upstream)
+
 			upstream.Nodes = append(upstream.Nodes, upNodes...)
 		}
+
 		//nolint:staticcheck
 		if len(rule.Backends) == 0 && len(rule.Upstreams) > 0 {
 			// FIXME: when the API ApisixUpstream is supported
@@ -163,4 +166,40 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 	}
 
 	return result, nil
+}
+
+func (t *Translator) translateApisixBackendResolveGranularityService(tctx *provider.TranslateContext, arNN types.NamespacedName, backend apiv2.ApisixRouteHTTPBackend) (adc.UpstreamNodes, error) {
+	serviceNN := types.NamespacedName{
+		Namespace: arNN.Namespace,
+		Name:      backend.ServiceName,
+	}
+	svc, ok := tctx.Services[serviceNN]
+	if !ok {
+		return nil, errors.Errorf("service not found, ApisixRoute: %s, Service: %s", arNN, serviceNN)
+	}
+	if svc.Spec.ClusterIP == "" {
+		return nil, errors.Errorf("conflict headless service and backend resolve granularity, Apisixroute: %s, Service: %s", arNN, serviceNN)
+	}
+	return adc.UpstreamNodes{
+		{
+			Host:   svc.Spec.ClusterIP,
+			Port:   backend.ServicePort.IntValue(),
+			Weight: *cmp.Or(backend.Weight, ptr.To(apiv2.DefaultWeight)),
+		},
+	}, nil
+}
+
+func (t *Translator) translateApisixBackendResolveGranularityEndpint(tctx *provider.TranslateContext, arNN types.NamespacedName, backend apiv2.ApisixRouteHTTPBackend) (adc.UpstreamNodes, error) {
+	weight := int32(*cmp.Or(backend.Weight, ptr.To(apiv2.DefaultWeight)))
+	backendRef := gatewayv1.BackendRef{
+		BackendObjectReference: gatewayv1.BackendObjectReference{
+			Group:     (*gatewayv1.Group)(&apiv2.GroupVersion.Group),
+			Kind:      (*gatewayv1.Kind)(ptr.To("Service")),
+			Name:      gatewayv1.ObjectName(backend.ServiceName),
+			Namespace: (*gatewayv1.Namespace)(&arNN.Namespace),
+			Port:      (*gatewayv1.PortNumber)(&backend.ServicePort.IntVal),
+		},
+		Weight: &weight,
+	}
+	return t.translateBackendRef(tctx, backendRef)
 }
