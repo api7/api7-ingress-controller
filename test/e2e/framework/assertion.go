@@ -99,9 +99,6 @@ func PollUntilHTTPRoutePolicyHaveStatus(cli client.Client, timeout time.Duration
 
 func APIv2MustHaveCondition(t testing.TestingT, cli client.Client, timeout time.Duration, nn types.NamespacedName, obj client.Object, cond metav1.Condition) {
 	f := func(object client.Object) bool {
-		if !apiv2.Is(object) {
-			return false
-		}
 		value := reflect.Indirect(reflect.ValueOf(object))
 		status, ok := value.FieldByName("Status").Interface().(apiv2.ApisixStatus)
 		if !ok {
