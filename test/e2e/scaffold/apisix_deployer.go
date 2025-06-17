@@ -112,6 +112,7 @@ func (s *APISIXDeployer) AfterEach() {
 		if output != "" {
 			_, _ = fmt.Fprintln(GinkgoWriter, output)
 		}
+		return
 	}
 
 	// Delete all additional gateways
