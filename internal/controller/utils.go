@@ -47,16 +47,17 @@ import (
 )
 
 const (
-	KindGateway          = "Gateway"
-	KindHTTPRoute        = "HTTPRoute"
-	KindGatewayClass     = "GatewayClass"
-	KindIngress          = "Ingress"
-	KindIngressClass     = "IngressClass"
-	KindGatewayProxy     = "GatewayProxy"
-	KindSecret           = "Secret"
-	KindService          = "Service"
-	KindApisixRoute      = "ApisixRoute"
-	KindApisixGlobalRule = "ApisixGlobalRule"
+	KindGateway            = "Gateway"
+	KindHTTPRoute          = "HTTPRoute"
+	KindGatewayClass       = "GatewayClass"
+	KindIngress            = "Ingress"
+	KindIngressClass       = "IngressClass"
+	KindGatewayProxy       = "GatewayProxy"
+	KindSecret             = "Secret"
+	KindService            = "Service"
+	KindApisixRoute        = "ApisixRoute"
+	KindApisixGlobalRule   = "ApisixGlobalRule"
+	KindApisixPluginConfig = "ApisixPluginConfig"
 )
 
 const defaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
@@ -410,7 +411,7 @@ func ParseRouteParentRefs(
 	return gateways, nil
 }
 
-func SetApisixRouteConditionAccepted(status *apiv2.ApisixStatus, generation int64, err error) {
+func SetApisixCRDConditionAccepted(status *apiv2.ApisixStatus, generation int64, err error) {
 	var condition = metav1.Condition{
 		Type:               string(apiv2.ConditionTypeAccepted),
 		Status:             metav1.ConditionTrue,

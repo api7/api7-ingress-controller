@@ -83,6 +83,9 @@ func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&apiv2.ApisixUpstream{},
 			handler.EnqueueRequestsFromMapFunc(r.listApisixRouteForApisixUpstream),
 		).
+		Watches(&apiv2.ApisixPluginConfig{},
+			handler.EnqueueRequestsFromMapFunc(r.listApisixRoutesForPluginConfig),
+		).
 		Named("apisixroute").
 		Complete(r)
 }
@@ -137,11 +140,11 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	return ctrl.Result{}, nil
 }
 
-func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *provider.TranslateContext, in *apiv2.ApisixRoute) error {
+func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *provider.TranslateContext, ar *apiv2.ApisixRoute) error {
 	var (
 		rules = make(map[string]struct{})
 	)
-	for _, http := range in.Spec.HTTP {
+	for httpIndex, http := range ar.Spec.HTTP {
 		// check rule names
 		if _, ok := rules[http.Name]; ok {
 			return ReasonError{
@@ -151,8 +154,40 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 		}
 		rules[http.Name] = struct{}{}
 
-		if err := r.processApisixRouteHTTPRule(ctx, tc, in, http); err != nil {
-			r.Log.Error(err, "failed to process ApisixRoute http rule")
+		// check plugin config reference
+		if http.PluginConfigName != "" {
+			if err := r.validatePluginConfig(ctx, tc, ar, http); err != nil {
+				return err
+			}
+		}
+
+		// check secret
+		if err := r.validateSecrets(ctx, tc, ar, http); err != nil {
+			return err
+		}
+
+		// check vars
+		if _, err := http.Match.NginxVars.ToVars(); err != nil {
+			return ReasonError{
+				Reason:  string(apiv2.ConditionReasonInvalidSpec),
+				Message: fmt.Sprintf(".spec.http[%d].match.exprs: %s", httpIndex, err.Error()),
+			}
+		}
+
+		// validate remote address
+		if err := utils.ValidateRemoteAddrs(http.Match.RemoteAddrs); err != nil {
+			return ReasonError{
+				Reason:  string(apiv2.ConditionReasonInvalidSpec),
+				Message: fmt.Sprintf(".spec.http[%d].match.remoteAddrs: %s", httpIndex, err.Error()),
+			}
+		}
+
+		// process backend
+		if err := r.validateBackends(ctx, tc, ar, http); err != nil {
+			return err
+		}
+		// process upstreams
+		if err := r.validateUpstreams(ctx, tc, ar, http); err != nil {
 			return err
 		}
 	}
@@ -160,9 +195,48 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 	return nil
 }
 
-func (r *ApisixRouteReconciler) processApisixRouteHTTPRule(ctx context.Context, tc *provider.TranslateContext, in *apiv2.ApisixRoute, rule apiv2.ApisixRouteHTTP) error {
-	// check secret
-	for _, plugin := range rule.Plugins {
+func (r *ApisixRouteReconciler) validatePluginConfig(ctx context.Context, tc *provider.TranslateContext, ar *apiv2.ApisixRoute, http apiv2.ApisixRouteHTTP) error {
+	pcNamespace := ar.Namespace
+	if http.PluginConfigNamespace != "" {
+		pcNamespace = http.PluginConfigNamespace
+	}
+	var (
+		pc = apiv2.ApisixPluginConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      http.PluginConfigName,
+				Namespace: pcNamespace,
+			},
+		}
+		pcNN = utils.NamespacedName(&pc)
+	)
+	if err := r.Get(ctx, pcNN, &pc); err != nil {
+		return ReasonError{
+			Reason:  string(apiv2.ConditionReasonInvalidSpec),
+			Message: fmt.Sprintf("failed to get ApisixPluginConfig: %s", pcNN),
+		}
+	}
+
+	// Check if ApisixPluginConfig has IngressClassName and if it matches
+	if ar.Spec.IngressClassName != pc.Spec.IngressClassName && pc.Spec.IngressClassName != "" {
+		var pcIC networkingv1.IngressClass
+		if err := r.Get(ctx, client.ObjectKey{Name: pc.Spec.IngressClassName}, &pcIC); err != nil {
+			return ReasonError{
+				Reason:  string(apiv2.ConditionReasonInvalidSpec),
+				Message: fmt.Sprintf("failed to get IngressClass %s for ApisixPluginConfig %s: %v", pc.Spec.IngressClassName, pcNN, err),
+			}
+		}
+		if !matchesController(pcIC.Spec.Controller) {
+			return ReasonError{
+				Reason:  string(apiv2.ConditionReasonInvalidSpec),
+				Message: fmt.Sprintf("ApisixPluginConfig %s references IngressClass %s with non-matching controller", pcNN, pc.Spec.IngressClassName),
+			}
+		}
+	}
+
+	tc.ApisixPluginConfigs[pcNN] = &pc
+
+	// Also check secrets referenced by plugin config
+	for _, plugin := range pc.Spec.Plugins {
 		if !plugin.Enable || plugin.Config == nil || plugin.SecretRef == "" {
 			continue
 		}
@@ -170,7 +244,32 @@ func (r *ApisixRouteReconciler) processApisixRouteHTTPRule(ctx context.Context, 
 			secret = corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      plugin.SecretRef,
-					Namespace: in.Namespace,
+					Namespace: pc.Namespace,
+				},
+			}
+			secretNN = utils.NamespacedName(&secret)
+		)
+		if err := r.Get(ctx, secretNN, &secret); err != nil {
+			return ReasonError{
+				Reason:  string(apiv2.ConditionReasonInvalidSpec),
+				Message: fmt.Sprintf("failed to get Secret: %s", secretNN),
+			}
+		}
+		tc.Secrets[secretNN] = &secret
+	}
+	return nil
+}
+
+func (r *ApisixRouteReconciler) validateSecrets(ctx context.Context, tc *provider.TranslateContext, ar *apiv2.ApisixRoute, http apiv2.ApisixRouteHTTP) error {
+	for _, plugin := range http.Plugins {
+		if !plugin.Enable || plugin.Config == nil || plugin.SecretRef == "" {
+			continue
+		}
+		var (
+			secret = corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      plugin.SecretRef,
+					Namespace: ar.Namespace,
 				},
 			}
 			secretNN = utils.NamespacedName(&secret)
@@ -184,31 +283,17 @@ func (r *ApisixRouteReconciler) processApisixRouteHTTPRule(ctx context.Context, 
 
 		tc.Secrets[utils.NamespacedName(&secret)] = &secret
 	}
+	return nil
+}
 
-	// check vars
-	if _, err := rule.Match.NginxVars.ToVars(); err != nil {
-		return ReasonError{
-			Reason:  string(apiv2.ConditionReasonInvalidSpec),
-			Message: fmt.Sprintf(".spec.http[].match.exprs: %v", err),
-		}
-	}
-
-	// validate remote address
-	if err := utils.ValidateRemoteAddrs(rule.Match.RemoteAddrs); err != nil {
-		return ReasonError{
-			Reason:  string(apiv2.ConditionReasonInvalidSpec),
-			Message: fmt.Sprintf(".spec.http[].match.remoteAddrs: %v", err),
-		}
-	}
-
-	// process backend
+func (r *ApisixRouteReconciler) validateBackends(ctx context.Context, tc *provider.TranslateContext, ar *apiv2.ApisixRoute, http apiv2.ApisixRouteHTTP) error {
 	var backends = make(map[types.NamespacedName]struct{})
-	for _, backend := range rule.Backends {
+	for _, backend := range http.Backends {
 		var (
 			service = corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      backend.ServiceName,
-					Namespace: in.Namespace,
+					Namespace: ar.Namespace,
 				},
 			}
 			serviceNN = utils.NamespacedName(&service)
@@ -261,14 +346,18 @@ func (r *ApisixRouteReconciler) processApisixRouteHTTPRule(ctx context.Context, 
 		tc.EndpointSlices[serviceNN] = endpoints.Items
 	}
 
-	for _, upstream := range rule.Upstreams {
+	return nil
+}
+
+func (r *ApisixRouteReconciler) validateUpstreams(ctx context.Context, tc *provider.TranslateContext, ar *apiv2.ApisixRoute, http apiv2.ApisixRouteHTTP) error {
+	for _, upstream := range http.Upstreams {
 		if upstream.Name == "" {
 			continue
 		}
 		var (
 			ups   apiv2.ApisixUpstream
 			upsNN = types.NamespacedName{
-				Namespace: in.GetNamespace(),
+				Namespace: ar.GetNamespace(),
 				Name:      upstream.Name,
 			}
 		)
@@ -301,7 +390,7 @@ func (r *ApisixRouteReconciler) processApisixRouteHTTPRule(ctx context.Context, 
 		if ups.Spec.TLSSecret != nil && ups.Spec.TLSSecret.Name != "" {
 			var (
 				secret   corev1.Secret
-				secretNN = types.NamespacedName{Namespace: cmp.Or(ups.Spec.TLSSecret.Namespace, in.GetNamespace()), Name: ups.Spec.TLSSecret.Name}
+				secretNN = types.NamespacedName{Namespace: cmp.Or(ups.Spec.TLSSecret.Namespace, ar.GetNamespace()), Name: ups.Spec.TLSSecret.Name}
 			)
 			if err := r.Get(ctx, secretNN, &secret); err != nil {
 				r.Log.Error(err, "failed to get secret in ApisixUpstream", "ApisixUpstream", upsNN, "Secret", secretNN)
@@ -347,19 +436,45 @@ func (r *ApisixRouteReconciler) listApisixRoutesForSecret(ctx context.Context, o
 	}
 
 	var (
-		arList apiv2.ApisixRouteList
+		arList      apiv2.ApisixRouteList
+		pcList      apiv2.ApisixPluginConfigList
+		allRequests = make([]reconcile.Request, 0)
 	)
+
+	// First, find ApisixRoutes that directly reference this secret
 	if err := r.List(ctx, &arList, client.MatchingFields{
 		indexer.SecretIndexRef: indexer.GenIndexKey(secret.GetNamespace(), secret.GetName()),
 	}); err != nil {
 		r.Log.Error(err, "failed to list apisixroutes by secret", "secret", secret.Name)
 		return nil
 	}
-	requests := make([]reconcile.Request, 0, len(arList.Items))
 	for _, ar := range arList.Items {
-		requests = append(requests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
+		allRequests = append(allRequests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
 	}
-	return pkgutils.DedupComparable(requests)
+
+	// Second, find ApisixPluginConfigs that reference this secret
+	if err := r.List(ctx, &pcList, client.MatchingFields{
+		indexer.SecretIndexRef: indexer.GenIndexKey(secret.GetNamespace(), secret.GetName()),
+	}); err != nil {
+		r.Log.Error(err, "failed to list apisixpluginconfigs by secret", "secret", secret.Name)
+		return nil
+	}
+
+	// Then find ApisixRoutes that reference these PluginConfigs
+	for _, pc := range pcList.Items {
+		var arListForPC apiv2.ApisixRouteList
+		if err := r.List(ctx, &arListForPC, client.MatchingFields{
+			indexer.PluginConfigIndexRef: indexer.GenIndexKey(pc.GetNamespace(), pc.GetName()),
+		}); err != nil {
+			r.Log.Error(err, "failed to list apisixroutes by plugin config", "pluginconfig", pc.Name)
+			continue
+		}
+		for _, ar := range arListForPC.Items {
+			allRequests = append(allRequests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
+		}
+	}
+
+	return pkgutils.DedupComparable(allRequests)
 }
 
 func (r *ApisixRouteReconciler) listApiRouteForIngressClass(ctx context.Context, object client.Object) (requests []reconcile.Request) {
@@ -524,7 +639,7 @@ func (r *ApisixRouteReconciler) processIngressClassParameters(ctx context.Contex
 }
 
 func (r *ApisixRouteReconciler) updateStatus(ar *apiv2.ApisixRoute, err error) {
-	SetApisixRouteConditionAccepted(&ar.Status, ar.GetGeneration(), err)
+	SetApisixCRDConditionAccepted(&ar.Status, ar.GetGeneration(), err)
 	r.Updater.Update(status.Update{
 		NamespacedName: utils.NamespacedName(ar),
 		Resource:       &apiv2.ApisixRoute{},
@@ -534,4 +649,38 @@ func (r *ApisixRouteReconciler) updateStatus(ar *apiv2.ApisixRoute, err error) {
 			return cp
 		}),
 	})
+}
+
+func (r *ApisixRouteReconciler) listApisixRoutesForPluginConfig(ctx context.Context, obj client.Object) []reconcile.Request {
+	pc, ok := obj.(*apiv2.ApisixPluginConfig)
+	if !ok {
+		return nil
+	}
+
+	// First check if the ApisixPluginConfig has matching IngressClassName
+	if pc.Spec.IngressClassName != "" {
+		var ic networkingv1.IngressClass
+		if err := r.Get(ctx, client.ObjectKey{Name: pc.Spec.IngressClassName}, &ic); err != nil {
+			if client.IgnoreNotFound(err) != nil {
+				r.Log.Error(err, "failed to get IngressClass for ApisixPluginConfig", "pluginconfig", pc.Name)
+			}
+			return nil
+		}
+		if !matchesController(ic.Spec.Controller) {
+			return nil
+		}
+	}
+
+	var arList apiv2.ApisixRouteList
+	if err := r.List(ctx, &arList, client.MatchingFields{
+		indexer.PluginConfigIndexRef: indexer.GenIndexKey(pc.GetNamespace(), pc.GetName()),
+	}); err != nil {
+		r.Log.Error(err, "failed to list apisixroutes by plugin config", "pluginconfig", pc.Name)
+		return nil
+	}
+	requests := make([]reconcile.Request, 0, len(arList.Items))
+	for _, ar := range arList.Items {
+		requests = append(requests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
+	}
+	return pkgutils.DedupComparable(requests)
 }
