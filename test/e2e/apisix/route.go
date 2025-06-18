@@ -423,8 +423,8 @@ spec:
 			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 
 			By("verify the backends and the upstreams work commonly")
-			// .backends -> service httpbin-service-e2e-test -> endpoints httpbin-service-e2e-test, so we will get the $upstream_addr as endpoint IP
-			// .upstreams -> service alias-httpbin-service-e2e-test -> service httpbin-service-e2e-test, so we will get the $upstream_addr as the service's ClusterIP
+			// .backends -> Service httpbin-service-e2e-test -> Endpoint httpbin-service-e2e-test, so the $upstream_addr value we get is the Endpoint IP.
+			// .upstreams -> Service httpbin-service-e2e-test, so the $upstream_addr value we get is the Service ClusterIP.
 			var upstreamAddrs = make(map[string]struct{})
 			for range 10 {
 				upstreamAddr := s.NewAPISIXClient().GET("/get").Expect().Raw().Header.Get("X-Upstream-Host")
