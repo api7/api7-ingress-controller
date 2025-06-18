@@ -52,9 +52,12 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 			}
 
 			config := make(map[string]any)
-			if plugin.Config != nil {
-				for key, value := range plugin.Config {
-					config[key] = json.RawMessage(value.Raw)
+			if len(plugin.Config.Raw) > 0 {
+				if err := json.Unmarshal(plugin.Config.Raw, &config); err != nil {
+					t.Log.Error(err, "failed to unmarshal plugin config",
+						"plugin_name", plugin.Name,
+					)
+					continue
 				}
 			}
 			if plugin.SecretRef != "" {

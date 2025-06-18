@@ -60,6 +60,7 @@ const (
 	KindService          = "Service"
 	KindApisixRoute      = "ApisixRoute"
 	KindApisixGlobalRule = "ApisixGlobalRule"
+	KindApisixConsumer   = "ApisixConsumer"
 )
 
 const defaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
@@ -1278,4 +1279,102 @@ func matchesIngressClass(c client.Client, log logr.Logger, ingressClassName stri
 	}
 
 	return matchesController(ingressClass.Spec.Controller)
+}
+
+func ProcessIngressClassParameters(tctx *provider.TranslateContext, c client.Client, log logr.Logger, object client.Object, ingressClass *networkingv1.IngressClass) error {
+	if ingressClass == nil || ingressClass.Spec.Parameters == nil {
+		return nil
+	}
+
+	ingressClassKind := utils.NamespacedNameKind(ingressClass)
+	objKind := utils.NamespacedNameKind(object)
+
+	parameters := ingressClass.Spec.Parameters
+	// check if the parameters reference GatewayProxy
+	if parameters.APIGroup != nil && *parameters.APIGroup == v1alpha1.GroupVersion.Group && parameters.Kind == KindGatewayProxy {
+		ns := object.GetNamespace()
+		if parameters.Namespace != nil {
+			ns = *parameters.Namespace
+		}
+
+		gatewayProxy := &v1alpha1.GatewayProxy{}
+		if err := c.Get(tctx, client.ObjectKey{
+			Namespace: ns,
+			Name:      parameters.Name,
+		}, gatewayProxy); err != nil {
+			log.Error(err, "failed to get GatewayProxy", "namespace", ns, "name", parameters.Name)
+			return err
+		}
+
+		log.Info("found GatewayProxy for IngressClass", "ingressClass", ingressClass.Name, "gatewayproxy", gatewayProxy.Name)
+		tctx.GatewayProxies[ingressClassKind] = *gatewayProxy
+		tctx.ResourceParentRefs[objKind] = append(tctx.ResourceParentRefs[objKind], ingressClassKind)
+
+		// check if the provider field references a secret
+		if gatewayProxy.Spec.Provider != nil && gatewayProxy.Spec.Provider.Type == v1alpha1.ProviderTypeControlPlane {
+			if gatewayProxy.Spec.Provider.ControlPlane != nil &&
+				gatewayProxy.Spec.Provider.ControlPlane.Auth.Type == v1alpha1.AuthTypeAdminKey &&
+				gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey != nil &&
+				gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom != nil &&
+				gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
+
+				secretRef := gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef
+				secret := &corev1.Secret{}
+				if err := c.Get(tctx, client.ObjectKey{
+					Namespace: ns,
+					Name:      secretRef.Name,
+				}, secret); err != nil {
+					log.Error(err, "failed to get secret for GatewayProxy provider",
+						"namespace", ns,
+						"name", secretRef.Name)
+					return err
+				}
+
+				log.Info("found secret for GatewayProxy provider",
+					"ingressClass", ingressClass.Name,
+					"gatewayproxy", gatewayProxy.Name,
+					"secret", secretRef.Name)
+
+				tctx.Secrets[k8stypes.NamespacedName{
+					Namespace: ns,
+					Name:      secretRef.Name,
+				}] = secret
+			}
+		}
+	}
+
+	return nil
+}
+
+func GetIngressClass(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string) (*networkingv1.IngressClass, error) {
+	if ingressClassName == "" {
+		// Check for default ingress class
+		ingressClassList := &networkingv1.IngressClassList{}
+		if err := c.List(ctx, ingressClassList, client.MatchingFields{
+			indexer.IngressClass: config.GetControllerName(),
+		}); err != nil {
+			log.Error(err, "failed to list ingress classes")
+			return nil, err
+		}
+
+		// Find the ingress class that is marked as default
+		for _, ic := range ingressClassList.Items {
+			if IsDefaultIngressClass(&ic) && matchesController(ic.Spec.Controller) {
+				return &ic, nil
+			}
+		}
+		return nil, errors.New("no default ingress class found")
+	}
+
+	// Check if the specified ingress class is controlled by us
+	var ingressClass networkingv1.IngressClass
+	if err := c.Get(ctx, client.ObjectKey{Name: ingressClassName}, &ingressClass); err != nil {
+		return nil, err
+	}
+
+	if matchesController(ingressClass.Spec.Controller) {
+		return &ingressClass, nil
+	}
+
+	return nil, errors.New("ingress class is not controlled by us")
 }

@@ -140,7 +140,7 @@ type ApisixRoutePlugin struct {
 	Enable bool `json:"enable" yaml:"enable"`
 	// Plugin configuration.
 	// +kubebuilder:validation:Optional
-	Config ApisixRoutePluginConfig `json:"config" yaml:"config"`
+	Config apiextensionsv1.JSON `json:"config" yaml:"config"`
 	// Plugin configuration secretRef.
 	// +kubebuilder:validation:Optional
 	SecretRef string `json:"secretRef" yaml:"secretRef"`

@@ -16,10 +16,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -32,6 +36,7 @@ import (
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
 // ApisixConsumerReconciler reconciles a ApisixConsumer object
@@ -48,39 +53,59 @@ type ApisixConsumerReconciler struct {
 func (r *ApisixConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log.Info("reconcile", "request", req.NamespacedName)
 
-	var ac apiv2.ApisixConsumer
-	if err := r.Get(ctx, req.NamespacedName, &ac); err != nil {
+	ac := &apiv2.ApisixConsumer{}
+	if err := r.Get(ctx, req.NamespacedName, ac); err != nil {
+		if k8serrors.IsNotFound(err) {
+			ac.Namespace = req.Namespace
+			ac.Name = req.Name
+			ac.TypeMeta = metav1.TypeMeta{
+				Kind:       KindApisixConsumer,
+				APIVersion: apiv2.GroupVersion.String(),
+			}
+			if err := r.Provider.Delete(ctx, ac); err != nil {
+				r.Log.Error(err, "failed to delete provider", "ApisixConsumer", ac)
+				return ctrl.Result{}, err
+			}
+		}
 		r.Log.Error(err, "failed to get ApisixConsumer", "request", req.NamespacedName)
 		return ctrl.Result{}, err
 	}
 
-	ac.Status.Conditions = []metav1.Condition{
-		{
-			Type:               string(gatewayv1.RouteConditionAccepted),
-			Status:             metav1.ConditionTrue,
-			ObservedGeneration: ac.GetGeneration(),
-			LastTransitionTime: metav1.Now(),
-			Reason:             string(gatewayv1.RouteReasonAccepted),
-		},
-	}
+	tctx := provider.NewDefaultTranslateContext(ctx)
 
-	if err := r.Status().Update(ctx, &ac); err != nil {
-		r.Log.Error(err, "failed to update status", "request", req.NamespacedName)
+	ingressClass, err := GetIngressClass(tctx, r.Client, r.Log, ac.Spec.IngressClassName)
+	if err != nil {
+		log.Error(err, "failed to get IngressClass")
 		return ctrl.Result{}, err
 	}
 
-	r.Updater.Update(status.Update{
-		Resource: &apiv2.ApisixConsumer{},
-		Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
-			acT, ok := obj.(*apiv2.ApisixConsumer)
-			if !ok {
-				err := fmt.Errorf("expected ApisixConsumer, got %T", obj)
-				panic(err)
-			}
-			acCopy := acT.DeepCopy()
-			acCopy.Status = acT.Status
-			return acCopy
-		}),
+	if err := ProcessIngressClassParameters(tctx, r.Client, r.Log, ac, ingressClass); err != nil {
+		log.Error(err, "failed to process IngressClass parameters", "ingressClass", ingressClass.Name)
+		return ctrl.Result{}, err
+	}
+
+	if err := r.Provider.Update(ctx, tctx, ac); err != nil {
+		r.Log.Error(err, "failed to update provider", "ApisixConsumer", ac)
+		// Update status with failure condition
+		r.updateStatus(ac, metav1.Condition{
+			Type:               string(apiv2.ConditionTypeAccepted),
+			Status:             metav1.ConditionFalse,
+			ObservedGeneration: ac.Generation,
+			LastTransitionTime: metav1.Now(),
+			Reason:             string(apiv2.ConditionReasonSyncFailed),
+			Message:            err.Error(),
+		})
+		return ctrl.Result{}, err
+	}
+
+	// Update status with success condition
+	r.updateStatus(ac, metav1.Condition{
+		Type:               string(gatewayv1.RouteConditionAccepted),
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: ac.Generation,
+		LastTransitionTime: metav1.Now(),
+		Reason:             string(gatewayv1.RouteReasonAccepted),
+		Message:            "The ApisixConsumer has been accepted by the apisix-ingress-controller",
 	})
 	return ctrl.Result{}, nil
 }
@@ -147,6 +172,57 @@ func (r *ApisixConsumerReconciler) listApisixConsumerForIngressClass(ctx context
 	)
 }
 
-func (r *ApisixConsumerReconciler) process() {
-	return
+func (r *ApisixConsumerReconciler) processSpec(ctx context.Context, tctx *provider.TranslateContext, ac *apiv2.ApisixConsumer) error {
+	var secretRef *corev1.LocalObjectReference
+	if ac.Spec.AuthParameter.KeyAuth != nil {
+		secretRef = ac.Spec.AuthParameter.KeyAuth.SecretRef
+	} else if ac.Spec.AuthParameter.BasicAuth != nil {
+		secretRef = ac.Spec.AuthParameter.BasicAuth.SecretRef
+	} else if ac.Spec.AuthParameter.JwtAuth != nil {
+		secretRef = ac.Spec.AuthParameter.JwtAuth.SecretRef
+	} else if ac.Spec.AuthParameter.WolfRBAC != nil {
+		secretRef = ac.Spec.AuthParameter.WolfRBAC.SecretRef
+	} else if ac.Spec.AuthParameter.HMACAuth != nil {
+		secretRef = ac.Spec.AuthParameter.HMACAuth.SecretRef
+	} else if ac.Spec.AuthParameter.LDAPAuth != nil {
+		secretRef = ac.Spec.AuthParameter.LDAPAuth.SecretRef
+	}
+	if secretRef == nil {
+		return nil
+	}
+
+	namespacedName := types.NamespacedName{
+		Name:      secretRef.Name,
+		Namespace: ac.Namespace,
+	}
+
+	secret := &corev1.Secret{}
+	if err := r.Get(ctx, namespacedName, secret); err != nil {
+		if k8serrors.IsNotFound(err) {
+			r.Log.Info("secret not found", "secret", namespacedName.String())
+			return nil
+		} else {
+			r.Log.Error(err, "failed to get secret", "secret", namespacedName.String())
+			return err
+		}
+	}
+	tctx.Secrets[namespacedName] = secret
+	return nil
+}
+
+func (r *ApisixConsumerReconciler) updateStatus(consumer *apiv2.ApisixConsumer, condition metav1.Condition) {
+	r.Updater.Update(status.Update{
+		NamespacedName: utils.NamespacedName(consumer),
+		Resource:       &apiv2.ApisixConsumer{},
+		Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
+			ac, ok := obj.(*apiv2.ApisixConsumer)
+			if !ok {
+				err := fmt.Errorf("unsupported object type %T", obj)
+				panic(err)
+			}
+			acCopy := ac.DeepCopy()
+			acCopy.Status.Conditions = []metav1.Condition{condition}
+			return acCopy
+		}),
+	})
 }

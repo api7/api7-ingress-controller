@@ -108,6 +108,7 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		result, err = d.translator.TranslateGateway(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "global_rule", "ssl", "plugin_metadata")
 	case *networkingv1.Ingress:
+		log.Warnw("ingress is deprecated, please use gateway api instead")
 		result, err = d.translator.TranslateIngress(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "service", "ssl")
 	case *v1alpha1.Consumer:
@@ -122,6 +123,9 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 	case *apiv2.ApisixGlobalRule:
 		result, err = d.translator.TranslateApisixGlobalRule(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "global_rule")
+	case *apiv2.ApisixConsumer:
+		result, err = d.translator.TranslateApisixConsumer(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, "consumer")
 	}
 	if err != nil {
 		return err
@@ -216,6 +220,9 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 		// delete all resources
 	case *apiv2.ApisixGlobalRule:
 		resourceTypes = append(resourceTypes, "global_rule")
+		labels = label.GenLabel(obj)
+	case *apiv2.ApisixConsumer:
+		resourceTypes = append(resourceTypes, "consumer")
 		labels = label.GenLabel(obj)
 	}
 

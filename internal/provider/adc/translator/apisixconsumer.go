@@ -42,9 +42,8 @@ var (
 	_hmacAuthMaxReqBodyDefaultValue          = int64(524288)
 )
 
-func (t *Translator) TranslateApisixConsumerV2(tctx *provider.TranslateContext, ac *v2.ApisixConsumer) (*adctypes.Consumer, error) {
-	// As the CRD schema ensures that only one authN can be configured,
-	// so here the order is no matter.
+func (t *Translator) TranslateApisixConsumer(tctx *provider.TranslateContext, ac *v2.ApisixConsumer) (*TranslateResult, error) {
+	result := &TranslateResult{}
 	plugins := make(adctypes.Plugins)
 	if ac.Spec.AuthParameter.KeyAuth != nil {
 		cfg, err := t.translateConsumerKeyAuthPluginV2(tctx, ac.Namespace, ac.Spec.AuthParameter.KeyAuth)
@@ -90,10 +89,11 @@ func (t *Translator) TranslateApisixConsumerV2(tctx *provider.TranslateContext, 
 	}
 	consumer.Plugins = plugins
 	consumer.Labels = label.GenLabel(ac)
-	return consumer, nil
+	result.Consumers = append(result.Consumers, consumer)
+	return result, nil
 }
 
-func (t *Translator) translateConsumerKeyAuthPluginV2(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerKeyAuth) (*adctypes.KeyAuthConsumerConfig, error) {
+func (t *Translator) translateConsumerKeyAuthPluginV2(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerKeyAuth) (*types.KeyAuthConsumerConfig, error) {
 	if cfg.Value != nil {
 		return &types.KeyAuthConsumerConfig{Key: cfg.Value.Key}, nil
 	}
@@ -112,7 +112,7 @@ func (t *Translator) translateConsumerKeyAuthPluginV2(tctx *provider.TranslateCo
 	return &types.KeyAuthConsumerConfig{Key: string(raw)}, nil
 }
 
-func (t *Translator) translateConsumerBasicAuthPluginV2(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerBasicAuth) (*adctypes.BasicAuthConsumerConfig, error) {
+func (t *Translator) translateConsumerBasicAuthPluginV2(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerBasicAuth) (*types.BasicAuthConsumerConfig, error) {
 	if cfg.Value != nil {
 		return &types.BasicAuthConsumerConfig{
 			Username: cfg.Value.Username,
@@ -141,7 +141,7 @@ func (t *Translator) translateConsumerBasicAuthPluginV2(tctx *provider.Translate
 	}, nil
 }
 
-func (t *Translator) translateConsumerWolfRBACPluginV2(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerWolfRBAC) (*adctypes.WolfRBACConsumerConfig, error) {
+func (t *Translator) translateConsumerWolfRBACPluginV2(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerWolfRBAC) (*types.WolfRBACConsumerConfig, error) {
 	if cfg.Value != nil {
 		return &types.WolfRBACConsumerConfig{
 			Server:       cfg.Value.Server,
@@ -166,7 +166,7 @@ func (t *Translator) translateConsumerWolfRBACPluginV2(tctx *provider.TranslateC
 	}, nil
 }
 
-func (t *Translator) translateConsumerJwtAuthPluginV2(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerJwtAuth) (*adctypes.JwtAuthConsumerConfig, error) {
+func (t *Translator) translateConsumerJwtAuthPluginV2(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerJwtAuth) (*types.JwtAuthConsumerConfig, error) {
 	if cfg.Value != nil {
 		// The field exp must be a positive integer, default value 86400.
 		if cfg.Value.Exp < 1 {
@@ -225,7 +225,7 @@ func (t *Translator) translateConsumerJwtAuthPluginV2(tctx *provider.TranslateCo
 	}, nil
 }
 
-func (t *Translator) translateConsumerHMACAuthPluginV2(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerHMACAuth) (*adctypes.HMACAuthConsumerConfig, error) {
+func (t *Translator) translateConsumerHMACAuthPluginV2(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerHMACAuth) (*types.HMACAuthConsumerConfig, error) {
 	if cfg.Value != nil {
 		return &types.HMACAuthConsumerConfig{
 			AccessKey:           cfg.Value.AccessKey,
@@ -333,7 +333,7 @@ func (t *Translator) translateConsumerHMACAuthPluginV2(tctx *provider.TranslateC
 	}, nil
 }
 
-func (t *Translator) translateConsumerLDAPAuthPluginV2(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerLDAPAuth) (*adctypes.LDAPAuthConsumerConfig, error) {
+func (t *Translator) translateConsumerLDAPAuthPluginV2(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerLDAPAuth) (*types.LDAPAuthConsumerConfig, error) {
 	if cfg.Value != nil {
 		return &types.LDAPAuthConsumerConfig{
 			UserDN: cfg.Value.UserDN,

@@ -150,26 +150,28 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 
 		// check secret
 		for _, plugin := range http.Plugins {
-			if !plugin.Enable || plugin.Config == nil || plugin.SecretRef == "" {
+			if !plugin.Enable {
 				continue
 			}
-			var (
-				secret = corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      plugin.SecretRef,
-						Namespace: in.Namespace,
-					},
+			if plugin.SecretRef != "" {
+				var (
+					secret = corev1.Secret{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      plugin.SecretRef,
+							Namespace: in.Namespace,
+						},
+					}
+					secretNN = utils.NamespacedName(&secret)
+				)
+				if err := r.Get(ctx, secretNN, &secret); err != nil {
+					return ReasonError{
+						Reason:  string(apiv2.ConditionReasonInvalidSpec),
+						Message: fmt.Sprintf("failed to get Secret: %s", secretNN),
+					}
 				}
-				secretNN = utils.NamespacedName(&secret)
-			)
-			if err := r.Get(ctx, secretNN, &secret); err != nil {
-				return ReasonError{
-					Reason:  string(apiv2.ConditionReasonInvalidSpec),
-					Message: fmt.Sprintf("failed to get Secret: %s", secretNN),
-				}
-			}
+				tc.Secrets[utils.NamespacedName(&secret)] = &secret
 
-			tc.Secrets[utils.NamespacedName(&secret)] = &secret
+			}
 		}
 
 		// check vars

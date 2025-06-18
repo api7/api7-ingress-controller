@@ -71,9 +71,11 @@ func (t *Translator) TranslateConsumerV1alpha1(tctx *provider.TranslateContext, 
 	for _, plugin := range consumerV.Spec.Plugins {
 		pluginName := plugin.Name
 		pluginConfig := make(map[string]any)
-		if err := json.Unmarshal(plugin.Config.Raw, &pluginConfig); err != nil {
-			t.Log.Error(err, "failed to unmarshal plugin config", "plugin", plugin)
-			continue
+		if len(plugin.Config.Raw) > 0 {
+			if err := json.Unmarshal(plugin.Config.Raw, &pluginConfig); err != nil {
+				t.Log.Error(err, "failed to unmarshal plugin config", "plugin", plugin)
+				continue
+			}
 		}
 		plugins[pluginName] = pluginConfig
 	}
