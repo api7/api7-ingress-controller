@@ -174,7 +174,7 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 			}
 
 			// Check if ApisixPluginConfig has IngressClassName and if it matches
-			if pc.Spec.IngressClassName != "" {
+			if in.Spec.IngressClassName != pc.Spec.IngressClassName && pc.Spec.IngressClassName != "" {
 				var pcIC networkingv1.IngressClass
 				if err := r.Get(ctx, client.ObjectKey{Name: pc.Spec.IngressClassName}, &pcIC); err != nil {
 					return ReasonError{
