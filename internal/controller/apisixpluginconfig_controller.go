@@ -226,7 +226,7 @@ func (r *ApisixPluginConfigReconciler) processIngressClassParameters(ctx context
 }
 
 func (r *ApisixPluginConfigReconciler) updateStatus(pc *apiv2.ApisixPluginConfig, err error) {
-	SetApisixPluginConfigConditionAccepted(&pc.Status, pc.GetGeneration(), err)
+	SetApisixCRDConditionAccepted(&pc.Status, pc.GetGeneration(), err)
 	r.Updater.Update(status.Update{
 		NamespacedName: utils.NamespacedName(pc),
 		Resource:       &apiv2.ApisixPluginConfig{},

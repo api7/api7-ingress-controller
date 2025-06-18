@@ -537,7 +537,7 @@ func (r *ApisixRouteReconciler) processIngressClassParameters(ctx context.Contex
 }
 
 func (r *ApisixRouteReconciler) updateStatus(ar *apiv2.ApisixRoute, err error) {
-	SetApisixRouteConditionAccepted(&ar.Status, ar.GetGeneration(), err)
+	SetApisixCRDConditionAccepted(&ar.Status, ar.GetGeneration(), err)
 	r.Updater.Update(status.Update{
 		NamespacedName: utils.NamespacedName(ar),
 		Resource:       &apiv2.ApisixRoute{},
