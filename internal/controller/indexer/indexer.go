@@ -38,6 +38,7 @@ const (
 	ConsumerGatewayRef        = "consumerGatewayRef"
 	PolicyTargetRefs          = "targetRefs"
 	GatewayClassIndexRef      = "gatewayClassRef"
+	PluginConfigIndexRef      = "pluginConfigRefs"
 )
 
 func SetupIndexer(mgr ctrl.Manager) error {
@@ -52,6 +53,7 @@ func SetupIndexer(mgr ctrl.Manager) error {
 		setupGatewaySecretIndex,
 		setupGatewayClassIndexer,
 		setupApisixRouteIndexer,
+		setupApisixPluginConfigIndexer,
 	} {
 		if err := setup(mgr); err != nil {
 			return err
@@ -94,8 +96,9 @@ func setupConsumerIndexer(mgr ctrl.Manager) error {
 
 func setupApisixRouteIndexer(mgr ctrl.Manager) error {
 	var indexers = map[string]func(client.Object) []string{
-		ServiceIndexRef: ApisixRouteServiceIndexFunc,
-		SecretIndexRef:  ApisixRouteRouteSecretIndexFunc,
+		ServiceIndexRef:      ApisixRouteServiceIndexFunc,
+		SecretIndexRef:       ApisixRouteRouteSecretIndexFunc,
+		PluginConfigIndexRef: ApisixRoutePluginConfigIndexFunc,
 	}
 	for key, f := range indexers {
 		if err := mgr.GetFieldIndexer().IndexField(context.Background(), &apiv2.ApisixRoute{}, key, f); err != nil {
@@ -103,6 +106,18 @@ func setupApisixRouteIndexer(mgr ctrl.Manager) error {
 		}
 	}
 
+	return nil
+}
+
+func setupApisixPluginConfigIndexer(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&apiv2.ApisixPluginConfig{},
+		SecretIndexRef,
+		ApisixPluginConfigSecretIndexFunc,
+	); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -460,6 +475,25 @@ func ApisixRouteRouteSecretIndexFunc(obj client.Object) (keys []string) {
 	return
 }
 
+func ApisixRoutePluginConfigIndexFunc(obj client.Object) (keys []string) {
+	ar := obj.(*apiv2.ApisixRoute)
+	m := make(map[string]struct{})
+	for _, http := range ar.Spec.HTTP {
+		if http.PluginConfigName != "" {
+			ns := ar.GetNamespace()
+			if http.PluginConfigNamespace != "" {
+				ns = http.PluginConfigNamespace
+			}
+			key := GenIndexKey(ns, http.PluginConfigName)
+			if _, ok := m[key]; !ok {
+				m[key] = struct{}{}
+				keys = append(keys, key)
+			}
+		}
+	}
+	return
+}
+
 func HTTPRouteExtensionIndexFunc(rawObj client.Object) []string {
 	hr := rawObj.(*gatewayv1.HTTPRoute)
 	keys := make([]string, 0, len(hr.Spec.Rules))
@@ -532,4 +566,14 @@ func IngressClassParametersRefIndexFunc(rawObj client.Object) []string {
 		return []string{GenIndexKey(ns, ingressClass.Spec.Parameters.Name)}
 	}
 	return nil
+}
+
+func ApisixPluginConfigSecretIndexFunc(obj client.Object) (keys []string) {
+	pc := obj.(*apiv2.ApisixPluginConfig)
+	for _, plugin := range pc.Spec.Plugins {
+		if plugin.Enable && plugin.SecretRef != "" {
+			keys = append(keys, GenIndexKey(pc.GetNamespace(), plugin.SecretRef))
+		}
+	}
+	return
 }

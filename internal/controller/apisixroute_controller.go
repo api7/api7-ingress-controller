@@ -80,6 +80,9 @@ func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.listApisixRoutesForSecret),
 		).
+		Watches(&apiv2.ApisixPluginConfig{},
+			handler.EnqueueRequestsFromMapFunc(r.listApisixRoutesForPluginConfig),
+		).
 		Named("apisixroute").
 		Complete(r)
 }
@@ -148,28 +151,16 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 		}
 		rules[http.Name] = struct{}{}
 
-		// check secret
-		for _, plugin := range http.Plugins {
-			if !plugin.Enable || plugin.Config == nil || plugin.SecretRef == "" {
-				continue
+		// check plugin config reference
+		if http.PluginConfigName != "" {
+			if err := r.validatePluginConfig(ctx, tc, in, http); err != nil {
+				return err
 			}
-			var (
-				secret = corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      plugin.SecretRef,
-						Namespace: in.Namespace,
-					},
-				}
-				secretNN = utils.NamespacedName(&secret)
-			)
-			if err := r.Get(ctx, secretNN, &secret); err != nil {
-				return ReasonError{
-					Reason:  string(apiv2.ConditionReasonInvalidSpec),
-					Message: fmt.Sprintf("failed to get Secret: %s", secretNN),
-				}
-			}
+		}
 
-			tc.Secrets[utils.NamespacedName(&secret)] = &secret
+		// check secret
+		if err := r.validateSecrets(ctx, tc, in, http); err != nil {
+			return err
 		}
 
 		// check vars
@@ -190,66 +181,164 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 		}
 
 		// process backend
-		var backends = make(map[types.NamespacedName]struct{})
-		for _, backend := range http.Backends {
-			var (
-				service = corev1.Service{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      backend.ServiceName,
-						Namespace: in.Namespace,
-					},
-				}
-				serviceNN = utils.NamespacedName(&service)
-			)
-			if _, ok := backends[serviceNN]; ok {
-				return ReasonError{
-					Reason:  string(apiv2.ConditionReasonInvalidSpec),
-					Message: fmt.Sprintf("duplicate backend service: %s", serviceNN),
-				}
-			}
-			backends[serviceNN] = struct{}{}
-
-			if err := r.Get(ctx, serviceNN, &service); err != nil {
-				if err := client.IgnoreNotFound(err); err == nil {
-					r.Log.Error(errors.New("service not found"), "Service", serviceNN)
-					continue
-				}
-				return err
-			}
-			if service.Spec.Type == corev1.ServiceTypeExternalName {
-				tc.Services[serviceNN] = &service
-				continue
-			}
-
-			if backend.ResolveGranularity == "service" && service.Spec.ClusterIP == "" {
-				r.Log.Error(errors.New("service has no ClusterIP"), "Service", serviceNN, "ResolveGranularity", backend.ResolveGranularity)
-				continue
-			}
-
-			if !slices.ContainsFunc(service.Spec.Ports, func(port corev1.ServicePort) bool {
-				return port.Port == int32(backend.ServicePort.IntValue())
-			}) {
-				r.Log.Error(errors.New("port not found in service"), "Service", serviceNN, "port", backend.ServicePort.String())
-				continue
-			}
-			tc.Services[serviceNN] = &service
-
-			var endpoints discoveryv1.EndpointSliceList
-			if err := r.List(ctx, &endpoints,
-				client.InNamespace(service.Namespace),
-				client.MatchingLabels{
-					discoveryv1.LabelServiceName: service.Name,
-				},
-			); err != nil {
-				return ReasonError{
-					Reason:  string(apiv2.ConditionReasonInvalidSpec),
-					Message: fmt.Sprintf("failed to list endpoint slices: %v", err),
-				}
-			}
-			tc.EndpointSlices[serviceNN] = endpoints.Items
+		if err := r.validateBackends(ctx, tc, in, http); err != nil {
+			return err
 		}
 	}
 
+	return nil
+}
+
+func (r *ApisixRouteReconciler) validatePluginConfig(ctx context.Context, tc *provider.TranslateContext, in *apiv2.ApisixRoute, http apiv2.ApisixRouteHTTP) error {
+	pcNamespace := in.Namespace
+	if http.PluginConfigNamespace != "" {
+		pcNamespace = http.PluginConfigNamespace
+	}
+	var (
+		pc = apiv2.ApisixPluginConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      http.PluginConfigName,
+				Namespace: pcNamespace,
+			},
+		}
+		pcNN = utils.NamespacedName(&pc)
+	)
+	if err := r.Get(ctx, pcNN, &pc); err != nil {
+		return ReasonError{
+			Reason:  string(apiv2.ConditionReasonInvalidSpec),
+			Message: fmt.Sprintf("failed to get ApisixPluginConfig: %s", pcNN),
+		}
+	}
+
+	// Check if ApisixPluginConfig has IngressClassName and if it matches
+	if in.Spec.IngressClassName != pc.Spec.IngressClassName && pc.Spec.IngressClassName != "" {
+		var pcIC networkingv1.IngressClass
+		if err := r.Get(ctx, client.ObjectKey{Name: pc.Spec.IngressClassName}, &pcIC); err != nil {
+			return ReasonError{
+				Reason:  string(apiv2.ConditionReasonInvalidSpec),
+				Message: fmt.Sprintf("failed to get IngressClass %s for ApisixPluginConfig %s: %v", pc.Spec.IngressClassName, pcNN, err),
+			}
+		}
+		if !matchesController(pcIC.Spec.Controller) {
+			return ReasonError{
+				Reason:  string(apiv2.ConditionReasonInvalidSpec),
+				Message: fmt.Sprintf("ApisixPluginConfig %s references IngressClass %s with non-matching controller", pcNN, pc.Spec.IngressClassName),
+			}
+		}
+	}
+
+	tc.ApisixPluginConfigs[pcNN] = &pc
+
+	// Also check secrets referenced by plugin config
+	for _, plugin := range pc.Spec.Plugins {
+		if !plugin.Enable || plugin.Config == nil || plugin.SecretRef == "" {
+			continue
+		}
+		var (
+			secret = corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      plugin.SecretRef,
+					Namespace: pc.Namespace,
+				},
+			}
+			secretNN = utils.NamespacedName(&secret)
+		)
+		if err := r.Get(ctx, secretNN, &secret); err != nil {
+			return ReasonError{
+				Reason:  string(apiv2.ConditionReasonInvalidSpec),
+				Message: fmt.Sprintf("failed to get Secret: %s", secretNN),
+			}
+		}
+		tc.Secrets[secretNN] = &secret
+	}
+	return nil
+}
+
+func (r *ApisixRouteReconciler) validateSecrets(ctx context.Context, tc *provider.TranslateContext, in *apiv2.ApisixRoute, http apiv2.ApisixRouteHTTP) error {
+	for _, plugin := range http.Plugins {
+		if !plugin.Enable || plugin.Config == nil || plugin.SecretRef == "" {
+			continue
+		}
+		var (
+			secret = corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      plugin.SecretRef,
+					Namespace: in.Namespace,
+				},
+			}
+			secretNN = utils.NamespacedName(&secret)
+		)
+		if err := r.Get(ctx, secretNN, &secret); err != nil {
+			return ReasonError{
+				Reason:  string(apiv2.ConditionReasonInvalidSpec),
+				Message: fmt.Sprintf("failed to get Secret: %s", secretNN),
+			}
+		}
+
+		tc.Secrets[utils.NamespacedName(&secret)] = &secret
+	}
+	return nil
+}
+
+func (r *ApisixRouteReconciler) validateBackends(ctx context.Context, tc *provider.TranslateContext, in *apiv2.ApisixRoute, http apiv2.ApisixRouteHTTP) error {
+	var backends = make(map[types.NamespacedName]struct{})
+	for _, backend := range http.Backends {
+		var (
+			service = corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      backend.ServiceName,
+					Namespace: in.Namespace,
+				},
+			}
+			serviceNN = utils.NamespacedName(&service)
+		)
+		if _, ok := backends[serviceNN]; ok {
+			return ReasonError{
+				Reason:  string(apiv2.ConditionReasonInvalidSpec),
+				Message: fmt.Sprintf("duplicate backend service: %s", serviceNN),
+			}
+		}
+		backends[serviceNN] = struct{}{}
+
+		if err := r.Get(ctx, serviceNN, &service); err != nil {
+			if err := client.IgnoreNotFound(err); err == nil {
+				r.Log.Error(errors.New("service not found"), "Service", serviceNN)
+				continue
+			}
+			return err
+		}
+		if service.Spec.Type == corev1.ServiceTypeExternalName {
+			tc.Services[serviceNN] = &service
+			continue
+		}
+
+		if backend.ResolveGranularity == "service" && service.Spec.ClusterIP == "" {
+			r.Log.Error(errors.New("service has no ClusterIP"), "Service", serviceNN, "ResolveGranularity", backend.ResolveGranularity)
+			continue
+		}
+
+		if !slices.ContainsFunc(service.Spec.Ports, func(port corev1.ServicePort) bool {
+			return port.Port == int32(backend.ServicePort.IntValue())
+		}) {
+			r.Log.Error(errors.New("port not found in service"), "Service", serviceNN, "port", backend.ServicePort.String())
+			continue
+		}
+		tc.Services[serviceNN] = &service
+
+		var endpoints discoveryv1.EndpointSliceList
+		if err := r.List(ctx, &endpoints,
+			client.InNamespace(service.Namespace),
+			client.MatchingLabels{
+				discoveryv1.LabelServiceName: service.Name,
+			},
+		); err != nil {
+			return ReasonError{
+				Reason:  string(apiv2.ConditionReasonInvalidSpec),
+				Message: fmt.Sprintf("failed to list endpoint slices: %v", err),
+			}
+		}
+		tc.EndpointSlices[serviceNN] = endpoints.Items
+	}
 	return nil
 }
 
@@ -284,19 +373,45 @@ func (r *ApisixRouteReconciler) listApisixRoutesForSecret(ctx context.Context, o
 	}
 
 	var (
-		arList apiv2.ApisixRouteList
+		arList      apiv2.ApisixRouteList
+		pcList      apiv2.ApisixPluginConfigList
+		allRequests = make([]reconcile.Request, 0)
 	)
+
+	// First, find ApisixRoutes that directly reference this secret
 	if err := r.List(ctx, &arList, client.MatchingFields{
 		indexer.SecretIndexRef: indexer.GenIndexKey(secret.GetNamespace(), secret.GetName()),
 	}); err != nil {
 		r.Log.Error(err, "failed to list apisixroutes by secret", "secret", secret.Name)
 		return nil
 	}
-	requests := make([]reconcile.Request, 0, len(arList.Items))
 	for _, ar := range arList.Items {
-		requests = append(requests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
+		allRequests = append(allRequests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
 	}
-	return pkgutils.DedupComparable(requests)
+
+	// Second, find ApisixPluginConfigs that reference this secret
+	if err := r.List(ctx, &pcList, client.MatchingFields{
+		indexer.SecretIndexRef: indexer.GenIndexKey(secret.GetNamespace(), secret.GetName()),
+	}); err != nil {
+		r.Log.Error(err, "failed to list apisixpluginconfigs by secret", "secret", secret.Name)
+		return nil
+	}
+
+	// Then find ApisixRoutes that reference these PluginConfigs
+	for _, pc := range pcList.Items {
+		var arListForPC apiv2.ApisixRouteList
+		if err := r.List(ctx, &arListForPC, client.MatchingFields{
+			indexer.PluginConfigIndexRef: indexer.GenIndexKey(pc.GetNamespace(), pc.GetName()),
+		}); err != nil {
+			r.Log.Error(err, "failed to list apisixroutes by plugin config", "pluginconfig", pc.Name)
+			continue
+		}
+		for _, ar := range arListForPC.Items {
+			allRequests = append(allRequests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
+		}
+	}
+
+	return pkgutils.DedupComparable(allRequests)
 }
 
 func (r *ApisixRouteReconciler) listApiRouteForIngressClass(ctx context.Context, object client.Object) (requests []reconcile.Request) {
@@ -443,7 +558,7 @@ func (r *ApisixRouteReconciler) processIngressClassParameters(ctx context.Contex
 }
 
 func (r *ApisixRouteReconciler) updateStatus(ar *apiv2.ApisixRoute, err error) {
-	SetApisixRouteConditionAccepted(&ar.Status, ar.GetGeneration(), err)
+	SetApisixCRDConditionAccepted(&ar.Status, ar.GetGeneration(), err)
 	r.Updater.Update(status.Update{
 		NamespacedName: utils.NamespacedName(ar),
 		Resource:       &apiv2.ApisixRoute{},
@@ -453,4 +568,38 @@ func (r *ApisixRouteReconciler) updateStatus(ar *apiv2.ApisixRoute, err error) {
 			return cp
 		}),
 	})
+}
+
+func (r *ApisixRouteReconciler) listApisixRoutesForPluginConfig(ctx context.Context, obj client.Object) []reconcile.Request {
+	pc, ok := obj.(*apiv2.ApisixPluginConfig)
+	if !ok {
+		return nil
+	}
+
+	// First check if the ApisixPluginConfig has matching IngressClassName
+	if pc.Spec.IngressClassName != "" {
+		var ic networkingv1.IngressClass
+		if err := r.Get(ctx, client.ObjectKey{Name: pc.Spec.IngressClassName}, &ic); err != nil {
+			if client.IgnoreNotFound(err) != nil {
+				r.Log.Error(err, "failed to get IngressClass for ApisixPluginConfig", "pluginconfig", pc.Name)
+			}
+			return nil
+		}
+		if !matchesController(ic.Spec.Controller) {
+			return nil
+		}
+	}
+
+	var arList apiv2.ApisixRouteList
+	if err := r.List(ctx, &arList, client.MatchingFields{
+		indexer.PluginConfigIndexRef: indexer.GenIndexKey(pc.GetNamespace(), pc.GetName()),
+	}); err != nil {
+		r.Log.Error(err, "failed to list apisixroutes by plugin config", "pluginconfig", pc.Name)
+		return nil
+	}
+	requests := make([]reconcile.Request, 0, len(arList.Items))
+	for _, ar := range arList.Items {
+		requests = append(requests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
+	}
+	return pkgutils.DedupComparable(requests)
 }
