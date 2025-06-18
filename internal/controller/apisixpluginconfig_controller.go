@@ -95,24 +95,7 @@ func (r *ApisixPluginConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if err = r.processIngressClassParameters(ctx, tctx, &pc, ic); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err = r.processApisixPluginConfig(ctx, tctx, &pc); err != nil {
-		return ctrl.Result{}, err
-	}
 	return ctrl.Result{}, nil
-}
-
-func (r *ApisixPluginConfigReconciler) processApisixPluginConfig(_ context.Context, _ *provider.TranslateContext, in *apiv2.ApisixPluginConfig) error {
-	// Validate plugins
-	for _, plugin := range in.Spec.Plugins {
-		if plugin.Name == "" {
-			return ReasonError{
-				Reason:  string(apiv2.ConditionReasonInvalidSpec),
-				Message: "plugin name cannot be empty",
-			}
-		}
-	}
-
-	return nil
 }
 
 func (r *ApisixPluginConfigReconciler) listApisixPluginConfigForIngressClass(ctx context.Context, object client.Object) (requests []reconcile.Request) {
