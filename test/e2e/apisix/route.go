@@ -35,20 +35,20 @@ var _ = Describe("Test ApisixRoute", func() {
 		applier = framework.NewApplier(s.GinkgoT, s.K8sClient, s.CreateResourceFromString)
 	)
 
+	BeforeEach(func() {
+		By("create GatewayProxy")
+		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
+		err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
+		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+		time.Sleep(5 * time.Second)
+
+		By("create IngressClass")
+		err = s.CreateResourceFromStringWithNamespace(ingressClassYaml, "")
+		Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
+		time.Sleep(5 * time.Second)
+	})
+
 	Context("Test ApisixRoute", func() {
-		BeforeEach(func() {
-			By("create GatewayProxy")
-			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
-			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
-			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
-			time.Sleep(5 * time.Second)
-
-			By("create IngressClass")
-			err = s.CreateResourceFromStringWithNamespace(ingressClassYaml, "")
-			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
-			time.Sleep(5 * time.Second)
-		})
-
 		It("Basic tests", func() {
 			const apisixRouteSpec = `
 apiVersion: apisix.apache.org/v2
@@ -295,8 +295,11 @@ spec:
 			// ApisixUpstream is not implemented yet.
 			// So the case is pending for now
 		})
+	})
 
-		It("Test ApisixRoute reference ApisixUpstream", func() {
+	Context("Test ApisixRoute reference ApisixUpstream", func() {
+
+		It("Test reference ApisixUpstream", func() {
 			const apisixRouteSpec = `
 apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
@@ -310,7 +313,7 @@ spec:
       paths:
       - /*
     upstreams:
-    - name: default-upstream 
+    - name: default-upstream
 `
 			const apisixUpstreamSpec0 = `
 apiVersion: apisix.apache.org/v2
@@ -362,7 +365,84 @@ spec:
 			err = s.CreateResourceFromString(apisixUpstreamSpec1)
 			Expect(err).ShouldNot(HaveOccurred(), "update apisixUpstream")
 			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+		})
 
+		It("Test a Mix of Backends and Upstreams", func() {
+			// apisixUpstreamSpec is an ApisixUpstream reference to the Service httpbin-service-e2e-test
+			const apisixUpstreamSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: default-upstream
+spec:
+  ingressClassName: apisix
+  externalNodes:
+  - type: Domain
+    name: httpbin-service-e2e-test
+  passHost: node
+`
+			// apisixRouteSpec is an ApisixUpstream uses a backend and reference an upstream.
+			// It contains a plugin response-rewrite that lets us know what upstream the gateway forwards the request to.
+			const apisixRouteSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: default
+spec:
+  ingressClassName: apisix
+  http:
+  - name: rule0
+    match:
+      paths:
+      - /*
+    backends:
+    - serviceName: httpbin-service-e2e-test
+      servicePort: 80
+    upstreams:
+    - name: default-upstream
+    plugins:
+    - name: response-rewrite
+      enable: true
+      config:
+        headers:
+          set:
+            "X-Upstream-Host": "$upstream_addr"
+`
+			By("apply ApisixUpstream")
+			err := s.CreateResourceFromString(apisixUpstreamSpec)
+			Expect(err).ShouldNot(HaveOccurred(), "apply ApisixUpstream")
+
+			By("apply ApisixRoute")
+			var apisixRoute apiv2.ApisixRoute
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisixRoute, apisixRouteSpec)
+
+			By("verify ApisixRoute works")
+			request := func(path string) int {
+				return s.NewAPISIXClient().GET(path).Expect().Raw().StatusCode
+			}
+			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+
+			By("verify the backends and the upstreams work commonly")
+			// .backends -> service httpbin-service-e2e-test -> endpoints httpbin-service-e2e-test, so we will get the $upstream_addr as endpoint IP
+			// .upstreams -> service alias-httpbin-service-e2e-test -> service httpbin-service-e2e-test, so we will get the $upstream_addr as the service's ClusterIP
+			var upstreamAddrs = make(map[string]struct{})
+			for range 10 {
+				upstreamAddr := s.NewAPISIXClient().GET("/get").Expect().Raw().Header.Get("X-Upstream-Host")
+				upstreamAddrs[upstreamAddr] = struct{}{}
+			}
+
+			endpoints, err := s.GetServiceEndpoints(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin-service-e2e-test"})
+			Expect(err).ShouldNot(HaveOccurred(), "get endpoints")
+			Expect(endpoints).Should(HaveLen(1))
+			endpoint := net.JoinHostPort(endpoints[0], "80")
+
+			service, err := s.GetServiceByName("httpbin-service-e2e-test")
+			Expect(err).ShouldNot(HaveOccurred(), "get service")
+			clusterIP := net.JoinHostPort(service.Spec.ClusterIP, "80")
+
+			Expect(upstreamAddrs).Should(HaveLen(2))
+			Eventually(upstreamAddrs).Should(HaveKey(endpoint))
+			Eventually(upstreamAddrs).Should(HaveKey(clusterIP))
 		})
 	})
 })

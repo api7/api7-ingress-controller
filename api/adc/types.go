@@ -533,15 +533,14 @@ func NewDefaultService() *Service {
 
 func NewDefaultUpstream() *Upstream {
 	return &Upstream{
-		Type:   Roundrobin,
-		Nodes:  make(UpstreamNodes, 0),
-		Scheme: SchemeHTTP,
 		Metadata: Metadata{
-			Desc: "Created by apisix-ingress-controller, DO NOT modify it manually",
 			Labels: map[string]string{
 				"managed-by": "apisix-ingress-controller",
 			},
 		},
+		Nodes:  make(UpstreamNodes, 0),
+		Scheme: SchemeHTTP,
+		Type:   Roundrobin,
 	}
 }
 

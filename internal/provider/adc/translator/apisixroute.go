@@ -166,6 +166,9 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 				t.Log.Error(err, "failed to translate ApisixUpstream", "ApisixUpstream", utils.NamespacedName(au))
 				continue
 			}
+			if upstreamRef.Weight != nil {
+				upstream.Labels["meta_weight"] = strconv.FormatInt(int64(*upstreamRef.Weight), 10)
+			}
 
 			upstreams = append(upstreams, upstream)
 		}
@@ -178,6 +181,17 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 		}
 
 		var weightedUpstreams []adc.TrafficSplitConfigRuleWeightedUpstream
+
+		// set the default upstream's weight in traffic-split
+		weight, err := strconv.Atoi(upstream.Labels["meta_weight"])
+		if err != nil {
+			weight = apiv2.DefaultWeight
+		}
+		weightedUpstreams = append(weightedUpstreams, adc.TrafficSplitConfigRuleWeightedUpstream{
+			Weight: weight,
+		})
+
+		// set others upstreams in traffic-split
 		for _, item := range upstreams {
 			weight, err := strconv.Atoi(item.Labels["meta_weight"])
 			if err != nil {
@@ -189,7 +203,7 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 			})
 		}
 		if len(weightedUpstreams) > 0 {
-			route.Plugins["traffic-split"] = &adc.TrafficSplitConfig{
+			service.Plugins["traffic-split"] = &adc.TrafficSplitConfig{
 				Rules: []adc.TrafficSplitConfigRule{
 					{
 						WeightedUpstreams: weightedUpstreams,
@@ -207,9 +221,6 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 		service.Routes = []*adc.Route{route}
 
 		if backendErr != nil && len(upstream.Nodes) == 0 {
-			if service.Plugins == nil {
-				service.Plugins = make(map[string]any)
-			}
 			service.Plugins["fault-injection"] = map[string]any{
 				"abort": map[string]any{
 					"http_status": 500,
