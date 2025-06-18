@@ -358,7 +358,7 @@ spec:
 			}
 			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusServiceUnavailable))
 
-			By("verify that ApisixUpstream reference a Service which is ExternalName should reqeust OK")
+			By("verify that ApisixUpstream reference a Service which is ExternalName should request OK")
 			err = s.CreateResourceFromString(apisixUpstreamSpec1)
 			Expect(err).ShouldNot(HaveOccurred(), "update apisixUpstream")
 			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))

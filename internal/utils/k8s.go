@@ -52,7 +52,7 @@ func ValidateRemoteAddrs(remoteAddrs []string) error {
 var hostDef = "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
 var hostDefRegex = regexp.MustCompile(hostDef)
 
-// MatchHostDef checks that host matches host's shcema
+// MatchHostDef checks that host matches host's schema
 // ref to : https://github.com/apache/apisix/blob/c5fc10d9355a0c177a7532f01c77745ff0639a7f/apisix/schema_def.lua#L40
 // ref to : https://github.com/kubernetes/kubernetes/blob/976a940f4a4e84fe814583848f97b9aafcdb083f/staging/src/k8s.io/apimachinery/pkg/util/validation/validation.go#L205
 // They define regex differently, but k8s's dns is more accurate
