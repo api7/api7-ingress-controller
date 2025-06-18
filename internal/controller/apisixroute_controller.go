@@ -140,11 +140,11 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	return ctrl.Result{}, nil
 }
 
-func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *provider.TranslateContext, ar *apiv2.ApisixRoute) error {
+func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *provider.TranslateContext, in *apiv2.ApisixRoute) error {
 	var (
 		rules = make(map[string]struct{})
 	)
-	for httpIndex, http := range ar.Spec.HTTP {
+	for httpIndex, http := range in.Spec.HTTP {
 		// check rule names
 		if _, ok := rules[http.Name]; ok {
 			return ReasonError{
@@ -156,13 +156,13 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 
 		// check plugin config reference
 		if http.PluginConfigName != "" {
-			if err := r.validatePluginConfig(ctx, tc, ar, http); err != nil {
+			if err := r.validatePluginConfig(ctx, tc, in, http); err != nil {
 				return err
 			}
 		}
 
 		// check secret
-		if err := r.validateSecrets(ctx, tc, ar, http); err != nil {
+		if err := r.validateSecrets(ctx, tc, in, http); err != nil {
 			return err
 		}
 
@@ -183,11 +183,11 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 		}
 
 		// process backend
-		if err := r.validateBackends(ctx, tc, ar, http); err != nil {
+		if err := r.validateBackends(ctx, tc, in, http); err != nil {
 			return err
 		}
 		// process upstreams
-		if err := r.validateUpstreams(ctx, tc, ar, http); err != nil {
+		if err := r.validateUpstreams(ctx, tc, in, http); err != nil {
 			return err
 		}
 	}
@@ -195,8 +195,8 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 	return nil
 }
 
-func (r *ApisixRouteReconciler) validatePluginConfig(ctx context.Context, tc *provider.TranslateContext, ar *apiv2.ApisixRoute, http apiv2.ApisixRouteHTTP) error {
-	pcNamespace := ar.Namespace
+func (r *ApisixRouteReconciler) validatePluginConfig(ctx context.Context, tc *provider.TranslateContext, in *apiv2.ApisixRoute, http apiv2.ApisixRouteHTTP) error {
+	pcNamespace := in.Namespace
 	if http.PluginConfigNamespace != "" {
 		pcNamespace = http.PluginConfigNamespace
 	}
@@ -217,7 +217,7 @@ func (r *ApisixRouteReconciler) validatePluginConfig(ctx context.Context, tc *pr
 	}
 
 	// Check if ApisixPluginConfig has IngressClassName and if it matches
-	if ar.Spec.IngressClassName != pc.Spec.IngressClassName && pc.Spec.IngressClassName != "" {
+	if in.Spec.IngressClassName != pc.Spec.IngressClassName && pc.Spec.IngressClassName != "" {
 		var pcIC networkingv1.IngressClass
 		if err := r.Get(ctx, client.ObjectKey{Name: pc.Spec.IngressClassName}, &pcIC); err != nil {
 			return ReasonError{
@@ -260,7 +260,7 @@ func (r *ApisixRouteReconciler) validatePluginConfig(ctx context.Context, tc *pr
 	return nil
 }
 
-func (r *ApisixRouteReconciler) validateSecrets(ctx context.Context, tc *provider.TranslateContext, ar *apiv2.ApisixRoute, http apiv2.ApisixRouteHTTP) error {
+func (r *ApisixRouteReconciler) validateSecrets(ctx context.Context, tc *provider.TranslateContext, in *apiv2.ApisixRoute, http apiv2.ApisixRouteHTTP) error {
 	for _, plugin := range http.Plugins {
 		if !plugin.Enable || plugin.Config == nil || plugin.SecretRef == "" {
 			continue
@@ -269,7 +269,7 @@ func (r *ApisixRouteReconciler) validateSecrets(ctx context.Context, tc *provide
 			secret = corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      plugin.SecretRef,
-					Namespace: ar.Namespace,
+					Namespace: in.Namespace,
 				},
 			}
 			secretNN = utils.NamespacedName(&secret)
@@ -286,14 +286,14 @@ func (r *ApisixRouteReconciler) validateSecrets(ctx context.Context, tc *provide
 	return nil
 }
 
-func (r *ApisixRouteReconciler) validateBackends(ctx context.Context, tc *provider.TranslateContext, ar *apiv2.ApisixRoute, http apiv2.ApisixRouteHTTP) error {
+func (r *ApisixRouteReconciler) validateBackends(ctx context.Context, tc *provider.TranslateContext, in *apiv2.ApisixRoute, http apiv2.ApisixRouteHTTP) error {
 	var backends = make(map[types.NamespacedName]struct{})
 	for _, backend := range http.Backends {
 		var (
 			service = corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      backend.ServiceName,
-					Namespace: ar.Namespace,
+					Namespace: in.Namespace,
 				},
 			}
 			serviceNN = utils.NamespacedName(&service)
