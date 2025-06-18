@@ -99,7 +99,7 @@ func translateApisixUpstreamLoadBalancer(au *apiv2.ApisixUpstream, ups *adc.Upst
 }
 
 func translateApisixUpstreamHealthCheck(au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
-	// todo: no field `.Checks` in adc.Upstream
+	// todo: handle `.Checks` in next PR
 	return nil
 }
 
@@ -141,7 +141,7 @@ func translateApisixUpstreamRetriesAndTimeout(au *apiv2.ApisixUpstream, ups *adc
 }
 
 func translateApisixUpstreamClientTLS(au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
-	// todo: no field `.TLS` in adc.Upstream
+	// todo: handle `.TLS` in next PR
 	return nil
 }
 
@@ -159,7 +159,7 @@ func translateApisixUpstreamPassHost(au *apiv2.ApisixUpstream, ups *adc.Upstream
 }
 
 func translateApisixUpstreamDiscovery(upstream *apiv2.ApisixUpstream, upstream2 *adc.Upstream) error {
-	// todo: no filed `.Discovery*` in adc.Upstream
+	// todo: handle `.Discovery*` in next PR
 	return nil
 }
 

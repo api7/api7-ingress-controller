@@ -149,64 +149,50 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 		}
 
 		var (
-			apisixUpstreams []*apiv2.ApisixUpstream
-			adcUpstreams    []*adc.Upstream
+			upstreams []*adc.Upstream
 		)
-		data, _ := json.Marshal(rule.Upstreams)
-		log.Debugf(".http[].Upstreams: %s", data)
 		for _, upstreamRef := range rule.Upstreams {
 			upsNN := types.NamespacedName{
 				Namespace: ar.GetNamespace(),
 				Name:      upstreamRef.Name,
 			}
-			log.Debugf("try to get ApisixUpstream: %s", upsNN)
 			au, ok := tctx.Upstreams[upsNN]
 			if !ok {
 				log.Debugf("failed to retrieve ApisixUpstream from tctx, ApisixUpstream: %s", upsNN)
 				continue
 			}
-			log.Debugf("try to translate the ApisixUpstream: %v", au)
-			adcUpstream, err := t.translateApisixUpstream(tctx, au)
+			upstream, err := t.translateApisixUpstream(tctx, au)
 			if err != nil {
-				log.Debugf("failed to translate ApisixUpstream, ApisixUpstream: %v, err: %v", au, err)
 				t.Log.Error(err, "failed to translate ApisixUpstream", "ApisixUpstream", utils.NamespacedName(au))
 				continue
 			}
 
-			apisixUpstreams = append(apisixUpstreams, au)
-			adcUpstreams = append(adcUpstreams, adcUpstream)
+			upstreams = append(upstreams, upstream)
 		}
-
-		_ = apisixUpstreams // todo: remove this
-
-		data, _ = json.Marshal(adcUpstreams)
-		log.Debugf("len(rule.Backends): %v, adcUpstreams: %s", len(rule.Backends), string(data))
 
 		// If no .http[].backends is used and only .http[].upstreams is used, the first valid upstream is used as service.upstream;
 		// Other upstreams are configured in the traffic-split plugin
-		if len(rule.Backends) == 0 && len(adcUpstreams) > 0 {
-			log.Debugf("set first upstream as service.Upstream, first upstream: %v", adcUpstreams[0])
-			upstream = adcUpstreams[0]
-			adcUpstreams = adcUpstreams[1:]
+		if len(rule.Backends) == 0 && len(upstreams) > 0 {
+			upstream = upstreams[0]
+			upstreams = upstreams[1:]
 		}
 
-		var wups []adc.TrafficSplitConfigRuleWeightedUpstream
-		for _, adcUpstream := range adcUpstreams {
-			weight, err := strconv.Atoi(adcUpstream.Labels["meta_weight"])
+		var weightedUpstreams []adc.TrafficSplitConfigRuleWeightedUpstream
+		for _, item := range upstreams {
+			weight, err := strconv.Atoi(item.Labels["meta_weight"])
 			if err != nil {
-				t.Log.Error(err, "failed to parse meta_weight from upstream labels", "labels", adcUpstream.GetLabels())
 				weight = apiv2.DefaultWeight
 			}
-			wups = append(wups, adc.TrafficSplitConfigRuleWeightedUpstream{
-				Upstream: adcUpstream,
+			weightedUpstreams = append(weightedUpstreams, adc.TrafficSplitConfigRuleWeightedUpstream{
+				Upstream: item,
 				Weight:   weight,
 			})
 		}
-		if len(wups) > 0 {
+		if len(weightedUpstreams) > 0 {
 			route.Plugins["traffic-split"] = &adc.TrafficSplitConfig{
 				Rules: []adc.TrafficSplitConfigRule{
 					{
-						WeightedUpstreams: wups,
+						WeightedUpstreams: weightedUpstreams,
 					},
 				},
 			}

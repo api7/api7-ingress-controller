@@ -186,7 +186,6 @@ func (r *ApisixRouteReconciler) processApisixRouteHTTPRule(ctx context.Context, 
 	}
 
 	// check vars
-	// todo: cache the result to tctx
 	if _, err := rule.Match.NginxVars.ToVars(); err != nil {
 		return ReasonError{
 			Reason:  string(apiv2.ConditionReasonInvalidSpec),
