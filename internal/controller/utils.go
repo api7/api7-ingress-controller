@@ -24,10 +24,12 @@ import (
 	"strings"
 
 	"github.com/api7/gopkg/pkg/log"
+	"github.com/go-logr/logr"
 	"github.com/samber/lo"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -41,6 +43,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
+	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
@@ -1169,4 +1172,110 @@ func checkReferenceGrant(ctx context.Context, cli client.Client, obj v1beta1.Ref
 		}
 	}
 	return false
+}
+
+func ListMatchingRequests(
+	ctx context.Context,
+	c client.Client,
+	logger logr.Logger,
+	listObj client.ObjectList,
+	matchFunc func(obj client.Object) bool,
+) []reconcile.Request {
+	if err := c.List(ctx, listObj); err != nil {
+		logger.Error(err, "failed to list resource")
+		return nil
+	}
+
+	items, err := meta.ExtractList(listObj)
+	if err != nil {
+		logger.Error(err, "failed to extract list items")
+		return nil
+	}
+
+	var requests []reconcile.Request
+	for _, item := range items {
+		obj, ok := item.(client.Object)
+		if !ok {
+			continue
+		}
+
+		if matchFunc(obj) {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: utils.NamespacedName(obj),
+			})
+		}
+	}
+	return requests
+}
+
+func listIngressClassRequestsForGatewayProxy(
+	ctx context.Context,
+	c client.Client,
+	obj client.Object,
+	logger logr.Logger,
+	listFunc func(context.Context, client.Object) []reconcile.Request,
+) []reconcile.Request {
+	gatewayProxy, ok := obj.(*v1alpha1.GatewayProxy)
+	if !ok {
+		return nil
+	}
+
+	ingressClassList := &networkingv1.IngressClassList{}
+	if err := c.List(ctx, ingressClassList, client.MatchingFields{
+		indexer.IngressClassParametersRef: indexer.GenIndexKey(gatewayProxy.GetNamespace(), gatewayProxy.GetName()),
+	}); err != nil {
+		logger.Error(err, "failed to list ingress classes for gateway proxy", "gatewayproxy", gatewayProxy.GetName())
+		return nil
+	}
+
+	requestSet := make(map[string]reconcile.Request)
+	for _, ingressClass := range ingressClassList.Items {
+		for _, req := range listFunc(ctx, &ingressClass) {
+			requestSet[req.String()] = req
+		}
+	}
+
+	requests := make([]reconcile.Request, 0, len(requestSet))
+	for _, req := range requestSet {
+		requests = append(requests, req)
+	}
+	return requests
+}
+
+func matchesIngressController(obj client.Object) bool {
+	ingressClass, ok := obj.(*networkingv1.IngressClass)
+	if !ok {
+		return false
+	}
+	return matchesController(ingressClass.Spec.Controller)
+}
+
+func matchesIngressClass(c client.Client, log logr.Logger, ingressClassName string) bool {
+	if ingressClassName == "" {
+		// Check for default ingress class
+		ingressClassList := &networkingv1.IngressClassList{}
+		if err := c.List(context.Background(), ingressClassList, client.MatchingFields{
+			indexer.IngressClass: config.GetControllerName(),
+		}); err != nil {
+			log.Error(err, "failed to list ingress classes")
+			return false
+		}
+
+		// Find the ingress class that is marked as default
+		for _, ic := range ingressClassList.Items {
+			if IsDefaultIngressClass(&ic) && matchesController(ic.Spec.Controller) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Check if the specified ingress class is controlled by us
+	var ingressClass networkingv1.IngressClass
+	if err := c.Get(context.Background(), client.ObjectKey{Name: ingressClassName}, &ingressClass); err != nil {
+		log.Error(err, "failed to get ingress class", "ingressClass", ingressClassName)
+		return false
+	}
+
+	return matchesController(ingressClass.Spec.Controller)
 }

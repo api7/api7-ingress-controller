@@ -128,11 +128,11 @@ type ConsumerGroup struct {
 
 // +k8s:deepcopy-gen=true
 type Consumer struct {
-	Credentials []Credential      `json:"credentials,omitempty" yaml:"credentials,omitempty"`
-	Description string            `json:"description,omitempty" yaml:"description,omitempty"`
-	Labels      map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
-	Plugins     Plugins           `json:"plugins,omitempty" yaml:"plugins,omitempty"`
-	Username    string            `json:"username" yaml:"username"`
+	Metadata `json:",inline" yaml:",inline"`
+
+	Credentials []Credential `json:"credentials,omitempty" yaml:"credentials,omitempty"`
+	Plugins     Plugins      `json:"plugins,omitempty" yaml:"plugins,omitempty"`
+	Username    string       `json:"username" yaml:"username"`
 }
 
 // +k8s:deepcopy-gen=true
