@@ -312,7 +312,7 @@ spec:
     upstreams:
     - name: default-upstream 
 `
-			const apisixUpstreamSpec = `
+			const apisixUpstreamSpec0 = `
 apiVersion: apisix.apache.org/v2
 kind: ApisixUpstream
 metadata:
@@ -323,18 +323,46 @@ spec:
   - type: Service
     name: httpbin-service-e2e-test
 `
-			By("create ApisixUpstream and ApisixRoute")
-			err := s.CreateResourceFromString(apisixUpstreamSpec)
+			const apisixUpstreamSpec1 = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: default-upstream
+spec:
+  ingressClassName: apisix
+  externalNodes:
+  - type: Service
+    name: alias-httpbin-service-e2e-test
+`
+			const serviceSpec = `
+apiVersion: v1
+kind: Service
+metadata:
+  name: alias-httpbin-service-e2e-test
+spec:
+  type: ExternalName
+  externalName: httpbin-service-e2e-test
+`
+			By("create Service, ApisixUpstream and ApisixRoute")
+			err := s.CreateResourceFromString(serviceSpec)
+			Expect(err).ShouldNot(HaveOccurred(), "apply service")
+			err = s.CreateResourceFromString(apisixUpstreamSpec0)
 			Expect(err).ShouldNot(HaveOccurred(), "apply apisixUpstreamSpec")
 
 			var apisxiRoute apiv2.ApisixRoute
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisxiRoute, apisixRouteSpec)
 
-			By("verify ApisixRoute and ApisixUpstream works")
+			By("verify that the ApisixUpstream reference a Service which is not ExternalName should not request OK")
 			request := func(path string) int {
 				return s.NewAPISIXClient().GET(path).WithHost("httpbin").Expect().Raw().StatusCode
 			}
+			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusServiceUnavailable))
+
+			By("verify that ApisixUpstream reference a Service which is ExternalName should reqeust OK")
+			err = s.CreateResourceFromString(apisixUpstreamSpec1)
+			Expect(err).ShouldNot(HaveOccurred(), "update apisixUpstream")
 			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+
 		})
 	})
 })

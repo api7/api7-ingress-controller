@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/api7/gopkg/pkg/log"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -28,7 +29,6 @@ import (
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
-	types2 "github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
 	"github.com/apache/apisix-ingress-controller/pkg/id"
 	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
@@ -152,34 +152,41 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 			apisixUpstreams []*apiv2.ApisixUpstream
 			adcUpstreams    []*adc.Upstream
 		)
+		data, _ := json.Marshal(rule.Upstreams)
+		log.Debugf(".http[].Upstreams: %s", data)
 		for _, upstreamRef := range rule.Upstreams {
-			refKey := types2.NamespacedNameKind{
+			upsNN := types.NamespacedName{
 				Namespace: ar.GetNamespace(),
 				Name:      upstreamRef.Name,
-				Kind:      "ApisixUpstream",
 			}
-			apisixUpstream, ok := tctx.Upstreams[refKey]
+			log.Debugf("try to get ApisixUpstream: %s", upsNN)
+			au, ok := tctx.Upstreams[upsNN]
 			if !ok {
+				log.Debugf("failed to retrieve ApisixUpstream from tctx, ApisixUpstream: %s", upsNN)
 				continue
 			}
-
-			// todo: translate external upstream
-			adcUpstream, err := t.translateApisixUpstream(tctx, apisixUpstream)
+			log.Debugf("try to translate the ApisixUpstream: %v", au)
+			adcUpstream, err := t.translateApisixUpstream(tctx, au)
 			if err != nil {
-				t.Log.Error(err, "failed to translate ApisixUpstream", "ApisixUpstream", utils.NamespacedName(apisixUpstream))
+				log.Debugf("failed to translate ApisixUpstream, ApisixUpstream: %v, err: %v", au, err)
+				t.Log.Error(err, "failed to translate ApisixUpstream", "ApisixUpstream", utils.NamespacedName(au))
 				continue
 			}
 
-			apisixUpstreams = append(apisixUpstreams, apisixUpstream)
+			apisixUpstreams = append(apisixUpstreams, au)
 			adcUpstreams = append(adcUpstreams, adcUpstream)
 		}
 
-		_ = apisixUpstreams
+		_ = apisixUpstreams // todo: remove this
+
+		data, _ = json.Marshal(adcUpstreams)
+		log.Debugf("len(rule.Backends): %v, adcUpstreams: %s", len(rule.Backends), string(data))
 
 		// If no .http[].backends is used and only .http[].upstreams is used, the first valid upstream is used as service.upstream;
 		// Other upstreams are configured in the traffic-split plugin
 		if len(rule.Backends) == 0 && len(adcUpstreams) > 0 {
-			service.Upstream = adcUpstreams[0]
+			log.Debugf("set first upstream as service.Upstream, first upstream: %v", adcUpstreams[0])
+			upstream = adcUpstreams[0]
 			adcUpstreams = adcUpstreams[1:]
 		}
 

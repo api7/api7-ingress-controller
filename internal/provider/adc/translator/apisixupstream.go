@@ -171,7 +171,7 @@ func translateApisixUpstreamExternalNodes(tctx *provider.TranslateContext, au *a
 				return err
 			}
 		default: // apiv2.ExternalTypeService or default
-			if err := translateApisixUpstreamExternalNodesExternalName(tctx, au, ups, node); err != nil {
+			if err := translateApisixUpstreamExternalNodesService(tctx, au, ups, node); err != nil {
 				return err
 			}
 		}
@@ -207,7 +207,7 @@ func translateApisixUpstreamExternalNodesDomain(au *apiv2.ApisixUpstream, ups *a
 	return nil
 }
 
-func translateApisixUpstreamExternalNodesExternalName(tctx *provider.TranslateContext, au *apiv2.ApisixUpstream, ups *adc.Upstream, node apiv2.ApisixUpstreamExternalNode) error {
+func translateApisixUpstreamExternalNodesService(tctx *provider.TranslateContext, au *apiv2.ApisixUpstream, ups *adc.Upstream, node apiv2.ApisixUpstreamExternalNode) error {
 	serviceNN := types.NamespacedName{Namespace: au.GetNamespace(), Name: node.Name}
 	svc, ok := tctx.Services[serviceNN]
 	if !ok {

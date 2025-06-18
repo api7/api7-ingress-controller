@@ -13,6 +13,7 @@
 package indexer
 
 import (
+	"cmp"
 	"context"
 
 	networkingv1 "k8s.io/api/networking/v1"
@@ -95,8 +96,8 @@ func setupConsumerIndexer(mgr ctrl.Manager) error {
 
 func setupApisixRouteIndexer(mgr ctrl.Manager) error {
 	var indexers = map[string]func(client.Object) []string{
-		ServiceIndexRef:   ApisixRouteServiceIndexFunc,
-		SecretIndexRef:    ApisixRouteSecretIndexFunc,
+		ServiceIndexRef:   ApisixRouteServiceIndexFunc(mgr.GetClient()),
+		SecretIndexRef:    ApisixRouteSecretIndexFunc(mgr.GetClient()),
 		ApisixUpstreamRef: ApisixRouteApisixUpstreamIndexFunc,
 	}
 	for key, f := range indexers {
@@ -430,36 +431,82 @@ func HTTPRouteServiceIndexFunc(rawObj client.Object) []string {
 	return keys
 }
 
-func ApisixRouteServiceIndexFunc(obj client.Object) (keys []string) {
-	ar := obj.(*apiv2.ApisixRoute)
-	for _, http := range ar.Spec.HTTP {
-		for _, backend := range http.Backends {
-			keys = append(keys, GenIndexKey(ar.GetNamespace(), backend.ServiceName))
+func ApisixRouteServiceIndexFunc(cli client.Client) func(client.Object) []string {
+	return func(obj client.Object) (keys []string) {
+		ar := obj.(*apiv2.ApisixRoute)
+		for _, http := range ar.Spec.HTTP {
+			// service reference in .backends
+			for _, backend := range http.Backends {
+				keys = append(keys, GenIndexKey(ar.GetNamespace(), backend.ServiceName))
+			}
+			// service reference in .upstreams
+			for _, upstream := range http.Upstreams {
+				if upstream.Name == "" {
+					continue
+				}
+				var (
+					au   apiv2.ApisixUpstream
+					auNN = types.NamespacedName{
+						Namespace: ar.GetNamespace(),
+						Name:      upstream.Name,
+					}
+				)
+				if err := cli.Get(context.Background(), auNN, &au); err != nil {
+					continue
+				}
+				for _, node := range au.Spec.ExternalNodes {
+					if node.Type == apiv2.ExternalTypeService && node.Name != "" {
+						keys = append(keys, GenIndexKey(au.GetNamespace(), node.Name))
+					}
+				}
+			}
 		}
+		for _, stream := range ar.Spec.Stream {
+			keys = append(keys, GenIndexKey(ar.GetNamespace(), stream.Backend.ServiceName))
+		}
+		return keys
 	}
-	for _, stream := range ar.Spec.Stream {
-		keys = append(keys, GenIndexKey(ar.GetNamespace(), stream.Backend.ServiceName))
-	}
-	return
 }
 
-func ApisixRouteSecretIndexFunc(obj client.Object) (keys []string) {
-	ar := obj.(*apiv2.ApisixRoute)
-	for _, http := range ar.Spec.HTTP {
-		for _, plugin := range http.Plugins {
-			if plugin.Enable && plugin.SecretRef != "" {
-				keys = append(keys, GenIndexKey(ar.GetNamespace(), plugin.SecretRef))
+func ApisixRouteSecretIndexFunc(cli client.Client) func(client.Object) []string {
+	return func(obj client.Object) (keys []string) {
+		ar := obj.(*apiv2.ApisixRoute)
+		for _, http := range ar.Spec.HTTP {
+			// secret reference in .plugins
+			for _, plugin := range http.Plugins {
+				if plugin.Enable && plugin.SecretRef != "" {
+					keys = append(keys, GenIndexKey(ar.GetNamespace(), plugin.SecretRef))
+				}
+			}
+			// secret reference in .upstreams
+			for _, upstream := range http.Upstreams {
+				if upstream.Name == "" {
+					continue
+				}
+				var (
+					au   apiv2.ApisixUpstream
+					auNN = types.NamespacedName{
+						Namespace: ar.GetNamespace(),
+						Name:      upstream.Name,
+					}
+				)
+				if err := cli.Get(context.Background(), auNN, &au); err != nil {
+					continue
+				}
+				if secret := au.Spec.TLSSecret; secret != nil && secret.Name != "" {
+					keys = append(keys, GenIndexKey(cmp.Or(secret.Namespace, au.GetNamespace()), secret.Name))
+				}
 			}
 		}
-	}
-	for _, stream := range ar.Spec.Stream {
-		for _, plugin := range stream.Plugins {
-			if plugin.Enable && plugin.SecretRef != "" {
-				keys = append(keys, GenIndexKey(ar.GetNamespace(), plugin.SecretRef))
+		for _, stream := range ar.Spec.Stream {
+			for _, plugin := range stream.Plugins {
+				if plugin.Enable && plugin.SecretRef != "" {
+					keys = append(keys, GenIndexKey(ar.GetNamespace(), plugin.SecretRef))
+				}
 			}
 		}
+		return keys
 	}
-	return
 }
 
 func ApisixRouteApisixUpstreamIndexFunc(obj client.Object) (keys []string) {

@@ -141,7 +141,7 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 	var (
 		rules = make(map[string]struct{})
 	)
-	for httpIndex, http := range in.Spec.HTTP {
+	for _, http := range in.Spec.HTTP {
 		// check rule names
 		if _, ok := rules[http.Name]; ok {
 			return ReasonError{
@@ -151,126 +151,166 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 		}
 		rules[http.Name] = struct{}{}
 
-		// check secret
-		for _, plugin := range http.Plugins {
-			if !plugin.Enable || plugin.Config == nil || plugin.SecretRef == "" {
+		if err := r.processApisixRouteHTTPRule(ctx, tc, in, http); err != nil {
+			r.Log.Error(err, "failed to process ApisixRoute http rule")
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *ApisixRouteReconciler) processApisixRouteHTTPRule(ctx context.Context, tc *provider.TranslateContext, in *apiv2.ApisixRoute, rule apiv2.ApisixRouteHTTP) error {
+	// check secret
+	for _, plugin := range rule.Plugins {
+		if !plugin.Enable || plugin.Config == nil || plugin.SecretRef == "" {
+			continue
+		}
+		var (
+			secret = corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      plugin.SecretRef,
+					Namespace: in.Namespace,
+				},
+			}
+			secretNN = utils.NamespacedName(&secret)
+		)
+		if err := r.Get(ctx, secretNN, &secret); err != nil {
+			return ReasonError{
+				Reason:  string(apiv2.ConditionReasonInvalidSpec),
+				Message: fmt.Sprintf("failed to get Secret: %s", secretNN),
+			}
+		}
+
+		tc.Secrets[utils.NamespacedName(&secret)] = &secret
+	}
+
+	// check vars
+	// todo: cache the result to tctx
+	if _, err := rule.Match.NginxVars.ToVars(); err != nil {
+		return ReasonError{
+			Reason:  string(apiv2.ConditionReasonInvalidSpec),
+			Message: fmt.Sprintf(".spec.http[].match.exprs: %v", err),
+		}
+	}
+
+	// validate remote address
+	if err := utils.ValidateRemoteAddrs(rule.Match.RemoteAddrs); err != nil {
+		return ReasonError{
+			Reason:  string(apiv2.ConditionReasonInvalidSpec),
+			Message: fmt.Sprintf(".spec.http[].match.remoteAddrs: %v", err),
+		}
+	}
+
+	// process backend
+	var backends = make(map[types.NamespacedName]struct{})
+	for _, backend := range rule.Backends {
+		var (
+			service = corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      backend.ServiceName,
+					Namespace: in.Namespace,
+				},
+			}
+			serviceNN = utils.NamespacedName(&service)
+		)
+		if _, ok := backends[serviceNN]; ok {
+			return ReasonError{
+				Reason:  string(apiv2.ConditionReasonInvalidSpec),
+				Message: fmt.Sprintf("duplicate backend service: %s", serviceNN),
+			}
+		}
+		backends[serviceNN] = struct{}{}
+
+		if err := r.Get(ctx, serviceNN, &service); err != nil {
+			if err := client.IgnoreNotFound(err); err == nil {
+				r.Log.Error(errors.New("service not found"), "Service", serviceNN)
 				continue
 			}
-			var (
-				secret = corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      plugin.SecretRef,
-						Namespace: in.Namespace,
-					},
+			return err
+		}
+		if service.Spec.Type == corev1.ServiceTypeExternalName {
+			tc.Services[serviceNN] = &service
+			continue
+		}
+
+		if backend.ResolveGranularity == "service" && service.Spec.ClusterIP == "" {
+			r.Log.Error(errors.New("service has no ClusterIP"), "Service", serviceNN, "ResolveGranularity", backend.ResolveGranularity)
+			continue
+		}
+
+		if !slices.ContainsFunc(service.Spec.Ports, func(port corev1.ServicePort) bool {
+			return port.Port == int32(backend.ServicePort.IntValue())
+		}) {
+			r.Log.Error(errors.New("port not found in service"), "Service", serviceNN, "port", backend.ServicePort.String())
+			continue
+		}
+		tc.Services[serviceNN] = &service
+
+		var endpoints discoveryv1.EndpointSliceList
+		if err := r.List(ctx, &endpoints,
+			client.InNamespace(service.Namespace),
+			client.MatchingLabels{
+				discoveryv1.LabelServiceName: service.Name,
+			},
+		); err != nil {
+			return ReasonError{
+				Reason:  string(apiv2.ConditionReasonInvalidSpec),
+				Message: fmt.Sprintf("failed to list endpoint slices: %v", err),
+			}
+		}
+		tc.EndpointSlices[serviceNN] = endpoints.Items
+	}
+
+	for _, upstream := range rule.Upstreams {
+		if upstream.Name == "" {
+			continue
+		}
+		var (
+			ups   apiv2.ApisixUpstream
+			upsNN = types.NamespacedName{
+				Namespace: in.GetNamespace(),
+				Name:      upstream.Name,
+			}
+		)
+		if err := r.Get(ctx, upsNN, &ups); err != nil {
+			r.Log.Error(err, "failed to get ApisixUpstream", "ApisixUpstream", upsNN)
+			if client.IgnoreNotFound(err) == nil {
+				continue
+			}
+			return err
+		}
+		tc.Upstreams[upsNN] = &ups
+
+		for _, node := range ups.Spec.ExternalNodes {
+			if node.Type == apiv2.ExternalTypeService {
+				var (
+					service   corev1.Service
+					serviceNN = types.NamespacedName{Namespace: ups.GetNamespace(), Name: node.Name}
+				)
+				if err := r.Get(ctx, serviceNN, &service); err != nil {
+					r.Log.Error(err, "failed to get service in ApisixUpstream", "ApisixUpstream", upsNN, "Service", serviceNN)
+					if client.IgnoreNotFound(err) == nil {
+						continue
+					}
+					return err
 				}
-				secretNN = utils.NamespacedName(&secret)
+				tc.Services[utils.NamespacedName(&service)] = &service
+			}
+		}
+
+		if ups.Spec.TLSSecret != nil && ups.Spec.TLSSecret.Name != "" {
+			var (
+				secret   corev1.Secret
+				secretNN = types.NamespacedName{Namespace: cmp.Or(ups.Spec.TLSSecret.Namespace, in.GetNamespace()), Name: ups.Spec.TLSSecret.Name}
 			)
 			if err := r.Get(ctx, secretNN, &secret); err != nil {
-				return ReasonError{
-					Reason:  string(apiv2.ConditionReasonInvalidSpec),
-					Message: fmt.Sprintf("failed to get Secret: %s", secretNN),
+				r.Log.Error(err, "failed to get secret in ApisixUpstream", "ApisixUpstream", upsNN, "Secret", secretNN)
+				if client.IgnoreNotFound(err) != nil {
+					return err
 				}
 			}
-
-			tc.Secrets[utils.NamespacedName(&secret)] = &secret
-		}
-
-		// check vars
-		// todo: cache the result to tctx
-		if _, err := http.Match.NginxVars.ToVars(); err != nil {
-			return ReasonError{
-				Reason:  string(apiv2.ConditionReasonInvalidSpec),
-				Message: fmt.Sprintf(".spec.http[%d].match.exprs: %s", httpIndex, err.Error()),
-			}
-		}
-
-		// validate remote address
-		if err := utils.ValidateRemoteAddrs(http.Match.RemoteAddrs); err != nil {
-			return ReasonError{
-				Reason:  string(apiv2.ConditionReasonInvalidSpec),
-				Message: fmt.Sprintf(".spec.http[%d].match.remoteAddrs: %s", httpIndex, err.Error()),
-			}
-		}
-
-		// process backend
-		var backends = make(map[types.NamespacedName]struct{})
-		for _, backend := range http.Backends {
-			var (
-				service = corev1.Service{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      backend.ServiceName,
-						Namespace: in.Namespace,
-					},
-				}
-				serviceNN = utils.NamespacedName(&service)
-			)
-			if _, ok := backends[serviceNN]; ok {
-				return ReasonError{
-					Reason:  string(apiv2.ConditionReasonInvalidSpec),
-					Message: fmt.Sprintf("duplicate backend service: %s", serviceNN),
-				}
-			}
-			backends[serviceNN] = struct{}{}
-
-			if err := r.Get(ctx, serviceNN, &service); err != nil {
-				if err := client.IgnoreNotFound(err); err == nil {
-					r.Log.Error(errors.New("service not found"), "Service", serviceNN)
-					continue
-				}
-				return err
-			}
-			if service.Spec.Type == corev1.ServiceTypeExternalName {
-				tc.Services[serviceNN] = &service
-				continue
-			}
-
-			if backend.ResolveGranularity == "service" && service.Spec.ClusterIP == "" {
-				r.Log.Error(errors.New("service has no ClusterIP"), "Service", serviceNN, "ResolveGranularity", backend.ResolveGranularity)
-				continue
-			}
-
-			if !slices.ContainsFunc(service.Spec.Ports, func(port corev1.ServicePort) bool {
-				return port.Port == int32(backend.ServicePort.IntValue())
-			}) {
-				r.Log.Error(errors.New("port not found in service"), "Service", serviceNN, "port", backend.ServicePort.String())
-				continue
-			}
-			tc.Services[serviceNN] = &service
-
-			var endpoints discoveryv1.EndpointSliceList
-			if err := r.List(ctx, &endpoints,
-				client.InNamespace(service.Namespace),
-				client.MatchingLabels{
-					discoveryv1.LabelServiceName: service.Name,
-				},
-			); err != nil {
-				return ReasonError{
-					Reason:  string(apiv2.ConditionReasonInvalidSpec),
-					Message: fmt.Sprintf("failed to list endpoint slices: %v", err),
-				}
-			}
-			tc.EndpointSlices[serviceNN] = endpoints.Items
-		}
-
-		for _, upstream := range http.Upstreams {
-			if upstream.Name == "" {
-				continue
-			}
-			var ups = apiv2.ApisixUpstream{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:     upstream.Name,
-					SelfLink: in.GetNamespace(),
-				},
-			}
-			upsNN := utils.NamespacedName(&ups)
-			if err := r.Get(ctx, upsNN, &ups); err != nil {
-				if client.IgnoreNotFound(err) == nil {
-					r.Log.Error(err, "ApisixUpstream not found")
-					continue
-				}
-				return err
-			}
-			tc.Upstreams[utils.NamespacedNameKind(&ups)] = &ups
+			tc.Secrets[secretNN] = &secret
 		}
 	}
 
