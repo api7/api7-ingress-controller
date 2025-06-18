@@ -352,19 +352,45 @@ func (r *ApisixRouteReconciler) listApisixRoutesForSecret(ctx context.Context, o
 	}
 
 	var (
-		arList apiv2.ApisixRouteList
+		arList      apiv2.ApisixRouteList
+		pcList      apiv2.ApisixPluginConfigList
+		allRequests = make([]reconcile.Request, 0)
 	)
+
+	// First, find ApisixRoutes that directly reference this secret
 	if err := r.List(ctx, &arList, client.MatchingFields{
 		indexer.SecretIndexRef: indexer.GenIndexKey(secret.GetNamespace(), secret.GetName()),
 	}); err != nil {
 		r.Log.Error(err, "failed to list apisixroutes by secret", "secret", secret.Name)
 		return nil
 	}
-	requests := make([]reconcile.Request, 0, len(arList.Items))
 	for _, ar := range arList.Items {
-		requests = append(requests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
+		allRequests = append(allRequests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
 	}
-	return pkgutils.DedupComparable(requests)
+
+	// Second, find ApisixPluginConfigs that reference this secret
+	if err := r.List(ctx, &pcList, client.MatchingFields{
+		indexer.SecretIndexRef: indexer.GenIndexKey(secret.GetNamespace(), secret.GetName()),
+	}); err != nil {
+		r.Log.Error(err, "failed to list apisixpluginconfigs by secret", "secret", secret.Name)
+		return nil
+	}
+
+	// Then find ApisixRoutes that reference these PluginConfigs
+	for _, pc := range pcList.Items {
+		var arListForPC apiv2.ApisixRouteList
+		if err := r.List(ctx, &arListForPC, client.MatchingFields{
+			indexer.PluginConfigIndexRef: indexer.GenIndexKey(pc.GetNamespace(), pc.GetName()),
+		}); err != nil {
+			r.Log.Error(err, "failed to list apisixroutes by plugin config", "pluginconfig", pc.Name)
+			continue
+		}
+		for _, ar := range arListForPC.Items {
+			allRequests = append(allRequests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
+		}
+	}
+
+	return pkgutils.DedupComparable(allRequests)
 }
 
 func (r *ApisixRouteReconciler) listApiRouteForIngressClass(ctx context.Context, object client.Object) (requests []reconcile.Request) {

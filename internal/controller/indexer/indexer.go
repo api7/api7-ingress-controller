@@ -53,6 +53,7 @@ func SetupIndexer(mgr ctrl.Manager) error {
 		setupGatewaySecretIndex,
 		setupGatewayClassIndexer,
 		setupApisixRouteIndexer,
+		setupApisixPluginConfigIndexer,
 	} {
 		if err := setup(mgr); err != nil {
 			return err
@@ -105,6 +106,18 @@ func setupApisixRouteIndexer(mgr ctrl.Manager) error {
 		}
 	}
 
+	return nil
+}
+
+func setupApisixPluginConfigIndexer(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&apiv2.ApisixPluginConfig{},
+		SecretIndexRef,
+		ApisixPluginConfigSecretIndexFunc,
+	); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -553,4 +566,14 @@ func IngressClassParametersRefIndexFunc(rawObj client.Object) []string {
 		return []string{GenIndexKey(ns, ingressClass.Spec.Parameters.Name)}
 	}
 	return nil
+}
+
+func ApisixPluginConfigSecretIndexFunc(obj client.Object) (keys []string) {
+	pc := obj.(*apiv2.ApisixPluginConfig)
+	for _, plugin := range pc.Spec.Plugins {
+		if plugin.Enable && plugin.SecretRef != "" {
+			keys = append(keys, GenIndexKey(pc.GetNamespace(), plugin.SecretRef))
+		}
+	}
+	return
 }
