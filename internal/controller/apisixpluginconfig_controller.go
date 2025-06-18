@@ -37,10 +37,9 @@ import (
 // ApisixPluginConfigReconciler reconciles a ApisixPluginConfig object
 type ApisixPluginConfigReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	Log      logr.Logger
-	Provider provider.Provider
-	Updater  status.Updater
+	Scheme  *runtime.Scheme
+	Log     logr.Logger
+	Updater status.Updater
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -76,10 +75,6 @@ func (r *ApisixPluginConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 				APIVersion: apiv2.GroupVersion.String(),
 			}
 
-			// if err := r.Provider.Delete(ctx, &pc); err != nil {
-			// 	r.Log.Error(err, "failed to delete apisixpluginconfig", "apisixpluginconfig", pc)
-			// 	return ctrl.Result{}, err
-			// }
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
@@ -103,15 +98,6 @@ func (r *ApisixPluginConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if err = r.processApisixPluginConfig(ctx, tctx, &pc); err != nil {
 		return ctrl.Result{}, err
 	}
-	// if err = r.Provider.Update(ctx, tctx, &pc); err != nil {
-	// 	err = ReasonError{
-	// 		Reason:  string(apiv2.ConditionReasonSyncFailed),
-	// 		Message: err.Error(),
-	// 	}
-	// 	r.Log.Error(err, "failed to process", "apisixpluginconfig", pc)
-	// 	return ctrl.Result{}, err
-	// }
-
 	return ctrl.Result{}, nil
 }
 
