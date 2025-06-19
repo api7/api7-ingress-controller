@@ -13,406 +13,261 @@
 package apisix
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/tls"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
+	"context"
 	"fmt"
-	"math/big"
 	"net/http"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/types"
 
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
+
+const gatewayProxyYamlTls = `
+apiVersion: apisix.apache.org/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: apisix-proxy-tls
+  namespace: default
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+`
+
+const ingressClassYamlTls = `
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: apisix-tls
+spec:
+  controller: "apisix.apache.org/apisix-ingress-controller"
+  parameters:
+    apiGroup: "apisix.apache.org"
+    kind: "GatewayProxy"
+    name: "apisix-proxy-tls"
+    namespace: "default"
+    scope: "Namespace"
+`
+
+const apisixRouteYamlTls = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: test-route-tls
+spec:
+  ingressClassName: apisix-tls
+  http:
+  - name: rule0
+    match:
+      paths:
+      - /*
+      hosts:
+      - api6.com
+    backends:
+    - serviceName: httpbin-service-e2e-test
+      servicePort: 80
+`
+
+var Cert = strings.TrimSpace(framework.TestServerCert)
+
+var Key = strings.TrimSpace(framework.TestServerKey)
 
 var _ = Describe("Test ApisixTls", func() {
 	var (
 		s = scaffold.NewScaffold(&scaffold.Options{
 			ControllerName: "apisix.apache.org/apisix-ingress-controller",
 		})
+		applier = framework.NewApplier(s.GinkgoT, s.K8sClient, s.CreateResourceFromString)
 	)
 
-	BeforeEach(func() {
-		By("create GatewayProxy")
-		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
-		err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
-		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
-		time.Sleep(5 * time.Second)
+	Context("Test ApisixTls", func() {
+		BeforeEach(func() {
+			By("create GatewayProxy")
+			gatewayProxy := fmt.Sprintf(gatewayProxyYamlTls, s.Deployer.GetAdminEndpoint(), s.AdminKey())
+			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+			time.Sleep(5 * time.Second)
 
-		By("create IngressClass")
-		err = s.CreateResourceFromStringWithNamespace(ingressClassYaml, "")
-		Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
-		time.Sleep(5 * time.Second)
-	})
+			By("create IngressClass")
+			err = s.CreateResourceFromStringWithNamespace(ingressClassYamlTls, "")
+			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
+			time.Sleep(5 * time.Second)
 
-	AfterEach(func() {
-		By("clean up GatewayProxy")
-		err := s.DeleteResourceFromStringWithNamespace(gatewayProxyYaml, "default")
-		Expect(err).NotTo(HaveOccurred(), "delete GatewayProxy")
-
-		By("clean up IngressClass")
-		err = s.DeleteResourceFromStringWithNamespace(ingressClassYaml, "")
-		Expect(err).NotTo(HaveOccurred(), "delete IngressClass")
-	})
-
-	Context("Basic TLS Configuration", func() {
-		It("should create SSL certificate in APISIX", func() {
-			By("generating TLS certificate and key")
-			cert, key, err := generateSelfSignedCert("example.com")
-			Expect(err).NotTo(HaveOccurred())
-
-			By("creating TLS secret")
-			secret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-tls-secret",
-					Namespace: "default",
-				},
-				Type: corev1.SecretTypeTLS,
-				Data: map[string][]byte{
-					"tls.crt": cert,
-					"tls.key": key,
-				},
-			}
-			err = s.K8sClient.Create(s.Context, secret)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("creating ApisixTls resource")
-			apisixTls := &apiv2.ApisixTls{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-tls",
-					Namespace: "default",
-				},
-				Spec: apiv2.ApisixTlsSpec{
-					Hosts: []apiv2.HostType{"example.com"},
-					Secret: apiv2.ApisixSecret{
-						Name:      "test-tls-secret",
-						Namespace: "default",
-					},
-					IngressClassName: "apisix",
-				},
-			}
-			err = s.K8sClient.Create(s.Context, apisixTls)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("checking ApisixTls status")
-			Eventually(func() bool {
-				var tls apiv2.ApisixTls
-				err := s.K8sClient.Get(s.Context, types.NamespacedName{
-					Name:      "test-tls",
-					Namespace: "default",
-				}, &tls)
-				if err != nil {
-					return false
-				}
-
-				if len(tls.Status.Conditions) == 0 {
-					return false
-				}
-
-				condition := tls.Status.Conditions[0]
-				return condition.Type == string(apiv2.ConditionTypeAccepted) &&
-					condition.Status == metav1.ConditionTrue
-			}, 30*time.Second, 1*time.Second).Should(BeTrue())
-
-			By("verifying SSL configuration in APISIX")
-			Eventually(func() bool {
-				// Test HTTPS connection to verify SSL is configured
-				client := &http.Client{
-					Transport: &http.Transport{
-						TLSClientConfig: &tls.Config{
-							InsecureSkipVerify: true,
-						},
-					},
-					Timeout: 5 * time.Second,
-				}
-
-				// Since we can't easily test HTTPS without a proper setup,
-				// we'll check if the SSL object exists in APISIX admin API
-				resp, err := client.Get(fmt.Sprintf("%s/apisix/admin/ssls", s.Deployer.GetAdminEndpoint()))
-				if err != nil {
-					return false
-				}
-				defer func() { _ = resp.Body.Close() }()
-
-				return resp.StatusCode == http.StatusOK
-			}, 30*time.Second, 2*time.Second).Should(BeTrue())
-
-			By("cleaning up")
-			err = s.K8sClient.Delete(s.Context, apisixTls)
-			Expect(err).NotTo(HaveOccurred())
-			err = s.K8sClient.Delete(s.Context, secret)
-			Expect(err).NotTo(HaveOccurred())
-		})
-	})
-
-	Context("Mutual TLS (mTLS) Configuration", func() {
-		It("should create SSL certificate with client CA in APISIX", func() {
-			By("generating server certificate and key")
-			cert, key, err := generateSelfSignedCert("example.com")
-			Expect(err).NotTo(HaveOccurred())
-
-			By("generating CA certificate for client authentication")
-			caCert, caKey, err := generateSelfSignedCert("ca.example.com")
-			Expect(err).NotTo(HaveOccurred())
-
-			By("creating TLS secret")
-			secret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-tls-secret",
-					Namespace: "default",
-				},
-				Type: corev1.SecretTypeTLS,
-				Data: map[string][]byte{
-					"tls.crt": cert,
-					"tls.key": key,
-				},
-			}
-			err = s.K8sClient.Create(s.Context, secret)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("creating CA secret")
-			caSecret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-ca-secret",
-					Namespace: "default",
-				},
-				Type: corev1.SecretTypeOpaque,
-				Data: map[string][]byte{
-					"tls.crt": caCert,
-					"tls.key": caKey,
-				},
-			}
-			err = s.K8sClient.Create(s.Context, caSecret)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("creating ApisixTls resource with mTLS")
-			apisixTls := &apiv2.ApisixTls{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-mtls",
-					Namespace: "default",
-				},
-				Spec: apiv2.ApisixTlsSpec{
-					Hosts: []apiv2.HostType{"example.com"},
-					Secret: apiv2.ApisixSecret{
-						Name:      "test-tls-secret",
-						Namespace: "default",
-					},
-					Client: &apiv2.ApisixMutualTlsClientConfig{
-						CASecret: apiv2.ApisixSecret{
-							Name:      "test-ca-secret",
-							Namespace: "default",
-						},
-						Depth:            2,
-						SkipMTLSUriRegex: []string{"/health"},
-					},
-					IngressClassName: "apisix",
-				},
-			}
-			err = s.K8sClient.Create(s.Context, apisixTls)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("checking ApisixTls status")
-			Eventually(func() bool {
-				var tls apiv2.ApisixTls
-				err := s.K8sClient.Get(s.Context, types.NamespacedName{
-					Name:      "test-mtls",
-					Namespace: "default",
-				}, &tls)
-				if err != nil {
-					return false
-				}
-
-				if len(tls.Status.Conditions) == 0 {
-					return false
-				}
-
-				condition := tls.Status.Conditions[0]
-				return condition.Type == string(apiv2.ConditionTypeAccepted) &&
-					condition.Status == metav1.ConditionTrue
-			}, 30*time.Second, 1*time.Second).Should(BeTrue())
-
-			By("cleaning up")
-			err = s.K8sClient.Delete(s.Context, apisixTls)
-			Expect(err).NotTo(HaveOccurred())
-			err = s.K8sClient.Delete(s.Context, secret)
-			Expect(err).NotTo(HaveOccurred())
-			err = s.K8sClient.Delete(s.Context, caSecret)
-			Expect(err).NotTo(HaveOccurred())
-		})
-	})
-
-	Context("Error Scenarios", func() {
-		It("should handle missing TLS secret", func() {
-			By("creating ApisixTls resource with non-existent secret")
-			apisixTls := &apiv2.ApisixTls{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-tls-missing-secret",
-					Namespace: "default",
-				},
-				Spec: apiv2.ApisixTlsSpec{
-					Hosts: []apiv2.HostType{"example.com"},
-					Secret: apiv2.ApisixSecret{
-						Name:      "non-existent-secret",
-						Namespace: "default",
-					},
-					IngressClassName: "apisix",
-				},
-			}
-			err := s.K8sClient.Create(s.Context, apisixTls)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("checking ApisixTls status shows error")
-			Eventually(func() bool {
-				var tls apiv2.ApisixTls
-				err := s.K8sClient.Get(s.Context, types.NamespacedName{
-					Name:      "test-tls-missing-secret",
-					Namespace: "default",
-				}, &tls)
-				if err != nil {
-					return false
-				}
-
-				if len(tls.Status.Conditions) == 0 {
-					return false
-				}
-
-				condition := tls.Status.Conditions[0]
-				return condition.Type == string(apiv2.ConditionTypeAccepted) &&
-					condition.Status == metav1.ConditionFalse &&
-					condition.Reason == string(apiv2.ConditionReasonInvalidSpec)
-			}, 30*time.Second, 1*time.Second).Should(BeTrue())
-
-			By("cleaning up")
-			err = s.K8sClient.Delete(s.Context, apisixTls)
-			Expect(err).NotTo(HaveOccurred())
+			By("create ApisixRoute for TLS testing")
+			var apisixRoute apiv2.ApisixRoute
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "test-route-tls"}, &apisixRoute, apisixRouteYamlTls)
 		})
 
-		It("should handle missing CA secret for mTLS", func() {
-			By("generating server certificate and key")
-			cert, key, err := generateSelfSignedCert("example.com")
-			Expect(err).NotTo(HaveOccurred())
+		It("Basic ApisixTls test", func() {
+			const host = "api6.com"
 
-			By("creating TLS secret")
-			secret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-tls-secret",
-					Namespace: "default",
-				},
-				Type: corev1.SecretTypeTLS,
-				Data: map[string][]byte{
-					"tls.crt": cert,
-					"tls.key": key,
-				},
-			}
-			err = s.K8sClient.Create(s.Context, secret)
-			Expect(err).NotTo(HaveOccurred())
+			By("create TLS secret")
+			err := s.NewKubeTlsSecret("test-tls-secret", Cert, Key)
+			Expect(err).NotTo(HaveOccurred(), "creating TLS secret")
 
-			By("creating ApisixTls resource with non-existent CA secret")
-			apisixTls := &apiv2.ApisixTls{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-mtls-missing-ca",
-					Namespace: "default",
-				},
-				Spec: apiv2.ApisixTlsSpec{
-					Hosts: []apiv2.HostType{"example.com"},
-					Secret: apiv2.ApisixSecret{
-						Name:      "test-tls-secret",
-						Namespace: "default",
-					},
-					Client: &apiv2.ApisixMutualTlsClientConfig{
-						CASecret: apiv2.ApisixSecret{
-							Name:      "non-existent-ca-secret",
-							Namespace: "default",
-						},
-						Depth: 2,
-					},
-					IngressClassName: "apisix",
-				},
-			}
-			err = s.K8sClient.Create(s.Context, apisixTls)
-			Expect(err).NotTo(HaveOccurred())
+			const apisixTlsSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixTls
+metadata:
+  name: test-tls
+spec:
+  ingressClassName: apisix-tls
+  hosts:
+  - api6.com
+  secret:
+    name: test-tls-secret
+    namespace: %s
+`
 
-			By("checking ApisixTls status shows error")
+			By("apply ApisixTls")
+			var apisixTls apiv2.ApisixTls
+			tlsSpec := fmt.Sprintf(apisixTlsSpec, s.Namespace())
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "test-tls"}, &apisixTls, tlsSpec)
+
+			By("verify TLS configuration in control plane")
 			Eventually(func() bool {
-				var tls apiv2.ApisixTls
-				err := s.K8sClient.Get(s.Context, types.NamespacedName{
-					Name:      "test-mtls-missing-ca",
-					Namespace: "default",
-				}, &tls)
+				tls, err := s.DefaultDataplaneResource().SSL().List(context.Background())
 				if err != nil {
 					return false
 				}
-
-				if len(tls.Status.Conditions) == 0 {
+				if len(tls) != 1 {
 					return false
 				}
+				if len(tls[0].Certificates) != 1 {
+					return false
+				}
+				return true
+			}).WithTimeout(30 * time.Second).ProbeEvery(2 * time.Second).Should(BeTrue())
 
-				condition := tls.Status.Conditions[0]
-				return condition.Type == string(apiv2.ConditionTypeAccepted) &&
-					condition.Status == metav1.ConditionFalse &&
-					condition.Reason == string(apiv2.ConditionReasonInvalidSpec)
-			}, 30*time.Second, 1*time.Second).Should(BeTrue())
+			tls, err := s.DefaultDataplaneResource().SSL().List(context.Background())
+			assert.Nil(GinkgoT(), err, "list tls error")
+			assert.Len(GinkgoT(), tls, 1, "tls number not expect")
+			assert.Len(GinkgoT(), tls[0].Certificates, 1, "length of certificates not expect")
+			assert.Equal(GinkgoT(), Cert, tls[0].Certificates[0].Certificate, "tls cert not expect")
+			assert.ElementsMatch(GinkgoT(), []string{host}, tls[0].Snis)
 
-			By("cleaning up")
-			err = s.K8sClient.Delete(s.Context, apisixTls)
-			Expect(err).NotTo(HaveOccurred())
-			err = s.K8sClient.Delete(s.Context, secret)
-			Expect(err).NotTo(HaveOccurred())
+			By("test HTTPS request to dataplane")
+			Eventually(func() int {
+				return s.NewAPISIXHttpsClient("api6.com").
+					GET("/get").
+					WithHost("api6.com").
+					Expect().
+					Raw().StatusCode
+			}).WithTimeout(30 * time.Second).ProbeEvery(2 * time.Second).Should(Equal(http.StatusOK))
+
+			s.NewAPISIXHttpsClient("api6.com").
+				GET("/get").
+				WithHost("api6.com").
+				Expect().
+				Status(200)
+
+			By("delete ApisixTls")
+			err = s.DeleteResource("ApisixTls", "test-tls")
+			Expect(err).ShouldNot(HaveOccurred(), "deleting ApisixTls")
+
+			By("delete TLS secret")
+			err = s.DeleteResource("Secret", "test-tls-secret")
+			Expect(err).ShouldNot(HaveOccurred(), "deleting TLS secret")
+		})
+
+		It("ApisixTls with mTLS test", func() {
+			const host = "api6.com"
+
+			By("generate mTLS certificates")
+			caCertBytes, serverCertBytes, serverKeyBytes, _, _ := s.GenerateMACert(GinkgoT(), []string{host})
+			caCert := caCertBytes.String()
+			serverCert := serverCertBytes.String()
+			serverKey := serverKeyBytes.String()
+
+			By("create TLS secret")
+			err := s.NewKubeTlsSecret("test-mtls-secret", serverCert, serverKey)
+			Expect(err).NotTo(HaveOccurred(), "creating TLS secret")
+
+			By("create CA secret")
+			err = s.NewClientCASecret("test-ca-secret", caCert, "")
+			Expect(err).NotTo(HaveOccurred(), "creating CA secret")
+
+			const apisixTlsSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixTls
+metadata:
+  name: test-mtls
+spec:
+  ingressClassName: apisix-tls
+  hosts:
+  - api6.com
+  secret:
+    name: test-mtls-secret
+    namespace: %s
+  client:
+    caSecret:
+      name: test-ca-secret
+      namespace: %s
+    depth: 1
+`
+
+			By("apply ApisixTls with mTLS")
+			var apisixTls apiv2.ApisixTls
+			tlsSpec := fmt.Sprintf(apisixTlsSpec, s.Namespace(), s.Namespace())
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "test-mtls"}, &apisixTls, tlsSpec)
+
+			By("verify mTLS configuration in control plane")
+			Eventually(func() bool {
+				tls, err := s.DefaultDataplaneResource().SSL().List(context.Background())
+				if err != nil {
+					return false
+				}
+				if len(tls) != 1 {
+					return false
+				}
+				if len(tls[0].Certificates) != 1 {
+					return false
+				}
+				// Check if client CA is configured
+				return tls[0].Client != nil && tls[0].Client.CA != ""
+			}).WithTimeout(30 * time.Second).ProbeEvery(2 * time.Second).Should(BeTrue())
+
+			tls, err := s.DefaultDataplaneResource().SSL().List(context.Background())
+			assert.Nil(GinkgoT(), err, "list tls error")
+			assert.Len(GinkgoT(), tls, 1, "tls number not expect")
+			assert.Len(GinkgoT(), tls[0].Certificates, 1, "length of certificates not expect")
+			assert.Equal(GinkgoT(), serverCert, tls[0].Certificates[0].Certificate, "tls cert not expect")
+			assert.ElementsMatch(GinkgoT(), []string{host}, tls[0].Snis)
+			assert.NotNil(GinkgoT(), tls[0].Client, "client configuration should not be nil")
+			assert.NotEmpty(GinkgoT(), tls[0].Client.CA, "client CA should not be empty")
+			assert.Equal(GinkgoT(), caCert, tls[0].Client.CA, "client CA should be test-ca-secret")
+			assert.Equal(GinkgoT(), int64(1), *tls[0].Client.Depth, "client depth should be 1")
+
+			By("delete ApisixTls")
+			err = s.DeleteResource("ApisixTls", "test-mtls")
+			Expect(err).ShouldNot(HaveOccurred(), "deleting ApisixTls")
+
+			By("delete TLS secret")
+			err = s.DeleteResource("Secret", "test-mtls-secret")
+			Expect(err).ShouldNot(HaveOccurred(), "deleting TLS secret")
+
+			By("delete CA secret")
+			err = s.DeleteResource("Secret", "test-ca-secret")
+			Expect(err).ShouldNot(HaveOccurred(), "deleting CA secret")
+		})
+
+		AfterEach(func() {
+			By("delete GatewayProxy")
+			err := s.DeleteResourceFromStringWithNamespace(fmt.Sprintf(gatewayProxyYamlTls, s.Deployer.GetAdminEndpoint(), s.AdminKey()), "default")
+			Expect(err).ShouldNot(HaveOccurred(), "deleting GatewayProxy")
 		})
 	})
 })
-
-// generateSelfSignedCert generates a self-signed certificate for testing
-func generateSelfSignedCert(commonName string) ([]byte, []byte, error) {
-	// Generate private key
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Create certificate template
-	template := x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject: pkix.Name{
-			CommonName: commonName,
-		},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-	}
-
-	// Generate certificate
-	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Encode certificate to PEM
-	certPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: certDER,
-	})
-
-	// Encode private key to PEM
-	privateKeyDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
-	if err != nil {
-		return nil, nil, err
-	}
-	keyPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "PRIVATE KEY",
-		Bytes: privateKeyDER,
-	})
-
-	return certPEM, keyPEM, nil
-}
