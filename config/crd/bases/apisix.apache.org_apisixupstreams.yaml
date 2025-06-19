@@ -562,7 +562,7 @@ spec:
                 type: string
             type: object
             x-kubernetes-validations:
-            - rule: has(self.externalNodes)!=has(self.discovery)
+            - rule: has(self.subsets) || (has(self.externalNodes)!=has(self.discovery))
           status:
             description: ApisixStatus is the status report for Apisix ingress Resources
             properties:

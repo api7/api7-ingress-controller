@@ -19,7 +19,7 @@ import (
 )
 
 // ApisixUpstreamSpec describes the specification of ApisixUpstream.
-// +kubebuilder:validation:XValidation:rule="has(self.externalNodes)!=has(self.discovery)"
+// +kubebuilder:validation:XValidation:rule="has(self.subsets) || (has(self.externalNodes)!=has(self.discovery))"
 type ApisixUpstreamSpec struct {
 	// IngressClassName is the name of an IngressClass cluster resource.
 	// controller implementations use this field to know whether they should be

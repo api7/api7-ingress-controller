@@ -350,9 +350,8 @@ func (r *ApisixRouteReconciler) validateBackends(ctx context.Context, tc *provid
 		if err != nil {
 			return err
 		}
-		endpoints.Items = r.filterEndpointSlicesBySubsetLabels(ctx, endpoints.Items, subsetLabels)
 
-		tc.EndpointSlices[serviceNN] = endpoints.Items
+		tc.EndpointSlices[serviceNN] = r.filterEndpointSlicesBySubsetLabels(ctx, endpoints.Items, subsetLabels)
 	}
 
 	return nil
@@ -714,7 +713,7 @@ func (r *ApisixRouteReconciler) getSubsetLabels(ctx context.Context, ar *apiv2.A
 		return nil, err
 	}
 
-	// try tro get the subset labels from the ApisixUpstream subsets
+	// try to get the subset labels from the ApisixUpstream subsets
 	for _, subset := range au.Spec.Subsets {
 		if backend.Subset == subset.Name {
 			return subset.Labels, nil

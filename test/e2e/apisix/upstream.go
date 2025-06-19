@@ -53,22 +53,12 @@ spec:
 `
 			err = s.CreateResourceFromString(apisixUpstreamSpec0)
 			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).Should(ContainSubstring("failed rule: has(self.externalNodes)!=has(self.discovery)"))
+			Expect(err.Error()).Should(ContainSubstring("has(self.externalNodes)!=has(self.discovery)"))
 
 			err = s.CreateResourceFromString(apisixUpstreamSpec1)
 			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).Should(ContainSubstring("failed rule: has(self.externalNodes)!=has(self.discovery)"))
+			Expect(err.Error()).Should(ContainSubstring("has(self.externalNodes)!=has(self.discovery)"))
 
 		})
-
-		It("", func() {})
-
-		It("", func() {})
-
-		It("", func() {})
-
-		It("", func() {})
-
-		It("", func() {})
 	})
 })

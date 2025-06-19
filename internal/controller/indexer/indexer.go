@@ -527,6 +527,11 @@ func ApisixRouteSecretIndexFunc(cli client.Client) func(client.Object) []string 
 func ApisixRouteApisixUpstreamIndexFunc(obj client.Object) (keys []string) {
 	ar := obj.(*apiv2.ApisixRoute)
 	for _, rule := range ar.Spec.HTTP {
+		for _, backend := range rule.Backends {
+			if backend.Subset != "" && backend.ServiceName != "" {
+				keys = append(keys, GenIndexKey(ar.GetNamespace(), backend.ServiceName))
+			}
+		}
 		for _, upstream := range rule.Upstreams {
 			if upstream.Name != "" {
 				keys = append(keys, GenIndexKey(ar.GetNamespace(), upstream.Name))
