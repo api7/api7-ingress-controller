@@ -108,7 +108,6 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		result, err = d.translator.TranslateGateway(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "global_rule", "ssl", "plugin_metadata")
 	case *networkingv1.Ingress:
-		log.Warnw("ingress is deprecated, please use gateway api instead")
 		result, err = d.translator.TranslateIngress(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "service", "ssl")
 	case *v1alpha1.Consumer:

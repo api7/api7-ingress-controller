@@ -13,7 +13,6 @@
 package controller
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -35,7 +34,6 @@ import (
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
-	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
@@ -66,9 +64,9 @@ func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			),
 		).
 		Watches(&networkingv1.IngressClass{},
-			handler.EnqueueRequestsFromMapFunc(r.listApiRouteForIngressClass),
+			handler.EnqueueRequestsFromMapFunc(r.listApisixRouteForIngressClass),
 			builder.WithPredicates(
-				predicate.NewPredicateFuncs(r.matchesIngressController),
+				predicate.NewPredicateFuncs(matchesIngressController),
 			),
 		).
 		Watches(&v1alpha1.GatewayProxy{},
@@ -116,10 +114,10 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		r.updateStatus(&ar, err)
 	}()
 
-	if ic, err = r.getIngressClass(&ar); err != nil {
+	if ic, err = GetIngressClass(tctx, r.Client, r.Log, ar.Spec.IngressClassName); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err = r.processIngressClassParameters(ctx, tctx, &ar, ic); err != nil {
+	if err = ProcessIngressClassParameters(tctx, r.Client, r.Log, &ar, ic); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err = r.processApisixRoute(ctx, tctx, &ar); err != nil {
@@ -404,147 +402,30 @@ func (r *ApisixRouteReconciler) listApisixRoutesForSecret(ctx context.Context, o
 	return pkgutils.DedupComparable(allRequests)
 }
 
-func (r *ApisixRouteReconciler) listApiRouteForIngressClass(ctx context.Context, object client.Object) (requests []reconcile.Request) {
-	ic, ok := object.(*networkingv1.IngressClass)
+func (r *ApisixRouteReconciler) listApisixRouteForIngressClass(ctx context.Context, object client.Object) (requests []reconcile.Request) {
+	ingressClass, ok := object.(*networkingv1.IngressClass)
 	if !ok {
 		return nil
 	}
 
-	isDefaultIngressClass := IsDefaultIngressClass(ic)
-	var arList apiv2.ApisixRouteList
-	if err := r.List(ctx, &arList); err != nil {
-		return nil
-	}
-	for _, ar := range arList.Items {
-		if ar.Spec.IngressClassName == ic.Name || (isDefaultIngressClass && ar.Spec.IngressClassName == "") {
-			requests = append(requests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
-		}
-	}
-	return pkgutils.DedupComparable(requests)
+	return ListMatchingRequests(
+		ctx,
+		r.Client,
+		r.Log,
+		&apiv2.ApisixRouteList{},
+		func(obj client.Object) bool {
+			ar, ok := obj.(*apiv2.ApisixRoute)
+			if !ok {
+				r.Log.Error(fmt.Errorf("expected ApisixRoute, got %T", obj), "failed to match object type")
+				return false
+			}
+			return (IsDefaultIngressClass(ingressClass) && ar.Spec.IngressClassName == "") || ar.Spec.IngressClassName == ingressClass.Name
+		},
+	)
 }
 
 func (r *ApisixRouteReconciler) listApisixRouteForGatewayProxy(ctx context.Context, object client.Object) (requests []reconcile.Request) {
-	gp, ok := object.(*v1alpha1.GatewayProxy)
-	if !ok {
-		return nil
-	}
-
-	var icList networkingv1.IngressClassList
-	if err := r.List(ctx, &icList, client.MatchingFields{
-		indexer.IngressClassParametersRef: indexer.GenIndexKey(gp.GetNamespace(), gp.GetName()),
-	}); err != nil {
-		r.Log.Error(err, "failed to list ingress classes for gateway proxy", "gatewayproxy", gp.GetName())
-		return nil
-	}
-
-	for _, ic := range icList.Items {
-		requests = append(requests, r.listApiRouteForIngressClass(ctx, &ic)...)
-	}
-
-	return pkgutils.DedupComparable(requests)
-}
-
-func (r *ApisixRouteReconciler) matchesIngressController(obj client.Object) bool {
-	ingressClass, ok := obj.(*networkingv1.IngressClass)
-	if !ok {
-		return false
-	}
-	return matchesController(ingressClass.Spec.Controller)
-}
-
-func (r *ApisixRouteReconciler) getIngressClass(ar *apiv2.ApisixRoute) (*networkingv1.IngressClass, error) {
-	if ar.Spec.IngressClassName == "" {
-		return r.getDefaultIngressClass()
-	}
-
-	var ic networkingv1.IngressClass
-	if err := r.Get(context.Background(), client.ObjectKey{Name: ar.Spec.IngressClassName}, &ic); err != nil {
-		return nil, err
-	}
-	return &ic, nil
-}
-
-func (r *ApisixRouteReconciler) getDefaultIngressClass() (*networkingv1.IngressClass, error) {
-	var icList networkingv1.IngressClassList
-	if err := r.List(context.Background(), &icList, client.MatchingFields{
-		indexer.IngressClass: config.GetControllerName(),
-	}); err != nil {
-		r.Log.Error(err, "failed to list ingress classes")
-		return nil, err
-	}
-	for _, ic := range icList.Items {
-		if IsDefaultIngressClass(&ic) && matchesController(ic.Spec.Controller) {
-			return &ic, nil
-		}
-	}
-	return nil, ReasonError{
-		Reason:  string(metav1.StatusReasonNotFound),
-		Message: "default ingress class not found or dose not match the controller",
-	}
-}
-
-// processIngressClassParameters processes the IngressClass parameters that reference GatewayProxy
-func (r *ApisixRouteReconciler) processIngressClassParameters(ctx context.Context, tc *provider.TranslateContext, ar *apiv2.ApisixRoute, ingressClass *networkingv1.IngressClass) error {
-	if ingressClass == nil || ingressClass.Spec.Parameters == nil {
-		return nil
-	}
-
-	var (
-		ingressClassKind = utils.NamespacedNameKind(ingressClass)
-		globalRuleKind   = utils.NamespacedNameKind(ar)
-		parameters       = ingressClass.Spec.Parameters
-	)
-	if parameters.APIGroup == nil || *parameters.APIGroup != v1alpha1.GroupVersion.Group || parameters.Kind != KindGatewayProxy {
-		return nil
-	}
-
-	// check if the parameters reference GatewayProxy
-	var (
-		gatewayProxy v1alpha1.GatewayProxy
-		ns           = *cmp.Or(parameters.Namespace, &ar.Namespace)
-	)
-
-	if err := r.Get(ctx, client.ObjectKey{Namespace: ns, Name: parameters.Name}, &gatewayProxy); err != nil {
-		r.Log.Error(err, "failed to get GatewayProxy", "namespace", ns, "name", parameters.Name)
-		return err
-	}
-
-	tc.GatewayProxies[ingressClassKind] = gatewayProxy
-	tc.ResourceParentRefs[globalRuleKind] = append(tc.ResourceParentRefs[globalRuleKind], ingressClassKind)
-
-	// check if the provider field references a secret
-	if gatewayProxy.Spec.Provider != nil && gatewayProxy.Spec.Provider.Type == v1alpha1.ProviderTypeControlPlane {
-		if gatewayProxy.Spec.Provider.ControlPlane != nil &&
-			gatewayProxy.Spec.Provider.ControlPlane.Auth.Type == v1alpha1.AuthTypeAdminKey &&
-			gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey != nil &&
-			gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom != nil &&
-			gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
-
-			secretRef := gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef
-			secret := &corev1.Secret{}
-			if err := r.Get(ctx, client.ObjectKey{
-				Namespace: ns,
-				Name:      secretRef.Name,
-			}, secret); err != nil {
-				r.Log.Error(err, "failed to get secret for GatewayProxy provider",
-					"namespace", ns,
-					"name", secretRef.Name)
-				return err
-			}
-
-			r.Log.Info("found secret for GatewayProxy provider",
-				"ingressClass", ingressClass.Name,
-				"gatewayproxy", gatewayProxy.Name,
-				"secret", secretRef.Name)
-
-			tc.Secrets[types.NamespacedName{
-				Namespace: ns,
-				Name:      secretRef.Name,
-			}] = secret
-		}
-	}
-
-	return nil
+	return listIngressClassRequestsForGatewayProxy(ctx, r.Client, object, r.Log, r.listApisixRouteForIngressClass)
 }
 
 func (r *ApisixRouteReconciler) updateStatus(ar *apiv2.ApisixRoute, err error) {
