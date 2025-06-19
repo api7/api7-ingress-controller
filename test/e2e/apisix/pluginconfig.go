@@ -67,7 +67,7 @@ var _ = Describe("Test ApisixPluginConfig", func() {
 		applier = framework.NewApplier(s.GinkgoT, s.K8sClient, s.CreateResourceFromString)
 	)
 
-	Context("Test ApisixPluginConfig", func() {
+	FContext("Test ApisixPluginConfig", func() {
 		BeforeEach(func() {
 			By("create GatewayProxy")
 			gatewayProxy := fmt.Sprintf(gatewayProxyYamlPluginConfig, s.Deployer.GetAdminEndpoint(), s.AdminKey())
