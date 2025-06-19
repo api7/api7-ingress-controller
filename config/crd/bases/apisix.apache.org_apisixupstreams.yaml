@@ -556,7 +556,7 @@ spec:
                 type: string
             type: object
             x-kubernetes-validations:
-            - rule: has(self.externalNodes)!=has(discovery)
+            - rule: has(self.externalNodes)!=has(self.discovery)
         type: object
     served: true
     storage: true
