@@ -1,0 +1,75 @@
+package translator
+
+import (
+	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
+	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	"github.com/apache/apisix-ingress-controller/internal/controller/label"
+	"github.com/apache/apisix-ingress-controller/internal/id"
+	"github.com/apache/apisix-ingress-controller/internal/provider"
+	"k8s.io/apimachinery/pkg/types"
+)
+
+func (t *Translator) TranslateApisixTls(tctx *provider.TranslateContext, tls *apiv2.ApisixTls) (*TranslateResult, error) {
+	result := &TranslateResult{}
+
+	// Get the secret from the context
+	secretKey := types.NamespacedName{
+		Namespace: tls.Spec.Secret.Namespace,
+		Name:      tls.Spec.Secret.Name,
+	}
+	secret, ok := tctx.Secrets[secretKey]
+	if !ok || secret == nil {
+		return result, nil // Skip if secret is not found
+	}
+
+	// Extract cert and key from secret
+	cert, key, err := extractKeyPair(secret, true)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert hosts to strings
+	snis := make([]string, len(tls.Spec.Hosts))
+	for i, host := range tls.Spec.Hosts {
+		snis[i] = string(host)
+	}
+
+	// Create SSL object
+	ssl := &adctypes.SSL{
+		Metadata: adctypes.Metadata{
+			ID:     id.GenID(tls.Namespace + "_" + tls.Name),
+			Labels: label.GenLabel(tls),
+		},
+		Certificates: []adctypes.Certificate{
+			{
+				Certificate: string(cert),
+				Key:         string(key),
+			},
+		},
+		Snis: snis,
+	}
+
+	// Handle mutual TLS client configuration if present
+	if tls.Spec.Client != nil {
+		caSecretKey := types.NamespacedName{
+			Namespace: tls.Spec.Client.CASecret.Namespace,
+			Name:      tls.Spec.Client.CASecret.Name,
+		}
+		caSecret, ok := tctx.Secrets[caSecretKey]
+		if ok && caSecret != nil {
+			ca, _, err := extractKeyPair(caSecret, false)
+			if err != nil {
+				return nil, err
+			}
+			depth := int64(tls.Spec.Client.Depth)
+			ssl.Client = &adctypes.ClientClass{
+				CA:               string(ca),
+				Depth:            &depth,
+				SkipMtlsURIRegex: tls.Spec.Client.SkipMTLSUriRegex,
+			}
+		}
+	}
+
+	result.SSL = append(result.SSL, ssl)
+	return result, nil
+}

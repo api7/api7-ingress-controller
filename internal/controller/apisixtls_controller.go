@@ -14,56 +14,269 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	"github.com/apache/apisix-ingress-controller/internal/provider"
+	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
 // ApisixTlsReconciler reconciles a ApisixTls object
 type ApisixTlsReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-	Log    logr.Logger
+	Scheme   *runtime.Scheme
+	Log      logr.Logger
+	Provider provider.Provider
 }
 
-// Reconcile FIXME: implement the reconcile logic (For now, it dose nothing other than directly accepting)
+// Reconcile processes ApisixTls resources
 func (r *ApisixTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	r.Log.Info("reconcile", "request", req.NamespacedName)
+	var tls apiv2.ApisixTls
+	if err := r.Get(ctx, req.NamespacedName, &tls); err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			tls.Namespace = req.Namespace
+			tls.Name = req.Name
+			tls.TypeMeta = metav1.TypeMeta{
+				Kind:       "ApisixTls",
+				APIVersion: apiv2.GroupVersion.String(),
+			}
 
-	var obj apiv2.ApisixTls
-	if err := r.Get(ctx, req.NamespacedName, &obj); err != nil {
-		r.Log.Error(err, "failed to get ApisixConsumer", "request", req.NamespacedName)
+			if err := r.Provider.Delete(ctx, &tls); err != nil {
+				r.Log.Error(err, "failed to delete ApisixTls", "tls", tls)
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{}, nil
+		}
 		return ctrl.Result{}, err
 	}
 
-	obj.Status.Conditions = []metav1.Condition{
-		{
-			Type:               string(gatewayv1.RouteConditionAccepted),
-			Status:             metav1.ConditionTrue,
-			ObservedGeneration: obj.GetGeneration(),
-			LastTransitionTime: metav1.Now(),
-			Reason:             string(gatewayv1.RouteReasonAccepted),
-		},
-	}
+	var (
+		tctx = provider.NewDefaultTranslateContext(ctx)
+		ic   *networkingv1.IngressClass
+		err  error
+	)
+	defer func() {
+		r.updateStatus(&tls, err)
+	}()
 
-	if err := r.Status().Update(ctx, &obj); err != nil {
-		r.Log.Error(err, "failed to update status", "request", req.NamespacedName)
+	if ic, err = r.getIngressClass(&tls); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err = r.processIngressClassParameters(ctx, tctx, &tls, ic); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err = r.processApisixTls(ctx, tctx, &tls); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err = r.Provider.Update(ctx, tctx, &tls); err != nil {
+		err = ReasonError{
+			Reason:  string(apiv2.ConditionReasonSyncFailed),
+			Message: err.Error(),
+		}
+		r.Log.Error(err, "failed to process", "ApisixTls", tls)
 		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
 }
 
+func (r *ApisixTlsReconciler) processApisixTls(ctx context.Context, tc *provider.TranslateContext, tls *apiv2.ApisixTls) error {
+	// Validate the main TLS secret
+	if err := r.validateSecret(ctx, tc, tls.Spec.Secret); err != nil {
+		return ReasonError{
+			Reason:  string(apiv2.ConditionReasonInvalidSpec),
+			Message: fmt.Sprintf("invalid TLS secret: %s", err.Error()),
+		}
+	}
+
+	// Validate the client CA secret if mutual TLS is configured
+	if tls.Spec.Client != nil {
+		if err := r.validateSecret(ctx, tc, tls.Spec.Client.CASecret); err != nil {
+			return ReasonError{
+				Reason:  string(apiv2.ConditionReasonInvalidSpec),
+				Message: fmt.Sprintf("invalid client CA secret: %s", err.Error()),
+			}
+		}
+	}
+
+	return nil
+}
+
+func (r *ApisixTlsReconciler) validateSecret(ctx context.Context, tc *provider.TranslateContext, secretRef apiv2.ApisixSecret) error {
+	secretKey := types.NamespacedName{
+		Namespace: secretRef.Namespace,
+		Name:      secretRef.Name,
+	}
+
+	var secret corev1.Secret
+	if err := r.Get(ctx, secretKey, &secret); err != nil {
+		return fmt.Errorf("secret %s not found: %w", secretKey, err)
+	}
+
+	tc.Secrets[secretKey] = &secret
+	return nil
+}
+
+func (r *ApisixTlsReconciler) getIngressClass(tls *apiv2.ApisixTls) (*networkingv1.IngressClass, error) {
+	if tls.Spec.IngressClassName != "" {
+		var ic networkingv1.IngressClass
+		if err := r.Get(context.Background(), types.NamespacedName{Name: tls.Spec.IngressClassName}, &ic); err != nil {
+			return nil, fmt.Errorf("ingressClass %s not found: %w", tls.Spec.IngressClassName, err)
+		}
+		return &ic, nil
+	}
+	return r.getDefaultIngressClass()
+}
+
+func (r *ApisixTlsReconciler) getDefaultIngressClass() (*networkingv1.IngressClass, error) {
+	var icList networkingv1.IngressClassList
+	if err := r.List(context.Background(), &icList); err != nil {
+		return nil, fmt.Errorf("failed to list IngressClasses: %w", err)
+	}
+
+	for _, ic := range icList.Items {
+		if ic.Annotations["ingressclass.kubernetes.io/is-default-class"] == "true" {
+			return &ic, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no default IngressClass found")
+}
+
+func (r *ApisixTlsReconciler) processIngressClassParameters(ctx context.Context, tc *provider.TranslateContext, tls *apiv2.ApisixTls, ingressClass *networkingv1.IngressClass) error {
+	// Similar to ApisixRoute controller, process IngressClass parameters if needed
+	// For now, this is a placeholder
+	return nil
+}
+
+func (r *ApisixTlsReconciler) updateStatus(tls *apiv2.ApisixTls, err error) {
+	var condition metav1.Condition
+	if err != nil {
+		if reasonErr, ok := err.(ReasonError); ok {
+			condition = metav1.Condition{
+				Type:               string(apiv2.ConditionReasonAccepted),
+				Status:             metav1.ConditionFalse,
+				ObservedGeneration: tls.GetGeneration(),
+				LastTransitionTime: metav1.Now(),
+				Reason:             reasonErr.Reason,
+				Message:            reasonErr.Message,
+			}
+		} else {
+			condition = metav1.Condition{
+				Type:               string(apiv2.ConditionReasonAccepted),
+				Status:             metav1.ConditionFalse,
+				ObservedGeneration: tls.GetGeneration(),
+				LastTransitionTime: metav1.Now(),
+				Reason:             string(apiv2.ConditionReasonSyncFailed),
+				Message:            err.Error(),
+			}
+		}
+	} else {
+		condition = metav1.Condition{
+			Type:               string(apiv2.ConditionReasonAccepted),
+			Status:             metav1.ConditionTrue,
+			ObservedGeneration: tls.GetGeneration(),
+			LastTransitionTime: metav1.Now(),
+			Reason:             string(apiv2.ConditionReasonAccepted),
+		}
+	}
+
+	tls.Status.Conditions = []metav1.Condition{condition}
+
+	if err := r.Status().Update(context.Background(), tls); err != nil {
+		r.Log.Error(err, "failed to update ApisixTls status")
+	}
+}
+
+func (r *ApisixTlsReconciler) listApisixTlsForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
+	secret, ok := obj.(*corev1.Secret)
+	if !ok {
+		return nil
+	}
+
+	var tlsList apiv2.ApisixTlsList
+	if err := r.List(ctx, &tlsList); err != nil {
+		r.Log.Error(err, "failed to list ApisixTls")
+		return nil
+	}
+
+	var requests []reconcile.Request
+	for _, tls := range tlsList.Items {
+		// Check if this secret is referenced by the TLS resource
+		if (tls.Spec.Secret.Namespace == secret.Namespace && tls.Spec.Secret.Name == secret.Name) ||
+			(tls.Spec.Client != nil && tls.Spec.Client.CASecret.Namespace == secret.Namespace && tls.Spec.Client.CASecret.Name == secret.Name) {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: utils.NamespacedName(&tls),
+			})
+		}
+	}
+
+	return requests
+}
+
+func (r *ApisixTlsReconciler) matchesIngressController(obj client.Object) bool {
+	return true // TODO: implement proper matching logic
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *ApisixTlsReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiv2.ApisixTls{}).
+		WithEventFilter(
+			predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				predicate.NewPredicateFuncs(func(obj client.Object) bool {
+					_, ok := obj.(*corev1.Secret)
+					return ok
+				}),
+			),
+		).
+		Watches(&networkingv1.IngressClass{},
+			handler.EnqueueRequestsFromMapFunc(r.listApisixTlsForIngressClass),
+			builder.WithPredicates(
+				predicate.NewPredicateFuncs(r.matchesIngressController),
+			),
+		).
+		Watches(&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.listApisixTlsForSecret),
+		).
 		Named("apisixtls").
 		Complete(r)
+}
+
+func (r *ApisixTlsReconciler) listApisixTlsForIngressClass(ctx context.Context, obj client.Object) []reconcile.Request {
+	ic, ok := obj.(*networkingv1.IngressClass)
+	if !ok {
+		return nil
+	}
+
+	var tlsList apiv2.ApisixTlsList
+	if err := r.List(ctx, &tlsList); err != nil {
+		r.Log.Error(err, "failed to list ApisixTls")
+		return nil
+	}
+
+	var requests []reconcile.Request
+	for _, tls := range tlsList.Items {
+		if tls.Spec.IngressClassName == ic.Name {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: utils.NamespacedName(&tls),
+			})
+		}
+	}
+
+	return requests
 }

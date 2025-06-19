@@ -122,6 +122,9 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 	case *apiv2.ApisixGlobalRule:
 		result, err = d.translator.TranslateApisixGlobalRule(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "global_rule")
+	case *apiv2.ApisixTls:
+		result, err = d.translator.TranslateApisixTls(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, "ssl")
 	}
 	if err != nil {
 		return err
@@ -216,6 +219,9 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 		// delete all resources
 	case *apiv2.ApisixGlobalRule:
 		resourceTypes = append(resourceTypes, "global_rule")
+		labels = label.GenLabel(obj)
+	case *apiv2.ApisixTls:
+		resourceTypes = append(resourceTypes, "ssl")
 		labels = label.GenLabel(obj)
 	}
 
