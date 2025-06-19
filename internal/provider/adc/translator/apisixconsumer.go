@@ -40,6 +40,8 @@ var (
 	_hmacAuthEncodeURIParamsDefaultValue     = true
 	_hmacAuthValidateRequestBodyDefaultValue = false
 	_hmacAuthMaxReqBodyDefaultValue          = int64(524288)
+
+	_stringTrue = "true"
 )
 
 func (t *Translator) TranslateApisixConsumer(tctx *provider.TranslateContext, ac *v2.ApisixConsumer) (*TranslateResult, error) {
@@ -197,7 +199,7 @@ func (t *Translator) translateConsumerJwtAuthPluginV2(tctx *provider.TranslateCo
 	}
 	base64SecretRaw := sec.Data["base64_secret"]
 	var base64Secret bool
-	if string(base64SecretRaw) == "true" {
+	if string(base64SecretRaw) == _stringTrue {
 		base64Secret = true
 	}
 	expRaw := sec.Data["exp"]
@@ -272,8 +274,8 @@ func (t *Translator) translateConsumerHMACAuthPluginV2(tctx *provider.TranslateC
 		clockSkew = _hmacAuthClockSkewDefaultValue
 	}
 
-	var signedHeaders []string
 	signedHeadersRaw := sec.Data["signed_headers"]
+	signedHeaders := make([]string, 0, len(signedHeadersRaw))
 	for _, b := range signedHeadersRaw {
 		signedHeaders = append(signedHeaders, string(b))
 	}
@@ -283,7 +285,7 @@ func (t *Translator) translateConsumerHMACAuthPluginV2(tctx *provider.TranslateC
 	if !ok {
 		keepHeader = _hmacAuthKeepHeadersDefaultValue
 	} else {
-		if string(keepHeaderRaw) == "true" {
+		if string(keepHeaderRaw) == _stringTrue {
 			keepHeader = true
 		} else {
 			keepHeader = false
@@ -295,7 +297,7 @@ func (t *Translator) translateConsumerHMACAuthPluginV2(tctx *provider.TranslateC
 	if !ok {
 		encodeURIParams = _hmacAuthEncodeURIParamsDefaultValue
 	} else {
-		if string(encodeURIParamsRaw) == "true" {
+		if string(encodeURIParamsRaw) == _stringTrue {
 			encodeURIParams = true
 		} else {
 			encodeURIParams = false
@@ -307,7 +309,7 @@ func (t *Translator) translateConsumerHMACAuthPluginV2(tctx *provider.TranslateC
 	if !ok {
 		validateRequestBody = _hmacAuthValidateRequestBodyDefaultValue
 	} else {
-		if string(validateRequestBodyRaw) == "true" {
+		if string(validateRequestBodyRaw) == _stringTrue {
 			validateRequestBody = true
 		} else {
 			validateRequestBody = false

@@ -16,7 +16,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -30,7 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
@@ -71,42 +69,33 @@ func (r *ApisixConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, err
 	}
 
-	tctx := provider.NewDefaultTranslateContext(ctx)
+	var (
+		tctx = provider.NewDefaultTranslateContext(ctx)
+		err  error
+	)
+	defer func() {
+		r.updateStatus(ac, err)
+	}()
 
 	ingressClass, err := GetIngressClass(tctx, r.Client, r.Log, ac.Spec.IngressClassName)
 	if err != nil {
-		log.Error(err, "failed to get IngressClass")
+		r.Log.Error(err, "failed to get IngressClass")
 		return ctrl.Result{}, err
 	}
 
 	if err := ProcessIngressClassParameters(tctx, r.Client, r.Log, ac, ingressClass); err != nil {
-		log.Error(err, "failed to process IngressClass parameters", "ingressClass", ingressClass.Name)
+		r.Log.Error(err, "failed to process IngressClass parameters", "ingressClass", ingressClass.Name)
+		return ctrl.Result{}, err
+	}
+
+	if err := r.processSpec(ctx, tctx, ac); err != nil {
 		return ctrl.Result{}, err
 	}
 
 	if err := r.Provider.Update(ctx, tctx, ac); err != nil {
 		r.Log.Error(err, "failed to update provider", "ApisixConsumer", ac)
-		// Update status with failure condition
-		r.updateStatus(ac, metav1.Condition{
-			Type:               string(apiv2.ConditionTypeAccepted),
-			Status:             metav1.ConditionFalse,
-			ObservedGeneration: ac.Generation,
-			LastTransitionTime: metav1.Now(),
-			Reason:             string(apiv2.ConditionReasonSyncFailed),
-			Message:            err.Error(),
-		})
 		return ctrl.Result{}, err
 	}
-
-	// Update status with success condition
-	r.updateStatus(ac, metav1.Condition{
-		Type:               string(gatewayv1.RouteConditionAccepted),
-		Status:             metav1.ConditionTrue,
-		ObservedGeneration: ac.Generation,
-		LastTransitionTime: metav1.Now(),
-		Reason:             string(gatewayv1.RouteReasonAccepted),
-		Message:            "The ApisixConsumer has been accepted by the apisix-ingress-controller",
-	})
 	return ctrl.Result{}, nil
 }
 
@@ -210,7 +199,8 @@ func (r *ApisixConsumerReconciler) processSpec(ctx context.Context, tctx *provid
 	return nil
 }
 
-func (r *ApisixConsumerReconciler) updateStatus(consumer *apiv2.ApisixConsumer, condition metav1.Condition) {
+func (r *ApisixConsumerReconciler) updateStatus(consumer *apiv2.ApisixConsumer, err error) {
+	SetApisixCRDConditionAccepted(&consumer.Status, consumer.GetGeneration(), err)
 	r.Updater.Update(status.Update{
 		NamespacedName: utils.NamespacedName(consumer),
 		Resource:       &apiv2.ApisixConsumer{},
@@ -221,7 +211,7 @@ func (r *ApisixConsumerReconciler) updateStatus(consumer *apiv2.ApisixConsumer, 
 				panic(err)
 			}
 			acCopy := ac.DeepCopy()
-			acCopy.Status.Conditions = []metav1.Condition{condition}
+			acCopy.Status = consumer.Status
 			return acCopy
 		}),
 	})
