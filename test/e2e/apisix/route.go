@@ -49,6 +49,7 @@ var _ = Describe("Test ApisixRoute", func() {
 	})
 
 	Context("Test ApisixRoute", func() {
+
 		It("Basic tests", func() {
 			const apisixRouteSpec = `
 apiVersion: apisix.apache.org/v2
@@ -298,7 +299,6 @@ spec:
 	})
 
 	Context("Test ApisixRoute reference ApisixUpstream", func() {
-
 		It("Test reference ApisixUpstream", func() {
 			const apisixRouteSpec = `
 apiVersion: apisix.apache.org/v2
@@ -349,8 +349,7 @@ spec:
 			By("create Service, ApisixUpstream and ApisixRoute")
 			err := s.CreateResourceFromString(serviceSpec)
 			Expect(err).ShouldNot(HaveOccurred(), "apply service")
-			err = s.CreateResourceFromString(apisixUpstreamSpec0)
-			Expect(err).ShouldNot(HaveOccurred(), "apply apisixUpstreamSpec")
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default-upstream"}, new(apiv2.ApisixUpstream), apisixUpstreamSpec0)
 
 			var apisxiRoute apiv2.ApisixRoute
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisxiRoute, apisixRouteSpec)
@@ -362,8 +361,7 @@ spec:
 			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusServiceUnavailable))
 
 			By("verify that ApisixUpstream reference a Service which is ExternalName should request OK")
-			err = s.CreateResourceFromString(apisixUpstreamSpec1)
-			Expect(err).ShouldNot(HaveOccurred(), "update apisixUpstream")
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default-upstream"}, new(apiv2.ApisixUpstream), apisixUpstreamSpec1)
 			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 		})
 
@@ -409,12 +407,10 @@ spec:
             "X-Upstream-Host": "$upstream_addr"
 `
 			By("apply ApisixUpstream")
-			err := s.CreateResourceFromString(apisixUpstreamSpec)
-			Expect(err).ShouldNot(HaveOccurred(), "apply ApisixUpstream")
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default-upstream"}, new(apiv2.ApisixUpstream), apisixUpstreamSpec)
 
 			By("apply ApisixRoute")
-			var apisixRoute apiv2.ApisixRoute
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisixRoute, apisixRouteSpec)
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, new(apiv2.ApisixRoute), apisixRouteSpec)
 
 			By("verify ApisixRoute works")
 			request := func(path string) int {
