@@ -16,7 +16,9 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
+	"strconv"
 
+	"github.com/api7/gopkg/pkg/log"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,13 +56,9 @@ func (t *Translator) translateHTTPRule(tctx *provider.TranslateContext, ar *apiv
 		return nil, err
 	}
 
-	route := t.buildRoute(ar, rule, plugins, timeout, vars)
-	upstream, backendErr := t.buildUpstream(tctx, ar, rule)
-	service := t.buildService(ar, rule, ruleIndex, route, upstream)
-
-	if backendErr != nil && len(upstream.Nodes) == 0 {
-		t.addFaultInjectionPlugin(service)
-	}
+	service := t.buildService(ar, rule, ruleIndex)
+	t.buildRoute(ar, service, rule, plugins, timeout, vars)
+	t.buildUpstream(tctx, service, ar, rule)
 
 	return service, nil
 }
@@ -167,7 +165,7 @@ func (t *Translator) addAuthenticationPlugins(rule apiv2.ApisixRouteHTTP, plugin
 	}
 }
 
-func (t *Translator) buildRoute(ar *apiv2.ApisixRoute, rule apiv2.ApisixRouteHTTP, plugins adc.Plugins, timeout *adc.Timeout, vars adc.Vars) *adc.Route {
+func (t *Translator) buildRoute(ar *apiv2.ApisixRoute, service *adc.Service, rule apiv2.ApisixRouteHTTP, plugins adc.Plugins, timeout *adc.Timeout, vars adc.Vars) {
 	route := adc.NewDefaultRoute()
 	route.Name = adc.ComposeRouteName(ar.Namespace, ar.Name, rule.Name)
 	route.ID = id.GenID(route.Name)
@@ -183,12 +181,20 @@ func (t *Translator) buildRoute(ar *apiv2.ApisixRoute, rule apiv2.ApisixRouteHTT
 	route.Timeout = timeout
 	route.Uris = rule.Match.Paths
 	route.Vars = vars
-	return route
+	for key, value := range ar.GetObjectMeta().GetLabels() {
+		route.Labels[key] = value
+	}
+
+	service.Routes = []*adc.Route{route}
 }
 
-func (t *Translator) buildUpstream(tctx *provider.TranslateContext, ar *apiv2.ApisixRoute, rule apiv2.ApisixRouteHTTP) (*adc.Upstream, error) {
-	upstream := adc.NewDefaultUpstream()
-	var backendErr error
+func (t *Translator) buildUpstream(tctx *provider.TranslateContext, service *adc.Service, ar *apiv2.ApisixRoute, rule apiv2.ApisixRouteHTTP) {
+	var (
+		upstream          = adc.NewDefaultUpstream()
+		upstreams         = make([]*adc.Upstream, 0)
+		weightedUpstreams = make([]adc.TrafficSplitConfigRuleWeightedUpstream, 0)
+		backendErr        error
+	)
 
 	for _, backend := range rule.Backends {
 		var upNodes adc.UpstreamNodes
@@ -208,22 +214,78 @@ func (t *Translator) buildUpstream(tctx *provider.TranslateContext, ar *apiv2.Ap
 		upstream.Nodes = append(upstream.Nodes, upNodes...)
 	}
 
-	//nolint:staticcheck
-	if len(rule.Backends) == 0 && len(rule.Upstreams) > 0 {
-		// FIXME: when the API ApisixUpstream is supported
+	for _, upstreamRef := range rule.Upstreams {
+		upsNN := types.NamespacedName{
+			Namespace: ar.GetNamespace(),
+			Name:      upstreamRef.Name,
+		}
+		au, ok := tctx.Upstreams[upsNN]
+		if !ok {
+			log.Debugf("failed to retrieve ApisixUpstream from tctx, ApisixUpstream: %s", upsNN)
+			continue
+		}
+		upstream, err := t.translateApisixUpstream(tctx, au)
+		if err != nil {
+			t.Log.Error(err, "failed to translate ApisixUpstream", "ApisixUpstream", utils.NamespacedName(au))
+			continue
+		}
+		if upstreamRef.Weight != nil {
+			upstream.Labels["meta_weight"] = strconv.FormatInt(int64(*upstreamRef.Weight), 10)
+		}
+
+		upstreams = append(upstreams, upstream)
 	}
 
-	return upstream, backendErr
+	// If no .http[].backends is used and only .http[].upstreams is used, the first valid upstream is used as service.upstream;
+	// Other upstreams are configured in the traffic-split plugin
+	if len(rule.Backends) == 0 && len(upstreams) > 0 {
+		upstream = upstreams[0]
+		upstreams = upstreams[1:]
+	}
+
+	// set the default upstream's weight in traffic-split
+	weight, err := strconv.Atoi(upstream.Labels["meta_weight"])
+	if err != nil {
+		weight = apiv2.DefaultWeight
+	}
+	weightedUpstreams = append(weightedUpstreams, adc.TrafficSplitConfigRuleWeightedUpstream{
+		Weight: weight,
+	})
+
+	// set others upstreams in traffic-split
+	for _, item := range upstreams {
+		weight, err := strconv.Atoi(item.Labels["meta_weight"])
+		if err != nil {
+			weight = apiv2.DefaultWeight
+		}
+		weightedUpstreams = append(weightedUpstreams, adc.TrafficSplitConfigRuleWeightedUpstream{
+			Upstream: item,
+			Weight:   weight,
+		})
+	}
+
+	// set service
+	service.Upstream = upstream
+	if backendErr != nil && len(upstream.Nodes) == 0 {
+		t.addFaultInjectionPlugin(service)
+	}
+	if len(weightedUpstreams) > 0 {
+		service.Plugins["traffic-split"] = &adc.TrafficSplitConfig{
+			Rules: []adc.TrafficSplitConfigRule{
+				{
+					WeightedUpstreams: weightedUpstreams,
+				},
+			},
+		}
+	}
 }
 
-func (t *Translator) buildService(ar *apiv2.ApisixRoute, rule apiv2.ApisixRouteHTTP, ruleIndex int, route *adc.Route, upstream *adc.Upstream) *adc.Service {
+func (t *Translator) buildService(ar *apiv2.ApisixRoute, rule apiv2.ApisixRouteHTTP, ruleIndex int) *adc.Service {
 	service := adc.NewDefaultService()
 	service.Name = adc.ComposeServiceNameWithRule(ar.Namespace, ar.Name, fmt.Sprintf("%d", ruleIndex))
 	service.ID = id.GenID(service.Name)
 	service.Labels = label.GenLabel(ar)
 	service.Hosts = rule.Match.Hosts
-	service.Upstream = upstream
-	service.Routes = []*adc.Route{route}
 	return service
 }
 

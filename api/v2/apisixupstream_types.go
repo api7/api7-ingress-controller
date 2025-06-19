@@ -36,19 +36,14 @@ type ApisixUpstreamSpec struct {
 	PortLevelSettings []PortLevelSettings `json:"portLevelSettings,omitempty" yaml:"portLevelSettings,omitempty"`
 }
 
-// ApisixUpstreamStatus defines the observed state of ApisixUpstream.
-type ApisixUpstreamStatus = ApisixStatus
-
 // +kubebuilder:object:root=true
-// +kubebuilder:subresource:status
 
 // ApisixUpstream is the Schema for the apisixupstreams API.
 type ApisixUpstream struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ApisixUpstreamSpec   `json:"spec,omitempty"`
-	Status ApisixUpstreamStatus `json:"status,omitempty"`
+	Spec ApisixUpstreamSpec `json:"spec,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -86,7 +81,7 @@ type ApisixUpstreamConfig struct {
 	// How many times that the proxy (Apache APISIX) should do when
 	// errors occur (error, timeout or bad http status codes like 500, 502).
 	// +kubebuilder:validation:Optional
-	Retries *int `json:"retries,omitempty" yaml:"retries,omitempty"`
+	Retries *int64 `json:"retries,omitempty" yaml:"retries,omitempty"`
 
 	// Timeout settings for the read, send and connect to the upstream.
 	// +kubebuilder:validation:Optional
