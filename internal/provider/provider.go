@@ -46,6 +46,7 @@ type TranslateContext struct {
 	PluginConfigs          map[k8stypes.NamespacedName]*v1alpha1.PluginConfig
 	ApisixPluginConfigs    map[k8stypes.NamespacedName]*apiv2.ApisixPluginConfig
 	Services               map[k8stypes.NamespacedName]*corev1.Service
+	Pods                   map[k8stypes.NamespacedName][]*corev1.Pod
 	BackendTrafficPolicies map[k8stypes.NamespacedName]*v1alpha1.BackendTrafficPolicy
 	Upstreams              map[k8stypes.NamespacedName]*apiv2.ApisixUpstream
 	GatewayProxies         map[types.NamespacedNameKind]v1alpha1.GatewayProxy
@@ -63,8 +64,9 @@ func NewDefaultTranslateContext(ctx context.Context) *TranslateContext {
 		PluginConfigs:          make(map[k8stypes.NamespacedName]*v1alpha1.PluginConfig),
 		ApisixPluginConfigs:    make(map[k8stypes.NamespacedName]*apiv2.ApisixPluginConfig),
 		Services:               make(map[k8stypes.NamespacedName]*corev1.Service),
-		Upstreams:              make(map[k8stypes.NamespacedName]*apiv2.ApisixUpstream),
+		Pods:                   make(map[k8stypes.NamespacedName][]*corev1.Pod),
 		BackendTrafficPolicies: make(map[k8stypes.NamespacedName]*v1alpha1.BackendTrafficPolicy),
+		Upstreams:              make(map[k8stypes.NamespacedName]*apiv2.ApisixUpstream),
 		GatewayProxies:         make(map[types.NamespacedNameKind]v1alpha1.GatewayProxy),
 		ResourceParentRefs:     make(map[types.NamespacedNameKind][]types.NamespacedNameKind),
 	}

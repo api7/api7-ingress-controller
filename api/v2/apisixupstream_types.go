@@ -165,9 +165,10 @@ type ApisixUpstreamSubset struct {
 
 // Discovery defines Service discovery related configuration.
 type Discovery struct {
-	ServiceName string            `json:"serviceName" yaml:"serviceName"`
-	Type        string            `json:"type" yaml:"type"`
-	Args        map[string]string `json:"args,omitempty" yaml:"args,omitempty"`
+	ServiceName string `json:"serviceName" yaml:"serviceName"`
+	// +kubebuilder:validation:Enum=kubernetes;nacos;
+	Type string            `json:"type" yaml:"type"`
+	Args map[string]string `json:"args,omitempty" yaml:"args,omitempty"`
 }
 
 // ActiveHealthCheck defines the active kind of upstream health check.

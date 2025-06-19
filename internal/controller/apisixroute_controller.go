@@ -343,6 +343,15 @@ func (r *ApisixRouteReconciler) validateBackends(ctx context.Context, tc *provid
 				Message: fmt.Sprintf("failed to list endpoint slices: %v", err),
 			}
 		}
+
+		// backend.subset specifies a subset of upstream nodes.
+		// It specifies that the target pod's label should be a superset of the subset labels of the ApisixUpstream of the serviceName
+		subsetLabels, err := r.getSubsetLabels(ctx, in, backend)
+		if err != nil {
+			return err
+		}
+		endpoints.Items = r.filterEndpointSlicesBySubsetLabels(ctx, endpoints.Items, subsetLabels)
+
 		tc.EndpointSlices[serviceNN] = endpoints.Items
 	}
 
@@ -683,4 +692,72 @@ func (r *ApisixRouteReconciler) listApisixRoutesForPluginConfig(ctx context.Cont
 		requests = append(requests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
 	}
 	return pkgutils.DedupComparable(requests)
+}
+
+func (r *ApisixRouteReconciler) getSubsetLabels(ctx context.Context, ar *apiv2.ApisixRoute, backend apiv2.ApisixRouteHTTPBackend) (map[string]string, error) {
+	if backend.Subset == "" {
+		return make(map[string]string), nil
+	}
+
+	// Try to Get the ApisixUpstream with the same name as backend.ServiceName
+	var (
+		auNN = types.NamespacedName{
+			Namespace: ar.GetNamespace(),
+			Name:      backend.ServiceName,
+		}
+		au apiv2.ApisixUpstream
+	)
+	if err := r.Get(ctx, auNN, &au); err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			return make(map[string]string), nil
+		}
+		return nil, err
+	}
+
+	// try tro get the subset labels from the ApisixUpstream subsets
+	for _, subset := range au.Spec.Subsets {
+		if backend.Subset == subset.Name {
+			return subset.Labels, nil
+		}
+	}
+
+	return make(map[string]string), nil
+}
+
+func (r *ApisixRouteReconciler) filterEndpointSlicesBySubsetLabels(ctx context.Context, in []discoveryv1.EndpointSlice, labels map[string]string) []discoveryv1.EndpointSlice {
+	if len(labels) == 0 {
+		return in
+	}
+
+	for i := range in {
+		in[i] = r.filterEndpointSliceByTargetPod(ctx, in[i], labels)
+	}
+
+	return utils.Filter(in, func(v discoveryv1.EndpointSlice) bool {
+		return len(v.Endpoints) > 0
+	})
+}
+
+// filterEndpointSliceByTargetPod filters item.Endpoints which is not a subset of labels
+func (r *ApisixRouteReconciler) filterEndpointSliceByTargetPod(ctx context.Context, item discoveryv1.EndpointSlice, labels map[string]string) discoveryv1.EndpointSlice {
+	item.Endpoints = utils.Filter(item.Endpoints, func(v discoveryv1.Endpoint) bool {
+		if v.TargetRef == nil || v.TargetRef.Kind != KindPod {
+			return true
+		}
+
+		var (
+			pod   corev1.Pod
+			podNN = types.NamespacedName{
+				Namespace: v.TargetRef.Namespace,
+				Name:      v.TargetRef.Name,
+			}
+		)
+		if err := r.Get(ctx, podNN, &pod); err != nil {
+			return false
+		}
+
+		return utils.IsSubsetOf(labels, pod.GetLabels())
+	})
+
+	return item
 }
