@@ -118,11 +118,11 @@ spec:
 			Eventually(request).WithArguments("/headers", Headers{}).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 		})
 
-		It("SecretRef tests", func() {
+		PIt("SecretRef tests", func() {
 		})
 	})
 
-	Context("Test KeyAuth", func() {
+	Context("Test BasicAuth", func() {
 		const basicAuth = `
 apiVersion: apisix.apache.org/v2
 kind: ApisixConsumer
@@ -163,7 +163,7 @@ spec:
 		request := func(path string, username, password string) int {
 			return s.NewAPISIXClient().GET(path).WithBasicAuth(username, password).WithHost("httpbin").Expect().Raw().StatusCode
 		}
-		FIt("Basic tests", func() {
+		It("Basic tests", func() {
 			By("apply ApisixRoute")
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apiv2.ApisixRoute{}, defaultApisixRoute)
 
@@ -186,7 +186,7 @@ spec:
 			Eventually(request).WithArguments("/headers", "", "").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 		})
 
-		It("SecretRef tests", func() {
+		PIt("SecretRef tests", func() {
 		})
 	})
 })
