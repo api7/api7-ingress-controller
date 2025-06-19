@@ -41,6 +41,7 @@ func NewStore() *Store {
 func (s *Store) Insert(name string, resourceTypes []string, resources adctypes.Resources, Labels map[string]string) error {
 	s.Lock()
 	defer s.Unlock()
+	log.Warnw("insert resources into cache", zap.Any("resources", resources))
 	targetCache, ok := s.cacheMap[name]
 	if !ok {
 		db, err := cache.NewMemDBCache()

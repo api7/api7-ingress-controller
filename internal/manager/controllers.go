@@ -134,6 +134,13 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Provider: pro,
 			Updater:  updater,
 		},
+		&controller.ApisixConsumerReconciler{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixConsumer"),
+			Provider: pro,
+			Updater:  updater,
+		},
 		&controller.ApisixPluginConfigReconciler{
 			Client:  mgr.GetClient(),
 			Scheme:  mgr.GetScheme(),

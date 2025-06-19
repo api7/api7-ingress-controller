@@ -151,16 +151,21 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 		}
 		rules[http.Name] = struct{}{}
 
+		// check secret
+		for _, plugin := range http.Plugins {
+			if !plugin.Enable {
+				continue
+			}
+			// check secret
+			if err := r.validateSecrets(ctx, tc, in, plugin.SecretRef); err != nil {
+				return err
+			}
+		}
 		// check plugin config reference
 		if http.PluginConfigName != "" {
 			if err := r.validatePluginConfig(ctx, tc, in, http); err != nil {
 				return err
 			}
-		}
-
-		// check secret
-		if err := r.validateSecrets(ctx, tc, in, http); err != nil {
-			return err
 		}
 
 		// check vars
@@ -231,52 +236,37 @@ func (r *ApisixRouteReconciler) validatePluginConfig(ctx context.Context, tc *pr
 
 	// Also check secrets referenced by plugin config
 	for _, plugin := range pc.Spec.Plugins {
-		if !plugin.Enable || plugin.Config == nil || plugin.SecretRef == "" {
+		if !plugin.Enable {
 			continue
 		}
-		var (
-			secret = corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      plugin.SecretRef,
-					Namespace: pc.Namespace,
-				},
-			}
-			secretNN = utils.NamespacedName(&secret)
-		)
-		if err := r.Get(ctx, secretNN, &secret); err != nil {
-			return ReasonError{
-				Reason:  string(apiv2.ConditionReasonInvalidSpec),
-				Message: fmt.Sprintf("failed to get Secret: %s", secretNN),
-			}
+		if err := r.validateSecrets(ctx, tc, in, plugin.SecretRef); err != nil {
+			return err
 		}
-		tc.Secrets[secretNN] = &secret
 	}
 	return nil
 }
 
-func (r *ApisixRouteReconciler) validateSecrets(ctx context.Context, tc *provider.TranslateContext, in *apiv2.ApisixRoute, http apiv2.ApisixRouteHTTP) error {
-	for _, plugin := range http.Plugins {
-		if !plugin.Enable || plugin.Config == nil || plugin.SecretRef == "" {
-			continue
-		}
-		var (
-			secret = corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      plugin.SecretRef,
-					Namespace: in.Namespace,
-				},
-			}
-			secretNN = utils.NamespacedName(&secret)
-		)
-		if err := r.Get(ctx, secretNN, &secret); err != nil {
-			return ReasonError{
-				Reason:  string(apiv2.ConditionReasonInvalidSpec),
-				Message: fmt.Sprintf("failed to get Secret: %s", secretNN),
-			}
-		}
-
-		tc.Secrets[utils.NamespacedName(&secret)] = &secret
+func (r *ApisixRouteReconciler) validateSecrets(ctx context.Context, tc *provider.TranslateContext, in *apiv2.ApisixRoute, secretRef string) error {
+	if secretRef == "" {
+		return nil
 	}
+	var (
+		secret = corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      secretRef,
+				Namespace: in.Namespace,
+			},
+		}
+		secretNN = utils.NamespacedName(&secret)
+	)
+	if err := r.Get(ctx, secretNN, &secret); err != nil {
+		return ReasonError{
+			Reason:  string(apiv2.ConditionReasonInvalidSpec),
+			Message: fmt.Sprintf("failed to get Secret: %s", secretNN),
+		}
+	}
+
+	tc.Secrets[utils.NamespacedName(&secret)] = &secret
 	return nil
 }
 

@@ -129,9 +129,9 @@ func (t *Translator) loadRoutePlugins(tctx *provider.TranslateContext, ar *apiv2
 
 func (t *Translator) buildPluginConfig(plugin apiv2.ApisixRoutePlugin, namespace string, secrets map[types.NamespacedName]*v1.Secret) map[string]any {
 	config := make(map[string]any)
-	if plugin.Config != nil {
-		for key, value := range plugin.Config {
-			config[key] = json.RawMessage(value.Raw)
+	if len(plugin.Config.Raw) > 0 {
+		if err := json.Unmarshal(plugin.Config.Raw, &config); err != nil {
+			t.Log.Error(err, "failed to unmarshal plugin config")
 		}
 	}
 	if plugin.SecretRef != "" {
