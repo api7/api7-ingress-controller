@@ -58,6 +58,7 @@ const (
 	KindApisixRoute        = "ApisixRoute"
 	KindApisixGlobalRule   = "ApisixGlobalRule"
 	KindApisixPluginConfig = "ApisixPluginConfig"
+	KindApisixTls          = "ApisixTls"
 )
 
 const defaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"

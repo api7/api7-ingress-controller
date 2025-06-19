@@ -1,6 +1,8 @@
 package translator
 
 import (
+	"fmt"
+
 	"k8s.io/apimachinery/pkg/types"
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
@@ -20,7 +22,7 @@ func (t *Translator) TranslateApisixTls(tctx *provider.TranslateContext, tls *ap
 	}
 	secret, ok := tctx.Secrets[secretKey]
 	if !ok || secret == nil {
-		return result, nil // Skip if secret is not found
+		return nil, fmt.Errorf("secret %s not found", secretKey.String())
 	}
 
 	// Extract cert and key from secret

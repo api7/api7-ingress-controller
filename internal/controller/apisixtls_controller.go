@@ -49,6 +49,36 @@ type ApisixTlsReconciler struct {
 	Updater  status.Updater
 }
 
+// SetupWithManager sets up the controller with the Manager.
+func (r *ApisixTlsReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&apiv2.ApisixTls{},
+			builder.WithPredicates(
+				predicate.NewPredicateFuncs(r.checkIngressClass),
+			),
+		).
+		WithEventFilter(
+			predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				predicate.AnnotationChangedPredicate{},
+			),
+		).
+		Watches(
+			&networkingv1.IngressClass{},
+			handler.EnqueueRequestsFromMapFunc(r.listApisixTlsForIngressClass),
+			builder.WithPredicates(
+				predicate.NewPredicateFuncs(r.matchesIngressController),
+			),
+		).
+		Watches(&v1alpha1.GatewayProxy{},
+			handler.EnqueueRequestsFromMapFunc(r.listApisixTlsForGatewayProxy),
+		).
+		Watches(&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.listApisixTlsForSecret),
+		).
+		Complete(r)
+}
+
 // Reconcile implements the reconciliation logic for ApisixTls
 func (r *ApisixTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var tls apiv2.ApisixTls
@@ -58,7 +88,7 @@ func (r *ApisixTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			tls.Namespace = req.Namespace
 			tls.Name = req.Name
 			tls.TypeMeta = metav1.TypeMeta{
-				Kind:       "ApisixTls",
+				Kind:       KindApisixTls,
 				APIVersion: apiv2.GroupVersion.String(),
 			}
 			// Delete from provider
@@ -66,13 +96,13 @@ func (r *ApisixTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				r.Log.Error(err, "failed to delete TLS from provider")
 				return ctrl.Result{}, err
 			}
-			r.Log.Info("deleted TLS", "tls", tls.Name)
+			r.Log.Info("deleted apisix tls", "tls", tls.Name)
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
 	}
 
-	r.Log.Info("reconciling TLS", "tls", tls.Name)
+	r.Log.Info("reconciling apisix tls", "tls", tls.Name)
 
 	// create a translate context
 	tctx := provider.NewDefaultTranslateContext(ctx)
@@ -120,9 +150,8 @@ func (r *ApisixTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, err
 	}
 
-	// Sync the TLS to APISIX
 	if err := r.Provider.Update(ctx, tctx, &tls); err != nil {
-		log.Error(err, "failed to sync TLS to provider")
+		log.Error(err, "failed to sync apisix tls to provider")
 		// Update status with failure condition
 		r.updateStatus(&tls, metav1.Condition{
 			Type:               string(apiv2.ConditionTypeAccepted),
@@ -142,7 +171,7 @@ func (r *ApisixTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		ObservedGeneration: tls.Generation,
 		LastTransitionTime: metav1.Now(),
 		Reason:             string(apiv2.ConditionReasonAccepted),
-		Message:            "The TLS has been accepted and synced to APISIX",
+		Message:            "The apisix tls has been accepted and synced to APISIX",
 	})
 
 	return ctrl.Result{}, nil
@@ -151,7 +180,7 @@ func (r *ApisixTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 func (r *ApisixTlsReconciler) processApisixTls(ctx context.Context, tc *provider.TranslateContext, tls *apiv2.ApisixTls) error {
 	// Validate the main TLS secret
 	if err := r.validateSecret(ctx, tc, tls.Spec.Secret); err != nil {
-		return fmt.Errorf("invalid TLS secret: %w", err)
+		return fmt.Errorf("invalid apisix tls secret: %w", err)
 	}
 
 	// Validate the client CA secret if mutual TLS is configured
@@ -172,7 +201,7 @@ func (r *ApisixTlsReconciler) validateSecret(ctx context.Context, tc *provider.T
 
 	var secret corev1.Secret
 	if err := r.Get(ctx, secretKey, &secret); err != nil {
-		return fmt.Errorf("secret %s not found: %w", secretKey, err)
+		return fmt.Errorf("failed to get secret %s: %w", secretKey.String(), err)
 	}
 
 	tc.Secrets[secretKey] = &secret
@@ -372,36 +401,6 @@ func (r *ApisixTlsReconciler) matchesIngressController(obj client.Object) bool {
 		return false
 	}
 	return matchesController(ingressClass.Spec.Controller)
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *ApisixTlsReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&apiv2.ApisixTls{},
-			builder.WithPredicates(
-				predicate.NewPredicateFuncs(r.checkIngressClass),
-			),
-		).
-		WithEventFilter(
-			predicate.Or(
-				predicate.GenerationChangedPredicate{},
-				predicate.AnnotationChangedPredicate{},
-			),
-		).
-		Watches(
-			&networkingv1.IngressClass{},
-			handler.EnqueueRequestsFromMapFunc(r.listApisixTlsForIngressClass),
-			builder.WithPredicates(
-				predicate.NewPredicateFuncs(r.matchesIngressController),
-			),
-		).
-		Watches(&v1alpha1.GatewayProxy{},
-			handler.EnqueueRequestsFromMapFunc(r.listApisixTlsForGatewayProxy),
-		).
-		Watches(&corev1.Secret{},
-			handler.EnqueueRequestsFromMapFunc(r.listApisixTlsForSecret),
-		).
-		Complete(r)
 }
 
 // listApisixTlsForIngressClass list all TLS that use a specific ingress class
