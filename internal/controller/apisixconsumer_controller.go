@@ -32,7 +32,6 @@ import (
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
-	v2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
@@ -72,34 +71,31 @@ func (r *ApisixConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	var (
-		tctx      = provider.NewDefaultTranslateContext(ctx)
-		reasonErr error
+		tctx         = provider.NewDefaultTranslateContext(ctx)
+		ingressClass *networkingv1.IngressClass
+		err          error
 	)
 	defer func() {
-		r.updateStatus(ac, reasonErr)
+		r.updateStatus(ac, err)
 	}()
 
-	ingressClass, err := GetIngressClass(tctx, r.Client, r.Log, ac.Spec.IngressClassName)
+	ingressClass, err = GetIngressClass(tctx, r.Client, r.Log, ac.Spec.IngressClassName)
 	if err != nil {
 		r.Log.Error(err, "failed to get IngressClass")
-		reasonErr = err
 		return ctrl.Result{}, err
 	}
 
-	if err := ProcessIngressClassParameters(tctx, r.Client, r.Log, ac, ingressClass); err != nil {
+	if err = ProcessIngressClassParameters(tctx, r.Client, r.Log, ac, ingressClass); err != nil {
 		r.Log.Error(err, "failed to process IngressClass parameters", "ingressClass", ingressClass.Name)
-		reasonErr = err
 		return ctrl.Result{}, err
 	}
 
-	if err := r.processSpec(ctx, tctx, ac); err != nil {
-		reasonErr = err
+	if err = r.processSpec(ctx, tctx, ac); err != nil {
 		return ctrl.Result{}, err
 	}
 
-	if err := r.Provider.Update(ctx, tctx, ac); err != nil {
+	if err = r.Provider.Update(ctx, tctx, ac); err != nil {
 		r.Log.Error(err, "failed to update provider", "ApisixConsumer", ac)
-		reasonErr = err
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
@@ -180,7 +176,7 @@ func (r *ApisixConsumerReconciler) listApisixConsumerForSecret(ctx context.Conte
 		ctx,
 		r.Client,
 		r.Log,
-		&v2.ApisixConsumerList{},
+		&apiv2.ApisixConsumerList{},
 		client.MatchingFields{
 			indexer.SecretIndexRef: indexer.GenIndexKey(secret.GetNamespace(), secret.GetName()),
 		},
