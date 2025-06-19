@@ -49,6 +49,7 @@ var _ = Describe("Test ApisixRoute", func() {
 	})
 
 	Context("Test ApisixRoute", func() {
+
 		It("Basic tests", func() {
 			const apisixRouteSpec = `
 apiVersion: apisix.apache.org/v2
