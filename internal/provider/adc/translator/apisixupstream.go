@@ -27,17 +27,13 @@ import (
 )
 
 func (t *Translator) translateApisixUpstream(tctx *provider.TranslateContext, au *apiv2.ApisixUpstream) (ups *adc.Upstream, err error) {
-	if len(au.Spec.ExternalNodes) == 0 && au.Spec.Discovery == nil {
-		return nil, errors.Errorf("%s has empty externalNodes or discovery configuration", utils.NamespacedName(au))
-	}
-
 	ups = adc.NewDefaultUpstream()
 	for _, f := range []func(*apiv2.ApisixUpstream, *adc.Upstream) error{
+		patchApisixUpstreamBasics,
 		translateApisixUpstreamScheme,
 		translateApisixUpstreamLoadBalancer,
 		translateApisixUpstreamHealthCheck,
 		translateApisixUpstreamRetriesAndTimeout,
-		translateApisixUpstreamClientTLS,
 		translateApisixUpstreamPassHost,
 		translateApisixUpstreamDiscovery,
 	} {
@@ -46,6 +42,7 @@ func (t *Translator) translateApisixUpstream(tctx *provider.TranslateContext, au
 		}
 	}
 	for _, f := range []func(*provider.TranslateContext, *apiv2.ApisixUpstream, *adc.Upstream) error{
+		translateApisixUpstreamClientTLS,
 		translateApisixUpstreamExternalNodes,
 	} {
 		if err = f(tctx, au, ups); err != nil {
@@ -56,13 +53,16 @@ func (t *Translator) translateApisixUpstream(tctx *provider.TranslateContext, au
 	return
 }
 
-func translateApisixUpstreamScheme(au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
-	switch au.Spec.Scheme {
-	case apiv2.SchemeHTTP, apiv2.SchemeHTTPS, apiv2.SchemeGRPC, apiv2.SchemeGRPCS:
-		ups.Scheme = au.Spec.Scheme
-	default:
-		ups.Scheme = apiv2.SchemeHTTP
+func patchApisixUpstreamBasics(au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
+	ups.Name = composeExternalUpstreamName(au)
+	for k, v := range au.Labels {
+		ups.Labels[k] = v
 	}
+	return nil
+}
+
+func translateApisixUpstreamScheme(au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
+	ups.Scheme = cmp.Or(au.Spec.Scheme, apiv2.SchemeHTTP)
 	return nil
 }
 
@@ -99,8 +99,80 @@ func translateApisixUpstreamLoadBalancer(au *apiv2.ApisixUpstream, ups *adc.Upst
 }
 
 func translateApisixUpstreamHealthCheck(au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
-	// todo: handle `.Checks` in next PR
+	check := au.Spec.HealthCheck
+	if check == nil {
+		return nil
+	}
+
+	ups.Checks = new(adc.UpstreamHealthCheck)
+	ups.Checks.Active = translateApisixUpstreamHealthCheckActive(check.Active)
+
+	if check.Passive != nil {
+		ups.Checks.Passive = translateApisixUpstreamHealthCheckPassive(check.Passive)
+	}
+
 	return nil
+}
+
+func translateApisixUpstreamHealthCheckActive(config *apiv2.ActiveHealthCheck) *adc.UpstreamActiveHealthCheck {
+	var active adc.UpstreamActiveHealthCheck
+
+	active.Type = cmp.Or(config.Type, apiv2.HealthCheckHTTP)
+	active.Timeout = int(config.Timeout.Seconds())
+	active.Port = config.Port
+	active.Concurrency = config.Concurrency
+	active.Host = config.Host
+	active.HTTPPath = config.HTTPPath
+	active.HTTPRequestHeaders = config.RequestHeaders
+	active.HTTPSVerifyCert = config.StrictTLS != nil && *config.StrictTLS
+
+	if config.Healthy != nil {
+		active.Healthy = adc.UpstreamActiveHealthCheckHealthy{
+			UpstreamPassiveHealthCheckHealthy: adc.UpstreamPassiveHealthCheckHealthy{
+				HTTPStatuses: config.Healthy.HTTPCodes,
+				Successes:    config.Healthy.Successes,
+			},
+			Interval: int(config.Healthy.Interval.Seconds()),
+		}
+	}
+
+	if config.Unhealthy != nil {
+		active.Unhealthy = adc.UpstreamActiveHealthCheckUnhealthy{
+			UpstreamPassiveHealthCheckUnhealthy: adc.UpstreamPassiveHealthCheckUnhealthy{
+				HTTPStatuses: config.Unhealthy.HTTPCodes,
+				HTTPFailures: config.Unhealthy.HTTPFailures,
+				TCPFailures:  config.Unhealthy.TCPFailures,
+				Timeouts:     int(config.Timeout.Seconds()),
+			},
+			Interval: int(config.Unhealthy.Interval.Seconds()),
+		}
+	}
+
+	return &active
+}
+
+func translateApisixUpstreamHealthCheckPassive(config *apiv2.PassiveHealthCheck) *adc.UpstreamPassiveHealthCheck {
+	var passive adc.UpstreamPassiveHealthCheck
+
+	passive.Type = cmp.Or(config.Type, apiv2.HealthCheckHTTP)
+
+	if config.Healthy != nil {
+		passive.Healthy = adc.UpstreamPassiveHealthCheckHealthy{
+			HTTPStatuses: config.Healthy.HTTPCodes,
+			Successes:    config.Healthy.Successes,
+		}
+	}
+
+	if config.Unhealthy != nil {
+		passive.Unhealthy = adc.UpstreamPassiveHealthCheckUnhealthy{
+			HTTPStatuses: config.Unhealthy.HTTPCodes,
+			HTTPFailures: config.Unhealthy.HTTPFailures,
+			TCPFailures:  config.Unhealthy.TCPFailures,
+			Timeouts:     config.Unhealthy.Timeouts,
+		}
+	}
+
+	return &passive
 }
 
 func translateApisixUpstreamRetriesAndTimeout(au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
@@ -140,27 +212,56 @@ func translateApisixUpstreamRetriesAndTimeout(au *apiv2.ApisixUpstream, ups *adc
 	return nil
 }
 
-func translateApisixUpstreamClientTLS(au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
-	// todo: handle `.TLS` in next PR
+func translateApisixUpstreamClientTLS(tctx *provider.TranslateContext, au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
+	if au.Spec.TLSSecret == nil {
+		return nil
+	}
+
+	var (
+		secretNN = types.NamespacedName{
+			Namespace: au.Spec.TLSSecret.Namespace,
+			Name:      au.Spec.TLSSecret.Name,
+		}
+	)
+	secret, ok := tctx.Secrets[secretNN]
+	if !ok {
+		return nil
+	}
+
+	cert, key, err := extractKeyPair(secret, true)
+	if err != nil {
+		return err
+	}
+
+	ups.TLS = &adc.ClientTLS{
+		Cert: string(cert),
+		Key:  string(key),
+	}
+
 	return nil
 }
 
 func translateApisixUpstreamPassHost(au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
-	switch passHost := au.Spec.PassHost; passHost {
-	case apiv2.PassHostPass, apiv2.PassHostNode, apiv2.PassHostRewrite:
-		ups.PassHost = passHost
-	default:
-		ups.PassHost = ""
-	}
-
+	ups.PassHost = au.Spec.PassHost
 	ups.UpstreamHost = au.Spec.UpstreamHost
 
 	return nil
 }
 
-func translateApisixUpstreamDiscovery(upstream *apiv2.ApisixUpstream, upstream2 *adc.Upstream) error {
-	// todo: handle `.Discovery*` in next PR
+func translateApisixUpstreamDiscovery(au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
+	if au.Spec.Discovery == nil {
+		return nil
+	}
+
+	ups.ServiceName = au.Spec.Discovery.ServiceName
+	ups.DiscoveryType = au.Spec.Discovery.Type
+	ups.DiscoveryArgs = au.Spec.Discovery.Args
+
 	return nil
+}
+
+func composeExternalUpstreamName(au *apiv2.ApisixUpstream) string {
+	return au.GetGenerateName() + "_" + au.GetName()
 }
 
 func translateApisixUpstreamExternalNodes(tctx *provider.TranslateContext, au *apiv2.ApisixUpstream, ups *adc.Upstream) error {

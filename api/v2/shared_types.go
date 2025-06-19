@@ -136,6 +136,22 @@ const (
 	ExternalTypeService ApisixUpstreamExternalType = "Service"
 )
 
+const (
+	// HealthCheckHTTP represents the HTTP kind health check.
+	HealthCheckHTTP = "http"
+	// HealthCheckHTTPS represents the HTTPS kind health check.
+	HealthCheckHTTPS = "https"
+	// HealthCheckTCP represents the TCP kind health check.
+	HealthCheckTCP = "tcp"
+
+	// HealthCheckMaxConsecutiveNumber is the max number for
+	// the consecutive success/failure in upstream health check.
+	HealthCheckMaxConsecutiveNumber = 254
+	// ActiveHealthCheckMinInterval is the minimum interval for
+	// the active health check.
+	ActiveHealthCheckMinInterval = time.Second
+)
+
 var schemeToPortMaps = map[string]int{
 	SchemeHTTP:  80,
 	SchemeHTTPS: 443,

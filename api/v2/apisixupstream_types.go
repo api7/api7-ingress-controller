@@ -19,6 +19,7 @@ import (
 )
 
 // ApisixUpstreamSpec describes the specification of ApisixUpstream.
+// +kubebuilder:validation:XValidation:rule="has(self.externalNodes)!=has(discovery)"
 type ApisixUpstreamSpec struct {
 	// IngressClassName is the name of an IngressClass cluster resource.
 	// controller implementations use this field to know whether they should be
@@ -29,6 +30,7 @@ type ApisixUpstreamSpec struct {
 	// ExternalNodes contains external nodes the Upstream should use
 	// If this field is set, the upstream will use these nodes directly without any further resolves
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MinItems=1
 	ExternalNodes []ApisixUpstreamExternalNode `json:"externalNodes,omitempty" yaml:"externalNodes,omitempty"`
 
 	ApisixUpstreamConfig `json:",inline" yaml:",inline"`
@@ -76,6 +78,7 @@ type ApisixUpstreamConfig struct {
 	// The scheme used to talk with the upstream.
 	// Now value can be http, grpc.
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=http;https;grpc;grpcs;
 	Scheme string `json:"scheme,omitempty" yaml:"scheme,omitempty"`
 
 	// How many times that the proxy (Apache APISIX) should do when
@@ -103,6 +106,7 @@ type ApisixUpstreamConfig struct {
 	// Configures the host when the request is forwarded to the upstream.
 	// Can be one of pass, node or rewrite.
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=pass;node;rewrite;
 	PassHost string `json:"passHost,omitempty" yaml:"passHost,omitempty"`
 
 	// Specifies the host of the Upstream request. This is only valid if
@@ -140,7 +144,9 @@ type LoadBalancer struct {
 
 // HealthCheck describes the upstream health check parameters.
 type HealthCheck struct {
-	Active  *ActiveHealthCheck  `json:"active" yaml:"active"`
+	// +kubebuilder:validation:Required
+	Active *ActiveHealthCheck `json:"active" yaml:"active"`
+	// +kubebuilder:validation:Optional
 	Passive *PassiveHealthCheck `json:"passive,omitempty" yaml:"passive,omitempty"`
 }
 
@@ -161,10 +167,15 @@ type Discovery struct {
 
 // ActiveHealthCheck defines the active kind of upstream health check.
 type ActiveHealthCheck struct {
-	Type           string                      `json:"type,omitempty" yaml:"type,omitempty"`
-	Timeout        time.Duration               `json:"timeout,omitempty" yaml:"timeout,omitempty"`
-	Concurrency    int                         `json:"concurrency,omitempty" yaml:"concurrency,omitempty"`
-	Host           string                      `json:"host,omitempty" yaml:"host,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=http;https;tcp;
+	Type    string        `json:"type,omitempty" yaml:"type,omitempty"`
+	Timeout time.Duration `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	// +kubebuilder:validation:Minimum=0
+	Concurrency int    `json:"concurrency,omitempty" yaml:"concurrency,omitempty"`
+	Host        string `json:"host,omitempty" yaml:"host,omitempty"`
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=65535
 	Port           int32                       `json:"port,omitempty" yaml:"port,omitempty"`
 	HTTPPath       string                      `json:"httpPath,omitempty" yaml:"httpPath,omitempty"`
 	StrictTLS      *bool                       `json:"strictTLS,omitempty" yaml:"strictTLS,omitempty"`
@@ -200,17 +211,27 @@ type ActiveHealthCheckUnhealthy struct {
 // PassiveHealthCheckHealthy defines the conditions to judge whether
 // an upstream node is healthy with the passive manner.
 type PassiveHealthCheckHealthy struct {
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MinItems=1
 	HTTPCodes []int `json:"httpCodes,omitempty" yaml:"httpCodes,omitempty"`
-	Successes int   `json:"successes,omitempty" yaml:"successes,omitempty"`
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=254
+	Successes int `json:"successes,omitempty" yaml:"successes,omitempty"`
 }
 
 // PassiveHealthCheckUnhealthy defines the conditions to judge whether
 // an upstream node is unhealthy with the passive manager.
 type PassiveHealthCheckUnhealthy struct {
-	HTTPCodes    []int `json:"httpCodes,omitempty" yaml:"httpCodes,omitempty"`
-	HTTPFailures int   `json:"httpFailures,omitempty" yaml:"http_failures,omitempty"`
-	TCPFailures  int   `json:"tcpFailures,omitempty" yaml:"tcpFailures,omitempty"`
-	Timeouts     int   `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MinItems=1
+	HTTPCodes []int `json:"httpCodes,omitempty" yaml:"httpCodes,omitempty"`
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=254
+	HTTPFailures int `json:"httpFailures,omitempty" yaml:"http_failures,omitempty"`
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=254
+	TCPFailures int `json:"tcpFailures,omitempty" yaml:"tcpFailures,omitempty"`
+	Timeouts    int `json:"timeout,omitempty" yaml:"timeout,omitempty"`
 }
 
 func init() {

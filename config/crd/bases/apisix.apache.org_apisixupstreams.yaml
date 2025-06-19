@@ -74,6 +74,7 @@ spec:
                     weight:
                       type: integer
                   type: object
+                minItems: 1
                 type: array
               healthCheck:
                 description: The health check configurations for the upstream.
@@ -83,6 +84,7 @@ spec:
                       health check.
                     properties:
                       concurrency:
+                        minimum: 0
                         type: integer
                       healthy:
                         description: |-
@@ -92,10 +94,13 @@ spec:
                           httpCodes:
                             items:
                               type: integer
+                            minItems: 1
                             type: array
                           interval:
                             type: string
                           successes:
+                            maximum: 254
+                            minimum: 0
                             type: integer
                         type: object
                       host:
@@ -104,6 +109,8 @@ spec:
                         type: string
                       port:
                         format: int32
+                        maximum: 65535
+                        minimum: 0
                         type: integer
                       requestHeaders:
                         items:
@@ -119,6 +126,10 @@ spec:
                         format: int64
                         type: integer
                       type:
+                        enum:
+                        - http
+                        - https
+                        - tcp
                         type: string
                       unhealthy:
                         description: |-
@@ -128,12 +139,17 @@ spec:
                           httpCodes:
                             items:
                               type: integer
+                            minItems: 1
                             type: array
                           httpFailures:
+                            maximum: 254
+                            minimum: 0
                             type: integer
                           interval:
                             type: string
                           tcpFailures:
+                            maximum: 254
+                            minimum: 0
                             type: integer
                           timeout:
                             type: integer
@@ -152,8 +168,11 @@ spec:
                           httpCodes:
                             items:
                               type: integer
+                            minItems: 1
                             type: array
                           successes:
+                            maximum: 254
+                            minimum: 0
                             type: integer
                         type: object
                       type:
@@ -166,10 +185,15 @@ spec:
                           httpCodes:
                             items:
                               type: integer
+                            minItems: 1
                             type: array
                           httpFailures:
+                            maximum: 254
+                            minimum: 0
                             type: integer
                           tcpFailures:
+                            maximum: 254
+                            minimum: 0
                             type: integer
                           timeout:
                             type: integer
@@ -207,6 +231,10 @@ spec:
                 description: |-
                   Configures the host when the request is forwarded to the upstream.
                   Can be one of pass, node or rewrite.
+                enum:
+                - pass
+                - node
+                - rewrite
                 type: string
               portLevelSettings:
                 items:
@@ -239,6 +267,7 @@ spec:
                             upstream health check.
                           properties:
                             concurrency:
+                              minimum: 0
                               type: integer
                             healthy:
                               description: |-
@@ -248,10 +277,13 @@ spec:
                                 httpCodes:
                                   items:
                                     type: integer
+                                  minItems: 1
                                   type: array
                                 interval:
                                   type: string
                                 successes:
+                                  maximum: 254
+                                  minimum: 0
                                   type: integer
                               type: object
                             host:
@@ -260,6 +292,8 @@ spec:
                               type: string
                             port:
                               format: int32
+                              maximum: 65535
+                              minimum: 0
                               type: integer
                             requestHeaders:
                               items:
@@ -275,6 +309,10 @@ spec:
                               format: int64
                               type: integer
                             type:
+                              enum:
+                              - http
+                              - https
+                              - tcp
                               type: string
                             unhealthy:
                               description: |-
@@ -284,12 +322,17 @@ spec:
                                 httpCodes:
                                   items:
                                     type: integer
+                                  minItems: 1
                                   type: array
                                 httpFailures:
+                                  maximum: 254
+                                  minimum: 0
                                   type: integer
                                 interval:
                                   type: string
                                 tcpFailures:
+                                  maximum: 254
+                                  minimum: 0
                                   type: integer
                                 timeout:
                                   type: integer
@@ -308,8 +351,11 @@ spec:
                                 httpCodes:
                                   items:
                                     type: integer
+                                  minItems: 1
                                   type: array
                                 successes:
+                                  maximum: 254
+                                  minimum: 0
                                   type: integer
                               type: object
                             type:
@@ -322,10 +368,15 @@ spec:
                                 httpCodes:
                                   items:
                                     type: integer
+                                  minItems: 1
                                   type: array
                                 httpFailures:
+                                  maximum: 254
+                                  minimum: 0
                                   type: integer
                                 tcpFailures:
+                                  maximum: 254
+                                  minimum: 0
                                   type: integer
                                 timeout:
                                   type: integer
@@ -356,6 +407,10 @@ spec:
                       description: |-
                         Configures the host when the request is forwarded to the upstream.
                         Can be one of pass, node or rewrite.
+                      enum:
+                      - pass
+                      - node
+                      - rewrite
                       type: string
                     port:
                       description: Port is a Kubernetes Service port, it should be
@@ -372,6 +427,11 @@ spec:
                       description: |-
                         The scheme used to talk with the upstream.
                         Now value can be http, grpc.
+                      enum:
+                      - http
+                      - https
+                      - grpc
+                      - grpcs
                       type: string
                     subsets:
                       description: |-
@@ -438,6 +498,11 @@ spec:
                 description: |-
                   The scheme used to talk with the upstream.
                   Now value can be http, grpc.
+                enum:
+                - http
+                - https
+                - grpc
+                - grpcs
                 type: string
               subsets:
                 description: |-
@@ -490,6 +555,8 @@ spec:
                   the pass_host is set to rewrite
                 type: string
             type: object
+            x-kubernetes-validations:
+            - rule: has(self.externalNodes)!=has(discovery)
         type: object
     served: true
     storage: true
