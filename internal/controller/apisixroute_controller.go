@@ -13,6 +13,7 @@
 package controller
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -34,6 +35,7 @@ import (
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
@@ -77,6 +79,9 @@ func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Watches(&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.listApisixRoutesForSecret),
+		).
+		Watches(&apiv2.ApisixUpstream{},
+			handler.EnqueueRequestsFromMapFunc(r.listApisixRouteForApisixUpstream),
 		).
 		Watches(&apiv2.ApisixPluginConfig{},
 			handler.EnqueueRequestsFromMapFunc(r.listApisixRoutesForPluginConfig),
@@ -167,7 +172,6 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 		}
 
 		// check vars
-		// todo: cache the result to tctx
 		if _, err := http.Match.NginxVars.ToVars(); err != nil {
 			return ReasonError{
 				Reason:  string(apiv2.ConditionReasonInvalidSpec),
@@ -185,6 +189,10 @@ func (r *ApisixRouteReconciler) processApisixRoute(ctx context.Context, tc *prov
 
 		// process backend
 		if err := r.validateBackends(ctx, tc, in, http); err != nil {
+			return err
+		}
+		// process upstreams
+		if err := r.validateUpstreams(ctx, tc, in, http); err != nil {
 			return err
 		}
 	}
@@ -327,6 +335,63 @@ func (r *ApisixRouteReconciler) validateBackends(ctx context.Context, tc *provid
 		}
 		tc.EndpointSlices[serviceNN] = endpoints.Items
 	}
+
+	return nil
+}
+
+func (r *ApisixRouteReconciler) validateUpstreams(ctx context.Context, tc *provider.TranslateContext, ar *apiv2.ApisixRoute, http apiv2.ApisixRouteHTTP) error {
+	for _, upstream := range http.Upstreams {
+		if upstream.Name == "" {
+			continue
+		}
+		var (
+			ups   apiv2.ApisixUpstream
+			upsNN = types.NamespacedName{
+				Namespace: ar.GetNamespace(),
+				Name:      upstream.Name,
+			}
+		)
+		if err := r.Get(ctx, upsNN, &ups); err != nil {
+			r.Log.Error(err, "failed to get ApisixUpstream", "ApisixUpstream", upsNN)
+			if client.IgnoreNotFound(err) == nil {
+				continue
+			}
+			return err
+		}
+		tc.Upstreams[upsNN] = &ups
+
+		for _, node := range ups.Spec.ExternalNodes {
+			if node.Type == apiv2.ExternalTypeService {
+				var (
+					service   corev1.Service
+					serviceNN = types.NamespacedName{Namespace: ups.GetNamespace(), Name: node.Name}
+				)
+				if err := r.Get(ctx, serviceNN, &service); err != nil {
+					r.Log.Error(err, "failed to get service in ApisixUpstream", "ApisixUpstream", upsNN, "Service", serviceNN)
+					if client.IgnoreNotFound(err) == nil {
+						continue
+					}
+					return err
+				}
+				tc.Services[utils.NamespacedName(&service)] = &service
+			}
+		}
+
+		if ups.Spec.TLSSecret != nil && ups.Spec.TLSSecret.Name != "" {
+			var (
+				secret   corev1.Secret
+				secretNN = types.NamespacedName{Namespace: cmp.Or(ups.Spec.TLSSecret.Namespace, ar.GetNamespace()), Name: ups.Spec.TLSSecret.Name}
+			)
+			if err := r.Get(ctx, secretNN, &secret); err != nil {
+				r.Log.Error(err, "failed to get secret in ApisixUpstream", "ApisixUpstream", upsNN, "Secret", secretNN)
+				if client.IgnoreNotFound(err) != nil {
+					return err
+				}
+			}
+			tc.Secrets[secretNN] = &secret
+		}
+	}
+
 	return nil
 }
 
@@ -426,6 +491,127 @@ func (r *ApisixRouteReconciler) listApisixRouteForIngressClass(ctx context.Conte
 
 func (r *ApisixRouteReconciler) listApisixRouteForGatewayProxy(ctx context.Context, object client.Object) (requests []reconcile.Request) {
 	return listIngressClassRequestsForGatewayProxy(ctx, r.Client, object, r.Log, r.listApisixRouteForIngressClass)
+}
+
+func (r *ApisixRouteReconciler) listApisixRouteForApisixUpstream(ctx context.Context, object client.Object) (requests []reconcile.Request) {
+	au, ok := object.(*apiv2.ApisixUpstream)
+	if !ok {
+		return nil
+	}
+
+	var arList apiv2.ApisixRouteList
+	if err := r.List(ctx, &arList, client.MatchingFields{indexer.ApisixUpstreamRef: indexer.GenIndexKey(au.GetNamespace(), au.GetName())}); err != nil {
+		r.Log.Error(err, "failed to list ApisixUpstreams")
+		return nil
+	}
+
+	for _, ar := range arList.Items {
+		requests = append(requests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
+	}
+	return pkgutils.DedupComparable(requests)
+}
+
+func (r *ApisixRouteReconciler) matchesIngressController(obj client.Object) bool {
+	ingressClass, ok := obj.(*networkingv1.IngressClass)
+	if !ok {
+		return false
+	}
+	return matchesController(ingressClass.Spec.Controller)
+}
+
+func (r *ApisixRouteReconciler) getIngressClass(ar *apiv2.ApisixRoute) (*networkingv1.IngressClass, error) {
+	if ar.Spec.IngressClassName == "" {
+		return r.getDefaultIngressClass()
+	}
+
+	var ic networkingv1.IngressClass
+	if err := r.Get(context.Background(), client.ObjectKey{Name: ar.Spec.IngressClassName}, &ic); err != nil {
+		return nil, err
+	}
+	return &ic, nil
+}
+
+func (r *ApisixRouteReconciler) getDefaultIngressClass() (*networkingv1.IngressClass, error) {
+	var icList networkingv1.IngressClassList
+	if err := r.List(context.Background(), &icList, client.MatchingFields{
+		indexer.IngressClass: config.GetControllerName(),
+	}); err != nil {
+		r.Log.Error(err, "failed to list ingress classes")
+		return nil, err
+	}
+	for _, ic := range icList.Items {
+		if IsDefaultIngressClass(&ic) && matchesController(ic.Spec.Controller) {
+			return &ic, nil
+		}
+	}
+	return nil, ReasonError{
+		Reason:  string(metav1.StatusReasonNotFound),
+		Message: "default ingress class not found or dose not match the controller",
+	}
+}
+
+// processIngressClassParameters processes the IngressClass parameters that reference GatewayProxy
+func (r *ApisixRouteReconciler) processIngressClassParameters(ctx context.Context, tc *provider.TranslateContext, ar *apiv2.ApisixRoute, ingressClass *networkingv1.IngressClass) error {
+	if ingressClass == nil || ingressClass.Spec.Parameters == nil {
+		return nil
+	}
+
+	var (
+		ingressClassKind = utils.NamespacedNameKind(ingressClass)
+		globalRuleKind   = utils.NamespacedNameKind(ar)
+		parameters       = ingressClass.Spec.Parameters
+	)
+	if parameters.APIGroup == nil || *parameters.APIGroup != v1alpha1.GroupVersion.Group || parameters.Kind != KindGatewayProxy {
+		return nil
+	}
+
+	// check if the parameters reference GatewayProxy
+	var (
+		gatewayProxy v1alpha1.GatewayProxy
+		ns           = *cmp.Or(parameters.Namespace, &ar.Namespace)
+	)
+
+	if err := r.Get(ctx, client.ObjectKey{Namespace: ns, Name: parameters.Name}, &gatewayProxy); err != nil {
+		r.Log.Error(err, "failed to get GatewayProxy", "namespace", ns, "name", parameters.Name)
+		return err
+	}
+
+	tc.GatewayProxies[ingressClassKind] = gatewayProxy
+	tc.ResourceParentRefs[globalRuleKind] = append(tc.ResourceParentRefs[globalRuleKind], ingressClassKind)
+
+	// check if the provider field references a secret
+	if gatewayProxy.Spec.Provider != nil && gatewayProxy.Spec.Provider.Type == v1alpha1.ProviderTypeControlPlane {
+		if gatewayProxy.Spec.Provider.ControlPlane != nil &&
+			gatewayProxy.Spec.Provider.ControlPlane.Auth.Type == v1alpha1.AuthTypeAdminKey &&
+			gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey != nil &&
+			gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom != nil &&
+			gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
+
+			secretRef := gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef
+			secret := &corev1.Secret{}
+			if err := r.Get(ctx, client.ObjectKey{
+				Namespace: ns,
+				Name:      secretRef.Name,
+			}, secret); err != nil {
+				r.Log.Error(err, "failed to get secret for GatewayProxy provider",
+					"namespace", ns,
+					"name", secretRef.Name)
+				return err
+			}
+
+			r.Log.Info("found secret for GatewayProxy provider",
+				"ingressClass", ingressClass.Name,
+				"gatewayproxy", gatewayProxy.Name,
+				"secret", secretRef.Name)
+
+			tc.Secrets[types.NamespacedName{
+				Namespace: ns,
+				Name:      secretRef.Name,
+			}] = secret
+		}
+	}
+
+	return nil
 }
 
 func (r *ApisixRouteReconciler) updateStatus(ar *apiv2.ApisixRoute, err error) {
