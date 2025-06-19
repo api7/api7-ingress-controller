@@ -374,21 +374,20 @@ func (r *ApisixTlsReconciler) listApisixTlsForSecret(ctx context.Context, obj cl
 		return nil
 	}
 
+	// Use index to find all ApisixTls that reference this secret
 	var tlsList apiv2.ApisixTlsList
-	if err := r.List(ctx, &tlsList); err != nil {
-		r.Log.Error(err, "failed to list ApisixTls")
+	if err := r.List(ctx, &tlsList, client.MatchingFields{
+		indexer.SecretIndexRef: indexer.GenIndexKey(secret.Namespace, secret.Name),
+	}); err != nil {
+		r.Log.Error(err, "failed to list ApisixTls by secret index")
 		return nil
 	}
 
-	var requests []reconcile.Request
+	requests := make([]reconcile.Request, 0, len(tlsList.Items))
 	for _, tls := range tlsList.Items {
-		// Check if this secret is referenced by the TLS resource
-		if (tls.Spec.Secret.Namespace == secret.Namespace && tls.Spec.Secret.Name == secret.Name) ||
-			(tls.Spec.Client != nil && tls.Spec.Client.CASecret.Namespace == secret.Namespace && tls.Spec.Client.CASecret.Name == secret.Name) {
-			requests = append(requests, reconcile.Request{
-				NamespacedName: utils.NamespacedName(&tls),
-			})
-		}
+		requests = append(requests, reconcile.Request{
+			NamespacedName: utils.NamespacedName(&tls),
+		})
 	}
 
 	return requests
@@ -410,25 +409,36 @@ func (r *ApisixTlsReconciler) listApisixTlsForIngressClass(ctx context.Context, 
 		return nil
 	}
 
-	var requests []reconcile.Request
-
-	// List all TLS and filter based on ingress class
+	// Use index to find all ApisixTls that reference this ingress class
 	tlsList := &apiv2.ApisixTlsList{}
-	if err := r.List(ctx, tlsList); err != nil {
-		r.Log.Error(err, "failed to list TLS")
+	requests := make([]reconcile.Request, 0, len(tlsList.Items))
+	if err := r.List(ctx, tlsList, client.MatchingFields{
+		indexer.IngressClassRef: ingressClass.Name,
+	}); err != nil {
+		r.Log.Error(err, "failed to list ApisixTls by ingress class index")
 		return nil
 	}
 
-	isDefaultClass := IsDefaultIngressClass(ingressClass)
 	for _, tls := range tlsList.Items {
-		if (isDefaultClass && tls.Spec.IngressClassName == "") ||
-			tls.Spec.IngressClassName == ingressClass.Name {
-			requests = append(requests, reconcile.Request{
-				NamespacedName: client.ObjectKey{
-					Namespace: tls.Namespace,
-					Name:      tls.Name,
-				},
-			})
+		requests = append(requests, reconcile.Request{
+			NamespacedName: utils.NamespacedName(&tls),
+		})
+	}
+
+	// If this is the default ingress class, also find TLS with empty ingress class
+	if IsDefaultIngressClass(ingressClass) {
+		var tlsListWithoutClass apiv2.ApisixTlsList
+		if err := r.List(ctx, &tlsListWithoutClass); err != nil {
+			r.Log.Error(err, "failed to list all ApisixTls")
+			return requests
+		}
+
+		for _, tls := range tlsListWithoutClass.Items {
+			if tls.Spec.IngressClassName == "" {
+				requests = append(requests, reconcile.Request{
+					NamespacedName: utils.NamespacedName(&tls),
+				})
+			}
 		}
 	}
 

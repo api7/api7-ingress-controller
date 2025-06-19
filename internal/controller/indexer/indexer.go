@@ -56,6 +56,7 @@ func SetupIndexer(mgr ctrl.Manager) error {
 		setupGatewayClassIndexer,
 		setupApisixRouteIndexer,
 		setupApisixPluginConfigIndexer,
+		setupApisixTlsIndexer,
 	} {
 		if err := setup(mgr); err != nil {
 			return err
@@ -637,4 +638,53 @@ func ApisixPluginConfigSecretIndexFunc(obj client.Object) (keys []string) {
 		}
 	}
 	return
+}
+
+func setupApisixTlsIndexer(mgr ctrl.Manager) error {
+	// Create secret index for ApisixTls
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&apiv2.ApisixTls{},
+		SecretIndexRef,
+		ApisixTlsSecretIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	// Create ingress class index for ApisixTls
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&apiv2.ApisixTls{},
+		IngressClassRef,
+		ApisixTlsIngressClassIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ApisixTlsSecretIndexFunc(rawObj client.Object) []string {
+	tls := rawObj.(*apiv2.ApisixTls)
+	secrets := make([]string, 0)
+
+	// Index the main TLS secret
+	key := GenIndexKey(tls.Spec.Secret.Namespace, tls.Spec.Secret.Name)
+	secrets = append(secrets, key)
+
+	// Index the client CA secret if mutual TLS is configured
+	if tls.Spec.Client != nil {
+		caKey := GenIndexKey(tls.Spec.Client.CASecret.Namespace, tls.Spec.Client.CASecret.Name)
+		secrets = append(secrets, caKey)
+	}
+
+	return secrets
+}
+
+func ApisixTlsIngressClassIndexFunc(rawObj client.Object) []string {
+	tls := rawObj.(*apiv2.ApisixTls)
+	if tls.Spec.IngressClassName == "" {
+		return nil
+	}
+	return []string{tls.Spec.IngressClassName}
 }
