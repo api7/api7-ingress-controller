@@ -14,8 +14,10 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -29,7 +31,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	"github.com/apache/apisix-ingress-controller/internal/controller/config"
+	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
+	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
@@ -40,55 +46,104 @@ type ApisixTlsReconciler struct {
 	Scheme   *runtime.Scheme
 	Log      logr.Logger
 	Provider provider.Provider
+	Updater  status.Updater
 }
 
-// Reconcile processes ApisixTls resources
+// Reconcile implements the reconciliation logic for ApisixTls
 func (r *ApisixTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var tls apiv2.ApisixTls
 	if err := r.Get(ctx, req.NamespacedName, &tls); err != nil {
 		if client.IgnoreNotFound(err) == nil {
+			// Create a minimal object for deletion
 			tls.Namespace = req.Namespace
 			tls.Name = req.Name
 			tls.TypeMeta = metav1.TypeMeta{
 				Kind:       "ApisixTls",
 				APIVersion: apiv2.GroupVersion.String(),
 			}
-
+			// Delete from provider
 			if err := r.Provider.Delete(ctx, &tls); err != nil {
-				r.Log.Error(err, "failed to delete ApisixTls", "tls", tls)
+				r.Log.Error(err, "failed to delete TLS from provider")
 				return ctrl.Result{}, err
 			}
+			r.Log.Info("deleted TLS", "tls", tls.Name)
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
 	}
 
-	var (
-		tctx = provider.NewDefaultTranslateContext(ctx)
-		ic   *networkingv1.IngressClass
-		err  error
-	)
-	defer func() {
-		r.updateStatus(&tls, err)
-	}()
+	r.Log.Info("reconciling TLS", "tls", tls.Name)
 
-	if ic, err = r.getIngressClass(&tls); err != nil {
+	// create a translate context
+	tctx := provider.NewDefaultTranslateContext(ctx)
+
+	// get the ingress class
+	ingressClass, err := r.getIngressClass(&tls)
+	if err != nil {
+		log.Error(err, "failed to get IngressClass")
+		r.updateStatus(&tls, metav1.Condition{
+			Type:               string(apiv2.ConditionTypeAccepted),
+			Status:             metav1.ConditionFalse,
+			ObservedGeneration: tls.Generation,
+			LastTransitionTime: metav1.Now(),
+			Reason:             string(apiv2.ConditionReasonInvalidSpec),
+			Message:            err.Error(),
+		})
 		return ctrl.Result{}, err
 	}
-	if err = r.processIngressClassParameters(ctx, tctx, &tls, ic); err != nil {
+
+	// process IngressClass parameters if they reference GatewayProxy
+	if err := r.processIngressClassParameters(ctx, tctx, &tls, ingressClass); err != nil {
+		log.Error(err, "failed to process IngressClass parameters", "ingressClass", ingressClass.Name)
+		r.updateStatus(&tls, metav1.Condition{
+			Type:               string(apiv2.ConditionTypeAccepted),
+			Status:             metav1.ConditionFalse,
+			ObservedGeneration: tls.Generation,
+			LastTransitionTime: metav1.Now(),
+			Reason:             string(apiv2.ConditionReasonInvalidSpec),
+			Message:            err.Error(),
+		})
 		return ctrl.Result{}, err
 	}
-	if err = r.processApisixTls(ctx, tctx, &tls); err != nil {
+
+	// process ApisixTls validation
+	if err := r.processApisixTls(ctx, tctx, &tls); err != nil {
+		log.Error(err, "failed to process ApisixTls")
+		r.updateStatus(&tls, metav1.Condition{
+			Type:               string(apiv2.ConditionTypeAccepted),
+			Status:             metav1.ConditionFalse,
+			ObservedGeneration: tls.Generation,
+			LastTransitionTime: metav1.Now(),
+			Reason:             string(apiv2.ConditionReasonInvalidSpec),
+			Message:            err.Error(),
+		})
 		return ctrl.Result{}, err
 	}
-	if err = r.Provider.Update(ctx, tctx, &tls); err != nil {
-		err = ReasonError{
-			Reason:  string(apiv2.ConditionReasonSyncFailed),
-			Message: err.Error(),
-		}
-		r.Log.Error(err, "failed to process", "ApisixTls", tls)
+
+	// Sync the TLS to APISIX
+	if err := r.Provider.Update(ctx, tctx, &tls); err != nil {
+		log.Error(err, "failed to sync TLS to provider")
+		// Update status with failure condition
+		r.updateStatus(&tls, metav1.Condition{
+			Type:               string(apiv2.ConditionTypeAccepted),
+			Status:             metav1.ConditionFalse,
+			ObservedGeneration: tls.Generation,
+			LastTransitionTime: metav1.Now(),
+			Reason:             string(apiv2.ConditionReasonSyncFailed),
+			Message:            err.Error(),
+		})
 		return ctrl.Result{}, err
 	}
+
+	// Update status with success condition
+	r.updateStatus(&tls, metav1.Condition{
+		Type:               string(apiv2.ConditionTypeAccepted),
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: tls.Generation,
+		LastTransitionTime: metav1.Now(),
+		Reason:             string(apiv2.ConditionReasonAccepted),
+		Message:            "The TLS has been accepted and synced to APISIX",
+	})
 
 	return ctrl.Result{}, nil
 }
@@ -96,19 +151,13 @@ func (r *ApisixTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 func (r *ApisixTlsReconciler) processApisixTls(ctx context.Context, tc *provider.TranslateContext, tls *apiv2.ApisixTls) error {
 	// Validate the main TLS secret
 	if err := r.validateSecret(ctx, tc, tls.Spec.Secret); err != nil {
-		return ReasonError{
-			Reason:  string(apiv2.ConditionReasonInvalidSpec),
-			Message: fmt.Sprintf("invalid TLS secret: %s", err.Error()),
-		}
+		return fmt.Errorf("invalid TLS secret: %w", err)
 	}
 
 	// Validate the client CA secret if mutual TLS is configured
 	if tls.Spec.Client != nil {
 		if err := r.validateSecret(ctx, tc, tls.Spec.Client.CASecret); err != nil {
-			return ReasonError{
-				Reason:  string(apiv2.ConditionReasonInvalidSpec),
-				Message: fmt.Sprintf("invalid client CA secret: %s", err.Error()),
-			}
+			return fmt.Errorf("invalid client CA secret: %w", err)
 		}
 	}
 
@@ -130,75 +179,164 @@ func (r *ApisixTlsReconciler) validateSecret(ctx context.Context, tc *provider.T
 	return nil
 }
 
+// getIngressClass get the ingress class for the TLS
 func (r *ApisixTlsReconciler) getIngressClass(tls *apiv2.ApisixTls) (*networkingv1.IngressClass, error) {
-	if tls.Spec.IngressClassName != "" {
-		var ic networkingv1.IngressClass
-		if err := r.Get(context.Background(), types.NamespacedName{Name: tls.Spec.IngressClassName}, &ic); err != nil {
-			return nil, fmt.Errorf("ingressClass %s not found: %w", tls.Spec.IngressClassName, err)
+	if tls.Spec.IngressClassName == "" {
+		// Check for default ingress class
+		ingressClassList := &networkingv1.IngressClassList{}
+		if err := r.List(context.Background(), ingressClassList, client.MatchingFields{
+			indexer.IngressClass: config.GetControllerName(),
+		}); err != nil {
+			r.Log.Error(err, "failed to list ingress classes")
+			return nil, err
 		}
-		return &ic, nil
+
+		// Find the ingress class that is marked as default
+		for _, ic := range ingressClassList.Items {
+			if IsDefaultIngressClass(&ic) && matchesController(ic.Spec.Controller) {
+				return &ic, nil
+			}
+		}
+		log.Debugw("no default ingress class found")
+		return nil, errors.New("no default ingress class found")
 	}
-	return r.getDefaultIngressClass()
+
+	// Check if the specified ingress class is controlled by us
+	var ingressClass networkingv1.IngressClass
+	if err := r.Get(context.Background(), client.ObjectKey{Name: tls.Spec.IngressClassName}, &ingressClass); err != nil {
+		return nil, err
+	}
+
+	if matchesController(ingressClass.Spec.Controller) {
+		return &ingressClass, nil
+	}
+
+	return nil, errors.New("ingress class is not controlled by us")
 }
 
-func (r *ApisixTlsReconciler) getDefaultIngressClass() (*networkingv1.IngressClass, error) {
-	var icList networkingv1.IngressClassList
-	if err := r.List(context.Background(), &icList); err != nil {
-		return nil, fmt.Errorf("failed to list IngressClasses: %w", err)
+// processIngressClassParameters processes the IngressClass parameters that reference GatewayProxy
+func (r *ApisixTlsReconciler) processIngressClassParameters(ctx context.Context, tctx *provider.TranslateContext, tls *apiv2.ApisixTls, ingressClass *networkingv1.IngressClass) error {
+	if ingressClass == nil || ingressClass.Spec.Parameters == nil {
+		return nil
 	}
 
-	for _, ic := range icList.Items {
-		if ic.Annotations["ingressclass.kubernetes.io/is-default-class"] == "true" {
-			return &ic, nil
+	ingressClassKind := utils.NamespacedNameKind(ingressClass)
+	tlsKind := utils.NamespacedNameKind(tls)
+
+	parameters := ingressClass.Spec.Parameters
+	// check if the parameters reference GatewayProxy
+	if parameters.APIGroup != nil && *parameters.APIGroup == v1alpha1.GroupVersion.Group && parameters.Kind == KindGatewayProxy {
+		ns := tls.GetNamespace()
+		if parameters.Namespace != nil {
+			ns = *parameters.Namespace
+		}
+
+		gatewayProxy := &v1alpha1.GatewayProxy{}
+		if err := r.Get(ctx, client.ObjectKey{
+			Namespace: ns,
+			Name:      parameters.Name,
+		}, gatewayProxy); err != nil {
+			r.Log.Error(err, "failed to get GatewayProxy", "namespace", ns, "name", parameters.Name)
+			return err
+		}
+
+		r.Log.Info("found GatewayProxy for IngressClass", "ingressClass", ingressClass.Name, "gatewayproxy", gatewayProxy.Name)
+		tctx.GatewayProxies[ingressClassKind] = *gatewayProxy
+		tctx.ResourceParentRefs[tlsKind] = append(tctx.ResourceParentRefs[tlsKind], ingressClassKind)
+
+		// check if the provider field references a secret
+		if gatewayProxy.Spec.Provider != nil && gatewayProxy.Spec.Provider.Type == v1alpha1.ProviderTypeControlPlane {
+			if gatewayProxy.Spec.Provider.ControlPlane != nil &&
+				gatewayProxy.Spec.Provider.ControlPlane.Auth.Type == v1alpha1.AuthTypeAdminKey &&
+				gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey != nil &&
+				gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom != nil &&
+				gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
+
+				secretRef := gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef
+				secret := &corev1.Secret{}
+				if err := r.Get(ctx, client.ObjectKey{
+					Namespace: ns,
+					Name:      secretRef.Name,
+				}, secret); err != nil {
+					r.Log.Error(err, "failed to get secret for GatewayProxy provider",
+						"namespace", ns,
+						"name", secretRef.Name)
+					return err
+				}
+
+				r.Log.Info("found secret for GatewayProxy provider",
+					"ingressClass", ingressClass.Name,
+					"gatewayproxy", gatewayProxy.Name,
+					"secret", secretRef.Name)
+
+				tctx.Secrets[types.NamespacedName{
+					Namespace: ns,
+					Name:      secretRef.Name,
+				}] = secret
+			}
 		}
 	}
 
-	return nil, fmt.Errorf("no default IngressClass found")
-}
-
-func (r *ApisixTlsReconciler) processIngressClassParameters(ctx context.Context, tc *provider.TranslateContext, tls *apiv2.ApisixTls, ingressClass *networkingv1.IngressClass) error {
-	// Similar to ApisixRoute controller, process IngressClass parameters if needed
-	// For now, this is a placeholder
 	return nil
 }
 
-func (r *ApisixTlsReconciler) updateStatus(tls *apiv2.ApisixTls, err error) {
-	var condition metav1.Condition
-	if err != nil {
-		if reasonErr, ok := err.(ReasonError); ok {
-			condition = metav1.Condition{
-				Type:               string(apiv2.ConditionReasonAccepted),
-				Status:             metav1.ConditionFalse,
-				ObservedGeneration: tls.GetGeneration(),
-				LastTransitionTime: metav1.Now(),
-				Reason:             reasonErr.Reason,
-				Message:            reasonErr.Message,
+// updateStatus updates the ApisixTls status with the given condition
+func (r *ApisixTlsReconciler) updateStatus(tls *apiv2.ApisixTls, condition metav1.Condition) {
+	r.Updater.Update(status.Update{
+		NamespacedName: utils.NamespacedName(tls),
+		Resource:       &apiv2.ApisixTls{},
+		Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
+			tlsCopy, ok := obj.(*apiv2.ApisixTls)
+			if !ok {
+				err := fmt.Errorf("unsupported object type %T", obj)
+				panic(err)
 			}
-		} else {
-			condition = metav1.Condition{
-				Type:               string(apiv2.ConditionReasonAccepted),
-				Status:             metav1.ConditionFalse,
-				ObservedGeneration: tls.GetGeneration(),
-				LastTransitionTime: metav1.Now(),
-				Reason:             string(apiv2.ConditionReasonSyncFailed),
-				Message:            err.Error(),
-			}
-		}
-	} else {
-		condition = metav1.Condition{
-			Type:               string(apiv2.ConditionReasonAccepted),
-			Status:             metav1.ConditionTrue,
-			ObservedGeneration: tls.GetGeneration(),
-			LastTransitionTime: metav1.Now(),
-			Reason:             string(apiv2.ConditionReasonAccepted),
-		}
+			tlsResult := tlsCopy.DeepCopy()
+			tlsResult.Status.Conditions = []metav1.Condition{condition}
+			return tlsResult
+		}),
+	})
+}
+
+// checkIngressClass checks if the ApisixTls uses the ingress class that we control
+func (r *ApisixTlsReconciler) checkIngressClass(obj client.Object) bool {
+	tls, ok := obj.(*apiv2.ApisixTls)
+	if !ok {
+		return false
 	}
 
-	tls.Status.Conditions = []metav1.Condition{condition}
+	return r.matchesIngressClass(tls.Spec.IngressClassName)
+}
 
-	if err := r.Status().Update(context.Background(), tls); err != nil {
-		r.Log.Error(err, "failed to update ApisixTls status")
+// matchesIngressClass checks if the given ingress class name matches our controlled classes
+func (r *ApisixTlsReconciler) matchesIngressClass(ingressClassName string) bool {
+	if ingressClassName == "" {
+		// Check for default ingress class
+		ingressClassList := &networkingv1.IngressClassList{}
+		if err := r.List(context.Background(), ingressClassList, client.MatchingFields{
+			indexer.IngressClass: config.GetControllerName(),
+		}); err != nil {
+			r.Log.Error(err, "failed to list ingress classes")
+			return false
+		}
+
+		// Find the ingress class that is marked as default
+		for _, ic := range ingressClassList.Items {
+			if IsDefaultIngressClass(&ic) && matchesController(ic.Spec.Controller) {
+				return true
+			}
+		}
+		return false
 	}
+
+	// Check if the specified ingress class is controlled by us
+	var ingressClass networkingv1.IngressClass
+	if err := r.Get(context.Background(), client.ObjectKey{Name: ingressClassName}, &ingressClass); err != nil {
+		r.Log.Error(err, "failed to get ingress class", "ingressClass", ingressClassName)
+		return false
+	}
+
+	return matchesController(ingressClass.Spec.Controller)
 }
 
 func (r *ApisixTlsReconciler) listApisixTlsForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
@@ -228,55 +366,107 @@ func (r *ApisixTlsReconciler) listApisixTlsForSecret(ctx context.Context, obj cl
 }
 
 func (r *ApisixTlsReconciler) matchesIngressController(obj client.Object) bool {
-	return true // TODO: implement proper matching logic
+	ingressClass, ok := obj.(*networkingv1.IngressClass)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to IngressClass")
+		return false
+	}
+	return matchesController(ingressClass.Spec.Controller)
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ApisixTlsReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&apiv2.ApisixTls{}).
+		For(&apiv2.ApisixTls{},
+			builder.WithPredicates(
+				predicate.NewPredicateFuncs(r.checkIngressClass),
+			),
+		).
 		WithEventFilter(
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
-				predicate.NewPredicateFuncs(func(obj client.Object) bool {
-					_, ok := obj.(*corev1.Secret)
-					return ok
-				}),
+				predicate.AnnotationChangedPredicate{},
 			),
 		).
-		Watches(&networkingv1.IngressClass{},
+		Watches(
+			&networkingv1.IngressClass{},
 			handler.EnqueueRequestsFromMapFunc(r.listApisixTlsForIngressClass),
 			builder.WithPredicates(
 				predicate.NewPredicateFuncs(r.matchesIngressController),
 			),
 		).
+		Watches(&v1alpha1.GatewayProxy{},
+			handler.EnqueueRequestsFromMapFunc(r.listApisixTlsForGatewayProxy),
+		).
 		Watches(&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.listApisixTlsForSecret),
 		).
-		Named("apisixtls").
 		Complete(r)
 }
 
+// listApisixTlsForIngressClass list all TLS that use a specific ingress class
 func (r *ApisixTlsReconciler) listApisixTlsForIngressClass(ctx context.Context, obj client.Object) []reconcile.Request {
-	ic, ok := obj.(*networkingv1.IngressClass)
+	ingressClass, ok := obj.(*networkingv1.IngressClass)
 	if !ok {
 		return nil
 	}
 
-	var tlsList apiv2.ApisixTlsList
-	if err := r.List(ctx, &tlsList); err != nil {
-		r.Log.Error(err, "failed to list ApisixTls")
+	var requests []reconcile.Request
+
+	// List all TLS and filter based on ingress class
+	tlsList := &apiv2.ApisixTlsList{}
+	if err := r.List(ctx, tlsList); err != nil {
+		r.Log.Error(err, "failed to list TLS")
 		return nil
 	}
 
-	var requests []reconcile.Request
+	isDefaultClass := IsDefaultIngressClass(ingressClass)
 	for _, tls := range tlsList.Items {
-		if tls.Spec.IngressClassName == ic.Name {
+		if (isDefaultClass && tls.Spec.IngressClassName == "") ||
+			tls.Spec.IngressClassName == ingressClass.Name {
 			requests = append(requests, reconcile.Request{
-				NamespacedName: utils.NamespacedName(&tls),
+				NamespacedName: client.ObjectKey{
+					Namespace: tls.Namespace,
+					Name:      tls.Name,
+				},
 			})
 		}
 	}
 
 	return requests
+}
+
+// listApisixTlsForGatewayProxy list all TLS that use a specific gateway proxy
+func (r *ApisixTlsReconciler) listApisixTlsForGatewayProxy(ctx context.Context, obj client.Object) []reconcile.Request {
+	gatewayProxy, ok := obj.(*v1alpha1.GatewayProxy)
+	if !ok {
+		return nil
+	}
+
+	// Find all ingress classes that reference this gateway proxy
+	ingressClassList := &networkingv1.IngressClassList{}
+	if err := r.List(ctx, ingressClassList, client.MatchingFields{
+		indexer.IngressClassParametersRef: indexer.GenIndexKey(gatewayProxy.GetNamespace(), gatewayProxy.GetName()),
+	}); err != nil {
+		r.Log.Error(err, "failed to list ingress classes for gateway proxy", "gatewayproxy", gatewayProxy.GetName())
+		return nil
+	}
+
+	var requests []reconcile.Request
+	for _, ingressClass := range ingressClassList.Items {
+		requests = append(requests, r.listApisixTlsForIngressClass(ctx, &ingressClass)...)
+	}
+
+	// Remove duplicates
+	uniqueRequests := make(map[string]reconcile.Request)
+	for _, request := range requests {
+		uniqueRequests[request.String()] = request
+	}
+
+	distinctRequests := make([]reconcile.Request, 0, len(uniqueRequests))
+	for _, request := range uniqueRequests {
+		distinctRequests = append(distinctRequests, request)
+	}
+
+	return distinctRequests
 }

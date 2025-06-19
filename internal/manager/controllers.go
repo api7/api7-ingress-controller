@@ -145,6 +145,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Scheme:   mgr.GetScheme(),
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixTls"),
 			Provider: pro,
+			Updater:  updater,
 		},
 	}, nil
 }

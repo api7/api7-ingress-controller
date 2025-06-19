@@ -1,12 +1,13 @@
 package translator
 
 import (
+	"k8s.io/apimachinery/pkg/types"
+
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 	"github.com/apache/apisix-ingress-controller/internal/id"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 func (t *Translator) TranslateApisixTls(tctx *provider.TranslateContext, tls *apiv2.ApisixTls) (*TranslateResult, error) {
