@@ -134,7 +134,7 @@ spec:
 			}).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusUnauthorized))
 
 			Eventually(request).WithArguments("/get", Headers{
-				"apikey": "foo-key",
+				"apikey": "test-key",
 			}).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 
 			By("Delete ApisixConsumer")
