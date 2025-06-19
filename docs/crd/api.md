@@ -1159,7 +1159,7 @@ ApisixRoutePlugin represents an APISIX plugin.
 | --- | --- |
 | `name` _string_ | The plugin name. |
 | `enable` _boolean_ | Whether this plugin is in use, default is true. |
-| `config` _[ApisixRoutePluginConfig](#apisixroutepluginconfig)_ | Plugin configuration. |
+| `config` _[JSON](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#json-v1-apiextensions-k8s-io)_ | Plugin configuration. |
 | `secretRef` _string_ | Plugin configuration secretRef. |
 
 
@@ -1169,18 +1169,7 @@ _Appears in:_
 - [ApisixRouteHTTP](#apisixroutehttp)
 - [ApisixRouteStream](#apisixroutestream)
 
-#### ApisixRoutePluginConfig
-_Base type:_ `[JSON](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#json-v1-apiextensions-k8s-io)`
 
-ApisixRoutePluginConfig is the configuration for
-any plugins.
-
-
-
-
-
-_Appears in:_
-- [ApisixRoutePlugin](#apisixrouteplugin)
 
 #### ApisixRouteSpec
 
