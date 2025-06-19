@@ -1176,12 +1176,32 @@ func checkReferenceGrant(ctx context.Context, cli client.Client, obj v1beta1.Ref
 	return false
 }
 
+func ListRequests(
+	ctx context.Context,
+	c client.Client,
+	logger logr.Logger,
+	listObj client.ObjectList,
+	opts ...client.ListOption,
+) []reconcile.Request {
+	return ListMatchingRequests(
+		ctx,
+		c,
+		logger,
+		listObj,
+		func(obj client.Object) bool {
+			return true
+		},
+		opts...,
+	)
+}
+
 func ListMatchingRequests(
 	ctx context.Context,
 	c client.Client,
 	logger logr.Logger,
 	listObj client.ObjectList,
 	matchFunc func(obj client.Object) bool,
+	opts ...client.ListOption,
 ) []reconcile.Request {
 	if err := c.List(ctx, listObj); err != nil {
 		logger.Error(err, "failed to list resource")
@@ -1378,4 +1398,18 @@ func GetIngressClass(ctx context.Context, c client.Client, log logr.Logger, ingr
 	}
 
 	return nil, errors.New("ingress class is not controlled by us")
+}
+
+// distinctRequests distinct the requests
+func distinctRequests(requests []reconcile.Request) []reconcile.Request {
+	uniqueRequests := make(map[string]reconcile.Request)
+	for _, request := range requests {
+		uniqueRequests[request.String()] = request
+	}
+
+	distinctRequests := make([]reconcile.Request, 0, len(uniqueRequests))
+	for _, request := range uniqueRequests {
+		distinctRequests = append(distinctRequests, request)
+	}
+	return distinctRequests
 }

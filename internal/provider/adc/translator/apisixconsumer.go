@@ -31,7 +31,9 @@ var (
 	_errKeyNotFoundOrInvalid      = errors.New("key \"key\" not found or invalid in secret")
 	_errUsernameNotFoundOrInvalid = errors.New("key \"username\" not found or invalid in secret")
 	_errPasswordNotFoundOrInvalid = errors.New("key \"password\" not found or invalid in secret")
+)
 
+const (
 	_jwtAuthExpDefaultValue = int64(868400)
 
 	_hmacAuthAlgorithmDefaultValue           = "hmac-sha256"
@@ -41,44 +43,44 @@ var (
 	_hmacAuthValidateRequestBodyDefaultValue = false
 	_hmacAuthMaxReqBodyDefaultValue          = int64(524288)
 
-	_stringTrue = "true"
+	_true = "true"
 )
 
 func (t *Translator) TranslateApisixConsumer(tctx *provider.TranslateContext, ac *v2.ApisixConsumer) (*TranslateResult, error) {
 	result := &TranslateResult{}
 	plugins := make(adctypes.Plugins)
 	if ac.Spec.AuthParameter.KeyAuth != nil {
-		cfg, err := t.translateConsumerKeyAuthPluginV2(tctx, ac.Namespace, ac.Spec.AuthParameter.KeyAuth)
+		cfg, err := t.translateConsumerKeyAuthPlugin(tctx, ac.Namespace, ac.Spec.AuthParameter.KeyAuth)
 		if err != nil {
 			return nil, fmt.Errorf("invalid key auth config: %s", err)
 		}
 		plugins["key-auth"] = cfg
 	} else if ac.Spec.AuthParameter.BasicAuth != nil {
-		cfg, err := t.translateConsumerBasicAuthPluginV2(tctx, ac.Namespace, ac.Spec.AuthParameter.BasicAuth)
+		cfg, err := t.translateConsumerBasicAuthPlugin(tctx, ac.Namespace, ac.Spec.AuthParameter.BasicAuth)
 		if err != nil {
 			return nil, fmt.Errorf("invalid basic auth config: %s", err)
 		}
 		plugins["basic-auth"] = cfg
 	} else if ac.Spec.AuthParameter.JwtAuth != nil {
-		cfg, err := t.translateConsumerJwtAuthPluginV2(tctx, ac.Namespace, ac.Spec.AuthParameter.JwtAuth)
+		cfg, err := t.translateConsumerJwtAuthPlugin(tctx, ac.Namespace, ac.Spec.AuthParameter.JwtAuth)
 		if err != nil {
 			return nil, fmt.Errorf("invalid jwt auth config: %s", err)
 		}
 		plugins["jwt-auth"] = cfg
 	} else if ac.Spec.AuthParameter.WolfRBAC != nil {
-		cfg, err := t.translateConsumerWolfRBACPluginV2(tctx, ac.Namespace, ac.Spec.AuthParameter.WolfRBAC)
+		cfg, err := t.translateConsumerWolfRBACPlugin(tctx, ac.Namespace, ac.Spec.AuthParameter.WolfRBAC)
 		if err != nil {
 			return nil, fmt.Errorf("invalid wolf rbac config: %s", err)
 		}
 		plugins["wolf-rbac"] = cfg
 	} else if ac.Spec.AuthParameter.HMACAuth != nil {
-		cfg, err := t.translateConsumerHMACAuthPluginV2(tctx, ac.Namespace, ac.Spec.AuthParameter.HMACAuth)
+		cfg, err := t.translateConsumerHMACAuthPlugin(tctx, ac.Namespace, ac.Spec.AuthParameter.HMACAuth)
 		if err != nil {
 			return nil, fmt.Errorf("invalid hmac auth config: %s", err)
 		}
 		plugins["hmac-auth"] = cfg
 	} else if ac.Spec.AuthParameter.LDAPAuth != nil {
-		cfg, err := t.translateConsumerLDAPAuthPluginV2(tctx, ac.Namespace, ac.Spec.AuthParameter.LDAPAuth)
+		cfg, err := t.translateConsumerLDAPAuthPlugin(tctx, ac.Namespace, ac.Spec.AuthParameter.LDAPAuth)
 		if err != nil {
 			return nil, fmt.Errorf("invalid ldap auth config: %s", err)
 		}
@@ -95,7 +97,7 @@ func (t *Translator) TranslateApisixConsumer(tctx *provider.TranslateContext, ac
 	return result, nil
 }
 
-func (t *Translator) translateConsumerKeyAuthPluginV2(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerKeyAuth) (*types.KeyAuthConsumerConfig, error) {
+func (t *Translator) translateConsumerKeyAuthPlugin(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerKeyAuth) (*types.KeyAuthConsumerConfig, error) {
 	if cfg.Value != nil {
 		return &types.KeyAuthConsumerConfig{Key: cfg.Value.Key}, nil
 	}
@@ -114,7 +116,7 @@ func (t *Translator) translateConsumerKeyAuthPluginV2(tctx *provider.TranslateCo
 	return &types.KeyAuthConsumerConfig{Key: string(raw)}, nil
 }
 
-func (t *Translator) translateConsumerBasicAuthPluginV2(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerBasicAuth) (*types.BasicAuthConsumerConfig, error) {
+func (t *Translator) translateConsumerBasicAuthPlugin(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerBasicAuth) (*types.BasicAuthConsumerConfig, error) {
 	if cfg.Value != nil {
 		return &types.BasicAuthConsumerConfig{
 			Username: cfg.Value.Username,
@@ -143,7 +145,7 @@ func (t *Translator) translateConsumerBasicAuthPluginV2(tctx *provider.Translate
 	}, nil
 }
 
-func (t *Translator) translateConsumerWolfRBACPluginV2(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerWolfRBAC) (*types.WolfRBACConsumerConfig, error) {
+func (t *Translator) translateConsumerWolfRBACPlugin(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerWolfRBAC) (*types.WolfRBACConsumerConfig, error) {
 	if cfg.Value != nil {
 		return &types.WolfRBACConsumerConfig{
 			Server:       cfg.Value.Server,
@@ -168,7 +170,7 @@ func (t *Translator) translateConsumerWolfRBACPluginV2(tctx *provider.TranslateC
 	}, nil
 }
 
-func (t *Translator) translateConsumerJwtAuthPluginV2(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerJwtAuth) (*types.JwtAuthConsumerConfig, error) {
+func (t *Translator) translateConsumerJwtAuthPlugin(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerJwtAuth) (*types.JwtAuthConsumerConfig, error) {
 	if cfg.Value != nil {
 		// The field exp must be a positive integer, default value 86400.
 		if cfg.Value.Exp < 1 {
@@ -199,7 +201,7 @@ func (t *Translator) translateConsumerJwtAuthPluginV2(tctx *provider.TranslateCo
 	}
 	base64SecretRaw := sec.Data["base64_secret"]
 	var base64Secret bool
-	if string(base64SecretRaw) == _stringTrue {
+	if string(base64SecretRaw) == _true {
 		base64Secret = true
 	}
 	expRaw := sec.Data["exp"]
@@ -227,7 +229,7 @@ func (t *Translator) translateConsumerJwtAuthPluginV2(tctx *provider.TranslateCo
 	}, nil
 }
 
-func (t *Translator) translateConsumerHMACAuthPluginV2(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerHMACAuth) (*types.HMACAuthConsumerConfig, error) {
+func (t *Translator) translateConsumerHMACAuthPlugin(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerHMACAuth) (*types.HMACAuthConsumerConfig, error) {
 	if cfg.Value != nil {
 		return &types.HMACAuthConsumerConfig{
 			AccessKey:           cfg.Value.AccessKey,
@@ -285,7 +287,7 @@ func (t *Translator) translateConsumerHMACAuthPluginV2(tctx *provider.TranslateC
 	if !ok {
 		keepHeader = _hmacAuthKeepHeadersDefaultValue
 	} else {
-		if string(keepHeaderRaw) == _stringTrue {
+		if string(keepHeaderRaw) == _true {
 			keepHeader = true
 		} else {
 			keepHeader = false
@@ -297,7 +299,7 @@ func (t *Translator) translateConsumerHMACAuthPluginV2(tctx *provider.TranslateC
 	if !ok {
 		encodeURIParams = _hmacAuthEncodeURIParamsDefaultValue
 	} else {
-		if string(encodeURIParamsRaw) == _stringTrue {
+		if string(encodeURIParamsRaw) == _true {
 			encodeURIParams = true
 		} else {
 			encodeURIParams = false
@@ -309,7 +311,7 @@ func (t *Translator) translateConsumerHMACAuthPluginV2(tctx *provider.TranslateC
 	if !ok {
 		validateRequestBody = _hmacAuthValidateRequestBodyDefaultValue
 	} else {
-		if string(validateRequestBodyRaw) == _stringTrue {
+		if string(validateRequestBodyRaw) == _true {
 			validateRequestBody = true
 		} else {
 			validateRequestBody = false
@@ -335,7 +337,7 @@ func (t *Translator) translateConsumerHMACAuthPluginV2(tctx *provider.TranslateC
 	}, nil
 }
 
-func (t *Translator) translateConsumerLDAPAuthPluginV2(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerLDAPAuth) (*types.LDAPAuthConsumerConfig, error) {
+func (t *Translator) translateConsumerLDAPAuthPlugin(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerLDAPAuth) (*types.LDAPAuthConsumerConfig, error) {
 	if cfg.Value != nil {
 		return &types.LDAPAuthConsumerConfig{
 			UserDN: cfg.Value.UserDN,

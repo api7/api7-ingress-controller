@@ -50,7 +50,8 @@ var _ = Describe("Test ApisixConsumer", func() {
 	})
 
 	Context("Test KeyAuth", func() {
-		const keyAuth = `
+		const (
+			keyAuth = `
 apiVersion: apisix.apache.org/v2
 kind: ApisixConsumer
 metadata:
@@ -62,7 +63,7 @@ spec:
       value:
         key: test-key
 `
-		const defaultApisixRoute = `
+			defaultApisixRoute = `
 apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
 metadata:
@@ -85,6 +86,37 @@ spec:
       enable: true
       type: keyAuth
 `
+			secret = `
+apiVersion: v1
+kind: Secret
+metadata:
+  name: keyauth
+data:
+  # foo-key
+  key: Zm9vLWtleQ==
+`
+			secretUpdated = `
+apiVersion: v1
+kind: Secret
+metadata:
+  name: keyauth
+data:
+  # foo2-key
+  key: Zm9vMi1rZXk=
+`
+			keyAuthWiwhSecret = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixConsumer
+metadata:
+  name: test-consumer
+spec:
+  ingressClassName: apisix
+  authParameter:
+    keyAuth:
+      secretRef:
+        name: keyauth
+`
+		)
 		request := func(path string, headers Headers) int {
 			return s.NewAPISIXClient().GET(path).WithHeaders(headers).WithHost("httpbin").Expect().Raw().StatusCode
 		}
@@ -102,7 +134,7 @@ spec:
 			}).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusUnauthorized))
 
 			Eventually(request).WithArguments("/get", Headers{
-				"apikey": "test-key",
+				"apikey": "foo-key",
 			}).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 
 			By("Delete ApisixConsumer")
@@ -118,12 +150,55 @@ spec:
 			Eventually(request).WithArguments("/headers", Headers{}).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 		})
 
-		PIt("SecretRef tests", func() {
+		It("SecretRef tests", func() {
+			By("apply ApisixRoute")
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apiv2.ApisixRoute{}, defaultApisixRoute)
+
+			By("apply Secret")
+			err := s.CreateResourceFromString(secret)
+			Expect(err).ShouldNot(HaveOccurred(), "creating Secret for ApisixConsumer")
+
+			By("apply ApisixConsumer")
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "test-consumer"}, &apiv2.ApisixConsumer{}, keyAuthWiwhSecret)
+
+			By("verify ApisixRoute with ApisixConsumer")
+			Eventually(request).WithArguments("/get", Headers{
+				"apikey": "invalid-key",
+			}).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusUnauthorized))
+
+			Eventually(request).WithArguments("/get", Headers{
+				"apikey": "foo-key",
+			}).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+
+			By("update Secret")
+			err = s.CreateResourceFromString(secretUpdated)
+			Expect(err).ShouldNot(HaveOccurred(), "updating Secret for ApisixConsumer")
+
+			Eventually(request).WithArguments("/get", Headers{
+				"apikey": "foo-key",
+			}).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusUnauthorized))
+
+			Eventually(request).WithArguments("/get", Headers{
+				"apikey": "foo2-key",
+			}).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+
+			By("Delete ApisixConsumer")
+			err = s.DeleteResource("ApisixConsumer", "test-consumer")
+			Expect(err).ShouldNot(HaveOccurred(), "deleting ApisixConsumer")
+			Eventually(request).WithArguments("/get", Headers{
+				"apikey": "test-key",
+			}).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusUnauthorized))
+
+			By("delete ApisixRoute")
+			err = s.DeleteResource("ApisixRoute", "default")
+			Expect(err).ShouldNot(HaveOccurred(), "deleting ApisixRoute")
+			Eventually(request).WithArguments("/headers", Headers{}).WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 		})
 	})
 
 	Context("Test BasicAuth", func() {
-		const basicAuth = `
+		const (
+			basicAuth = `
 apiVersion: apisix.apache.org/v2
 kind: ApisixConsumer
 metadata:
@@ -136,7 +211,7 @@ spec:
         username: test-user
         password: test-password
 `
-		const defaultApisixRoute = `
+			defaultApisixRoute = `
 apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
 metadata:
@@ -159,6 +234,41 @@ spec:
       enable: true
       type: basicAuth
 `
+
+			secret = `
+apiVersion: v1
+kind: Secret
+metadata:
+  name: basic
+data:
+  # foo:bar
+  username: Zm9v
+  password: YmFy
+`
+			secretUpdated = `
+apiVersion: v1
+kind: Secret
+metadata:
+  name: basic
+data:
+  # foo-new-user:bar-new-password
+  username: Zm9vLW5ldy11c2Vy
+  password: YmFyLW5ldy1wYXNzd29yZA==
+`
+
+			basicAuthWithSecret = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixConsumer
+metadata:
+  name: test-consumer
+spec:
+  ingressClassName: apisix
+  authParameter:
+    basicAuth:
+      secretRef:
+        name: basic
+`
+		)
 
 		request := func(path string, username, password string) int {
 			return s.NewAPISIXClient().GET(path).WithBasicAuth(username, password).WithHost("httpbin").Expect().Raw().StatusCode
@@ -186,7 +296,37 @@ spec:
 			Eventually(request).WithArguments("/headers", "", "").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 		})
 
-		PIt("SecretRef tests", func() {
+		It("SecretRef tests", func() {
+			By("apply ApisixRoute")
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apiv2.ApisixRoute{}, defaultApisixRoute)
+
+			By("apply Secret")
+			err := s.CreateResourceFromString(secret)
+			Expect(err).ShouldNot(HaveOccurred(), "creating Secret for ApisixConsumer")
+
+			By("apply ApisixConsumer")
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "test-consumer"}, &apiv2.ApisixConsumer{}, basicAuthWithSecret)
+
+			By("verify ApisixRoute with ApisixConsumer")
+			Eventually(request).WithArguments("/get", "", "").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusUnauthorized))
+			Eventually(request).WithArguments("/get", "foo", "bar").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+
+			By("update Secret")
+			err = s.CreateResourceFromString(secretUpdated)
+			Expect(err).ShouldNot(HaveOccurred(), "updating Secret for ApisixConsumer")
+
+			Eventually(request).WithArguments("/get", "foo", "bar").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusUnauthorized))
+			Eventually(request).WithArguments("/get", "foo-new-user", "bar-new-password").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+
+			By("Delete ApisixConsumer")
+			err = s.DeleteResource("ApisixConsumer", "test-consumer")
+			Expect(err).ShouldNot(HaveOccurred(), "deleting ApisixConsumer")
+			Eventually(request).WithArguments("/get", "foo-new-user", "bar-new-password").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusUnauthorized))
+
+			By("delete ApisixRoute")
+			err = s.DeleteResource("ApisixRoute", "default")
+			Expect(err).ShouldNot(HaveOccurred(), "deleting ApisixRoute")
+			Eventually(request).WithArguments("/get", "", "").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 		})
 	})
 })

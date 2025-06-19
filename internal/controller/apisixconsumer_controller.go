@@ -32,6 +32,8 @@ import (
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	v2 "github.com/apache/apisix-ingress-controller/api/v2"
+	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
@@ -70,30 +72,34 @@ func (r *ApisixConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	var (
-		tctx = provider.NewDefaultTranslateContext(ctx)
-		err  error
+		tctx      = provider.NewDefaultTranslateContext(ctx)
+		reasonErr error
 	)
 	defer func() {
-		r.updateStatus(ac, err)
+		r.updateStatus(ac, reasonErr)
 	}()
 
 	ingressClass, err := GetIngressClass(tctx, r.Client, r.Log, ac.Spec.IngressClassName)
 	if err != nil {
 		r.Log.Error(err, "failed to get IngressClass")
+		reasonErr = err
 		return ctrl.Result{}, err
 	}
 
 	if err := ProcessIngressClassParameters(tctx, r.Client, r.Log, ac, ingressClass); err != nil {
 		r.Log.Error(err, "failed to process IngressClass parameters", "ingressClass", ingressClass.Name)
+		reasonErr = err
 		return ctrl.Result{}, err
 	}
 
 	if err := r.processSpec(ctx, tctx, ac); err != nil {
+		reasonErr = err
 		return ctrl.Result{}, err
 	}
 
 	if err := r.Provider.Update(ctx, tctx, ac); err != nil {
 		r.Log.Error(err, "failed to update provider", "ApisixConsumer", ac)
+		reasonErr = err
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
@@ -121,6 +127,9 @@ func (r *ApisixConsumerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Watches(&v1alpha1.GatewayProxy{},
 			handler.EnqueueRequestsFromMapFunc(r.listApisixConsumerForGatewayProxy),
+		).
+		Watches(&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.listApisixConsumerForSecret),
 		).
 		Named("apisixconsumer").
 		Complete(r)
@@ -157,6 +166,23 @@ func (r *ApisixConsumerReconciler) listApisixConsumerForIngressClass(ctx context
 				return false
 			}
 			return (IsDefaultIngressClass(ingressClass) && ac.Spec.IngressClassName == "") || ac.Spec.IngressClassName == ingressClass.Name
+		},
+	)
+}
+
+func (r *ApisixConsumerReconciler) listApisixConsumerForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
+	secret, ok := obj.(*corev1.Secret)
+	if !ok {
+		r.Log.Error(nil, "failed to convert to Secret", "object", obj)
+		return nil
+	}
+	return ListRequests(
+		ctx,
+		r.Client,
+		r.Log,
+		&v2.ApisixConsumerList{},
+		client.MatchingFields{
+			indexer.SecretIndexRef: indexer.GenIndexKey(secret.GetNamespace(), secret.GetName()),
 		},
 	)
 }
@@ -205,11 +231,7 @@ func (r *ApisixConsumerReconciler) updateStatus(consumer *apiv2.ApisixConsumer, 
 		NamespacedName: utils.NamespacedName(consumer),
 		Resource:       &apiv2.ApisixConsumer{},
 		Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
-			ac, ok := obj.(*apiv2.ApisixConsumer)
-			if !ok {
-				err := fmt.Errorf("unsupported object type %T", obj)
-				panic(err)
-			}
+			ac := obj.(*apiv2.ApisixConsumer)
 			acCopy := ac.DeepCopy()
 			acCopy.Status = consumer.Status
 			return acCopy

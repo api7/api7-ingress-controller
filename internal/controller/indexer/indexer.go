@@ -16,6 +16,7 @@ import (
 	"cmp"
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -56,6 +57,7 @@ func SetupIndexer(mgr ctrl.Manager) error {
 		setupGatewayClassIndexer,
 		setupApisixRouteIndexer,
 		setupApisixPluginConfigIndexer,
+		setupApisixConsumerIndexer,
 	} {
 		if err := setup(mgr); err != nil {
 			return err
@@ -118,6 +120,18 @@ func setupApisixPluginConfigIndexer(mgr ctrl.Manager) error {
 		&apiv2.ApisixPluginConfig{},
 		SecretIndexRef,
 		ApisixPluginConfigSecretIndexFunc,
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
+func setupApisixConsumerIndexer(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&apiv2.ApisixConsumer{},
+		SecretIndexRef,
+		ApisixConsumerSecretIndexFunc,
 	); err != nil {
 		return err
 	}
@@ -635,6 +649,28 @@ func ApisixPluginConfigSecretIndexFunc(obj client.Object) (keys []string) {
 		if plugin.Enable && plugin.SecretRef != "" {
 			keys = append(keys, GenIndexKey(pc.GetNamespace(), plugin.SecretRef))
 		}
+	}
+	return
+}
+
+func ApisixConsumerSecretIndexFunc(rawObj client.Object) (keys []string) {
+	ac := rawObj.(*apiv2.ApisixConsumer)
+	var secretRef *corev1.LocalObjectReference
+	if ac.Spec.AuthParameter.KeyAuth != nil {
+		secretRef = ac.Spec.AuthParameter.KeyAuth.SecretRef
+	} else if ac.Spec.AuthParameter.BasicAuth != nil {
+		secretRef = ac.Spec.AuthParameter.BasicAuth.SecretRef
+	} else if ac.Spec.AuthParameter.JwtAuth != nil {
+		secretRef = ac.Spec.AuthParameter.JwtAuth.SecretRef
+	} else if ac.Spec.AuthParameter.WolfRBAC != nil {
+		secretRef = ac.Spec.AuthParameter.WolfRBAC.SecretRef
+	} else if ac.Spec.AuthParameter.HMACAuth != nil {
+		secretRef = ac.Spec.AuthParameter.HMACAuth.SecretRef
+	} else if ac.Spec.AuthParameter.LDAPAuth != nil {
+		secretRef = ac.Spec.AuthParameter.LDAPAuth.SecretRef
+	}
+	if secretRef != nil {
+		keys = append(keys, GenIndexKey(ac.GetNamespace(), secretRef.Name))
 	}
 	return
 }

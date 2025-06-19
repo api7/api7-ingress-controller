@@ -35,7 +35,6 @@ import (
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
-	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
@@ -509,45 +508,6 @@ func (r *ApisixRouteReconciler) listApisixRouteForApisixUpstream(ctx context.Con
 		requests = append(requests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
 	}
 	return pkgutils.DedupComparable(requests)
-}
-
-func (r *ApisixRouteReconciler) matchesIngressController(obj client.Object) bool {
-	ingressClass, ok := obj.(*networkingv1.IngressClass)
-	if !ok {
-		return false
-	}
-	return matchesController(ingressClass.Spec.Controller)
-}
-
-func (r *ApisixRouteReconciler) getIngressClass(ar *apiv2.ApisixRoute) (*networkingv1.IngressClass, error) {
-	if ar.Spec.IngressClassName == "" {
-		return r.getDefaultIngressClass()
-	}
-
-	var ic networkingv1.IngressClass
-	if err := r.Get(context.Background(), client.ObjectKey{Name: ar.Spec.IngressClassName}, &ic); err != nil {
-		return nil, err
-	}
-	return &ic, nil
-}
-
-func (r *ApisixRouteReconciler) getDefaultIngressClass() (*networkingv1.IngressClass, error) {
-	var icList networkingv1.IngressClassList
-	if err := r.List(context.Background(), &icList, client.MatchingFields{
-		indexer.IngressClass: config.GetControllerName(),
-	}); err != nil {
-		r.Log.Error(err, "failed to list ingress classes")
-		return nil, err
-	}
-	for _, ic := range icList.Items {
-		if IsDefaultIngressClass(&ic) && matchesController(ic.Spec.Controller) {
-			return &ic, nil
-		}
-	}
-	return nil, ReasonError{
-		Reason:  string(metav1.StatusReasonNotFound),
-		Message: "default ingress class not found or dose not match the controller",
-	}
 }
 
 func (r *ApisixRouteReconciler) updateStatus(ar *apiv2.ApisixRoute, err error) {
