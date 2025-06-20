@@ -256,6 +256,7 @@ func translateApisixUpstreamDiscovery(au *apiv2.ApisixUpstream, ups *adc.Upstrea
 	ups.ServiceName = au.Spec.Discovery.ServiceName
 	ups.DiscoveryType = au.Spec.Discovery.Type
 	ups.DiscoveryArgs = au.Spec.Discovery.Args
+	ups.Nodes = nil
 
 	return nil
 }
@@ -265,6 +266,10 @@ func composeExternalUpstreamName(au *apiv2.ApisixUpstream) string {
 }
 
 func translateApisixUpstreamExternalNodes(tctx *provider.TranslateContext, au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
+	if au.Spec.Discovery != nil {
+		ups.Nodes = nil
+		return nil
+	}
 	for _, node := range au.Spec.ExternalNodes {
 		switch node.Type {
 		case apiv2.ExternalTypeDomain:

@@ -50,9 +50,6 @@ spec:
                   serviceName:
                     type: string
                   type:
-                    enum:
-                    - kubernetes
-                    - nacos
                     type: string
                 required:
                 - serviceName
@@ -257,9 +254,6 @@ spec:
                         serviceName:
                           type: string
                         type:
-                          enum:
-                          - kubernetes
-                          - nacos
                           type: string
                       required:
                       - serviceName

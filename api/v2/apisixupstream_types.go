@@ -166,8 +166,8 @@ type ApisixUpstreamSubset struct {
 // Discovery defines Service discovery related configuration.
 type Discovery struct {
 	ServiceName string `json:"serviceName" yaml:"serviceName"`
-	// +kubebuilder:validation:Enum=kubernetes;nacos;
-	Type string            `json:"type" yaml:"type"`
+	Type        string `json:"type" yaml:"type"`
+	// +kubebuilder:validation:Optional
 	Args map[string]string `json:"args,omitempty" yaml:"args,omitempty"`
 }
 
