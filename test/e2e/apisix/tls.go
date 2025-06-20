@@ -111,6 +111,17 @@ var _ = Describe("Test ApisixTls", func() {
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "test-route-tls"}, &apisixRoute, apisixRouteYamlTls)
 		})
 
+		AfterEach(func() {
+			By("delete GatewayProxy")
+			gatewayProxy := fmt.Sprintf(gatewayProxyYamlTls, s.Deployer.GetAdminEndpoint(), s.AdminKey())
+			err := s.DeleteResourceFromStringWithNamespace(gatewayProxy, "default")
+			Expect(err).ShouldNot(HaveOccurred(), "deleting GatewayProxy")
+
+			By("delete IngressClass")
+			err = s.DeleteResourceFromStringWithNamespace(ingressClassYamlTls, "")
+			Expect(err).ShouldNot(HaveOccurred(), "deleting IngressClass")
+		})
+
 		It("Basic ApisixTls test", func() {
 			const host = "api6.com"
 
@@ -173,14 +184,6 @@ spec:
 				WithHost("api6.com").
 				Expect().
 				Status(200)
-
-			By("delete ApisixTls")
-			err = s.DeleteResource("ApisixTls", "test-tls")
-			Expect(err).ShouldNot(HaveOccurred(), "deleting ApisixTls")
-
-			By("delete TLS secret")
-			err = s.DeleteResource("Secret", "test-tls-secret")
-			Expect(err).ShouldNot(HaveOccurred(), "deleting TLS secret")
 		})
 
 		It("ApisixTls with mTLS test", func() {
@@ -250,24 +253,7 @@ spec:
 			assert.NotEmpty(GinkgoT(), tls[0].Client.CA, "client CA should not be empty")
 			assert.Equal(GinkgoT(), caCert, tls[0].Client.CA, "client CA should be test-ca-secret")
 			assert.Equal(GinkgoT(), int64(1), *tls[0].Client.Depth, "client depth should be 1")
-
-			By("delete ApisixTls")
-			err = s.DeleteResource("ApisixTls", "test-mtls")
-			Expect(err).ShouldNot(HaveOccurred(), "deleting ApisixTls")
-
-			By("delete TLS secret")
-			err = s.DeleteResource("Secret", "test-mtls-secret")
-			Expect(err).ShouldNot(HaveOccurred(), "deleting TLS secret")
-
-			By("delete CA secret")
-			err = s.DeleteResource("Secret", "test-ca-secret")
-			Expect(err).ShouldNot(HaveOccurred(), "deleting CA secret")
 		})
 
-		AfterEach(func() {
-			By("delete GatewayProxy")
-			err := s.DeleteResourceFromStringWithNamespace(fmt.Sprintf(gatewayProxyYamlTls, s.Deployer.GetAdminEndpoint(), s.AdminKey()), "default")
-			Expect(err).ShouldNot(HaveOccurred(), "deleting GatewayProxy")
-		})
 	})
 })
