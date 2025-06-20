@@ -71,17 +71,19 @@ func (t *Translator) TranslateApisixTls(tctx *provider.TranslateContext, tls *ap
 			Name:      tls.Spec.Client.CASecret.Name,
 		}
 		caSecret, ok := tctx.Secrets[caSecretKey]
-		if ok && caSecret != nil {
-			ca, _, err := extractKeyPair(caSecret, false)
-			if err != nil {
-				return nil, err
-			}
-			depth := int64(tls.Spec.Client.Depth)
-			ssl.Client = &adctypes.ClientClass{
-				CA:               string(ca),
-				Depth:            &depth,
-				SkipMtlsURIRegex: tls.Spec.Client.SkipMTLSUriRegex,
-			}
+		if !ok || caSecret == nil {
+			return nil, fmt.Errorf("client CA secret %s not found", caSecretKey.String())
+		}
+
+		ca, _, err := extractKeyPair(caSecret, false)
+		if err != nil {
+			return nil, err
+		}
+		depth := int64(tls.Spec.Client.Depth)
+		ssl.Client = &adctypes.ClientClass{
+			CA:               string(ca),
+			Depth:            &depth,
+			SkipMtlsURIRegex: tls.Spec.Client.SkipMTLSUriRegex,
 		}
 	}
 
