@@ -14,7 +14,6 @@ package controller
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/api7/gopkg/pkg/log"
@@ -67,7 +66,7 @@ func (r *ApisixTlsReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&networkingv1.IngressClass{},
 			handler.EnqueueRequestsFromMapFunc(r.listApisixTlsForIngressClass),
 			builder.WithPredicates(
-				predicate.NewPredicateFuncs(r.matchesIngressController),
+				predicate.NewPredicateFuncs(matchesIngressController),
 			),
 		).
 		Watches(&v1alpha1.GatewayProxy{},
@@ -108,7 +107,7 @@ func (r *ApisixTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	tctx := provider.NewDefaultTranslateContext(ctx)
 
 	// get the ingress class
-	ingressClass, err := r.getIngressClass(&tls)
+	ingressClass, err := GetIngressClass(tctx, r.Client, r.Log, tls.Spec.IngressClassName)
 	if err != nil {
 		log.Error(err, "failed to get IngressClass")
 		r.updateStatus(&tls, metav1.Condition{
@@ -123,7 +122,7 @@ func (r *ApisixTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// process IngressClass parameters if they reference GatewayProxy
-	if err := r.processIngressClassParameters(ctx, tctx, &tls, ingressClass); err != nil {
+	if err := ProcessIngressClassParameters(tctx, r.Client, r.Log, &tls, ingressClass); err != nil {
 		log.Error(err, "failed to process IngressClass parameters", "ingressClass", ingressClass.Name)
 		r.updateStatus(&tls, metav1.Condition{
 			Type:               string(apiv2.ConditionTypeAccepted),
@@ -208,107 +207,6 @@ func (r *ApisixTlsReconciler) validateSecret(ctx context.Context, tc *provider.T
 	return nil
 }
 
-// getIngressClass get the ingress class for the TLS
-func (r *ApisixTlsReconciler) getIngressClass(tls *apiv2.ApisixTls) (*networkingv1.IngressClass, error) {
-	if tls.Spec.IngressClassName == "" {
-		// Check for default ingress class
-		ingressClassList := &networkingv1.IngressClassList{}
-		if err := r.List(context.Background(), ingressClassList, client.MatchingFields{
-			indexer.IngressClass: config.GetControllerName(),
-		}); err != nil {
-			r.Log.Error(err, "failed to list ingress classes")
-			return nil, err
-		}
-
-		// Find the ingress class that is marked as default
-		for _, ic := range ingressClassList.Items {
-			if IsDefaultIngressClass(&ic) && matchesController(ic.Spec.Controller) {
-				return &ic, nil
-			}
-		}
-		log.Debugw("no default ingress class found")
-		return nil, errors.New("no default ingress class found")
-	}
-
-	// Check if the specified ingress class is controlled by us
-	var ingressClass networkingv1.IngressClass
-	if err := r.Get(context.Background(), client.ObjectKey{Name: tls.Spec.IngressClassName}, &ingressClass); err != nil {
-		return nil, err
-	}
-
-	if matchesController(ingressClass.Spec.Controller) {
-		return &ingressClass, nil
-	}
-
-	return nil, errors.New("ingress class is not controlled by us")
-}
-
-// processIngressClassParameters processes the IngressClass parameters that reference GatewayProxy
-func (r *ApisixTlsReconciler) processIngressClassParameters(ctx context.Context, tctx *provider.TranslateContext, tls *apiv2.ApisixTls, ingressClass *networkingv1.IngressClass) error {
-	if ingressClass == nil || ingressClass.Spec.Parameters == nil {
-		return nil
-	}
-
-	ingressClassKind := utils.NamespacedNameKind(ingressClass)
-	tlsKind := utils.NamespacedNameKind(tls)
-
-	parameters := ingressClass.Spec.Parameters
-	// check if the parameters reference GatewayProxy
-	if parameters.APIGroup != nil && *parameters.APIGroup == v1alpha1.GroupVersion.Group && parameters.Kind == KindGatewayProxy {
-		ns := tls.GetNamespace()
-		if parameters.Namespace != nil {
-			ns = *parameters.Namespace
-		}
-
-		gatewayProxy := &v1alpha1.GatewayProxy{}
-		if err := r.Get(ctx, client.ObjectKey{
-			Namespace: ns,
-			Name:      parameters.Name,
-		}, gatewayProxy); err != nil {
-			r.Log.Error(err, "failed to get GatewayProxy", "namespace", ns, "name", parameters.Name)
-			return err
-		}
-
-		r.Log.Info("found GatewayProxy for IngressClass", "ingressClass", ingressClass.Name, "gatewayproxy", gatewayProxy.Name)
-		tctx.GatewayProxies[ingressClassKind] = *gatewayProxy
-		tctx.ResourceParentRefs[tlsKind] = append(tctx.ResourceParentRefs[tlsKind], ingressClassKind)
-
-		// check if the provider field references a secret
-		if gatewayProxy.Spec.Provider != nil && gatewayProxy.Spec.Provider.Type == v1alpha1.ProviderTypeControlPlane {
-			if gatewayProxy.Spec.Provider.ControlPlane != nil &&
-				gatewayProxy.Spec.Provider.ControlPlane.Auth.Type == v1alpha1.AuthTypeAdminKey &&
-				gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey != nil &&
-				gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom != nil &&
-				gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
-
-				secretRef := gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef
-				secret := &corev1.Secret{}
-				if err := r.Get(ctx, client.ObjectKey{
-					Namespace: ns,
-					Name:      secretRef.Name,
-				}, secret); err != nil {
-					r.Log.Error(err, "failed to get secret for GatewayProxy provider",
-						"namespace", ns,
-						"name", secretRef.Name)
-					return err
-				}
-
-				r.Log.Info("found secret for GatewayProxy provider",
-					"ingressClass", ingressClass.Name,
-					"gatewayproxy", gatewayProxy.Name,
-					"secret", secretRef.Name)
-
-				tctx.Secrets[types.NamespacedName{
-					Namespace: ns,
-					Name:      secretRef.Name,
-				}] = secret
-			}
-		}
-	}
-
-	return nil
-}
-
 // updateStatus updates the ApisixTls status with the given condition
 func (r *ApisixTlsReconciler) updateStatus(tls *apiv2.ApisixTls, condition metav1.Condition) {
 	r.Updater.Update(status.Update{
@@ -374,32 +272,15 @@ func (r *ApisixTlsReconciler) listApisixTlsForSecret(ctx context.Context, obj cl
 		return nil
 	}
 
-	// Use index to find all ApisixTls that reference this secret
-	var tlsList apiv2.ApisixTlsList
-	if err := r.List(ctx, &tlsList, client.MatchingFields{
-		indexer.SecretIndexRef: indexer.GenIndexKey(secret.Namespace, secret.Name),
-	}); err != nil {
-		r.Log.Error(err, "failed to list ApisixTls by secret index")
-		return nil
-	}
-
-	requests := make([]reconcile.Request, 0, len(tlsList.Items))
-	for _, tls := range tlsList.Items {
-		requests = append(requests, reconcile.Request{
-			NamespacedName: utils.NamespacedName(&tls),
-		})
-	}
-
-	return requests
-}
-
-func (r *ApisixTlsReconciler) matchesIngressController(obj client.Object) bool {
-	ingressClass, ok := obj.(*networkingv1.IngressClass)
-	if !ok {
-		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to IngressClass")
-		return false
-	}
-	return matchesController(ingressClass.Spec.Controller)
+	return ListRequests(
+		ctx,
+		r.Client,
+		r.Log,
+		&apiv2.ApisixConsumerList{},
+		client.MatchingFields{
+			indexer.SecretIndexRef: indexer.GenIndexKey(secret.GetNamespace(), secret.GetName()),
+		},
+	)
 }
 
 // listApisixTlsForIngressClass list all TLS that use a specific ingress class
@@ -409,73 +290,23 @@ func (r *ApisixTlsReconciler) listApisixTlsForIngressClass(ctx context.Context, 
 		return nil
 	}
 
-	// Use index to find all ApisixTls that reference this ingress class
-	tlsList := &apiv2.ApisixTlsList{}
-	requests := make([]reconcile.Request, 0, len(tlsList.Items))
-	if err := r.List(ctx, tlsList, client.MatchingFields{
-		indexer.IngressClassRef: ingressClass.Name,
-	}); err != nil {
-		r.Log.Error(err, "failed to list ApisixTls by ingress class index")
-		return nil
-	}
-
-	for _, tls := range tlsList.Items {
-		requests = append(requests, reconcile.Request{
-			NamespacedName: utils.NamespacedName(&tls),
-		})
-	}
-
-	// If this is the default ingress class, also find TLS with empty ingress class
-	if IsDefaultIngressClass(ingressClass) {
-		var tlsListWithoutClass apiv2.ApisixTlsList
-		if err := r.List(ctx, &tlsListWithoutClass); err != nil {
-			r.Log.Error(err, "failed to list all ApisixTls")
-			return requests
-		}
-
-		for _, tls := range tlsListWithoutClass.Items {
-			if tls.Spec.IngressClassName == "" {
-				requests = append(requests, reconcile.Request{
-					NamespacedName: utils.NamespacedName(&tls),
-				})
+	return ListMatchingRequests(
+		ctx,
+		r.Client,
+		r.Log,
+		&apiv2.ApisixTlsList{},
+		func(obj client.Object) bool {
+			atls, ok := obj.(*apiv2.ApisixTls)
+			if !ok {
+				r.Log.Error(fmt.Errorf("expected ApisixTls, got %T", obj), "failed to match object type")
+				return false
 			}
-		}
-	}
-
-	return requests
+			return (IsDefaultIngressClass(ingressClass) && atls.Spec.IngressClassName == "") || atls.Spec.IngressClassName == ingressClass.Name
+		},
+	)
 }
 
 // listApisixTlsForGatewayProxy list all TLS that use a specific gateway proxy
 func (r *ApisixTlsReconciler) listApisixTlsForGatewayProxy(ctx context.Context, obj client.Object) []reconcile.Request {
-	gatewayProxy, ok := obj.(*v1alpha1.GatewayProxy)
-	if !ok {
-		return nil
-	}
-
-	// Find all ingress classes that reference this gateway proxy
-	ingressClassList := &networkingv1.IngressClassList{}
-	if err := r.List(ctx, ingressClassList, client.MatchingFields{
-		indexer.IngressClassParametersRef: indexer.GenIndexKey(gatewayProxy.GetNamespace(), gatewayProxy.GetName()),
-	}); err != nil {
-		r.Log.Error(err, "failed to list ingress classes for gateway proxy", "gatewayproxy", gatewayProxy.GetName())
-		return nil
-	}
-
-	var requests []reconcile.Request
-	for _, ingressClass := range ingressClassList.Items {
-		requests = append(requests, r.listApisixTlsForIngressClass(ctx, &ingressClass)...)
-	}
-
-	// Remove duplicates
-	uniqueRequests := make(map[string]reconcile.Request)
-	for _, request := range requests {
-		uniqueRequests[request.String()] = request
-	}
-
-	distinctRequests := make([]reconcile.Request, 0, len(uniqueRequests))
-	for _, request := range uniqueRequests {
-		distinctRequests = append(distinctRequests, request)
-	}
-
-	return distinctRequests
+	return listIngressClassRequestsForGatewayProxy(ctx, r.Client, obj, r.Log, r.listApisixTlsForIngressClass)
 }
