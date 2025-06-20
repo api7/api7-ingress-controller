@@ -4,11 +4,11 @@ on:
   push:
     branches:
       - master
-      - release-v2-dev
+      - next
   pull_request:
     branches:
       - master
-      - release-v2-dev
+      - next
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -17,7 +17,7 @@ concurrency:
 jobs:
   prepare:
     name: Prepare
-    runs-on: buildjet-2vcpu-ubuntu-2204
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,7 +35,7 @@ jobs:
   e2e-test:
     needs: 
       - prepare
-    runs-on: buildjet-2vcpu-ubuntu-2204
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4

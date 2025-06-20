@@ -4,11 +4,11 @@ on:
   push:
     branches:
       - master
-      - release-v2-dev
+      - next
   pull_request:
     branches:
       - master
-      - release-v2-dev
+      - next
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -17,7 +17,7 @@ concurrency:
 jobs:
   prepare:
     name: Prepare
-    runs-on: buildjet-2vcpu-ubuntu-2204
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,7 +36,7 @@ jobs:
     timeout-minutes: 60
     needs: 
       - prepare
-    runs-on: buildjet-2vcpu-ubuntu-2204
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -82,7 +82,7 @@ jobs:
         run: |
           make conformance-test-standalone
       
-      - name: Get Logs from api7-ingress-controller
+      - name: Get Logs from apisix-ingress-controller
         shell: bash
         run: |
           export KUBECONFIG=/tmp/apisix-ingress-cluster.kubeconfig
@@ -102,11 +102,3 @@ jobs:
           echo '```yaml' >> report.md
           cat apisix-ingress-controller-conformance-report.yaml >> report.md
           echo '```' >> report.md
-
-      - name: Report Conformance Test Result to PR Comment
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: mshick/add-pr-comment@v2
-        with:
-          message-id: 'apisix-conformance-test-report'
-          message-path: |
-            report.md
