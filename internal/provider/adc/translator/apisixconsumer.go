@@ -23,7 +23,6 @@ import (
 	v2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
-	"github.com/apache/apisix-ingress-controller/internal/types"
 )
 
 var (
@@ -96,9 +95,9 @@ func (t *Translator) TranslateApisixConsumer(tctx *provider.TranslateContext, ac
 	return result, nil
 }
 
-func (t *Translator) translateConsumerKeyAuthPlugin(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerKeyAuth) (*types.KeyAuthConsumerConfig, error) {
+func (t *Translator) translateConsumerKeyAuthPlugin(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerKeyAuth) (*adctypes.KeyAuthConsumerConfig, error) {
 	if cfg.Value != nil {
-		return &types.KeyAuthConsumerConfig{Key: cfg.Value.Key}, nil
+		return &adctypes.KeyAuthConsumerConfig{Key: cfg.Value.Key}, nil
 	}
 
 	sec := tctx.Secrets[k8stypes.NamespacedName{
@@ -112,12 +111,12 @@ func (t *Translator) translateConsumerKeyAuthPlugin(tctx *provider.TranslateCont
 	if !ok || len(raw) == 0 {
 		return nil, _errKeyNotFoundOrInvalid
 	}
-	return &types.KeyAuthConsumerConfig{Key: string(raw)}, nil
+	return &adctypes.KeyAuthConsumerConfig{Key: string(raw)}, nil
 }
 
-func (t *Translator) translateConsumerBasicAuthPlugin(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerBasicAuth) (*types.BasicAuthConsumerConfig, error) {
+func (t *Translator) translateConsumerBasicAuthPlugin(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerBasicAuth) (*adctypes.BasicAuthConsumerConfig, error) {
 	if cfg.Value != nil {
-		return &types.BasicAuthConsumerConfig{
+		return &adctypes.BasicAuthConsumerConfig{
 			Username: cfg.Value.Username,
 			Password: cfg.Value.Password,
 		}, nil
@@ -138,15 +137,15 @@ func (t *Translator) translateConsumerBasicAuthPlugin(tctx *provider.TranslateCo
 	if !ok || len(raw2) == 0 {
 		return nil, _errPasswordNotFoundOrInvalid
 	}
-	return &types.BasicAuthConsumerConfig{
+	return &adctypes.BasicAuthConsumerConfig{
 		Username: string(raw1),
 		Password: string(raw2),
 	}, nil
 }
 
-func (t *Translator) translateConsumerWolfRBACPlugin(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerWolfRBAC) (*types.WolfRBACConsumerConfig, error) {
+func (t *Translator) translateConsumerWolfRBACPlugin(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerWolfRBAC) (*adctypes.WolfRBACConsumerConfig, error) {
 	if cfg.Value != nil {
-		return &types.WolfRBACConsumerConfig{
+		return &adctypes.WolfRBACConsumerConfig{
 			Server:       cfg.Value.Server,
 			Appid:        cfg.Value.Appid,
 			HeaderPrefix: cfg.Value.HeaderPrefix,
@@ -162,20 +161,20 @@ func (t *Translator) translateConsumerWolfRBACPlugin(tctx *provider.TranslateCon
 	raw1 := sec.Data["server"]
 	raw2 := sec.Data["appid"]
 	raw3 := sec.Data["header_prefix"]
-	return &types.WolfRBACConsumerConfig{
+	return &adctypes.WolfRBACConsumerConfig{
 		Server:       string(raw1),
 		Appid:        string(raw2),
 		HeaderPrefix: string(raw3),
 	}, nil
 }
 
-func (t *Translator) translateConsumerJwtAuthPlugin(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerJwtAuth) (*types.JwtAuthConsumerConfig, error) {
+func (t *Translator) translateConsumerJwtAuthPlugin(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerJwtAuth) (*adctypes.JwtAuthConsumerConfig, error) {
 	if cfg.Value != nil {
 		// The field exp must be a positive integer, default value 86400.
 		if cfg.Value.Exp < 1 {
 			cfg.Value.Exp = _jwtAuthExpDefaultValue
 		}
-		return &types.JwtAuthConsumerConfig{
+		return &adctypes.JwtAuthConsumerConfig{
 			Key:                 cfg.Value.Key,
 			Secret:              cfg.Value.Secret,
 			PublicKey:           cfg.Value.PublicKey,
@@ -216,7 +215,7 @@ func (t *Translator) translateConsumerJwtAuthPlugin(tctx *provider.TranslateCont
 	privateKeyRaw := sec.Data["private_key"]
 	algorithmRaw := sec.Data["algorithm"]
 
-	return &types.JwtAuthConsumerConfig{
+	return &adctypes.JwtAuthConsumerConfig{
 		Key:                 string(keyRaw),
 		Secret:              string(secretRaw),
 		PublicKey:           string(publicKeyRaw),
@@ -228,9 +227,9 @@ func (t *Translator) translateConsumerJwtAuthPlugin(tctx *provider.TranslateCont
 	}, nil
 }
 
-func (t *Translator) translateConsumerHMACAuthPlugin(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerHMACAuth) (*types.HMACAuthConsumerConfig, error) {
+func (t *Translator) translateConsumerHMACAuthPlugin(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerHMACAuth) (*adctypes.HMACAuthConsumerConfig, error) {
 	if cfg.Value != nil {
-		return &types.HMACAuthConsumerConfig{
+		return &adctypes.HMACAuthConsumerConfig{
 			AccessKey:           cfg.Value.AccessKey,
 			SecretKey:           cfg.Value.SecretKey,
 			Algorithm:           cfg.Value.Algorithm,
@@ -323,7 +322,7 @@ func (t *Translator) translateConsumerHMACAuthPlugin(tctx *provider.TranslateCon
 		maxReqBody = _hmacAuthMaxReqBodyDefaultValue
 	}
 
-	return &types.HMACAuthConsumerConfig{
+	return &adctypes.HMACAuthConsumerConfig{
 		AccessKey:           string(accessKeyRaw),
 		SecretKey:           string(secretKeyRaw),
 		Algorithm:           algorithm,
@@ -336,9 +335,9 @@ func (t *Translator) translateConsumerHMACAuthPlugin(tctx *provider.TranslateCon
 	}, nil
 }
 
-func (t *Translator) translateConsumerLDAPAuthPlugin(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerLDAPAuth) (*types.LDAPAuthConsumerConfig, error) {
+func (t *Translator) translateConsumerLDAPAuthPlugin(tctx *provider.TranslateContext, consumerNamespace string, cfg *v2.ApisixConsumerLDAPAuth) (*adctypes.LDAPAuthConsumerConfig, error) {
 	if cfg.Value != nil {
-		return &types.LDAPAuthConsumerConfig{
+		return &adctypes.LDAPAuthConsumerConfig{
 			UserDN: cfg.Value.UserDN,
 		}, nil
 	}
@@ -355,7 +354,7 @@ func (t *Translator) translateConsumerLDAPAuthPlugin(tctx *provider.TranslateCon
 		return nil, _errKeyNotFoundOrInvalid
 	}
 
-	return &types.LDAPAuthConsumerConfig{
+	return &adctypes.LDAPAuthConsumerConfig{
 		UserDN: string(userDNRaw),
 	}, nil
 }

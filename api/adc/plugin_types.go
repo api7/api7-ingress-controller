@@ -10,35 +10,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package types
-
-import (
-	"encoding/json"
-	"fmt"
-	"strings"
-
-	"github.com/incubator4/go-resty-expr/expr"
-)
-
-// TrafficSplitConfig is the config of traffic-split plugin.
-// +k8s:deepcopy-gen=true
-type TrafficSplitConfig struct {
-	Rules []TrafficSplitConfigRule `json:"rules"`
-}
-
-// TrafficSplitConfigRule is the rule config in traffic-split plugin config.
-// +k8s:deepcopy-gen=true
-type TrafficSplitConfigRule struct {
-	WeightedUpstreams []TrafficSplitConfigRuleWeightedUpstream `json:"weighted_upstreams"`
-}
-
-// TrafficSplitConfigRuleWeightedUpstream is the weighted upstream config in
-// the traffic split plugin rule.
-// +k8s:deepcopy-gen=true
-type TrafficSplitConfigRuleWeightedUpstream struct {
-	UpstreamID string `json:"upstream_id,omitempty"`
-	Weight     int    `json:"weight"`
-}
+package adc
 
 // IPRestrictConfig is the rule config for ip-restriction plugin.
 // +k8s:deepcopy-gen=true
@@ -132,33 +104,6 @@ type WolfRBACConsumerConfig struct {
 	HeaderPrefix string `json:"header_prefix,omitempty"`
 }
 
-// RewriteConfig is the rule config for proxy-rewrite plugin.
-// +k8s:deepcopy-gen=true
-type RewriteConfig struct {
-	RewriteTarget      string   `json:"uri,omitempty"`
-	RewriteTargetRegex []string `json:"regex_uri,omitempty"`
-	Headers            Headers  `json:"headers,omitempty"`
-}
-
-// ResponseRewriteConfig is the rule config for response-rewrite plugin.
-// +k8s:deepcopy-gen=true
-type ResponseRewriteConfig struct {
-	StatusCode   int                 `json:"status_code,omitempty"`
-	Body         string              `json:"body,omitempty"`
-	BodyBase64   bool                `json:"body_base64,omitempty"`
-	Headers      Headers             `json:"headers,omitempty"`
-	LuaRestyExpr []expr.Expr         `json:"vars,omitempty"`
-	Filters      []map[string]string `json:"filters,omitempty"`
-}
-
-// RedirectConfig is the rule config for redirect plugin.
-// +k8s:deepcopy-gen=true
-type RedirectConfig struct {
-	HttpToHttps bool   `json:"http_to_https,omitempty"`
-	URI         string `json:"uri,omitempty"`
-	RetCode     int    `json:"ret_code,omitempty"`
-}
-
 // ForwardAuthConfig is the rule config for forward-auth plugin.
 // +k8s:deepcopy-gen=true
 type ForwardAuthConfig struct {
@@ -177,104 +122,4 @@ type BasicAuthConfig struct {
 // KeyAuthConfig is the rule config for key-auth plugin.
 // +k8s:deepcopy-gen=true
 type KeyAuthConfig struct {
-}
-
-// RequestMirror is the rule config for proxy-mirror plugin.
-// +k8s:deepcopy-gen=true
-type RequestMirror struct {
-	Host string `json:"host"`
-}
-
-type Headers map[string]any
-
-func (p *Headers) DeepCopyInto(out *Headers) {
-	b, _ := json.Marshal(&p)
-	_ = json.Unmarshal(b, out)
-}
-
-func (p *Headers) DeepCopy() *Headers {
-	if p == nil {
-		return nil
-	}
-	out := new(Headers)
-	p.DeepCopyInto(out)
-	return out
-}
-
-func (p *Headers) Add(headersToAdd []string) {
-	if p == nil {
-		return
-	}
-	if headersToAdd != nil {
-		addedHeader := make([]string, 0)
-		for _, h := range headersToAdd {
-			kv := strings.Split(h, ":")
-			if len(kv) < 2 {
-				continue
-			}
-			addedHeader = append(addedHeader, fmt.Sprintf("%s:%s", kv[0], kv[1]))
-		}
-		(*p)["add"] = addedHeader
-	}
-}
-
-func (p *Headers) GetAddedHeaders() []string {
-	if p == nil || (*p)["add"] == nil {
-		return nil
-	}
-	addedheaders, ok := (*p)["add"].([]string)
-	if ok {
-		return addedheaders
-	}
-	return nil
-}
-
-func (p *Headers) Set(headersToSet []string) {
-	if p == nil {
-		return
-	}
-	if headersToSet != nil {
-		setHeaders := make(map[string]string, 0)
-		for _, h := range headersToSet {
-			kv := strings.Split(h, ":")
-			if len(kv) < 2 {
-				continue
-			}
-			setHeaders[kv[0]] = kv[1]
-		}
-		(*p)["set"] = setHeaders
-	}
-}
-
-func (p *Headers) GetSetHeaders() map[string]string {
-	if p == nil || (*p)["set"] == nil {
-		return nil
-	}
-	addedheaders, ok := (*p)["set"].(map[string]string)
-	if ok {
-		return addedheaders
-	}
-	return nil
-}
-
-func (p *Headers) Remove(headersToRemove []string) {
-	if p == nil {
-		return
-	}
-	if headersToRemove != nil {
-		removeHeaders := make([]string, 0)
-		removeHeaders = append(removeHeaders, headersToRemove...)
-		(*p)["remove"] = removeHeaders
-	}
-}
-
-func (p *Headers) GetRemovedHeaders() []string {
-	if p == nil || (*p)["remove"] == nil {
-		return nil
-	}
-	removedHeaders, ok := (*p)["remove"].([]string)
-	if ok {
-		return removedHeaders
-	}
-	return nil
 }
