@@ -39,7 +39,7 @@ const (
 	_hmacAuthKeepHeadersDefaultValue         = false
 	_hmacAuthEncodeURIParamsDefaultValue     = true
 	_hmacAuthValidateRequestBodyDefaultValue = false
-	_hmacAuthMaxReqBodyDefaultValue          = int64(524288)
+	_hmacAuthMaxReqBodyDefaultValue          = 524288
 
 	_true = "true"
 )
