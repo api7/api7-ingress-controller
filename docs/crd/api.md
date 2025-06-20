@@ -1334,12 +1334,12 @@ load balancer, health check, etc.
 | `scheme` _string_ | The scheme used to talk with the upstream. Now value can be http, grpc. |
 | `retries` _integer_ | How many times that the proxy (Apache APISIX) should do when errors occur (error, timeout or bad http status codes like 500, 502). |
 | `timeout` _[UpstreamTimeout](#upstreamtimeout)_ | Timeout settings for the read, send and connect to the upstream. |
-| `healthCheck` _[HealthCheck](#healthcheck)_ | The health check configurations for the upstream. |
+| `healthCheck` _[HealthCheck](#healthcheck)_ | Deprecated: this is no longer support on standalone mode. The health check configurations for the upstream. |
 | `tlsSecret` _[ApisixSecret](#apisixsecret)_ | Set the client certificate when connecting to TLS upstream. |
 | `subsets` _[ApisixUpstreamSubset](#apisixupstreamsubset) array_ | Subsets groups the service endpoints by their labels. Usually used to differentiate service versions. |
 | `passHost` _string_ | Configures the host when the request is forwarded to the upstream. Can be one of pass, node or rewrite. |
 | `upstreamHost` _string_ | Specifies the host of the Upstream request. This is only valid if the pass_host is set to rewrite |
-| `discovery` _[Discovery](#discovery)_ | Discovery is used to configure service discovery for upstream. |
+| `discovery` _[Discovery](#discovery)_ | Deprecated: this is no longer support on standalone mode. Discovery is used to configure service discovery for upstream. |
 
 
 _Appears in:_
@@ -1391,12 +1391,12 @@ ApisixUpstreamSpec describes the specification of ApisixUpstream.
 | `scheme` _string_ | The scheme used to talk with the upstream. Now value can be http, grpc. |
 | `retries` _integer_ | How many times that the proxy (Apache APISIX) should do when errors occur (error, timeout or bad http status codes like 500, 502). |
 | `timeout` _[UpstreamTimeout](#upstreamtimeout)_ | Timeout settings for the read, send and connect to the upstream. |
-| `healthCheck` _[HealthCheck](#healthcheck)_ | The health check configurations for the upstream. |
+| `healthCheck` _[HealthCheck](#healthcheck)_ | Deprecated: this is no longer support on standalone mode. The health check configurations for the upstream. |
 | `tlsSecret` _[ApisixSecret](#apisixsecret)_ | Set the client certificate when connecting to TLS upstream. |
 | `subsets` _[ApisixUpstreamSubset](#apisixupstreamsubset) array_ | Subsets groups the service endpoints by their labels. Usually used to differentiate service versions. |
 | `passHost` _string_ | Configures the host when the request is forwarded to the upstream. Can be one of pass, node or rewrite. |
 | `upstreamHost` _string_ | Specifies the host of the Upstream request. This is only valid if the pass_host is set to rewrite |
-| `discovery` _[Discovery](#discovery)_ | Discovery is used to configure service discovery for upstream. |
+| `discovery` _[Discovery](#discovery)_ | Deprecated: this is no longer support on standalone mode. Discovery is used to configure service discovery for upstream. |
 | `portLevelSettings` _[PortLevelSettings](#portlevelsettings) array_ |  |
 
 
@@ -1560,12 +1560,12 @@ them if they are set on the port level.
 | `scheme` _string_ | The scheme used to talk with the upstream. Now value can be http, grpc. |
 | `retries` _integer_ | How many times that the proxy (Apache APISIX) should do when errors occur (error, timeout or bad http status codes like 500, 502). |
 | `timeout` _[UpstreamTimeout](#upstreamtimeout)_ | Timeout settings for the read, send and connect to the upstream. |
-| `healthCheck` _[HealthCheck](#healthcheck)_ | The health check configurations for the upstream. |
+| `healthCheck` _[HealthCheck](#healthcheck)_ | Deprecated: this is no longer support on standalone mode. The health check configurations for the upstream. |
 | `tlsSecret` _[ApisixSecret](#apisixsecret)_ | Set the client certificate when connecting to TLS upstream. |
 | `subsets` _[ApisixUpstreamSubset](#apisixupstreamsubset) array_ | Subsets groups the service endpoints by their labels. Usually used to differentiate service versions. |
 | `passHost` _string_ | Configures the host when the request is forwarded to the upstream. Can be one of pass, node or rewrite. |
 | `upstreamHost` _string_ | Specifies the host of the Upstream request. This is only valid if the pass_host is set to rewrite |
-| `discovery` _[Discovery](#discovery)_ | Discovery is used to configure service discovery for upstream. |
+| `discovery` _[Discovery](#discovery)_ | Deprecated: this is no longer support on standalone mode. Discovery is used to configure service discovery for upstream. |
 | `port` _integer_ | Port is a Kubernetes Service port, it should be already defined. |
 
 

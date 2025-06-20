@@ -32,10 +32,8 @@ func (t *Translator) translateApisixUpstream(tctx *provider.TranslateContext, au
 		patchApisixUpstreamBasics,
 		translateApisixUpstreamScheme,
 		translateApisixUpstreamLoadBalancer,
-		translateApisixUpstreamHealthCheck,
 		translateApisixUpstreamRetriesAndTimeout,
 		translateApisixUpstreamPassHost,
-		translateApisixUpstreamDiscovery,
 	} {
 		if err = f(au, ups); err != nil {
 			return
@@ -96,83 +94,6 @@ func translateApisixUpstreamLoadBalancer(au *apiv2.ApisixUpstream, ups *adc.Upst
 		return errors.New("invalid loadBalancer type")
 	}
 	return nil
-}
-
-func translateApisixUpstreamHealthCheck(au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
-	check := au.Spec.HealthCheck
-	if check == nil {
-		return nil
-	}
-
-	ups.Checks = new(adc.UpstreamHealthCheck)
-	ups.Checks.Active = translateApisixUpstreamHealthCheckActive(check.Active)
-
-	if check.Passive != nil {
-		ups.Checks.Passive = translateApisixUpstreamHealthCheckPassive(check.Passive)
-	}
-
-	return nil
-}
-
-func translateApisixUpstreamHealthCheckActive(config *apiv2.ActiveHealthCheck) *adc.UpstreamActiveHealthCheck {
-	var active adc.UpstreamActiveHealthCheck
-
-	active.Type = cmp.Or(config.Type, apiv2.HealthCheckHTTP)
-	active.Timeout = int(config.Timeout.Seconds())
-	active.Port = config.Port
-	active.Concurrency = config.Concurrency
-	active.Host = config.Host
-	active.HTTPPath = config.HTTPPath
-	active.HTTPRequestHeaders = config.RequestHeaders
-	active.HTTPSVerifyCert = config.StrictTLS != nil && *config.StrictTLS
-
-	if config.Healthy != nil {
-		active.Healthy = adc.UpstreamActiveHealthCheckHealthy{
-			UpstreamPassiveHealthCheckHealthy: adc.UpstreamPassiveHealthCheckHealthy{
-				HTTPStatuses: config.Healthy.HTTPCodes,
-				Successes:    config.Healthy.Successes,
-			},
-			Interval: int(config.Healthy.Interval.Seconds()),
-		}
-	}
-
-	if config.Unhealthy != nil {
-		active.Unhealthy = adc.UpstreamActiveHealthCheckUnhealthy{
-			UpstreamPassiveHealthCheckUnhealthy: adc.UpstreamPassiveHealthCheckUnhealthy{
-				HTTPStatuses: config.Unhealthy.HTTPCodes,
-				HTTPFailures: config.Unhealthy.HTTPFailures,
-				TCPFailures:  config.Unhealthy.TCPFailures,
-				Timeouts:     int(config.Timeout.Seconds()),
-			},
-			Interval: int(config.Unhealthy.Interval.Seconds()),
-		}
-	}
-
-	return &active
-}
-
-func translateApisixUpstreamHealthCheckPassive(config *apiv2.PassiveHealthCheck) *adc.UpstreamPassiveHealthCheck {
-	var passive adc.UpstreamPassiveHealthCheck
-
-	passive.Type = cmp.Or(config.Type, apiv2.HealthCheckHTTP)
-
-	if config.Healthy != nil {
-		passive.Healthy = adc.UpstreamPassiveHealthCheckHealthy{
-			HTTPStatuses: config.Healthy.HTTPCodes,
-			Successes:    config.Healthy.Successes,
-		}
-	}
-
-	if config.Unhealthy != nil {
-		passive.Unhealthy = adc.UpstreamPassiveHealthCheckUnhealthy{
-			HTTPStatuses: config.Unhealthy.HTTPCodes,
-			HTTPFailures: config.Unhealthy.HTTPFailures,
-			TCPFailures:  config.Unhealthy.TCPFailures,
-			Timeouts:     config.Unhealthy.Timeouts,
-		}
-	}
-
-	return &passive
 }
 
 func translateApisixUpstreamRetriesAndTimeout(au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
@@ -248,28 +169,11 @@ func translateApisixUpstreamPassHost(au *apiv2.ApisixUpstream, ups *adc.Upstream
 	return nil
 }
 
-func translateApisixUpstreamDiscovery(au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
-	if au.Spec.Discovery == nil {
-		return nil
-	}
-
-	ups.ServiceName = au.Spec.Discovery.ServiceName
-	ups.DiscoveryType = au.Spec.Discovery.Type
-	ups.DiscoveryArgs = au.Spec.Discovery.Args
-	ups.Nodes = nil
-
-	return nil
-}
-
 func composeExternalUpstreamName(au *apiv2.ApisixUpstream) string {
 	return au.GetGenerateName() + "_" + au.GetName()
 }
 
 func translateApisixUpstreamExternalNodes(tctx *provider.TranslateContext, au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
-	if au.Spec.Discovery != nil {
-		ups.Nodes = nil
-		return nil
-	}
 	for _, node := range au.Spec.ExternalNodes {
 		switch node.Type {
 		case apiv2.ExternalTypeDomain:

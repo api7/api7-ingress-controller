@@ -40,8 +40,9 @@ spec:
             description: ApisixUpstreamSpec describes the specification of ApisixUpstream.
             properties:
               discovery:
-                description: Discovery is used to configure service discovery for
-                  upstream.
+                description: |-
+                  Deprecated: this is no longer support on standalone mode.
+                  Discovery is used to configure service discovery for upstream.
                 properties:
                   args:
                     additionalProperties:
@@ -77,7 +78,9 @@ spec:
                 minItems: 1
                 type: array
               healthCheck:
-                description: The health check configurations for the upstream.
+                description: |-
+                  Deprecated: this is no longer support on standalone mode.
+                  The health check configurations for the upstream.
                 properties:
                   active:
                     description: ActiveHealthCheck defines the active kind of upstream
@@ -244,8 +247,9 @@ spec:
                     them if they are set on the port level.
                   properties:
                     discovery:
-                      description: Discovery is used to configure service discovery
-                        for upstream.
+                      description: |-
+                        Deprecated: this is no longer support on standalone mode.
+                        Discovery is used to configure service discovery for upstream.
                       properties:
                         args:
                           additionalProperties:
@@ -260,7 +264,9 @@ spec:
                       - type
                       type: object
                     healthCheck:
-                      description: The health check configurations for the upstream.
+                      description: |-
+                        Deprecated: this is no longer support on standalone mode.
+                        The health check configurations for the upstream.
                       properties:
                         active:
                           description: ActiveHealthCheck defines the active kind of
@@ -555,8 +561,6 @@ spec:
                   the pass_host is set to rewrite
                 type: string
             type: object
-            x-kubernetes-validations:
-            - rule: has(self.subsets) || (has(self.externalNodes)!=has(self.discovery))
           status:
             description: ApisixStatus is the status report for Apisix ingress Resources
             properties:

@@ -19,7 +19,6 @@ import (
 )
 
 // ApisixUpstreamSpec describes the specification of ApisixUpstream.
-// +kubebuilder:validation:XValidation:rule="has(self.subsets) || (has(self.externalNodes)!=has(self.discovery))"
 type ApisixUpstreamSpec struct {
 	// IngressClassName is the name of an IngressClass cluster resource.
 	// controller implementations use this field to know whether they should be
@@ -95,6 +94,7 @@ type ApisixUpstreamConfig struct {
 	// +kubebuilder:validation:Optional
 	Timeout *UpstreamTimeout `json:"timeout,omitempty" yaml:"timeout,omitempty"`
 
+	// Deprecated: this is no longer support on standalone mode.
 	// The health check configurations for the upstream.
 	// +kubebuilder:validation:Optional
 	HealthCheck *HealthCheck `json:"healthCheck,omitempty" yaml:"healthCheck,omitempty"`
@@ -119,6 +119,7 @@ type ApisixUpstreamConfig struct {
 	// +kubebuilder:validation:Optional
 	UpstreamHost string `json:"upstreamHost,omitempty" yaml:"upstreamHost,omitempty"`
 
+	// Deprecated: this is no longer support on standalone mode.
 	// Discovery is used to configure service discovery for upstream.
 	// +kubebuilder:validation:Optional
 	Discovery *Discovery `json:"discovery,omitempty" yaml:"discovery,omitempty"`
