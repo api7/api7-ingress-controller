@@ -59,6 +59,7 @@ const (
 	KindApisixGlobalRule   = "ApisixGlobalRule"
 	KindApisixPluginConfig = "ApisixPluginConfig"
 	KindPod                = "Pod"
+	KindApisixTls          = "ApisixTls"
 )
 
 const defaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
