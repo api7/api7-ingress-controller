@@ -32,7 +32,7 @@ var (
 )
 
 const (
-	_jwtAuthExpDefaultValue = int64(868400)
+	_jwtAuthExpDefaultValue = 86400
 
 	_hmacAuthAlgorithmDefaultValue           = "hmac-sha256"
 	_hmacAuthClockSkewDefaultValue           = int64(0)
