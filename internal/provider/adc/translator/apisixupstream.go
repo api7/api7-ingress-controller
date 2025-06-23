@@ -27,25 +27,20 @@ import (
 )
 
 func (t *Translator) translateApisixUpstream(tctx *provider.TranslateContext, au *apiv2.ApisixUpstream) (ups *adc.Upstream, err error) {
-	if len(au.Spec.ExternalNodes) == 0 && au.Spec.Discovery == nil {
-		return nil, errors.Errorf("%s has empty externalNodes or discovery configuration", utils.NamespacedName(au))
-	}
-
 	ups = adc.NewDefaultUpstream()
 	for _, f := range []func(*apiv2.ApisixUpstream, *adc.Upstream) error{
+		patchApisixUpstreamBasics,
 		translateApisixUpstreamScheme,
 		translateApisixUpstreamLoadBalancer,
-		translateApisixUpstreamHealthCheck,
 		translateApisixUpstreamRetriesAndTimeout,
-		translateApisixUpstreamClientTLS,
 		translateApisixUpstreamPassHost,
-		translateApisixUpstreamDiscovery,
 	} {
 		if err = f(au, ups); err != nil {
 			return
 		}
 	}
 	for _, f := range []func(*provider.TranslateContext, *apiv2.ApisixUpstream, *adc.Upstream) error{
+		translateApisixUpstreamClientTLS,
 		translateApisixUpstreamExternalNodes,
 	} {
 		if err = f(tctx, au, ups); err != nil {
@@ -56,13 +51,16 @@ func (t *Translator) translateApisixUpstream(tctx *provider.TranslateContext, au
 	return
 }
 
-func translateApisixUpstreamScheme(au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
-	switch au.Spec.Scheme {
-	case apiv2.SchemeHTTP, apiv2.SchemeHTTPS, apiv2.SchemeGRPC, apiv2.SchemeGRPCS:
-		ups.Scheme = au.Spec.Scheme
-	default:
-		ups.Scheme = apiv2.SchemeHTTP
+func patchApisixUpstreamBasics(au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
+	ups.Name = composeExternalUpstreamName(au)
+	for k, v := range au.Labels {
+		ups.Labels[k] = v
 	}
+	return nil
+}
+
+func translateApisixUpstreamScheme(au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
+	ups.Scheme = cmp.Or(au.Spec.Scheme, apiv2.SchemeHTTP)
 	return nil
 }
 
@@ -95,11 +93,6 @@ func translateApisixUpstreamLoadBalancer(au *apiv2.ApisixUpstream, ups *adc.Upst
 	default:
 		return errors.New("invalid loadBalancer type")
 	}
-	return nil
-}
-
-func translateApisixUpstreamHealthCheck(au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
-	// todo: handle `.Checks` in next PR
 	return nil
 }
 
@@ -140,27 +133,44 @@ func translateApisixUpstreamRetriesAndTimeout(au *apiv2.ApisixUpstream, ups *adc
 	return nil
 }
 
-func translateApisixUpstreamClientTLS(au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
-	// todo: handle `.TLS` in next PR
+func translateApisixUpstreamClientTLS(tctx *provider.TranslateContext, au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
+	if au.Spec.TLSSecret == nil {
+		return nil
+	}
+
+	var (
+		secretNN = types.NamespacedName{
+			Namespace: au.Spec.TLSSecret.Namespace,
+			Name:      au.Spec.TLSSecret.Name,
+		}
+	)
+	secret, ok := tctx.Secrets[secretNN]
+	if !ok {
+		return errors.Errorf("sercret %s not found", secretNN)
+	}
+
+	cert, key, err := extractKeyPair(secret, true)
+	if err != nil {
+		return err
+	}
+
+	ups.TLS = &adc.ClientTLS{
+		Cert: string(cert),
+		Key:  string(key),
+	}
+
 	return nil
 }
 
 func translateApisixUpstreamPassHost(au *apiv2.ApisixUpstream, ups *adc.Upstream) error {
-	switch passHost := au.Spec.PassHost; passHost {
-	case apiv2.PassHostPass, apiv2.PassHostNode, apiv2.PassHostRewrite:
-		ups.PassHost = passHost
-	default:
-		ups.PassHost = ""
-	}
-
+	ups.PassHost = au.Spec.PassHost
 	ups.UpstreamHost = au.Spec.UpstreamHost
 
 	return nil
 }
 
-func translateApisixUpstreamDiscovery(upstream *apiv2.ApisixUpstream, upstream2 *adc.Upstream) error {
-	// todo: handle `.Discovery*` in next PR
-	return nil
+func composeExternalUpstreamName(au *apiv2.ApisixUpstream) string {
+	return au.GetGenerateName() + "_" + au.GetName()
 }
 
 func translateApisixUpstreamExternalNodes(tctx *provider.TranslateContext, au *apiv2.ApisixUpstream, ups *adc.Upstream) error {

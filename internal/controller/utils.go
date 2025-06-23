@@ -61,6 +61,7 @@ const (
 	KindApisixRoute        = "ApisixRoute"
 	KindApisixGlobalRule   = "ApisixGlobalRule"
 	KindApisixPluginConfig = "ApisixPluginConfig"
+	KindPod                = "Pod"
 	KindApisixTls          = "ApisixTls"
 	KindApisixConsumer     = "ApisixConsumer"
 )

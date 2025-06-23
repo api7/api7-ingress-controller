@@ -60,3 +60,29 @@ var hostDefRegex = regexp.MustCompile(hostDef)
 func MatchHostDef(host string) bool {
 	return hostDefRegex.MatchString(host)
 }
+
+func AppendFunc[T any](s []T, keep func(v T) bool, values ...T) []T {
+	for _, v := range values {
+		if keep(v) {
+			s = append(s, v)
+		}
+	}
+	return s
+}
+
+func Filter[T any](s []T, keep func(v T) bool) []T {
+	return AppendFunc(make([]T, 0), keep, s...)
+}
+
+func IsSubsetOf(a, b map[string]string) bool {
+	if len(a) == 0 {
+		// Empty labels matches everything.
+		return true
+	}
+	for k, v := range a {
+		if vv, ok := b[k]; !ok || vv != v {
+			return false
+		}
+	}
+	return true
+}

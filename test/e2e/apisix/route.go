@@ -291,10 +291,67 @@ spec:
 			s.NewAPISIXClient().GET("/get").Expect().Header("X-Upstream-IP").IsEqual(clusterIP)
 		})
 
-		PIt("Test ApisixRoute subset", func() {
-			// route.Spec.HTTP[].Backends[].Subset depends on ApisixUpstream.
-			// ApisixUpstream is not implemented yet.
-			// So the case is pending for now
+		It("Test ApisixRoute subset", func() {
+			const apisixRouteSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: default
+spec:
+  ingressClassName: apisix
+  http:
+  - name: rule0
+    match:
+      hosts:
+      - httpbin
+      paths:
+      - /*
+    backends:
+    - serviceName: httpbin-service-e2e-test
+      servicePort: 80
+      subset: test-subset
+`
+			const apisixUpstreamSpec0 = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: httpbin-service-e2e-test
+spec:
+  ingressClassName: apisix
+  subsets:
+  - name: test-subset
+    labels:
+      unknown-key: unknown-value
+`
+			const apisixUpstreamSpec1 = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: httpbin-service-e2e-test
+spec:
+  ingressClassName: apisix
+  subsets:
+  - name: test-subset
+    labels:
+      app: httpbin-deployment-e2e-test
+`
+			request := func() int {
+				return s.NewAPISIXClient().GET("/get").WithHost("httpbin").Expect().Raw().StatusCode
+			}
+			By("apply ApisixRoute")
+			var apisixRoute apiv2.ApisixRoute
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisixRoute, apisixRouteSpec)
+			Eventually(request).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+
+			// no pod matches the subset label "unknown-key: unknown-value" so there will be no node in the upstream,
+			// to request the route will get http.StatusServiceUnavailable
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin-service-e2e-test"}, new(apiv2.ApisixUpstream), apisixUpstreamSpec0)
+			Eventually(request).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusServiceUnavailable))
+
+			// the pod matches the subset label "app: httpbin-deployment-e2e-test",
+			// to request the route will be OK
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin-service-e2e-test"}, new(apiv2.ApisixUpstream), apisixUpstreamSpec1)
+			Eventually(request).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 		})
 	})
 
@@ -351,8 +408,7 @@ spec:
 			Expect(err).ShouldNot(HaveOccurred(), "apply service")
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default-upstream"}, new(apiv2.ApisixUpstream), apisixUpstreamSpec0)
 
-			var apisxiRoute apiv2.ApisixRoute
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisxiRoute, apisixRouteSpec)
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, new(apiv2.ApisixRoute), apisixRouteSpec)
 
 			By("verify that the ApisixUpstream reference a Service which is not ExternalName should not request OK")
 			request := func(path string) int {
