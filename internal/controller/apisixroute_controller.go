@@ -694,8 +694,9 @@ func (r *ApisixRouteReconciler) listApisixRoutesForPluginConfig(ctx context.Cont
 }
 
 func (r *ApisixRouteReconciler) getSubsetLabels(ctx context.Context, ar *apiv2.ApisixRoute, backend apiv2.ApisixRouteHTTPBackend) (map[string]string, error) {
+	empty := make(map[string]string)
 	if backend.Subset == "" {
-		return make(map[string]string), nil
+		return empty, nil
 	}
 
 	// Try to Get the ApisixUpstream with the same name as backend.ServiceName
@@ -708,7 +709,7 @@ func (r *ApisixRouteReconciler) getSubsetLabels(ctx context.Context, ar *apiv2.A
 	)
 	if err := r.Get(ctx, auNN, &au); err != nil {
 		if client.IgnoreNotFound(err) == nil {
-			return make(map[string]string), nil
+			return empty, nil
 		}
 		return nil, err
 	}
@@ -720,7 +721,7 @@ func (r *ApisixRouteReconciler) getSubsetLabels(ctx context.Context, ar *apiv2.A
 		}
 	}
 
-	return make(map[string]string), nil
+	return empty, nil
 }
 
 func (r *ApisixRouteReconciler) filterEndpointSlicesBySubsetLabels(ctx context.Context, in []discoveryv1.EndpointSlice, labels map[string]string) []discoveryv1.EndpointSlice {

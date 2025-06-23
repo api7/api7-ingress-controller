@@ -146,7 +146,7 @@ func translateApisixUpstreamClientTLS(tctx *provider.TranslateContext, au *apiv2
 	)
 	secret, ok := tctx.Secrets[secretNN]
 	if !ok {
-		return nil
+		return errors.Errorf("sercret %s not found", secretNN)
 	}
 
 	cert, key, err := extractKeyPair(secret, true)
