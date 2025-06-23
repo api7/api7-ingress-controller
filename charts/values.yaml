@@ -52,5 +52,6 @@ config:
   secureMetrics: ""
   execADCTimeout: "15s"
   provider:
+    type: "api7ee"
     syncPeriod: "0s"
     initSyncDelay: "20m"
