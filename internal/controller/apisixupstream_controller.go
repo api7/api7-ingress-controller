@@ -49,12 +49,8 @@ func (r *ApisixUpstreamReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	var err error
-	defer func() {
-		r.updateStatus(&au, err)
-	}()
-
 	// Only update status
+	r.updateStatus(&au, nil)
 	return ctrl.Result{}, nil
 }
 

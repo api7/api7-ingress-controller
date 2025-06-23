@@ -50,12 +50,8 @@ func (r *ApisixPluginConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	var err error
-	defer func() {
-		r.updateStatus(&pc, err)
-	}()
-
 	// Only update status
+	r.updateStatus(&pc, nil)
 	return ctrl.Result{}, nil
 }
 
