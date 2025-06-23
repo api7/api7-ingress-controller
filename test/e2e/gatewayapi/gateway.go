@@ -286,7 +286,7 @@ spec:
 			Expect(err).NotTo(HaveOccurred(), "update secret")
 			Eventually(func() string {
 				tls, err := s.DefaultDataplaneResource().SSL().List(context.Background())
-				Expect(err).NotTo(HaveOccurred(), "list ssl from dashboard")
+				Expect(err).NotTo(HaveOccurred(), "list ssl")
 				if len(tls) < 1 {
 					return ""
 				}
