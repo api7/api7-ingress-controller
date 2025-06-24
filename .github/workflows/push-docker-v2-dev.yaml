@@ -43,9 +43,13 @@ jobs:
     -
       name: Build and push multi-arch image
       env:
-        TAG: ${{ github.event.inputs.tag || github.ref_name }}-dev
-        IMAGE_TAG: ${{ github.event.inputs.tag || github.ref_name }}-dev
+        ARCH: amd64
+        ENABLE_PROXY: "false"
+        BASE_IMAGE_TAG: "debug"
+        TAG: ${{ github.event.inputs.tag || github.ref_name }}dev
+        IMAGE_TAG: ${{ github.event.inputs.tag || github.ref_name }}dev
         ADC_VERSION: ${{ github.event.inputs.adc_version }}
       run: |
-        echo "building multi-arch images with tag: $TAG"
-        make build-push-multi-arch-image
+        echo "building images..."
+        make docker-build
+        make docker-push
