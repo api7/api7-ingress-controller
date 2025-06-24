@@ -2,12 +2,8 @@ name: push on dockerhub
 on:
   push:
     tags:
-    - '*'
-  workflow_dispatch:
-    inputs:
-      tag:
-        type: string
-        description: "Image tag manually"
+      - '*'
+
 jobs:
   docker:
     runs-on: buildjet-2vcpu-ubuntu-2204
@@ -37,8 +33,8 @@ jobs:
       -
         name: Build and push multi-arch image
         env:
-          TAG: ${{ github.event.inputs || github.ref_name }}
-          IMAGE_TAG: ${{ github.event.inputs || github.ref_name }}
+          TAG: ${{ github.ref_name }}
+          IMAGE_TAG: ${{ github.ref_name }}
         run: |
           echo "building multi-arch images with tag: $TAG"
           make build-push-multi-arch-image
