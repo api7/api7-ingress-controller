@@ -1,9 +1,9 @@
 name: push on dockerhub
-on: 
+on:
   push:
     tags:
       - '*'
-      
+
 jobs:
   docker:
     runs-on: buildjet-2vcpu-ubuntu-2204
