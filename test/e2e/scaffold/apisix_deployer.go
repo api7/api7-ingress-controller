@@ -14,7 +14,6 @@ package scaffold
 
 import (
 	"bytes"
-	"cmp"
 	"fmt"
 	"os"
 	"time"
@@ -180,7 +179,7 @@ func (s *APISIXDeployer) newAPISIXTunnels(serviceName string) error {
 
 func (s *APISIXDeployer) deployDataplane(opts *APISIXDeployOptions) *corev1.Service {
 	if opts.ServiceName == "" {
-		opts.ServiceName = "apisix-standalone"
+		opts.ServiceName = framework.ProviderType
 	}
 
 	if opts.ServiceHTTPPort == 0 {
@@ -195,7 +194,6 @@ func (s *APISIXDeployer) deployDataplane(opts *APISIXDeployOptions) *corev1.Serv
 	kubectlOpts := k8s.NewKubectlOptions("", "", opts.Namespace)
 
 	if framework.ProviderType == adc.BackendModeAPISIX {
-		opts.ServiceName = "apisix"
 		opts.ConfigProvider = "etcd"
 		// deploy etcd
 		k8s.KubectlApplyFromString(s.GinkgoT, kubectlOpts, framework.EtcdSpec)
@@ -236,7 +234,7 @@ func (s *APISIXDeployer) deployDataplane(opts *APISIXDeployOptions) *corev1.Serv
 func (s *APISIXDeployer) DeployIngress() {
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
 		ControllerName:     s.opts.ControllerName,
-		ProviderType:       cmp.Or(framework.ProviderType, "apisix-standalone"),
+		ProviderType:       framework.ProviderType,
 		ProviderSyncPeriod: 200 * time.Millisecond,
 		Namespace:          s.namespace,
 		Replicas:           1,
@@ -246,7 +244,7 @@ func (s *APISIXDeployer) DeployIngress() {
 func (s *APISIXDeployer) ScaleIngress(replicas int) {
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
 		ControllerName:     s.opts.ControllerName,
-		ProviderType:       cmp.Or(framework.ProviderType, "apisix-standalone"),
+		ProviderType:       framework.ProviderType,
 		ProviderSyncPeriod: 200 * time.Millisecond,
 		Namespace:          s.namespace,
 		Replicas:           replicas,
