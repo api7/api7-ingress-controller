@@ -21,6 +21,7 @@ type ProviderType string
 const (
 	ProviderTypeStandalone ProviderType = "apisix-standalone"
 	ProviderTypeAPI7EE     ProviderType = "api7ee"
+	ProviderTypeAPISIX     ProviderType = "apisix"
 )
 
 const (

@@ -7,7 +7,9 @@ data:
     deployment:
       role: traditional
       role_traditional:
-          config_provider: yaml
+          # on backend mode apisix-standalone, config_provider is "yaml"
+          # on backend mode apisix, config_provider is "etcd"
+        config_provider: {{ .ConfigProvider | default "yaml" }}
       admin:
         allow_admin:
         - 0.0.0.0/0
@@ -15,6 +17,11 @@ data:
         - key: {{ .AdminKey }}
           name: admin
           role: admin
+      {{- if eq .ConfigProvider "etcd" }}
+      etcd:
+        host:
+        - "http://etcd:2379"
+      {{- end }}
     nginx_config:
       worker_processes: 2
       error_log_level: info
