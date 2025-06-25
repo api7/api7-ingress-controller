@@ -12,6 +12,7 @@
 package conformance
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -160,7 +161,7 @@ func TestMain(m *testing.M) {
 		Namespace:          namespace,
 		StatusAddress:      address,
 		InitSyncDelay:      1 * time.Minute,
-		ProviderType:       "apisix-standalone",
+		ProviderType:       cmp.Or(os.Getenv("PROVIDER_TYPE"), "apisix-standalone"),
 		ProviderSyncPeriod: 10 * time.Millisecond,
 	})
 

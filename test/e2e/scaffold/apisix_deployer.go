@@ -14,6 +14,7 @@ package scaffold
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"os"
 	"time"
@@ -218,8 +219,9 @@ func (s *APISIXDeployer) deployDataplane(opts *APISIXDeployOptions) *corev1.Serv
 
 func (s *APISIXDeployer) DeployIngress() {
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
-		ProviderSyncPeriod: 200 * time.Millisecond,
 		ControllerName:     s.opts.ControllerName,
+		ProviderType:       cmp.Or(os.Getenv("PROVIDER_TYPE"), "apisix-standalone"),
+		ProviderSyncPeriod: 200 * time.Millisecond,
 		Namespace:          s.namespace,
 		Replicas:           1,
 	})
@@ -227,8 +229,9 @@ func (s *APISIXDeployer) DeployIngress() {
 
 func (s *APISIXDeployer) ScaleIngress(replicas int) {
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
-		ProviderSyncPeriod: 200 * time.Millisecond,
 		ControllerName:     s.opts.ControllerName,
+		ProviderType:       cmp.Or(os.Getenv("PROVIDER_TYPE"), "apisix-standalone"),
+		ProviderSyncPeriod: 200 * time.Millisecond,
 		Namespace:          s.namespace,
 		Replicas:           replicas,
 	})
