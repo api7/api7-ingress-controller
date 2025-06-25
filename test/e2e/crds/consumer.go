@@ -23,7 +23,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = Describe("Test Consumer", func() {
+var _ = Describe("Test Consumer", Label("apisix", "v1alpha1", "consumer"), func() {
 	s := scaffold.NewDefaultScaffold()
 
 	var defaultGatewayProxy = `

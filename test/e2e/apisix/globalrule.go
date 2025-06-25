@@ -56,7 +56,7 @@ spec:
     scope: "Namespace"
 `
 
-var _ = Describe("Test GlobalRule", func() {
+var _ = Describe("Test GlobalRule", Label("apisix", "v2", "apisixglobalrule"), func() {
 	s := scaffold.NewScaffold(&scaffold.Options{
 		ControllerName: "apisix.apache.org/apisix-ingress-controller",
 	})

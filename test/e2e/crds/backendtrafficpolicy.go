@@ -22,7 +22,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = Describe("Test BackendTrafficPolicy base on HTTPRoute", func() {
+var _ = Describe("Test BackendTrafficPolicy base on HTTPRoute", Label("apisix", "v1alpha1", "backendtrafficpolicy"), func() {
 	s := scaffold.NewDefaultScaffold()
 
 	var defaultGatewayProxy = `

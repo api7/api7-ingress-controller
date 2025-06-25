@@ -195,8 +195,9 @@ func (s *APISIXDeployer) deployDataplane(opts *APISIXDeployOptions) *corev1.Serv
 	kubectlOpts := k8s.NewKubectlOptions("", "", opts.Namespace)
 
 	if os.Getenv(framework.EnvKeyProviderType) == adc.BackendModeAPISIX {
-		// deploy etcd
+		opts.ServiceName = "apisix"
 		opts.ConfigProvider = "etcd"
+		// deploy etcd
 		k8s.KubectlApplyFromString(s.GinkgoT, kubectlOpts, framework.EtcdSpec)
 		err := framework.WaitPodsAvailable(s.GinkgoT, kubectlOpts, metav1.ListOptions{
 			LabelSelector: "app=etcd",

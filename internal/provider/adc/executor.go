@@ -112,6 +112,10 @@ func (e *DefaultADCExecutor) buildCmdError(runErr error, stdout, stderr []byte) 
 
 func (e *DefaultADCExecutor) handleOutput(output []byte) error {
 	var result adctypes.SyncResult
+	if index := strings.IndexByte(string(output), '{'); index > 0 {
+		log.Warnf("extra output: %s", string(output[:index]))
+		output = output[index:]
+	}
 	if err := json.Unmarshal(output, &result); err != nil {
 		log.Errorw("failed to unmarshal adc output",
 			zap.Error(err),

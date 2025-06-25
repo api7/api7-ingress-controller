@@ -33,7 +33,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = Describe("Test HTTPRoute", func() {
+var _ = Describe("Test HTTPRoute", Label("networking", "httproute"), func() {
 	s := scaffold.NewDefaultScaffold()
 
 	var gatewayProxyYaml = `
