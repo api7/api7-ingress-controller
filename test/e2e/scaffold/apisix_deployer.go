@@ -25,6 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/apache/apisix-ingress-controller/internal/provider/adc"
 	"github.com/apache/apisix-ingress-controller/pkg/utils"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 )
@@ -37,6 +38,8 @@ type APISIXDeployOptions struct {
 	ServiceType      string
 	ServiceHTTPPort  int
 	ServiceHTTPSPort int
+
+	ConfigProvider string
 }
 
 type APISIXDeployer struct {
@@ -187,12 +190,24 @@ func (s *APISIXDeployer) deployDataplane(opts *APISIXDeployOptions) *corev1.Serv
 	if opts.ServiceHTTPSPort == 0 {
 		opts.ServiceHTTPSPort = 443
 	}
+	opts.ConfigProvider = "yaml"
+
+	kubectlOpts := k8s.NewKubectlOptions("", "", opts.Namespace)
+
+	if os.Getenv(framework.EnvKeyProviderType) == adc.BackendModeAPISIX {
+		// deploy etcd
+		opts.ConfigProvider = "etcd"
+		k8s.KubectlApplyFromString(s.GinkgoT, kubectlOpts, framework.EtcdSpec)
+		err := framework.WaitPodsAvailable(s.GinkgoT, kubectlOpts, metav1.ListOptions{
+			LabelSelector: "app=etcd",
+		})
+		Expect(err).ToNot(HaveOccurred(), "waiting for etcd pod ready")
+	}
 
 	buf := bytes.NewBuffer(nil)
 	err := framework.APISIXStandaloneTpl.Execute(buf, opts)
 	Expect(err).ToNot(HaveOccurred(), "executing template")
 
-	kubectlOpts := k8s.NewKubectlOptions("", "", opts.Namespace)
 	k8s.KubectlApplyFromString(s.GinkgoT, kubectlOpts, buf.String())
 
 	err = framework.WaitPodsAvailable(s.GinkgoT, kubectlOpts, metav1.ListOptions{
@@ -220,7 +235,7 @@ func (s *APISIXDeployer) deployDataplane(opts *APISIXDeployOptions) *corev1.Serv
 func (s *APISIXDeployer) DeployIngress() {
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
 		ControllerName:     s.opts.ControllerName,
-		ProviderType:       cmp.Or(os.Getenv("PROVIDER_TYPE"), "apisix-standalone"),
+		ProviderType:       cmp.Or(os.Getenv(framework.EnvKeyProviderType), "apisix-standalone"),
 		ProviderSyncPeriod: 200 * time.Millisecond,
 		Namespace:          s.namespace,
 		Replicas:           1,
@@ -230,7 +245,7 @@ func (s *APISIXDeployer) DeployIngress() {
 func (s *APISIXDeployer) ScaleIngress(replicas int) {
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
 		ControllerName:     s.opts.ControllerName,
-		ProviderType:       cmp.Or(os.Getenv("PROVIDER_TYPE"), "apisix-standalone"),
+		ProviderType:       cmp.Or(os.Getenv(framework.EnvKeyProviderType), "apisix-standalone"),
 		ProviderSyncPeriod: 200 * time.Millisecond,
 		Namespace:          s.namespace,
 		Replicas:           replicas,

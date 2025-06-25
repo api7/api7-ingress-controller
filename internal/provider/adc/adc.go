@@ -186,21 +186,11 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		}
 	}
 
-	switch d.BackendMode {
-	case BackendModeAPISIXStandalone:
-		// This mode is full synchronization,
-		// which only needs to be saved in cache
-		// and triggered by a timer for synchronization
+	// This mode is full synchronization,
+	// which only needs to be saved in cache
+	// and triggered by a timer for synchronization
+	if d.BackendMode == BackendModeAPISIXStandalone || d.BackendMode == BackendModeAPISIX || apiv2.Is(obj) {
 		return nil
-	case BackendModeAPISIX:
-		// sync by apisix admin api
-	case BackendModeAPI7EE:
-		// apiv2 is not support on api7ee mode
-		if apiv2.Is(obj) {
-			return nil
-		}
-	default:
-		return errors.Errorf("unknown backend mode: %s", d.BackendMode)
 	}
 
 	return d.sync(ctx, Task{
