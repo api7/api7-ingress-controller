@@ -15,12 +15,12 @@ package adc
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/api7/gopkg/pkg/log"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	networkingv1 "k8s.io/api/networking/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -48,6 +48,7 @@ type BackendMode string
 const (
 	BackendModeAPISIXStandalone string = "apisix-standalone"
 	BackendModeAPI7EE           string = "api7ee"
+	BackendModeAPISIX           string = "apisix"
 )
 
 type adcClient struct {
@@ -185,11 +186,21 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		}
 	}
 
-	// This mode is full synchronization,
-	// which only needs to be saved in cache
-	// and triggered by a timer for synchronization
-	if d.BackendMode == BackendModeAPISIXStandalone || apiv2.Is(obj) {
+	switch d.BackendMode {
+	case BackendModeAPI7EE:
+		if apiv2.Is(obj) {
+			return nil
+		}
+	case BackendModeAPISIX:
+		// do nothing
+	case BackendModeAPISIXStandalone:
+		// This mode is full synchronization,
+		// which only needs to be saved in cache
+		// and triggered by a timer for synchronization
 		return nil
+	default:
+		return errors.Errorf("unknown backend mode: %s", d.BackendMode)
+
 	}
 
 	return d.sync(ctx, Task{

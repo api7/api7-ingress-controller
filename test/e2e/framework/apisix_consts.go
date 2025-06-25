@@ -19,10 +19,17 @@ import (
 	"github.com/Masterminds/sprig/v3"
 )
 
+const (
+	EnvKeyProviderType = "PROVIDER_TYPE"
+)
+
 var (
 	//go:embed manifests/apisix-standalone.yaml
 	apisixStandaloneTemplate string
 	APISIXStandaloneTpl      *template.Template
+
+	//go:embed manifests/etcd.yaml
+	EtcdSpec string
 )
 
 var (
