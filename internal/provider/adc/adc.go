@@ -271,7 +271,7 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 			})
 		}
 		return nil
-	case BackendModeAPI7EE:
+	case BackendModeAPI7EE, BackendModeAPISIX:
 		return d.sync(ctx, Task{
 			Name:          obj.GetName(),
 			Labels:        labels,
