@@ -132,8 +132,8 @@ func (a *adcDataplaneResource) dumpResources(ctx context.Context) (*translator.T
 		"ADC_SERVER=" + a.serverAddr,
 		"ADC_TOKEN=" + a.token,
 	}
-	if providerType := os.Getenv(framework.EnvKeyProviderType); providerType != "" {
-		adcEnv = append(adcEnv, "ADC_BACKEND="+providerType)
+	if framework.ProviderType != "" {
+		adcEnv = append(adcEnv, "ADC_BACKEND="+framework.ProviderType)
 	}
 
 	var stdout, stderr bytes.Buffer

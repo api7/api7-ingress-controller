@@ -161,7 +161,7 @@ func TestMain(m *testing.M) {
 		Namespace:          namespace,
 		StatusAddress:      address,
 		InitSyncDelay:      1 * time.Minute,
-		ProviderType:       cmp.Or(os.Getenv(framework.EnvKeyProviderType), "apisix-standalone"),
+		ProviderType:       cmp.Or(framework.ProviderType, "apisix-standalone"),
 		ProviderSyncPeriod: 10 * time.Millisecond,
 	})
 

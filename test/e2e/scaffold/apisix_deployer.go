@@ -194,7 +194,7 @@ func (s *APISIXDeployer) deployDataplane(opts *APISIXDeployOptions) *corev1.Serv
 
 	kubectlOpts := k8s.NewKubectlOptions("", "", opts.Namespace)
 
-	if os.Getenv(framework.EnvKeyProviderType) == adc.BackendModeAPISIX {
+	if framework.ProviderType == adc.BackendModeAPISIX {
 		opts.ServiceName = "apisix"
 		opts.ConfigProvider = "etcd"
 		// deploy etcd
@@ -236,7 +236,7 @@ func (s *APISIXDeployer) deployDataplane(opts *APISIXDeployOptions) *corev1.Serv
 func (s *APISIXDeployer) DeployIngress() {
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
 		ControllerName:     s.opts.ControllerName,
-		ProviderType:       cmp.Or(os.Getenv(framework.EnvKeyProviderType), "apisix-standalone"),
+		ProviderType:       cmp.Or(framework.ProviderType, "apisix-standalone"),
 		ProviderSyncPeriod: 200 * time.Millisecond,
 		Namespace:          s.namespace,
 		Replicas:           1,
@@ -246,7 +246,7 @@ func (s *APISIXDeployer) DeployIngress() {
 func (s *APISIXDeployer) ScaleIngress(replicas int) {
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
 		ControllerName:     s.opts.ControllerName,
-		ProviderType:       cmp.Or(os.Getenv(framework.EnvKeyProviderType), "apisix-standalone"),
+		ProviderType:       cmp.Or(framework.ProviderType, "apisix-standalone"),
 		ProviderSyncPeriod: 200 * time.Millisecond,
 		Namespace:          s.namespace,
 		Replicas:           replicas,
