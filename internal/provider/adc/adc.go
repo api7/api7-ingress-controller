@@ -186,21 +186,11 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 		}
 	}
 
-	switch d.BackendMode {
-	case BackendModeAPI7EE:
-		if apiv2.Is(obj) {
-			return nil
-		}
-	case BackendModeAPISIX:
-		// do nothing
-	case BackendModeAPISIXStandalone:
-		// This mode is full synchronization,
-		// which only needs to be saved in cache
-		// and triggered by a timer for synchronization
+	// This mode is full synchronization,
+	// which only needs to be saved in cache
+	// and triggered by a timer for synchronization
+	if d.BackendMode == BackendModeAPISIXStandalone || d.BackendMode == BackendModeAPISIX || apiv2.Is(obj) {
 		return nil
-	default:
-		return errors.Errorf("unknown backend mode: %s", d.BackendMode)
-
 	}
 
 	return d.sync(ctx, Task{
@@ -260,7 +250,7 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 	log.Debugw("successfully deleted resources from store", zap.Any("object", obj))
 
 	switch d.BackendMode {
-	case BackendModeAPISIXStandalone:
+	case BackendModeAPISIXStandalone, BackendModeAPISIX:
 		// Full synchronization is performed on a gateway by gateway basis
 		// and it is not possible to perform scheduled synchronization
 		// on deleted gateway level resources
@@ -271,7 +261,7 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 			})
 		}
 		return nil
-	case BackendModeAPI7EE, BackendModeAPISIX:
+	case BackendModeAPI7EE:
 		return d.sync(ctx, Task{
 			Name:          obj.GetName(),
 			Labels:        labels,

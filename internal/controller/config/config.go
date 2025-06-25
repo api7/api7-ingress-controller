@@ -113,12 +113,12 @@ func (c *Config) Validate() error {
 
 func validateProvider(config ProviderConfig) error {
 	switch config.Type {
-	case ProviderTypeStandalone:
+	case ProviderTypeStandalone, ProviderTypeAPISIX:
 		if config.SyncPeriod.Duration <= 0 {
 			return fmt.Errorf("sync_period must be greater than 0 for standalone provider")
 		}
 		return nil
-	case ProviderTypeAPI7EE, ProviderTypeAPISIX:
+	case ProviderTypeAPI7EE:
 		return nil
 	default:
 		return fmt.Errorf("unsupported provider type: %s", config.Type)

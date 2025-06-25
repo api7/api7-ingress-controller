@@ -14,13 +14,14 @@ package framework
 
 import (
 	_ "embed"
+	"os"
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
 )
 
-const (
-	EnvKeyProviderType = "PROVIDER_TYPE"
+var (
+	ProviderType = os.Getenv("PROVIDER_TYPE")
 )
 
 var (
