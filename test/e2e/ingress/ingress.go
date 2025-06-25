@@ -41,7 +41,7 @@ func createSecret(s *scaffold.Scaffold, secretName string) {
 	assert.Nil(GinkgoT(), err, "create secret error")
 }
 
-var _ = Describe("Test Ingress", Label("networking", "ingress"), func() {
+var _ = Describe("Test Ingress", Label("networking.k8s.io", "ingress"), func() {
 	s := scaffold.NewScaffold(&scaffold.Options{
 		ControllerName: "apisix.apache.org/apisix-ingress-controller",
 	})

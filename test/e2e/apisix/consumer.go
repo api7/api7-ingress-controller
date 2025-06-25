@@ -28,7 +28,7 @@ import (
 
 type Headers map[string]string
 
-var _ = Describe("Test ApisixConsumer", Label("apisix", "v2", "apisixconsumer"), func() {
+var _ = Describe("Test ApisixConsumer", Label("apisix.apache.org", "v2", "apisixconsumer"), func() {
 	var (
 		s = scaffold.NewScaffold(&scaffold.Options{
 			ControllerName: "apisix.apache.org/apisix-ingress-controller",

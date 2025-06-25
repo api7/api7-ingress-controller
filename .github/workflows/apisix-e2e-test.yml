@@ -41,8 +41,8 @@ jobs:
         - apisix-standalone
         - apisix
         cases_subset:
-        - apisix
-        - networking
+        - apisix.apache.org
+        - networking.k8s.io
     runs-on: buildjet-2vcpu-ubuntu-2204
     steps:
       - name: Checkout
