@@ -26,6 +26,7 @@ import (
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/internal/provider/adc/translator"
+	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 )
 
 // DataplaneResource defines the interface for accessing dataplane resources
@@ -130,6 +131,9 @@ func (a *adcDataplaneResource) dumpResources(ctx context.Context) (*translator.T
 		"ADC_BACKEND=" + a.backend,
 		"ADC_SERVER=" + a.serverAddr,
 		"ADC_TOKEN=" + a.token,
+	}
+	if providerType := os.Getenv(framework.EnvKeyProviderType); providerType != "" {
+		adcEnv = append(adcEnv, "ADC_BACKEND="+providerType)
 	}
 
 	var stdout, stderr bytes.Buffer
