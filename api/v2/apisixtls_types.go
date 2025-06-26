@@ -36,8 +36,7 @@ type ApisixTlsStatus = ApisixStatus
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:shortName=atls
-// +kubebuilder:object:root=true
+// +kubebuilder:resource:shortName=atls,path=apisixtlses
 // +kubebuilder:printcolumn:name="SNIs",type=string,JSONPath=`.spec.hosts`
 // +kubebuilder:printcolumn:name="Secret Name",type=string,JSONPath=`.spec.secret.name`
 // +kubebuilder:printcolumn:name="Secret Namespace",type=string,JSONPath=`.spec.secret.namespace`
