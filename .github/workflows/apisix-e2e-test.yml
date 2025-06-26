@@ -43,6 +43,7 @@ jobs:
         cases_subset:
         - apisix.apache.org
         - networking.k8s.io
+      fail-fast: false
     runs-on: buildjet-2vcpu-ubuntu-2204
     steps:
       - name: Checkout
