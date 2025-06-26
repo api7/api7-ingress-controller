@@ -30,7 +30,7 @@ on:
 
 jobs:
   check-license:
-    runs-on: ubuntu-latest
+    runs-on: buildjet-2vcpu-ubuntu-2204
 
     steps:
       - uses: actions/checkout@v4
