@@ -1,3 +1,4 @@
+#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,42 +16,25 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-bin/*
-Dockerfile.cross
+name: License checker
 
-# Test binary, built with `go test -c`
-*.test
+on:
+  push:
+    branches:
+      - master
+      - release-v2-dev
+  pull_request:
+    branches:
+      - master
+      - release-v2-dev
 
-# Output of the go coverage tool, specifically when used with LiteIDE
-*.out
+jobs:
+  check-license:
+    runs-on: ubuntu-latest
 
-# Go workspace file
-go.work
-
-# Kubernetes Generated files - skip generated files, except for vendored files
-!vendor/**/zz_generated.*
-
-# editor and IDE paraphernalia
-.idea
-.vscode
-*.swp
-*.swo
-*~
-
-dist
-.tmp
-apisix-ingress-controller
-apisix-ingress-controller-conformance-report.yaml
-
-*.mdx
-.cursor/
-.env
-
-charts/api7ee3
-docs/api
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check License Header
+        uses: apache/skywalking-eyes@v0.5.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
