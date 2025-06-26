@@ -32,6 +32,7 @@ type ApisixPluginConfigStatus = ApisixStatus
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:shortName=apc
 
 // ApisixPluginConfig is the Schema for the apisixpluginconfigs API.
 type ApisixPluginConfig struct {

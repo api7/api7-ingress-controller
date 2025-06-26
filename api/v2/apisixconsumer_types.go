@@ -33,6 +33,7 @@ type ApisixConsumerStatus = ApisixStatus
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:shortName=ac
 
 // ApisixConsumer is the Schema for the apisixconsumers API.
 type ApisixConsumer struct {

@@ -42,6 +42,7 @@ type ApisixUpstreamStatus = ApisixStatus
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:shortName=au
 
 // ApisixUpstream is the Schema for the apisixupstreams API.
 type ApisixUpstream struct {
