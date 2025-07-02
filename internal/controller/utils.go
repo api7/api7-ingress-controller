@@ -921,34 +921,44 @@ func ProcessGatewayProxy(r client.Client, tctx *provider.TranslateContext, gatew
 			tctx.ResourceParentRefs[rk] = append(tctx.ResourceParentRefs[rk], gatewayKind)
 
 			// Process provider secrets if provider exists
-			if gatewayProxy.Spec.Provider != nil && gatewayProxy.Spec.Provider.Type == v1alpha1.ProviderTypeControlPlane {
-				if gatewayProxy.Spec.Provider.ControlPlane != nil &&
-					gatewayProxy.Spec.Provider.ControlPlane.Auth.Type == v1alpha1.AuthTypeAdminKey &&
-					gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey != nil &&
-					gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom != nil &&
-					gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
+			if prov := gatewayProxy.Spec.Provider; prov != nil && prov.Type == v1alpha1.ProviderTypeControlPlane {
+				if cp := prov.ControlPlane; cp != nil {
+					if cp.Auth.Type == v1alpha1.AuthTypeAdminKey &&
+						cp.Auth.AdminKey != nil &&
+						cp.Auth.AdminKey.ValueFrom != nil &&
+						cp.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
 
-					secretRef := gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef
-					secret := &corev1.Secret{}
-					if err := r.Get(context.Background(), client.ObjectKey{
-						Namespace: ns,
-						Name:      secretRef.Name,
-					}, secret); err != nil {
-						log.Error(err, "failed to get secret for GatewayProxy provider",
-							"namespace", ns,
-							"name", secretRef.Name)
-						return err
+						secretRef := cp.Auth.AdminKey.ValueFrom.SecretKeyRef
+						secret := &corev1.Secret{}
+						if err := r.Get(context.Background(), client.ObjectKey{
+							Namespace: ns,
+							Name:      secretRef.Name,
+						}, secret); err != nil {
+							log.Error(err, "failed to get secret for GatewayProxy provider",
+								"namespace", ns,
+								"name", secretRef.Name)
+							return err
+						}
+
+						log.Info("found secret for GatewayProxy provider",
+							"gateway", gateway.Name,
+							"gatewayproxy", gatewayProxy.Name,
+							"secret", secretRef.Name)
+
+						tctx.Secrets[k8stypes.NamespacedName{
+							Namespace: ns,
+							Name:      secretRef.Name,
+						}] = secret
 					}
 
-					log.Info("found secret for GatewayProxy provider",
-						"gateway", gateway.Name,
-						"gatewayproxy", gatewayProxy.Name,
-						"secret", secretRef.Name)
-
-					tctx.Secrets[k8stypes.NamespacedName{
-						Namespace: ns,
-						Name:      secretRef.Name,
-					}] = secret
+					if cp.Service != nil {
+						if err := addProviderEndpointsToTranslateContext(tctx, r, k8stypes.NamespacedName{
+							Namespace: gatewayProxy.GetNamespace(),
+							Name:      cp.Service.Name,
+						}); err != nil {
+							return err
+						}
+					}
 				}
 			}
 		}
@@ -1340,36 +1350,72 @@ func ProcessIngressClassParameters(tctx *provider.TranslateContext, c client.Cli
 
 		// check if the provider field references a secret
 		if gatewayProxy.Spec.Provider != nil && gatewayProxy.Spec.Provider.Type == v1alpha1.ProviderTypeControlPlane {
-			if gatewayProxy.Spec.Provider.ControlPlane != nil &&
-				gatewayProxy.Spec.Provider.ControlPlane.Auth.Type == v1alpha1.AuthTypeAdminKey &&
-				gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey != nil &&
-				gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom != nil &&
-				gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
+			if cp := gatewayProxy.Spec.Provider.ControlPlane; cp != nil {
+				// process control plane provider auth
+				if cp.Auth.Type == v1alpha1.AuthTypeAdminKey &&
+					cp.Auth.AdminKey != nil &&
+					cp.Auth.AdminKey.ValueFrom != nil &&
+					cp.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
 
-				secretRef := gatewayProxy.Spec.Provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef
-				secret := &corev1.Secret{}
-				if err := c.Get(tctx, client.ObjectKey{
-					Namespace: ns,
-					Name:      secretRef.Name,
-				}, secret); err != nil {
-					log.Error(err, "failed to get secret for GatewayProxy provider",
-						"namespace", ns,
-						"name", secretRef.Name)
-					return err
+					secretRef := cp.Auth.AdminKey.ValueFrom.SecretKeyRef
+					secret := &corev1.Secret{}
+					if err := c.Get(tctx, client.ObjectKey{
+						Namespace: ns,
+						Name:      secretRef.Name,
+					}, secret); err != nil {
+						log.Error(err, "failed to get secret for GatewayProxy provider",
+							"namespace", ns,
+							"name", secretRef.Name)
+						return err
+					}
+
+					log.Info("found secret for GatewayProxy provider",
+						"ingressClass", ingressClass.Name,
+						"gatewayproxy", gatewayProxy.Name,
+						"secret", secretRef.Name)
+
+					tctx.Secrets[k8stypes.NamespacedName{
+						Namespace: ns,
+						Name:      secretRef.Name,
+					}] = secret
 				}
 
-				log.Info("found secret for GatewayProxy provider",
-					"ingressClass", ingressClass.Name,
-					"gatewayproxy", gatewayProxy.Name,
-					"secret", secretRef.Name)
-
-				tctx.Secrets[k8stypes.NamespacedName{
-					Namespace: ns,
-					Name:      secretRef.Name,
-				}] = secret
+				// process control plane provider service
+				if cp.Service != nil {
+					if err := addProviderEndpointsToTranslateContext(tctx, c, client.ObjectKey{
+						Namespace: gatewayProxy.GetNamespace(),
+						Name:      cp.Service.Name,
+					}); err != nil {
+						return err
+					}
+				}
 			}
 		}
 	}
+
+	return nil
+}
+
+func addProviderEndpointsToTranslateContext(tctx *provider.TranslateContext, c client.Client, serviceNN k8stypes.NamespacedName) error {
+	log.Debugf("to process provider endpints by provider.service: %s", serviceNN)
+	var (
+		service corev1.Service
+	)
+	if err := c.Get(tctx, serviceNN, &service); err != nil {
+		log.Error(err, "failed to get service from GatewayProxy provider", "key", serviceNN)
+		return err
+	}
+	tctx.Services[serviceNN] = &service
+
+	// get endpoints
+	var (
+		endpoints corev1.Endpoints
+	)
+	if err := c.Get(tctx, serviceNN, &endpoints); err != nil {
+		log.Error(err, "failed to get endpoints for GatewayProxy provider", "endpoints", serviceNN)
+		return err
+	}
+	tctx.EndpointSubset[serviceNN] = endpoints.Subsets
 
 	return nil
 }

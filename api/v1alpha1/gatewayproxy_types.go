@@ -116,9 +116,10 @@ type ControlPlaneAuth struct {
 }
 
 // ControlPlaneProvider defines the configuration for control plane provider.
+// +kubebuilder:validation:XValidation:rule="has(self.endpoints) != has(self.service)"
 type ControlPlaneProvider struct {
 	// Endpoints specifies the list of control plane endpoints.
-	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:MinItems=1
 	Endpoints []string `json:"endpoints"`
 

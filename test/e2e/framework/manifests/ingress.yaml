@@ -81,6 +81,7 @@ rules:
   - ""
   resources:
   - namespaces
+  - endpoints
   verbs:
   - get
   - list
