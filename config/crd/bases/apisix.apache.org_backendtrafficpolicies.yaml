@@ -62,7 +62,7 @@ spec:
                     type: string
                   key:
                     description: |-
-                      Key is used with HashOn, generally required when Type is `chash`.
+                      Key is used with HashOn, generally required when type is `chash`.
                       When HashOn is `header` or `cookie`, specifies the name of the header or cookie.
                       When HashOn is `consumer`, key is not required, as the consumer name is used automatically.
                       When HashOn is `vars` or `vars_combinations`, key refers to one or a combination of
