@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"slices"
 	"sync"
 	"time"
 
@@ -349,6 +350,18 @@ func (d *adcClient) sync(ctx context.Context, task Task) error {
 	if len(task.configs) == 0 {
 		log.Errorw("no adc configs provided", zap.Any("task", task))
 		return errors.New("no adc configs provided")
+	}
+
+	// for global rules, we need to list all global rules
+	if slices.Contains(task.ResourceTypes, "global_rule") {
+		for _, config := range task.configs {
+			globalRules, err := d.store.GetGlobalRules(config.Name)
+			if err != nil {
+				return err
+			}
+			task.Resources.GlobalRules = *globalRules
+			log.Debugw("syncing resources global rules", zap.Any("globalRules", task.Resources.GlobalRules))
+		}
 	}
 
 	syncFilePath, cleanup, err := prepareSyncFile(task.Resources)
