@@ -245,7 +245,7 @@ func (s *Store) GetResources(name string) (*adctypes.Resources, error) {
 	}, nil
 }
 
-func (s *Store) GetGlobalRules(name string) (*adctypes.GlobalRule, error) {
+func (s *Store) ListGlobalRules(name string) (*adctypes.GlobalRule, error) {
 	s.Lock()
 	defer s.Unlock()
 
