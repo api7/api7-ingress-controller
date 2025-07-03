@@ -38,7 +38,7 @@ type API7Deployer struct {
 	gatewayGroupID string
 }
 
-func NewAPI7Deployer(s *Scaffold) *API7Deployer {
+func NewAPI7Deployer(s *Scaffold) Deployer {
 	return &API7Deployer{
 		Scaffold: s,
 	}
@@ -303,4 +303,8 @@ func (s *API7Deployer) DefaultDataplaneResource() DataplaneResource {
 		s.AdminKey(),
 		false,
 	)
+}
+
+func (s *API7Deployer) Name() string {
+	return "api7ee"
 }

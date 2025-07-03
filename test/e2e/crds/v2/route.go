@@ -189,6 +189,9 @@ spec:
 		})
 
 		It("Test ApisixRoute filterFunc", func() {
+			if s.Deployer.Name() == "api7ee" {
+				Skip("filterFunc is not supported in api7ee")
+			}
 			const apisixRouteSpec = `
 apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
