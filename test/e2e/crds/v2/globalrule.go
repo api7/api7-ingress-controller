@@ -88,9 +88,6 @@ spec:
 
 	Context("ApisixGlobalRule Basic Operations", func() {
 		BeforeEach(func() {
-			// if s.Deployer.Name() == "api7ee" {
-			// 	Skip("GlobalRule is not supported in api7ee")
-			// }
 			By("create GatewayProxy")
 			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
