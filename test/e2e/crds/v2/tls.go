@@ -127,7 +127,7 @@ var _ = Describe("Test ApisixTls", Label("apisix.apache.org", "v2", "apisixtls")
 			Expect(err).ShouldNot(HaveOccurred(), "deleting IngressClass")
 		})
 		normalizePEM := func(s string) string {
-			return strings.TrimSpace(s) // 去掉首尾空白，包括末尾换行
+			return strings.TrimSpace(s)
 		}
 
 		It("Basic ApisixTls test", func() {
