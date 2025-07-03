@@ -431,7 +431,7 @@ type UpstreamHealthCheck struct {
 	Passive *UpstreamPassiveHealthCheck `json:"passive,omitempty" yaml:"passive,omitempty"`
 }
 
-// UpstreamActiveHealthCheck defines the active kind of upstream health check.
+// UpstreamActiveHealthCheck defines the active upstream health check.
 // +k8s:deepcopy-gen=true
 type UpstreamActiveHealthCheck struct {
 	Type               string                             `json:"type,omitempty" yaml:"type,omitempty"`
@@ -446,7 +446,7 @@ type UpstreamActiveHealthCheck struct {
 	Unhealthy          UpstreamActiveHealthCheckUnhealthy `json:"unhealthy,omitempty" yaml:"unhealthy,omitempty"`
 }
 
-// UpstreamPassiveHealthCheck defines the passive kind of upstream health check.
+// UpstreamPassiveHealthCheck defines the passive upstream health check.
 // +k8s:deepcopy-gen=true
 type UpstreamPassiveHealthCheck struct {
 	Type      string                              `json:"type,omitempty" yaml:"type,omitempty"`
@@ -454,34 +454,32 @@ type UpstreamPassiveHealthCheck struct {
 	Unhealthy UpstreamPassiveHealthCheckUnhealthy `json:"unhealthy,omitempty" yaml:"unhealthy,omitempty"`
 }
 
-// UpstreamActiveHealthCheckHealthy defines the conditions to judge whether
-// an upstream node is healthy with the active manner.
+// UpstreamActiveHealthCheckHealthy defines the conditions used to actively determine whether an upstream node is healthy.
 // +k8s:deepcopy-gen=true
 type UpstreamActiveHealthCheckHealthy struct {
 	UpstreamPassiveHealthCheckHealthy `json:",inline" yaml:",inline"`
 
+	// Interval defines the time interval for checking targets, in seconds.
 	Interval int `json:"interval,omitempty" yaml:"interval,omitempty"`
 }
 
-// UpstreamPassiveHealthCheckHealthy defines the conditions to judge whether
-// an upstream node is healthy with the passive manner.
+// UpstreamPassiveHealthCheckHealthy defines the conditions used to passively determine whether an upstream node is unhealthy.
 // +k8s:deepcopy-gen=true
 type UpstreamPassiveHealthCheckHealthy struct {
 	HTTPStatuses []int `json:"http_statuses,omitempty" yaml:"http_statuses,omitempty"`
 	Successes    int   `json:"successes,omitempty" yaml:"successes,omitempty"`
 }
 
-// UpstreamActiveHealthCheckUnhealthy defines the conditions to judge whether
-// an upstream node is unhealthy with the active manager.
+// UpstreamActiveHealthCheckUnhealthy defines the conditions used to actively determine whether an upstream node is unhealthy.
 // +k8s:deepcopy-gen=true
 type UpstreamActiveHealthCheckUnhealthy struct {
 	UpstreamPassiveHealthCheckUnhealthy `json:",inline" yaml:",inline"`
 
+	// Interval defines the time interval for checking targets, in seconds.
 	Interval int `json:"interval,omitempty" yaml:"interval,omitempty"`
 }
 
-// UpstreamPassiveHealthCheckUnhealthy defines the conditions to judge whether
-// an upstream node is unhealthy with the passive manager.
+// UpstreamPassiveHealthCheckUnhealthy defines the conditions used to passively determine whether an upstream node is unhealthy.
 // +k8s:deepcopy-gen=true
 type UpstreamPassiveHealthCheckUnhealthy struct {
 	HTTPStatuses []int `json:"http_statuses,omitempty" yaml:"http_statuses,omitempty"`

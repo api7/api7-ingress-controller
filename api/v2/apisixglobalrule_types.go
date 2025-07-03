@@ -38,11 +38,12 @@ type ApisixGlobalRuleStatus = ApisixStatus
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:shortName=agr
 
-// ApisixGlobalRule is the Schema for the apisixglobalrules API.
+// ApisixGlobalRule defines configuration for global plugins.
 type ApisixGlobalRule struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// ApisixGlobalRuleSpec defines the global plugin configuration.
 	Spec   ApisixGlobalRuleSpec   `json:"spec,omitempty"`
 	Status ApisixGlobalRuleStatus `json:"status,omitempty"`
 }

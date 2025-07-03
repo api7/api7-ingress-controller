@@ -25,7 +25,7 @@ import (
 
 // TimeDuration is yet another time.Duration but implements json.Unmarshaler
 // and json.Marshaler, yaml.Unmarshaler and yaml.Marshaler interfaces so one
-// can use "1h", "5s" and etc in their json/yaml configurations.
+// can use "1h", "5s" and etc in their json/yaml configuration.
 //
 // Note the format to represent time is same as time.Duration.
 // See the comments about time.ParseDuration for more details.

@@ -111,7 +111,7 @@ func Run(ctx context.Context, logger logr.Logger) error {
 
 	if cfg.SecureMetrics {
 		// FilterProvider is used to protect the metrics endpoint with authn/authz.
-		// These configurations ensure that only authorized users and service accounts
+		// These configuration ensure that only authorized users and service accounts
 		// can access the metrics endpoint. The RBAC are configured in 'config/rbac/kustomization.yaml'. More info:
 		// https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.4/pkg/metrics/filters#WithAuthenticationAndAuthorization
 		metricsServerOptions.FilterProvider = filters.WithAuthenticationAndAuthorization
