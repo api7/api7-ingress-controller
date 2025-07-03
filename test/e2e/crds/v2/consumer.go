@@ -286,14 +286,17 @@ spec:
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "test-consumer"}, &apiv2.ApisixConsumer{}, basicAuth)
 
 			By("verify ApisixRoute with ApisixConsumer")
-			Eventually(request).WithArguments("/get", "invalid-username", "invalid-password").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusUnauthorized))
+			Eventually(request).WithArguments("/get", "invalid-username", "invalid-password").
+				WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusUnauthorized))
 
 			Eventually(request).WithArguments("/get", "test-user", "test-password").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 
 			By("Delete ApisixConsumer")
 			err := s.DeleteResource("ApisixConsumer", "test-consumer")
 			Expect(err).ShouldNot(HaveOccurred(), "deleting ApisixConsumer")
-			Eventually(request).WithArguments("/get", "test-user", "test-password").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusUnauthorized))
+			Eventually(request).WithArguments("/get", "test-user", "test-password").
+				WithTimeout(5 * time.Second).ProbeEvery(time.Second).
+				Should(Equal(http.StatusUnauthorized))
 
 			By("delete ApisixRoute")
 			err = s.DeleteResource("ApisixRoute", "default")
@@ -321,12 +324,16 @@ spec:
 			Expect(err).ShouldNot(HaveOccurred(), "updating Secret for ApisixConsumer")
 
 			Eventually(request).WithArguments("/get", "foo", "bar").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusUnauthorized))
-			Eventually(request).WithArguments("/get", "foo-new-user", "bar-new-password").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+			Eventually(request).WithArguments("/get", "foo-new-user", "bar-new-password").
+				WithTimeout(5 * time.Second).ProbeEvery(time.Second).
+				Should(Equal(http.StatusOK))
 
 			By("Delete ApisixConsumer")
 			err = s.DeleteResource("ApisixConsumer", "test-consumer")
 			Expect(err).ShouldNot(HaveOccurred(), "deleting ApisixConsumer")
-			Eventually(request).WithArguments("/get", "foo-new-user", "bar-new-password").WithTimeout(5 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusUnauthorized))
+			Eventually(request).WithArguments("/get", "foo-new-user", "bar-new-password").
+				WithTimeout(5 * time.Second).ProbeEvery(time.Second).
+				Should(Equal(http.StatusUnauthorized))
 
 			By("delete ApisixRoute")
 			err = s.DeleteResource("ApisixRoute", "default")

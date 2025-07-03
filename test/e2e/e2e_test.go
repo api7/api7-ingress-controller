@@ -25,7 +25,8 @@ import (
 	. "github.com/onsi/gomega"
 
 	_ "github.com/apache/apisix-ingress-controller/test/e2e/api7"
-	_ "github.com/apache/apisix-ingress-controller/test/e2e/crds"
+	_ "github.com/apache/apisix-ingress-controller/test/e2e/crds/v1alpha1"
+	_ "github.com/apache/apisix-ingress-controller/test/e2e/crds/v2"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	_ "github.com/apache/apisix-ingress-controller/test/e2e/gatewayapi"
 	_ "github.com/apache/apisix-ingress-controller/test/e2e/ingress"
@@ -38,9 +39,7 @@ func TestE2E(t *testing.T) {
 	f := framework.NewFramework()
 
 	// init newDeployer function
-	scaffold.NewDeployer = func(s *scaffold.Scaffold) scaffold.Deployer {
-		return scaffold.NewAPI7Deployer(s)
-	}
+	scaffold.NewDeployer = scaffold.NewAPI7Deployer
 
 	BeforeSuite(f.BeforeSuite)
 	AfterSuite(f.AfterSuite)
