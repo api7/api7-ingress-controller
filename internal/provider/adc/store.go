@@ -244,3 +244,28 @@ func (s *Store) GetResources(name string) (*adctypes.Resources, error) {
 		PluginMetadata: metadata,
 	}, nil
 }
+
+func (s *Store) ListGlobalRules(name string) (*adctypes.GlobalRule, error) {
+	s.Lock()
+	defer s.Unlock()
+
+	var globalrule adctypes.GlobalRule
+	targetCache, ok := s.cacheMap[name]
+	if !ok {
+		return &globalrule, nil
+	}
+	// Get all global rules from cache and merge them
+	globalRuleItems, _ := targetCache.ListGlobalRules()
+	if len(globalRuleItems) > 0 {
+		merged := make(adctypes.Plugins)
+		for _, item := range globalRuleItems {
+			for k, v := range item.Plugins {
+				merged[k] = v
+			}
+		}
+		globalrule = adctypes.GlobalRule(merged)
+	}
+	log.Debugw("get resources global rule items", zap.Any("globalRuleItems", globalRuleItems))
+
+	return &globalrule, nil
+}

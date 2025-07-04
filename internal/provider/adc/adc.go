@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"slices"
 	"sync"
 	"time"
 
@@ -353,6 +354,34 @@ func (d *adcClient) sync(ctx context.Context, task Task) error {
 		return errors.New("no adc configs provided")
 	}
 
+	// for global rules, we need to list all global rules and set it to the task resources
+	if slices.Contains(task.ResourceTypes, "global_rule") {
+		for _, config := range task.configs {
+			globalRules, err := d.store.ListGlobalRules(config.Name)
+			if err != nil {
+				return err
+			}
+			task.Resources.GlobalRules = *globalRules
+			log.Debugw("syncing resources global rules", zap.Any("globalRules", task.Resources.GlobalRules))
+
+			syncFilePath, cleanup, err := prepareSyncFile(task.Resources)
+			if err != nil {
+				return err
+			}
+			defer cleanup()
+
+			args := BuildADCExecuteArgs(syncFilePath, task.Labels, task.ResourceTypes)
+
+			if err := d.executor.Execute(ctx, d.BackendMode, config, args); err != nil {
+				log.Errorw("failed to execute adc command", zap.Error(err), zap.Any("config", config))
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	// every task resources is the same, so we can use the first config to prepare the sync file
 	syncFilePath, cleanup, err := prepareSyncFile(task.Resources)
 	if err != nil {
 		return err
