@@ -378,7 +378,7 @@ spec:
         control-plane: controller-manager
     spec:
       containers:
-      - image: apache/apisix-ingress-controller:dev
+      - image: api7/api7-ingress-controller:dev
         env:
         - name: POD_NAMESPACE
           valueFrom:

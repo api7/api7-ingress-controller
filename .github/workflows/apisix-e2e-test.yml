@@ -21,11 +21,11 @@ on:
   push:
     branches:
       - master
-      - next
+      - release-v2-dev
   pull_request:
     branches:
       - master
-      - next
+      - release-v2-dev
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -34,7 +34,7 @@ concurrency:
 jobs:
   prepare:
     name: Prepare
-    runs-on: ubuntu-latest
+    runs-on: buildjet-2vcpu-ubuntu-2204
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -61,7 +61,7 @@ jobs:
         - apisix.apache.org
         - networking.k8s.io
       fail-fast: false
-    runs-on: ubuntu-latest
+    runs-on: buildjet-2vcpu-ubuntu-2204
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -86,7 +86,7 @@ jobs:
       - name: Extract adc binary
         run: |
           echo "Extracting adc binary..."
-          docker create --name adc-temp apache/apisix-ingress-controller:dev
+          docker create --name adc-temp api7/api7-ingress-controller:dev
           docker cp adc-temp:/bin/adc /usr/local/bin/adc
           docker rm adc-temp
           chmod +x /usr/local/bin/adc

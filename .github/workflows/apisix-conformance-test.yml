@@ -21,11 +21,11 @@ on:
   push:
     branches:
       - master
-      - next
+      - release-v2-dev
   pull_request:
     branches:
       - master
-      - next
+      - release-v2-dev
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -34,7 +34,7 @@ concurrency:
 jobs:
   prepare:
     name: Prepare
-    runs-on: ubuntu-latest
+    runs-on: buildjet-2vcpu-ubuntu-2204
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -58,7 +58,7 @@ jobs:
         provider_type:
         - apisix-standalone
         - apisix
-    runs-on: ubuntu-latest
+    runs-on: buildjet-2vcpu-ubuntu-2204
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -124,3 +124,11 @@ jobs:
           echo '```yaml' >> report.md
           cat apisix-ingress-controller-conformance-report.yaml >> report.md
           echo '```' >> report.md
+
+      - name: Report Conformance Test Result to PR Comment
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: mshick/add-pr-comment@v2
+        with:
+          message-id: 'apisix-conformance-test-report'
+          message-path: |
+            report.md

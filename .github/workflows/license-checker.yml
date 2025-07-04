@@ -22,15 +22,15 @@ on:
   push:
     branches:
       - master
+      - release-v2-dev
   pull_request:
     branches:
       - master
-      - next
-      - 1.8.0
+      - release-v2-dev
 
 jobs:
   check-license:
-    runs-on: ubuntu-latest
+    runs-on: buildjet-2vcpu-ubuntu-2204
 
     steps:
       - uses: actions/checkout@v4

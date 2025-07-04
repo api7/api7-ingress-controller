@@ -51,7 +51,7 @@ func NewDefaultConfig() *Config {
 		LeaderElection:   NewLeaderElection(),
 		ExecADCTimeout:   types.TimeDuration{Duration: 15 * time.Second},
 		ProviderConfig: ProviderConfig{
-			Type:          ProviderTypeAPISIX,
+			Type:          ProviderTypeAPI7EE,
 			SyncPeriod:    types.TimeDuration{Duration: 1 * time.Second},
 			InitSyncDelay: types.TimeDuration{Duration: 20 * time.Minute},
 		},
@@ -122,6 +122,8 @@ func validateProvider(config ProviderConfig) error {
 		if config.SyncPeriod.Duration <= 0 {
 			return fmt.Errorf("sync_period must be greater than 0 for standalone provider")
 		}
+		return nil
+	case ProviderTypeAPI7EE:
 		return nil
 	default:
 		return fmt.Errorf("unsupported provider type: %s", config.Type)
