@@ -38,7 +38,7 @@ type ApisixRouteSpec struct {
 	// Each rule specifies conditions to match HTTP requests and how to forward them.
 	HTTP []ApisixRouteHTTP `json:"http,omitempty" yaml:"http,omitempty"`
 	// Stream defines a list of stream route rules.
-	// Each rule specifies conditions to match TCP/UDP traffic and how to forward it.
+	// Each rule specifies conditions to match TCP/UDP traffic and how to forward them.
 	Stream []ApisixRouteStream `json:"stream,omitempty" yaml:"stream,omitempty"`
 }
 
@@ -86,7 +86,7 @@ type ApisixRouteHTTP struct {
 	// Match defines the HTTP request matching criteria.
 	Match ApisixRouteHTTPMatch `json:"match,omitempty" yaml:"match,omitempty"`
 	// Backends lists potential backend services to proxy requests to.
-	// If more than one backend is specified, the traffic-split plugin is used
+	// If more than one backend is specified, the `traffic-split` plugin is used
 	// to distribute traffic according to backend weights.
 	Backends []ApisixRouteHTTPBackend `json:"backends,omitempty" yaml:"backends,omitempty"`
 	// Upstreams references ApisixUpstream CRDs.
@@ -106,17 +106,17 @@ type ApisixRouteHTTP struct {
 	Authentication ApisixRouteAuthentication `json:"authentication,omitempty" yaml:"authentication,omitempty"`
 }
 
-// ApisixRouteStream defines configuration for a Layer 4 (TCP/UDP) route.
+// ApisixRouteStream defines the configuration for a Layer 4 (TCP/UDP) route.
 type ApisixRouteStream struct {
-	// Name is the unique rule name and cannot be empty.
+	// Name is a unique identifier for the route. This field must not be empty.
 	Name string `json:"name" yaml:"name"`
-	// Protocol specifies the network protocol (e.g., "tcp", "udp").
+	// Protocol specifies the L4 protocol to match. Can be `tcp` or `udp`.
 	Protocol string `json:"protocol" yaml:"protocol"`
-	// Match defines the matching criteria for the stream route.
+	// Match defines the criteria used to match incoming TCP or UDP connections.
 	Match ApisixRouteStreamMatch `json:"match" yaml:"match"`
-	// Backend specifies the backend service to proxy traffic to.
+	// Backend specifies the destination service to which traffic should be forwarded.
 	Backend ApisixRouteStreamBackend `json:"backend" yaml:"backend"`
-	// Plugins lists additional plugins applied to this stream route.
+	// Plugins defines a list of plugins to apply to this route.
 	Plugins []ApisixRoutePlugin `json:"plugins,omitempty" yaml:"plugins,omitempty"`
 }
 
@@ -130,42 +130,33 @@ type UpstreamTimeout struct {
 	Read metav1.Duration `json:"read,omitempty" yaml:"read,omitempty"`
 }
 
-// ApisixRouteHTTPMatch represents the matching conditions for routing HTTP traffic.
+// ApisixRouteHTTPMatch defines the conditions used to match incoming HTTP requests.
 type ApisixRouteHTTPMatch struct {
-	// Paths is a list of URI path predicates.
-	// At least one path is required.
-	// Paths can be exact or prefix matches.
-	// For prefix matches, append "*" to the path, e.g., "/foo*".
+	// Paths is a list of URI path patterns to match.
+	// At least one path must be specified.
+	// Supports exact matches and prefix matches.
+	// For prefix matches, append `*` to the path, such as `/foo*`.
 	Paths []string `json:"paths" yaml:"paths"`
 
-	// Methods specifies HTTP request methods to match, e.g., GET, POST.
+	// Methods specifies the HTTP methods to match.
 	Methods []string `json:"methods,omitempty" yaml:"methods,omitempty"`
 
-	// Hosts defines HTTP Host header predicates.
-	// Hosts can be exact domains or wildcard domains.
-	// Only one generic wildcard level is allowed, e.g., "*.foo.com" is valid, "*.*.foo.com" is not.
+	// Hosts specifies Host header values to match.
+	// Supports exact and wildcard domains.
+	// Only one level of wildcard is allowed (e.g., `*.example.com` is valid,
+	// but `*.*.example.com` is not).
 	Hosts []string `json:"hosts,omitempty" yaml:"hosts,omitempty"`
 
-	// RemoteAddrs is a list of remote IP addresses or CIDR ranges to match.
+	// RemoteAddrs is a list of source IP addresses or CIDR ranges to match.
 	// Supports both IPv4 and IPv6 formats.
 	RemoteAddrs []string `json:"remoteAddrs,omitempty" yaml:"remoteAddrs,omitempty"`
 
-    // NginxVars represents predicates based on standard Nginx variables.
-    // These include variables for request headers, query parameters, remote IP, and other Nginx runtime data.
-	// For example:
-	// ```
-	// nginxVars:
-	//   - subject: "$remote_addr"
-	//     op: in
-	//     value:
-	//       - "127.0.0.1"
-	//       - "10.0.5.11"
-	// ```
+	// NginxVars defines match conditions based on Nginx variables.
 	NginxVars ApisixRouteHTTPMatchExprs `json:"exprs,omitempty" yaml:"exprs,omitempty"`
 
-	// FilterFunc is a user-defined filtering function for advanced matching.
-	// The function receives `vars` parameter that can access Nginx variables.
-	// This configuration option is only available in APISIX, not in API7 Enterprise.
+	// FilterFunc is a user-defined function for advanced request filtering.
+	// The function can use Nginx variables through the `vars` parameter.
+	// This field is supported in APISIX but not in API7 Enterprise.
 	FilterFunc string `json:"filter_func,omitempty" yaml:"filter_func,omitempty"`
 }
 
@@ -184,23 +175,24 @@ type ApisixRoutePlugin struct {
 	SecretRef string `json:"secretRef" yaml:"secretRef"`
 }
 
-// ApisixRouteHTTPBackend represents an HTTP backend (a Kubernetes Service).
+// ApisixRouteHTTPBackend represents an HTTP backend (Kubernetes Service).
 type ApisixRouteHTTPBackend struct {
-	// The name (short) of the service, note cross namespace is forbidden,
-	// so be sure the ApisixRoute and Service are in the same namespace.
+	// ServiceName is the name of the Kubernetes Service.
+	// Cross-namespace references are not supported—ensure the ApisixRoute
+	// and the Service are in the same namespace.
 	ServiceName string `json:"serviceName" yaml:"serviceName"`
-	// The service port, could be the name or the port number.
+	// ServicePort is the port of the Kubernetes Service.
+	// This can be either the port name or port number.
 	ServicePort intstr.IntOrString `json:"servicePort" yaml:"servicePort"`
-	// The resolve granularity, can be "endpoints" or "service",
-	// when set to "endpoints", the pod ips will be used; other
-	// wise, the service ClusterIP or ExternalIP will be used,
-	// default is endpoints.
+	// ResolveGranularity determines how the backend service is resolved.
+	// Valid values are `endpoints` and `service`. When set to `endpoints`,
+	// individual pod IPs will be used; otherwise, the Service's ClusterIP or ExternalIP is used.
+	// The default is `endpoints`.
 	ResolveGranularity string `json:"resolveGranularity,omitempty" yaml:"resolveGranularity,omitempty"`
-	// Weight of this backend.
-	// +kubebuilder:validation:Optional
+	// Weight specifies the relative traffic weight for this backend.
 	Weight *int `json:"weight" yaml:"weight"`
-	// Subset specifies a subset for the target Service. The subset should be pre-defined
-	// in ApisixUpstream about this service.
+	// Subset specifies a named subset of the target Service.
+	// The subset must be pre-defined in the corresponding ApisixUpstream resource.
 	Subset string `json:"subset,omitempty" yaml:"subset,omitempty"`
 }
 
@@ -228,7 +220,7 @@ type ApisixRouteAuthentication struct {
 	LDAPAuth ApisixRouteAuthenticationLDAPAuth `json:"ldapAuth,omitempty" yaml:"ldapAuth,omitempty"`
 }
 
-// ApisixRouteStreamMatch represents the match conditions for a stream route.
+// ApisixRouteStreamMatch represents the matching conditions for a stream route.
 type ApisixRouteStreamMatch struct {
 	// IngressPort is the port on which the APISIX Ingress proxy server listens.
 	// This must be a statically configured port, as APISIX does not support dynamic port binding.
@@ -237,40 +229,43 @@ type ApisixRouteStreamMatch struct {
 	Host string `json:"host,omitempty" yaml:"host,omitempty"`
 }
 
-// ApisixRouteStreamBackend represents a TCP backend (a Kubernetes Service).
+// ApisixRouteStreamBackend represents the backend service for a TCP or UDP stream route.
 type ApisixRouteStreamBackend struct {
-	// The name (short) of the service, note cross namespace is forbidden,
-	// so be sure the ApisixRoute and Service are in the same namespace.
+	// ServiceName is the name of the Kubernetes Service.
+	// Cross-namespace references are not supported—ensure the ApisixRoute
+	// and the Service are in the same namespace.
 	ServiceName string `json:"serviceName" yaml:"serviceName"`
-	// The service port, could be the name or the port number.
+	// ServicePort is the port of the Kubernetes Service.
+	// This can be either the port name or port number.
 	ServicePort intstr.IntOrString `json:"servicePort" yaml:"servicePort"`
-	// The resolve granularity, can be "endpoints" or "service",
-	// when set to "endpoints", the pod ips will be used; other
-	// wise, the service ClusterIP or ExternalIP will be used,
-	// default is endpoints.
+	// ResolveGranularity determines how the backend service is resolved.
+	// Valid values are `endpoints` and `service`. When set to `endpoints`,
+	// individual pod IPs will be used; otherwise, the Service's ClusterIP or ExternalIP is used.
+	// The default is `endpoints`.
 	ResolveGranularity string `json:"resolveGranularity,omitempty" yaml:"resolveGranularity,omitempty"`
-	// Subset specifies a subset for the target Service. The subset should be pre-defined
-	// in ApisixUpstream about this service.
+	// Subset specifies a named subset of the target Service.
+	// The subset must be pre-defined in the corresponding ApisixUpstream resource.
 	Subset string `json:"subset,omitempty" yaml:"subset,omitempty"`
 }
 
 // ApisixRouteHTTPMatchExpr represents a binary expression used to match requests based on Nginx variables.
 type ApisixRouteHTTPMatchExpr struct {
 	// Subject defines the left-hand side of the expression.
-	// It can be any Nginx variable or literal string, such as `$remote_addr` or `$http_user_agent`.
+	// It can be any [built-in variable](/apisix/reference/built-in-variables) or string literal.
 	Subject ApisixRouteHTTPMatchExprSubject `json:"subject" yaml:"subject"`
 
 	// Op specifies the operator used in the expression.
-	// See [APISIX expressions](/apisix/reference/apisix-expressions) for more information.
+	// Can be `Equal`, `NotEqual`, `GreaterThan`, `GreaterThanEqual`, `LessThan`, `LessThanEqual`, `RegexMatch`,
+	// `RegexNotMatch`, `RegexMatchCaseInsensitive`, `RegexNotMatchCaseInsensitive`, `In`, or `NotIn`.
 	Op string `json:"op" yaml:"op"`
 
 	// Set provides a list of acceptable values for the expression.
-	// This should be used when Op is `in` or `not_in`.
+	// This should be used when Op is `In` or `NotIn`.
 	// +kubebuilder:validation:Optional
 	Set []string `json:"set" yaml:"set"`
 
 	// Value defines a single value to compare against the subject.
-	// This should be used when Op is not `in` or `not_in`.
+	// This should be used when Op is not `In` or `NotIn`.
 	// Set and Value are mutually exclusive—only one should be set at a time.
 	// +kubebuilder:validation:Optional
 	Value *string `json:"value" yaml:"value"`
@@ -399,10 +394,10 @@ type ApisixRouteAuthenticationLDAPAuth struct {
 	UID string `json:"uid,omitempty" yaml:"uid,omitempty"`
 }
 
-// ApisixRouteHTTPMatchExprSubject describes the subject of a route match expression.
+// ApisixRouteHTTPMatchExprSubject describes the subject of a route matching expression.
 type ApisixRouteHTTPMatchExprSubject struct {
 	// Scope specifies the subject scope and can be `Header`, `Query`, or `Path`.
-	// When Scope is `Path`, `Name` will be ignored.
+	// When Scope is `Path`, Name will be ignored.
 	Scope string `json:"scope" yaml:"scope"`
 	// Name is the name of the header or query parameter.
 	Name string `json:"name" yaml:"name"`

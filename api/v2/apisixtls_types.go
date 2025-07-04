@@ -21,8 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// ApisixTlsSpec defines the desired state of an ApisixTls resource,
-// which configures TLS termination for specified hosts in Apache APISIX.
+// ApisixTlsSpec defines configurations for TLS and mutual TLS.
 type ApisixTlsSpec struct {
 	// IngressClassName specifies which IngressClass this resource is associated with.
 	// The APISIX controller only processes this resource if the class matches its own.
@@ -97,7 +96,7 @@ type ApisixMutualTlsClientConfig struct {
 	CASecret ApisixSecret `json:"caSecret,omitempty" yaml:"caSecret,omitempty"`
 	// Depth specifies the maximum verification depth for the client certificate chain.
 	Depth int `json:"depth,omitempty" yaml:"depth,omitempty"`
-	// SkipMTLSUriRegex contains regex patterns for URIs to skip mutual TLS verification.
+	// SkipMTLSUriRegex contains RegEx patterns for URIs to skip mutual TLS verification.
 	SkipMTLSUriRegex []string `json:"skip_mtls_uri_regex,omitempty" yaml:"skip_mtls_uri_regex,omitempty"`
 }
 

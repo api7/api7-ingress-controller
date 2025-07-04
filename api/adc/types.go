@@ -316,7 +316,7 @@ type TrafficSplitConfigRuleWeightedUpstream struct {
 	// UpstreamID is the identifier of a pre-defined upstream.
 	UpstreamID string `json:"upstream_id,omitempty"`
 
-	// Upstream specifies an inline upstream configuration.
+	// Upstream specifies upstream configuration.
 	// If provided, it overrides UpstreamID.
 	Upstream *Upstream `json:"upstream,omitempty"`
 

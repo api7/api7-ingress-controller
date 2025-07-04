@@ -94,16 +94,17 @@ type ApisixUpstreamExternalNode struct {
 	Port *int `json:"port,omitempty" yaml:"port"`
 }
 
-// ApisixUpstreamConfig defines advanced configuration options for the APISIX Upstream.
-// It includes settings for load balancing, retries, timeouts, TLS, health checks, and more.
+// ApisixUpstreamConfig defines configuration for upstream services.
 type ApisixUpstreamConfig struct {
-	// LoadBalancer defines the load balancing strategy used for routing traffic to backend nodes.
-	// The default strategy is round-robin.
-	// +kubebuilder:validation:Optional
+	// LoadBalancer specifies the load balancing algorithms to route traffic to the backend.
+	// Default is `roundrobin`.
+	// Can be `roundrobin`, `chash`, `ewma`, or `least_conn`.
+	// +kubebuilder:validation:Enum=roundrobin;chash;ewma;least_conn;
 	LoadBalancer *LoadBalancer `json:"loadbalancer,omitempty" yaml:"loadbalancer,omitempty"`
 
-	// Scheme specifies the protocol used to communicate with the upstream.
-	// Supported values: http, https, grpc, grpcs.
+	// Scheme is the protocol used to communicate with the upstream.
+	// Default is `http`.
+	// Can be `http`, `https`, `grpc`, or `grpcs`.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Enum=http;https;grpc;grpcs;
 	Scheme string `json:"scheme,omitempty" yaml:"scheme,omitempty"`
@@ -135,10 +136,10 @@ type ApisixUpstreamConfig struct {
 	// PassHost configures how the host header should be determined when a
 	// request is forwarded to the upstream.
 	// Default is `pass`.
-	// Can be `pass`, `node` or `rewrite`.
-	// - `pass`: preserve the original Host header
-	// - `node`: use the upstream node’s host
-	// - `rewrite`: set to a custom host via upstreamHost
+	// Can be `pass`, `node` or `rewrite`:
+	// * `pass`: preserve the original Host header
+	// * `node`: use the upstream node’s host
+	// * `rewrite`: set to a custom host via upstreamHost
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Enum=pass;node;rewrite;
 	PassHost string `json:"passHost,omitempty" yaml:"passHost,omitempty"`
@@ -159,7 +160,7 @@ type ApisixUpstreamConfig struct {
 type PortLevelSettings struct {
 	ApisixUpstreamConfig `json:",inline" yaml:",inline"`
 
-	// Port is a Kubernetes Service port, it should be already defined.
+	// Port is a Kubernetes Service port.
 	Port int32 `json:"port" yaml:"port"`
 }
 
@@ -168,7 +169,7 @@ type ApisixUpstreamExternalType string
 
 // LoadBalancer defines the load balancing strategy for distributing traffic across upstream nodes.
 type LoadBalancer struct {
-	// Type specifies the load balancing algorithms.
+	// Type specifies the load balancing algorithms to route traffic to the backend.
 	// Default is `roundrobin`.
 	// Can be `roundrobin`, `chash`, `ewma`, or `least_conn`.
 	// +kubebuilder:validation:Enum=roundrobin;chash;ewma;least_conn;
@@ -212,7 +213,7 @@ type ApisixUpstreamSubset struct {
 type Discovery struct {
 	// ServiceName is the name of the service to discover.
 	ServiceName string `json:"serviceName" yaml:"serviceName"`
-	// Type is the name of the service discovery provider (e.g., "nacos", "consul", "eureka").
+	// Type is the name of the service discovery provider.
 	Type string `json:"type" yaml:"type"`
 	// Args contains additional configuration parameters required by the discovery provider.
 	// These are passed as key-value pairs.

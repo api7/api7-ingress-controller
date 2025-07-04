@@ -62,11 +62,10 @@ type BackendTrafficPolicySpec struct {
 
 	// PassHost configures how the host header should be determined when a
 	// request is forwarded to the upstream.
-	// Default is `pass`.
-	// Can be `pass`, `node` or `rewrite`.
-	// - `pass`: preserve the original Host header
-	// - `node`: use the upstream node’s host
-	// - `rewrite`: set to a custom host via upstreamHost
+	// Default is `pass`. Can be `pass`, `node` or `rewrite`:
+	// * `pass`: preserve the original Host header
+	// * `node`: use the upstream node’s host
+	// * `rewrite`: set to a custom host via `upstreamHost`
 	//
 	// +kubebuilder:validation:Enum=pass;node;rewrite;
 	// +kubebuilder:default=pass
@@ -80,7 +79,7 @@ type BackendTrafficPolicySpec struct {
 // LoadBalancer describes the load balancing parameters.
 // +kubebuilder:validation:XValidation:rule="!(has(self.key) && self.type != 'chash')"
 type LoadBalancer struct {
-	// Type specifies the load balancing algorithms.
+	// Type specifies the load balancing algorithms to route traffic to the backend.
 	// Default is `roundrobin`.
 	// Can be `roundrobin`, `chash`, `ewma`, or `least_conn`.
 	// +kubebuilder:validation:Enum=roundrobin;chash;ewma;least_conn;

@@ -178,7 +178,7 @@ _Appears in:_
 | `scheme` _string_ | Scheme is the protocol used to communicate with the upstream. Default is `http`. Can be `http`, `https`, `grpc`, or `grpcs`. |
 | `retries` _integer_ | Retries specify the number of times the gateway should retry sending requests when errors such as timeouts or 502 errors occur. |
 | `timeout` _[Timeout](#timeout)_ | Timeout sets the read, send, and connect timeouts to the upstream. |
-| `passHost` _string_ | PassHost configures how the host header should be determined when a request is forwarded to the upstream. Default is `pass`. Can be `pass`, `node` or `rewrite`. - `pass`: preserve the original Host header - `node`: use the upstream node’s host - `rewrite`: set to a custom host via upstreamHost |
+| `passHost` _string_ | PassHost configures how the host header should be determined when a request is forwarded to the upstream. Default is `pass`. Can be `pass`, `node` or `rewrite`:<br /> • `pass`: preserve the original Host header<br /> • `node`: use the upstream node’s host<br /> • `rewrite`: set to a custom host via `upstreamHost` |
 | `upstreamHost` _[Hostname](#hostname)_ | UpstreamHost specifies the host of the Upstream request. Used only if passHost is set to `rewrite`. |
 
 
@@ -364,7 +364,7 @@ LoadBalancer describes the load balancing parameters.
 
 | Field | Description |
 | --- | --- |
-| `type` _string_ | Type specifies the load balancing algorithms. Default is `roundrobin`. Can be `roundrobin`, `chash`, `ewma`, or `least_conn`. |
+| `type` _string_ | Type specifies the load balancing algorithms to route traffic to the backend. Default is `roundrobin`. Can be `roundrobin`, `chash`, `ewma`, or `least_conn`. |
 | `hashOn` _string_ | HashOn specified the type of field used for hashing, required when type is `chash`. Default is `vars`. Can be `vars`, `header`, `cookie`, `consumer`, or `vars_combinations`. |
 | `key` _string_ | Key is used with HashOn, generally required when type is `chash`. When HashOn is `header` or `cookie`, specifies the name of the header or cookie. When HashOn is `consumer`, key is not required, as the consumer name is used automatically. When HashOn is `vars` or `vars_combinations`, key refers to one or a combination of [built-in variables](/enterprise/reference/built-in-variables). |
 
@@ -698,7 +698,7 @@ ApisixConsumerBasicAuth defines configuration for basic authentication.
 | Field | Description |
 | --- | --- |
 | `secretRef` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#localobjectreference-v1-core)_ | SecretRef references a Kubernetes Secret containing the basic authentication credentials. |
-| `value` _[ApisixConsumerBasicAuthValue](#apisixconsumerbasicauthvalue)_ | Value specifies the basic auth credentials. |
+| `value` _[ApisixConsumerBasicAuthValue](#apisixconsumerbasicauthvalue)_ | Value specifies the basic authentication credentials. |
 
 
 _Appears in:_
@@ -730,7 +730,7 @@ ApisixConsumerHMACAuth defines configuration for the HMAC authentication.
 | Field | Description |
 | --- | --- |
 | `secretRef` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#localobjectreference-v1-core)_ | SecretRef references a Kubernetes Secret containing the HMAC credentials. |
-| `value` _[ApisixConsumerHMACAuthValue](#apisixconsumerhmacauthvalue)_ | Value specifies the inline HMAC authentication credentials. |
+| `value` _[ApisixConsumerHMACAuthValue](#apisixconsumerhmacauthvalue)_ | Value specifies HMAC authentication credentials. |
 
 
 _Appears in:_
@@ -769,7 +769,7 @@ ApisixConsumerJwtAuth defines configuration for JWT authentication.
 | Field | Description |
 | --- | --- |
 | `secretRef` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#localobjectreference-v1-core)_ | SecretRef references a Kubernetes Secret containing JWT authentication credentials. |
-| `value` _[ApisixConsumerJwtAuthValue](#apisixconsumerjwtauthvalue)_ | Value specifies the inline JWT authentication credentials. |
+| `value` _[ApisixConsumerJwtAuthValue](#apisixconsumerjwtauthvalue)_ | Value specifies JWT authentication credentials. |
 
 
 _Appears in:_
@@ -788,7 +788,7 @@ ApisixConsumerJwtAuthValue defines configuration for JWT authentication.
 | `secret` _string_ | Secret is the shared secret used to sign the JWT (for symmetric algorithms). |
 | `public_key` _string_ | PublicKey is the public key used to verify JWT signatures (for asymmetric algorithms). |
 | `private_key` _string_ | PrivateKey is the private key used to sign the JWT (for asymmetric algorithms). |
-| `algorithm` _string_ | Algorithm specifies the signing algorithm. Can be `HS256`, `HS384`, `HS512`, `RS256`, `RS384`, `RS512`, `ES256`, `ES384`, `ES512`, `PS256`, `PS384`, `PS512`, or `EdDSA`. Currently APISIX only supports `HS256`, `HS512`, `RS256`, and `ES256`. Enterprise supports all algorithms. |
+| `algorithm` _string_ | Algorithm specifies the signing algorithm. Can be `HS256`, `HS384`, `HS512`, `RS256`, `RS384`, `RS512`, `ES256`, `ES384`, `ES512`, `PS256`, `PS384`, `PS512`, or `EdDSA`. Currently APISIX only supports `HS256`, `HS512`, `RS256`, and `ES256`. API7 Enterprise supports all algorithms. |
 | `exp` _integer_ | Exp is the token expiration period in seconds. |
 | `base64_secret` _boolean_ | Base64Secret indicates whether the secret is base64-encoded. |
 | `lifetime_grace_period` _integer_ | LifetimeGracePeriod is the allowed clock skew in seconds for token expiration. |
@@ -838,7 +838,7 @@ ApisixConsumerLDAPAuth defines configuration for the LDAP authentication.
 | Field | Description |
 | --- | --- |
 | `secretRef` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#localobjectreference-v1-core)_ | SecretRef references a Kubernetes Secret containing the LDAP credentials. |
-| `value` _[ApisixConsumerLDAPAuthValue](#apisixconsumerldapauthvalue)_ | Value specifies the inline LDAP authentication credentials. |
+| `value` _[ApisixConsumerLDAPAuthValue](#apisixconsumerldapauthvalue)_ | Value specifies LDAP authentication credentials. |
 
 
 _Appears in:_
@@ -868,8 +868,8 @@ ApisixConsumerSpec defines the desired state of ApisixConsumer.
 
 | Field | Description |
 | --- | --- |
-| `ingressClassName` _string_ | IngressClassName is the name of an IngressClass cluster resource. controller implementations use this field to know whether they should be serving this ApisixConsumer resource, by a transitive connection (controller -> IngressClass -> ApisixConsumer resource). |
-| `authParameter` _[ApisixConsumerAuthParameter](#apisixconsumerauthparameter)_ |  |
+| `ingressClassName` _string_ | IngressClassName is the name of an IngressClass cluster resource. The controller uses this field to decide whether the resource should be managed. |
+| `authParameter` _[ApisixConsumerAuthParameter](#apisixconsumerauthparameter)_ | AuthParameter defines the authentication credentials and configuration for this consumer. |
 
 
 _Appears in:_
@@ -911,14 +911,14 @@ _Appears in:_
 #### ApisixGlobalRuleSpec
 
 
-ApisixGlobalRuleSpec defines the desired state of ApisixGlobalRule.
+ApisixGlobalRuleSpec defines configuration for global plugins.
 
 
 
 | Field | Description |
 | --- | --- |
-| `ingressClassName` _string_ | IngressClassName is the name of an IngressClass cluster resource. The controller uses this field to decide whether the resource should be managed or not. |
-| `plugins` _[ApisixRoutePlugin](#apisixrouteplugin) array_ | Plugins contains a list of ApisixRoutePlugin |
+| `ingressClassName` _string_ | IngressClassName is the name of an IngressClass cluster resource. The controller uses this field to decide whether the resource should be managed. |
+| `plugins` _[ApisixRoutePlugin](#apisixrouteplugin) array_ | Plugins contain a list of global plugins. |
 
 
 _Appears in:_
@@ -935,7 +935,7 @@ ApisixMutualTlsClientConfig describes the mutual TLS CA and verification setting
 | --- | --- |
 | `caSecret` _[ApisixSecret](#apisixsecret)_ | CASecret references the secret containing the CA certificate for client certificate validation. |
 | `depth` _integer_ | Depth specifies the maximum verification depth for the client certificate chain. |
-| `skip_mtls_uri_regex` _string array_ | SkipMTLSUriRegex contains regex patterns for URIs to skip mutual TLS verification. |
+| `skip_mtls_uri_regex` _string array_ | SkipMTLSUriRegex contains RegEx patterns for URIs to skip mutual TLS verification. |
 
 
 _Appears in:_
@@ -950,7 +950,7 @@ ApisixPluginConfigSpec defines the desired state of ApisixPluginConfigSpec.
 
 | Field | Description |
 | --- | --- |
-| `ingressClassName` _string_ | IngressClassName is the name of an IngressClass cluster resource. The controller uses this field to decide whether the resource should be managed or not. |
+| `ingressClassName` _string_ | IngressClassName is the name of an IngressClass cluster resource. The controller uses this field to decide whether the resource should be managed. |
 | `plugins` _[ApisixRoutePlugin](#apisixrouteplugin) array_ | Plugins contain a list of plugins. |
 
 
@@ -1039,7 +1039,7 @@ ApisixRouteHTTP represents a single HTTP route configuration.
 | `priority` _integer_ | Priority defines the route priority when multiple routes share the same URI path. Higher values mean higher priority in route matching. |
 | `timeout` _[UpstreamTimeout](#upstreamtimeout)_ | Timeout specifies upstream timeout settings. |
 | `match` _[ApisixRouteHTTPMatch](#apisixroutehttpmatch)_ | Match defines the HTTP request matching criteria. |
-| `backends` _[ApisixRouteHTTPBackend](#apisixroutehttpbackend) array_ | Backends lists potential backend services to proxy requests to. If more than one backend is specified, the traffic-split plugin is used to distribute traffic according to backend weights. |
+| `backends` _[ApisixRouteHTTPBackend](#apisixroutehttpbackend) array_ | Backends lists potential backend services to proxy requests to. If more than one backend is specified, the `traffic-split` plugin is used to distribute traffic according to backend weights. |
 | `upstreams` _[ApisixRouteUpstreamReference](#apisixrouteupstreamreference) array_ | Upstreams references ApisixUpstream CRDs. |
 | `websocket` _boolean_ | Websocket enables or disables websocket support for this route. |
 | `plugin_config_name` _string_ | PluginConfigName specifies the name of the plugin config to apply. |
@@ -1054,17 +1054,17 @@ _Appears in:_
 #### ApisixRouteHTTPBackend
 
 
-ApisixRouteHTTPBackend represents an HTTP backend (a Kubernetes Service).
+ApisixRouteHTTPBackend represents an HTTP backend (Kubernetes Service).
 
 
 
 | Field | Description |
 | --- | --- |
-| `serviceName` _string_ | The name (short) of the service, note cross namespace is forbidden, so be sure the ApisixRoute and Service are in the same namespace. |
-| `servicePort` _[IntOrString](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#intorstring-intstr-util)_ | The service port, could be the name or the port number. |
-| `resolveGranularity` _string_ | The resolve granularity, can be "endpoints" or "service", when set to "endpoints", the pod ips will be used; other wise, the service ClusterIP or ExternalIP will be used, default is endpoints. |
-| `weight` _integer_ | Weight of this backend. |
-| `subset` _string_ | Subset specifies a subset for the target Service. The subset should be pre-defined in ApisixUpstream about this service. |
+| `serviceName` _string_ | ServiceName is the name of the Kubernetes Service. Cross-namespace references are not supported—ensure the ApisixRoute and the Service are in the same namespace. |
+| `servicePort` _[IntOrString](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#intorstring-intstr-util)_ | ServicePort is the port of the Kubernetes Service. This can be either the port name or port number. |
+| `resolveGranularity` _string_ | ResolveGranularity determines how the backend service is resolved. Valid values are `endpoints` and `service`. When set to `endpoints`, individual pod IPs will be used; otherwise, the Service's ClusterIP or ExternalIP is used. The default is `endpoints`. |
+| `weight` _integer_ | Weight specifies the relative traffic weight for this backend. |
+| `subset` _string_ | Subset specifies a named subset of the target Service. The subset must be pre-defined in the corresponding ApisixUpstream resource. |
 
 
 _Appears in:_
@@ -1073,18 +1073,18 @@ _Appears in:_
 #### ApisixRouteHTTPMatch
 
 
-ApisixRouteHTTPMatch represents the matching conditions for routing HTTP traffic.
+ApisixRouteHTTPMatch defines the conditions used to match incoming HTTP requests.
 
 
 
 | Field | Description |
 | --- | --- |
-| `paths` _string array_ | Paths is a list of URI path predicates. At least one path is required. Paths can be exact or prefix matches. For prefix matches, append "*" to the path, e.g., "/foo*". |
-| `methods` _string array_ | Methods specifies HTTP request methods to match, e.g., GET, POST. |
-| `hosts` _string array_ | Hosts defines HTTP Host header predicates. Hosts can be exact domains or wildcard domains. Only one generic wildcard level is allowed, e.g., "*.foo.com" is valid, "*.*.foo.com" is not. |
-| `remoteAddrs` _string array_ | RemoteAddrs is a list of remote IP addresses or CIDR ranges to match. Supports both IPv4 and IPv6 formats. |
-| `exprs` _[ApisixRouteHTTPMatchExprs](#apisixroutehttpmatchexprs)_ | NginxVars represents predicates based on standard Nginx variables. These include variables for request headers, query parameters, remote IP, and other Nginx runtime data. For example: ``` nginxVars:   - subject: "$remote_addr"     op: in     value:       - "127.0.0.1"       - "10.0.5.11" ``` |
-| `filter_func` _string_ | FilterFunc is a user-defined filtering function for advanced matching. The function receives `vars` parameter that can access Nginx variables. This configuration option is only available in APISIX, not in API7 Enterprise. |
+| `paths` _string array_ | Paths is a list of URI path patterns to match. At least one path must be specified. Supports exact matches and prefix matches. For prefix matches, append `*` to the path, such as `/foo*`. |
+| `methods` _string array_ | Methods specifies the HTTP methods to match. |
+| `hosts` _string array_ | Hosts specifies Host header values to match. Supports exact and wildcard domains. Only one level of wildcard is allowed (e.g., `*.example.com` is valid, but `*.*.example.com` is not). |
+| `remoteAddrs` _string array_ | RemoteAddrs is a list of source IP addresses or CIDR ranges to match. Supports both IPv4 and IPv6 formats. |
+| `exprs` _[ApisixRouteHTTPMatchExprs](#apisixroutehttpmatchexprs)_ | NginxVars defines match conditions based on Nginx variables. |
+| `filter_func` _string_ | FilterFunc is a user-defined function for advanced request filtering. The function can use Nginx variables through the `vars` parameter. This field is supported in APISIX but not in API7 Enterprise. |
 
 
 _Appears in:_
@@ -1099,10 +1099,10 @@ ApisixRouteHTTPMatchExpr represents a binary expression used to match requests b
 
 | Field | Description |
 | --- | --- |
-| `subject` _[ApisixRouteHTTPMatchExprSubject](#apisixroutehttpmatchexprsubject)_ | Subject defines the left-hand side of the expression. It can be any Nginx variable or literal string, such as `$remote_addr` or `$http_user_agent`. |
-| `op` _string_ | Op specifies the operator used in the expression. See [APISIX expressions](/apisix/reference/apisix-expressions) for more information. |
-| `set` _string array_ | Set provides a list of acceptable values for the expression. This should be used when Op is `in` or `not_in`. |
-| `value` _string_ | Value defines a single value to compare against the subject. This should be used when Op is not `in` or `not_in`. Set and Value are mutually exclusive—only one should be set at a time. |
+| `subject` _[ApisixRouteHTTPMatchExprSubject](#apisixroutehttpmatchexprsubject)_ | Subject defines the left-hand side of the expression. It can be any [built-in variable](/apisix/reference/built-in-variables) or string literal. |
+| `op` _string_ | Op specifies the operator used in the expression. Can be `Equal`, `NotEqual`, `GreaterThan`, `GreaterThanEqual`, `LessThan`, `LessThanEqual`, `RegexMatch`, `RegexNotMatch`, `RegexMatchCaseInsensitive`, `RegexNotMatchCaseInsensitive`, `In`, or `NotIn`. |
+| `set` _string array_ | Set provides a list of acceptable values for the expression. This should be used when Op is `In` or `NotIn`. |
+| `value` _string_ | Value defines a single value to compare against the subject. This should be used when Op is not `In` or `NotIn`. Set and Value are mutually exclusive—only one should be set at a time. |
 
 
 _Appears in:_
@@ -1111,13 +1111,13 @@ _Appears in:_
 #### ApisixRouteHTTPMatchExprSubject
 
 
-ApisixRouteHTTPMatchExprSubject describes the subject of a route match expression.
+ApisixRouteHTTPMatchExprSubject describes the subject of a route matching expression.
 
 
 
 | Field | Description |
 | --- | --- |
-| `scope` _string_ | Scope specifies the subject scope and can be `Header`, `Query`, or `Path`. When Scope is `Path`, `Name` will be ignored. |
+| `scope` _string_ | Scope specifies the subject scope and can be `Header`, `Query`, or `Path`. When Scope is `Path`, Name will be ignored. |
 | `name` _string_ | Name is the name of the header or query parameter. |
 
 
@@ -1133,10 +1133,10 @@ _Base type:_ `[ApisixRouteHTTPMatchExpr](#apisixroutehttpmatchexpr)`
 
 | Field | Description |
 | --- | --- |
-| `subject` _[ApisixRouteHTTPMatchExprSubject](#apisixroutehttpmatchexprsubject)_ | Subject defines the left-hand side of the expression. It can be any Nginx variable or literal string, such as `$remote_addr` or `$http_user_agent`. |
-| `op` _string_ | Op specifies the operator used in the expression. See [APISIX expressions](/apisix/reference/apisix-expressions) for more information. |
-| `set` _string array_ | Set provides a list of acceptable values for the expression. This should be used when Op is `in` or `not_in`. |
-| `value` _string_ | Value defines a single value to compare against the subject. This should be used when Op is not `in` or `not_in`. Set and Value are mutually exclusive—only one should be set at a time. |
+| `subject` _[ApisixRouteHTTPMatchExprSubject](#apisixroutehttpmatchexprsubject)_ | Subject defines the left-hand side of the expression. It can be any [built-in variable](/apisix/reference/built-in-variables) or string literal. |
+| `op` _string_ | Op specifies the operator used in the expression. Can be `Equal`, `NotEqual`, `GreaterThan`, `GreaterThanEqual`, `LessThan`, `LessThanEqual`, `RegexMatch`, `RegexNotMatch`, `RegexMatchCaseInsensitive`, `RegexNotMatchCaseInsensitive`, `In`, or `NotIn`. |
+| `set` _string array_ | Set provides a list of acceptable values for the expression. This should be used when Op is `In` or `NotIn`. |
+| `value` _string_ | Value defines a single value to compare against the subject. This should be used when Op is not `In` or `NotIn`. Set and Value are mutually exclusive—only one should be set at a time. |
 
 
 _Appears in:_
@@ -1177,7 +1177,7 @@ It defines routing rules for both HTTP and stream traffic.
 | --- | --- |
 | `ingressClassName` _string_ | IngressClassName is the name of the IngressClass this route belongs to. It allows multiple controllers to watch and reconcile different routes. |
 | `http` _[ApisixRouteHTTP](#apisixroutehttp) array_ | HTTP defines a list of HTTP route rules. Each rule specifies conditions to match HTTP requests and how to forward them. |
-| `stream` _[ApisixRouteStream](#apisixroutestream) array_ | Stream defines a list of stream route rules. Each rule specifies conditions to match TCP/UDP traffic and how to forward it. |
+| `stream` _[ApisixRouteStream](#apisixroutestream) array_ | Stream defines a list of stream route rules. Each rule specifies conditions to match TCP/UDP traffic and how to forward them. |
 
 
 _Appears in:_
@@ -1186,17 +1186,17 @@ _Appears in:_
 #### ApisixRouteStream
 
 
-ApisixRouteStream defines configuration for a Layer 4 (TCP/UDP) route.
+ApisixRouteStream defines the configuration for a Layer 4 (TCP/UDP) route.
 
 
 
 | Field | Description |
 | --- | --- |
-| `name` _string_ | Name is the unique rule name and cannot be empty. |
-| `protocol` _string_ | Protocol specifies the network protocol (e.g., "tcp", "udp"). |
-| `match` _[ApisixRouteStreamMatch](#apisixroutestreammatch)_ | Match defines the matching criteria for the stream route. |
-| `backend` _[ApisixRouteStreamBackend](#apisixroutestreambackend)_ | Backend specifies the backend service to proxy traffic to. |
-| `plugins` _[ApisixRoutePlugin](#apisixrouteplugin) array_ | Plugins lists additional plugins applied to this stream route. |
+| `name` _string_ | Name is a unique identifier for the route. This field must not be empty. |
+| `protocol` _string_ | Protocol specifies the L4 protocol to match. Can be `tcp` or `udp`. |
+| `match` _[ApisixRouteStreamMatch](#apisixroutestreammatch)_ | Match defines the criteria used to match incoming TCP or UDP connections. |
+| `backend` _[ApisixRouteStreamBackend](#apisixroutestreambackend)_ | Backend specifies the destination service to which traffic should be forwarded. |
+| `plugins` _[ApisixRoutePlugin](#apisixrouteplugin) array_ | Plugins defines a list of plugins to apply to this route. |
 
 
 _Appears in:_
@@ -1205,16 +1205,16 @@ _Appears in:_
 #### ApisixRouteStreamBackend
 
 
-ApisixRouteStreamBackend represents a TCP backend (a Kubernetes Service).
+ApisixRouteStreamBackend represents the backend service for a TCP or UDP stream route.
 
 
 
 | Field | Description |
 | --- | --- |
-| `serviceName` _string_ | The name (short) of the service, note cross namespace is forbidden, so be sure the ApisixRoute and Service are in the same namespace. |
-| `servicePort` _[IntOrString](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#intorstring-intstr-util)_ | The service port, could be the name or the port number. |
-| `resolveGranularity` _string_ | The resolve granularity, can be "endpoints" or "service", when set to "endpoints", the pod ips will be used; other wise, the service ClusterIP or ExternalIP will be used, default is endpoints. |
-| `subset` _string_ | Subset specifies a subset for the target Service. The subset should be pre-defined in ApisixUpstream about this service. |
+| `serviceName` _string_ | ServiceName is the name of the Kubernetes Service. Cross-namespace references are not supported—ensure the ApisixRoute and the Service are in the same namespace. |
+| `servicePort` _[IntOrString](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#intorstring-intstr-util)_ | ServicePort is the port of the Kubernetes Service. This can be either the port name or port number. |
+| `resolveGranularity` _string_ | ResolveGranularity determines how the backend service is resolved. Valid values are `endpoints` and `service`. When set to `endpoints`, individual pod IPs will be used; otherwise, the Service's ClusterIP or ExternalIP is used. The default is `endpoints`. |
+| `subset` _string_ | Subset specifies a named subset of the target Service. The subset must be pre-defined in the corresponding ApisixUpstream resource. |
 
 
 _Appears in:_
@@ -1223,7 +1223,7 @@ _Appears in:_
 #### ApisixRouteStreamMatch
 
 
-ApisixRouteStreamMatch represents the match conditions for a stream route.
+ApisixRouteStreamMatch represents the matching conditions for a stream route.
 
 
 
@@ -1291,8 +1291,7 @@ _Appears in:_
 #### ApisixTlsSpec
 
 
-ApisixTlsSpec defines the desired state of an ApisixTls resource,
-which configures TLS termination for specified hosts in Apache APISIX.
+ApisixTlsSpec defines configurations for TLS and mutual TLS.
 
 
 
@@ -1310,21 +1309,20 @@ _Appears in:_
 #### ApisixUpstreamConfig
 
 
-ApisixUpstreamConfig defines advanced configuration options for the APISIX Upstream.
-It includes settings for load balancing, retries, timeouts, TLS, health checks, and more.
+ApisixUpstreamConfig defines configuration for upstream services.
 
 
 
 | Field | Description |
 | --- | --- |
-| `loadbalancer` _[LoadBalancer](#loadbalancer)_ | LoadBalancer defines the load balancing strategy used for routing traffic to backend nodes. The default strategy is round-robin. |
-| `scheme` _string_ | Scheme specifies the protocol used to communicate with the upstream. Supported values: http, https, grpc, grpcs. |
+| `loadbalancer` _[LoadBalancer](#loadbalancer)_ | LoadBalancer specifies the load balancing algorithms to route traffic to the backend. Default is `roundrobin`. Can be `roundrobin`, `chash`, `ewma`, or `least_conn`. |
+| `scheme` _string_ | Scheme is the protocol used to communicate with the upstream. Default is `http`. Can be `http`, `https`, `grpc`, or `grpcs`. |
 | `retries` _integer_ | Retries defines the number of retry attempts APISIX should make when a failure occurs. Failures include timeouts, network errors, or 5xx status codes. |
 | `timeout` _[UpstreamTimeout](#upstreamtimeout)_ | Timeout specifies the connection, send, and read timeouts for upstream requests. |
 | `healthCheck` _[HealthCheck](#healthcheck)_ | HealthCheck defines the active and passive health check configuration for the upstream. Deprecated: no longer supported in standalone mode. |
 | `tlsSecret` _[ApisixSecret](#apisixsecret)_ | TLSSecret references a Kubernetes Secret that contains the client certificate and key for mutual TLS when connecting to the upstream. |
 | `subsets` _[ApisixUpstreamSubset](#apisixupstreamsubset) array_ | Subsets defines labeled subsets of service endpoints, typically used for service versioning or canary deployments. |
-| `passHost` _string_ | PassHost configures how the host header should be determined when a request is forwarded to the upstream. Default is `pass`. Can be `pass`, `node` or `rewrite`. - `pass`: preserve the original Host header - `node`: use the upstream node’s host - `rewrite`: set to a custom host via upstreamHost |
+| `passHost` _string_ | PassHost configures how the host header should be determined when a request is forwarded to the upstream. Default is `pass`. Can be `pass`, `node` or `rewrite`:<br /> • `pass`: preserve the original Host header<br /> • `node`: use the upstream node’s host<br /> • `rewrite`: set to a custom host via upstreamHost |
 | `upstreamHost` _string_ | UpstreamHost sets a custom Host header when passHost is set to `rewrite`. |
 | `discovery` _[Discovery](#discovery)_ | Discovery configures service discovery for the upstream. Deprecated: no longer supported in standalone mode. |
 
@@ -1377,14 +1375,14 @@ definitions and custom configuration.
 | --- | --- |
 | `ingressClassName` _string_ | IngressClassName is the name of an IngressClass cluster resource. Controller implementations use this field to determine whether they should process this ApisixUpstream resource. |
 | `externalNodes` _[ApisixUpstreamExternalNode](#apisixupstreamexternalnode) array_ | ExternalNodes defines a static list of backend nodes located outside the cluster. When this field is set, the upstream will route traffic directly to these nodes without DNS resolution or service discovery. |
-| `loadbalancer` _[LoadBalancer](#loadbalancer)_ | LoadBalancer defines the load balancing strategy used for routing traffic to backend nodes. The default strategy is round-robin. |
-| `scheme` _string_ | Scheme specifies the protocol used to communicate with the upstream. Supported values: http, https, grpc, grpcs. |
+| `loadbalancer` _[LoadBalancer](#loadbalancer)_ | LoadBalancer specifies the load balancing algorithms to route traffic to the backend. Default is `roundrobin`. Can be `roundrobin`, `chash`, `ewma`, or `least_conn`. |
+| `scheme` _string_ | Scheme is the protocol used to communicate with the upstream. Default is `http`. Can be `http`, `https`, `grpc`, or `grpcs`. |
 | `retries` _integer_ | Retries defines the number of retry attempts APISIX should make when a failure occurs. Failures include timeouts, network errors, or 5xx status codes. |
 | `timeout` _[UpstreamTimeout](#upstreamtimeout)_ | Timeout specifies the connection, send, and read timeouts for upstream requests. |
 | `healthCheck` _[HealthCheck](#healthcheck)_ | HealthCheck defines the active and passive health check configuration for the upstream. Deprecated: no longer supported in standalone mode. |
 | `tlsSecret` _[ApisixSecret](#apisixsecret)_ | TLSSecret references a Kubernetes Secret that contains the client certificate and key for mutual TLS when connecting to the upstream. |
 | `subsets` _[ApisixUpstreamSubset](#apisixupstreamsubset) array_ | Subsets defines labeled subsets of service endpoints, typically used for service versioning or canary deployments. |
-| `passHost` _string_ | PassHost configures how the host header should be determined when a request is forwarded to the upstream. Default is `pass`. Can be `pass`, `node` or `rewrite`. - `pass`: preserve the original Host header - `node`: use the upstream node’s host - `rewrite`: set to a custom host via upstreamHost |
+| `passHost` _string_ | PassHost configures how the host header should be determined when a request is forwarded to the upstream. Default is `pass`. Can be `pass`, `node` or `rewrite`:<br /> • `pass`: preserve the original Host header<br /> • `node`: use the upstream node’s host<br /> • `rewrite`: set to a custom host via upstreamHost |
 | `upstreamHost` _string_ | UpstreamHost sets a custom Host header when passHost is set to `rewrite`. |
 | `discovery` _[Discovery](#discovery)_ | Discovery configures service discovery for the upstream. Deprecated: no longer supported in standalone mode. |
 | `portLevelSettings` _[PortLevelSettings](#portlevelsettings) array_ | PortLevelSettings allows fine-grained upstream configuration for specific ports, useful when a backend service exposes multiple ports with different behaviors or protocols. |
@@ -1422,7 +1420,7 @@ This is used when APISIX integrates with a service registry such as Nacos, Consu
 | Field | Description |
 | --- | --- |
 | `serviceName` _string_ | ServiceName is the name of the service to discover. |
-| `type` _string_ | Type is the name of the service discovery provider (e.g., "nacos", "consul", "eureka"). |
+| `type` _string_ | Type is the name of the service discovery provider. |
 | `args` _object (keys:string, values:string)_ | Args contains additional configuration parameters required by the discovery provider. These are passed as key-value pairs. |
 
 
@@ -1471,7 +1469,7 @@ LoadBalancer defines the load balancing strategy for distributing traffic across
 
 | Field | Description |
 | --- | --- |
-| `type` _string_ | Type specifies the load balancing algorithms. Default is `roundrobin`. Can be `roundrobin`, `chash`, `ewma`, or `least_conn`. |
+| `type` _string_ | Type specifies the load balancing algorithms to route traffic to the backend. Default is `roundrobin`. Can be `roundrobin`, `chash`, `ewma`, or `least_conn`. |
 | `hashOn` _string_ | HashOn specified the type of field used for hashing, required when type is `chash`. Default is `vars`. Can be `vars`, `header`, `cookie`, `consumer`, or `vars_combinations`. |
 | `key` _string_ | Key is used with HashOn, generally required when type is `chash`. When HashOn is `header` or `cookie`, specifies the name of the header or cookie. When HashOn is `consumer`, key is not required, as the consumer name is used automatically. When HashOn is `vars` or `vars_combinations`, key refers to one or a combination of [built-in variables](/enterprise/reference/built-in-variables). |
 
@@ -1547,17 +1545,17 @@ them if they are set on the port level.
 
 | Field | Description |
 | --- | --- |
-| `loadbalancer` _[LoadBalancer](#loadbalancer)_ | LoadBalancer defines the load balancing strategy used for routing traffic to backend nodes. The default strategy is round-robin. |
-| `scheme` _string_ | Scheme specifies the protocol used to communicate with the upstream. Supported values: http, https, grpc, grpcs. |
+| `loadbalancer` _[LoadBalancer](#loadbalancer)_ | LoadBalancer specifies the load balancing algorithms to route traffic to the backend. Default is `roundrobin`. Can be `roundrobin`, `chash`, `ewma`, or `least_conn`. |
+| `scheme` _string_ | Scheme is the protocol used to communicate with the upstream. Default is `http`. Can be `http`, `https`, `grpc`, or `grpcs`. |
 | `retries` _integer_ | Retries defines the number of retry attempts APISIX should make when a failure occurs. Failures include timeouts, network errors, or 5xx status codes. |
 | `timeout` _[UpstreamTimeout](#upstreamtimeout)_ | Timeout specifies the connection, send, and read timeouts for upstream requests. |
 | `healthCheck` _[HealthCheck](#healthcheck)_ | HealthCheck defines the active and passive health check configuration for the upstream. Deprecated: no longer supported in standalone mode. |
 | `tlsSecret` _[ApisixSecret](#apisixsecret)_ | TLSSecret references a Kubernetes Secret that contains the client certificate and key for mutual TLS when connecting to the upstream. |
 | `subsets` _[ApisixUpstreamSubset](#apisixupstreamsubset) array_ | Subsets defines labeled subsets of service endpoints, typically used for service versioning or canary deployments. |
-| `passHost` _string_ | PassHost configures how the host header should be determined when a request is forwarded to the upstream. Default is `pass`. Can be `pass`, `node` or `rewrite`. - `pass`: preserve the original Host header - `node`: use the upstream node’s host - `rewrite`: set to a custom host via upstreamHost |
+| `passHost` _string_ | PassHost configures how the host header should be determined when a request is forwarded to the upstream. Default is `pass`. Can be `pass`, `node` or `rewrite`:<br /> • `pass`: preserve the original Host header<br /> • `node`: use the upstream node’s host<br /> • `rewrite`: set to a custom host via upstreamHost |
 | `upstreamHost` _string_ | UpstreamHost sets a custom Host header when passHost is set to `rewrite`. |
 | `discovery` _[Discovery](#discovery)_ | Discovery configures service discovery for the upstream. Deprecated: no longer supported in standalone mode. |
-| `port` _integer_ | Port is a Kubernetes Service port, it should be already defined. |
+| `port` _integer_ | Port is a Kubernetes Service port. |
 
 
 _Appears in:_

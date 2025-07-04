@@ -25,11 +25,10 @@ import (
 // ApisixConsumerSpec defines the desired state of ApisixConsumer.
 type ApisixConsumerSpec struct {
 	// IngressClassName is the name of an IngressClass cluster resource.
-	// controller implementations use this field to know whether they should be
-	// serving this ApisixConsumer resource, by a transitive connection
-	// (controller -> IngressClass -> ApisixConsumer resource).
+	// The controller uses this field to decide whether the resource should be managed.
 	IngressClassName string `json:"ingressClassName,omitempty" yaml:"ingressClassName,omitempty"`
 
+	// AuthParameter defines the authentication credentials and configuration for this consumer.
 	AuthParameter ApisixConsumerAuthParameter `json:"authParameter" yaml:"authParameter"`
 }
 
@@ -78,7 +77,7 @@ type ApisixConsumerAuthParameter struct {
 type ApisixConsumerBasicAuth struct {
 	// SecretRef references a Kubernetes Secret containing the basic authentication credentials.
 	SecretRef *corev1.LocalObjectReference `json:"secretRef,omitempty" yaml:"secretRef,omitempty"`
-	// Value specifies the basic auth credentials.
+	// Value specifies the basic authentication credentials.
 	Value *ApisixConsumerBasicAuthValue `json:"value,omitempty" yaml:"value,omitempty"`
 }
 // ApisixConsumerBasicAuthValue defines the username and password configuration for basic authentication.
@@ -125,7 +124,7 @@ type ApisixConsumerWolfRBACValue struct {
 type ApisixConsumerJwtAuth struct {
 	// SecretRef references a Kubernetes Secret containing JWT authentication credentials.
 	SecretRef *corev1.LocalObjectReference `json:"secretRef,omitempty" yaml:"secretRef,omitempty"`
-	// Value specifies the inline JWT authentication credentials.
+	// Value specifies JWT authentication credentials.
 	Value *ApisixConsumerJwtAuthValue `json:"value,omitempty" yaml:"value,omitempty"`
 }
 
@@ -141,7 +140,7 @@ type ApisixConsumerJwtAuthValue struct {
 	PrivateKey string `json:"private_key" yaml:"private_key,omitempty"`
 	// Algorithm specifies the signing algorithm.
 	// Can be `HS256`, `HS384`, `HS512`, `RS256`, `RS384`, `RS512`, `ES256`, `ES384`, `ES512`, `PS256`, `PS384`, `PS512`, or `EdDSA`.
-	// Currently APISIX only supports `HS256`, `HS512`, `RS256`, and `ES256`. Enterprise supports all algorithms.
+	// Currently APISIX only supports `HS256`, `HS512`, `RS256`, and `ES256`. API7 Enterprise supports all algorithms.
 	Algorithm string `json:"algorithm,omitempty" yaml:"algorithm,omitempty"`
 	// Exp is the token expiration period in seconds.
 	Exp int64 `json:"exp,omitempty" yaml:"exp,omitempty"`
@@ -155,7 +154,7 @@ type ApisixConsumerJwtAuthValue struct {
 type ApisixConsumerHMACAuth struct {
 	// SecretRef references a Kubernetes Secret containing the HMAC credentials.
 	SecretRef *corev1.LocalObjectReference `json:"secretRef,omitempty" yaml:"secretRef,omitempty"`
-	// Value specifies the inline HMAC authentication credentials.
+	// Value specifies HMAC authentication credentials.
 	Value *ApisixConsumerHMACAuthValue `json:"value,omitempty" yaml:"value,omitempty"`
 }
 
@@ -185,7 +184,7 @@ type ApisixConsumerHMACAuthValue struct {
 type ApisixConsumerLDAPAuth struct {
 	// SecretRef references a Kubernetes Secret containing the LDAP credentials.
 	SecretRef *corev1.LocalObjectReference `json:"secretRef" yaml:"secret"`
-	// Value specifies the inline LDAP authentication credentials.
+	// Value specifies LDAP authentication credentials.
 	Value *ApisixConsumerLDAPAuthValue `json:"value,omitempty" yaml:"value,omitempty"`
 }
 

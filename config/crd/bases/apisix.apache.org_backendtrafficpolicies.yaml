@@ -71,7 +71,7 @@ spec:
                   type:
                     default: roundrobin
                     description: |-
-                      Type specifies the load balancing algorithms.
+                      Type specifies the load balancing algorithms to route traffic to the backend.
                       Default is `roundrobin`.
                       Can be `roundrobin`, `chash`, `ewma`, or `least_conn`.
                     enum:
@@ -90,11 +90,10 @@ spec:
                 description: |-
                   PassHost configures how the host header should be determined when a
                   request is forwarded to the upstream.
-                  Default is `pass`.
-                  Can be `pass`, `node` or `rewrite`.
-                  - `pass`: preserve the original Host header
-                  - `node`: use the upstream node’s host
-                  - `rewrite`: set to a custom host via upstreamHost
+                  Default is `pass`. Can be `pass`, `node` or `rewrite`:
+                  * `pass`: preserve the original Host header
+                  * `node`: use the upstream node’s host
+                  * `rewrite`: set to a custom host via `upstreamHost`
                 enum:
                 - pass
                 - node

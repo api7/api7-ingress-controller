@@ -57,8 +57,7 @@ spec:
                     description: ServiceName is the name of the service to discover.
                     type: string
                   type:
-                    description: Type is the name of the service discovery provider
-                      (e.g., "nacos", "consul", "eureka").
+                    description: Type is the name of the service discovery provider.
                     type: string
                 required:
                 - serviceName
@@ -260,8 +259,14 @@ spec:
                 type: string
               loadbalancer:
                 description: |-
-                  LoadBalancer defines the load balancing strategy used for routing traffic to backend nodes.
-                  The default strategy is round-robin.
+                  LoadBalancer specifies the load balancing algorithms to route traffic to the backend.
+                  Default is `roundrobin`.
+                  Can be `roundrobin`, `chash`, `ewma`, or `least_conn`.
+                enum:
+                - roundrobin
+                - chash
+                - ewma
+                - least_conn
                 properties:
                   hashOn:
                     default: vars
@@ -286,7 +291,7 @@ spec:
                   type:
                     default: roundrobin
                     description: |-
-                      Type specifies the load balancing algorithms.
+                      Type specifies the load balancing algorithms to route traffic to the backend.
                       Default is `roundrobin`.
                       Can be `roundrobin`, `chash`, `ewma`, or `least_conn`.
                     enum:
@@ -303,10 +308,10 @@ spec:
                   PassHost configures how the host header should be determined when a
                   request is forwarded to the upstream.
                   Default is `pass`.
-                  Can be `pass`, `node` or `rewrite`.
-                  - `pass`: preserve the original Host header
-                  - `node`: use the upstream node’s host
-                  - `rewrite`: set to a custom host via upstreamHost
+                  Can be `pass`, `node` or `rewrite`:
+                  * `pass`: preserve the original Host header
+                  * `node`: use the upstream node’s host
+                  * `rewrite`: set to a custom host via upstreamHost
                 enum:
                 - pass
                 - node
@@ -338,8 +343,7 @@ spec:
                           description: ServiceName is the name of the service to discover.
                           type: string
                         type:
-                          description: Type is the name of the service discovery provider
-                            (e.g., "nacos", "consul", "eureka").
+                          description: Type is the name of the service discovery provider.
                           type: string
                       required:
                       - serviceName
@@ -507,8 +511,14 @@ spec:
                       type: object
                     loadbalancer:
                       description: |-
-                        LoadBalancer defines the load balancing strategy used for routing traffic to backend nodes.
-                        The default strategy is round-robin.
+                        LoadBalancer specifies the load balancing algorithms to route traffic to the backend.
+                        Default is `roundrobin`.
+                        Can be `roundrobin`, `chash`, `ewma`, or `least_conn`.
+                      enum:
+                      - roundrobin
+                      - chash
+                      - ewma
+                      - least_conn
                       properties:
                         hashOn:
                           default: vars
@@ -533,7 +543,7 @@ spec:
                         type:
                           default: roundrobin
                           description: |-
-                            Type specifies the load balancing algorithms.
+                            Type specifies the load balancing algorithms to route traffic to the backend.
                             Default is `roundrobin`.
                             Can be `roundrobin`, `chash`, `ewma`, or `least_conn`.
                           enum:
@@ -550,18 +560,17 @@ spec:
                         PassHost configures how the host header should be determined when a
                         request is forwarded to the upstream.
                         Default is `pass`.
-                        Can be `pass`, `node` or `rewrite`.
-                        - `pass`: preserve the original Host header
-                        - `node`: use the upstream node’s host
-                        - `rewrite`: set to a custom host via upstreamHost
+                        Can be `pass`, `node` or `rewrite`:
+                        * `pass`: preserve the original Host header
+                        * `node`: use the upstream node’s host
+                        * `rewrite`: set to a custom host via upstreamHost
                       enum:
                       - pass
                       - node
                       - rewrite
                       type: string
                     port:
-                      description: Port is a Kubernetes Service port, it should be
-                        already defined.
+                      description: Port is a Kubernetes Service port.
                       format: int32
                       type: integer
                     retries:
@@ -572,8 +581,9 @@ spec:
                       type: integer
                     scheme:
                       description: |-
-                        Scheme specifies the protocol used to communicate with the upstream.
-                        Supported values: http, https, grpc, grpcs.
+                        Scheme is the protocol used to communicate with the upstream.
+                        Default is `http`.
+                        Can be `http`, `https`, `grpc`, or `grpcs`.
                       enum:
                       - http
                       - https
@@ -650,8 +660,9 @@ spec:
                 type: integer
               scheme:
                 description: |-
-                  Scheme specifies the protocol used to communicate with the upstream.
-                  Supported values: http, https, grpc, grpcs.
+                  Scheme is the protocol used to communicate with the upstream.
+                  Default is `http`.
+                  Can be `http`, `https`, `grpc`, or `grpcs`.
                 enum:
                 - http
                 - https

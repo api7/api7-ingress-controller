@@ -86,7 +86,7 @@ spec:
                       the client certificate chain.
                     type: integer
                   skip_mtls_uri_regex:
-                    description: SkipMTLSUriRegex contains regex patterns for URIs
+                    description: SkipMTLSUriRegex contains RegEx patterns for URIs
                       to skip mutual TLS verification.
                     items:
                       type: string

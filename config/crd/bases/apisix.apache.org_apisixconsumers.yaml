@@ -43,6 +43,8 @@ spec:
             description: ApisixConsumerSpec defines the consumer authentication configuration.
             properties:
               authParameter:
+                description: AuthParameter defines the authentication credentials
+                  and configuration for this consumer.
                 properties:
                   basicAuth:
                     description: BasicAuth configures the basic authentication details.
@@ -63,7 +65,7 @@ spec:
                         type: object
                         x-kubernetes-map-type: atomic
                       value:
-                        description: Value specifies the basic auth credentials.
+                        description: Value specifies the basic authentication credentials.
                         properties:
                           password:
                             description: Password is the basic authentication password.
@@ -95,8 +97,7 @@ spec:
                         type: object
                         x-kubernetes-map-type: atomic
                       value:
-                        description: Value specifies the inline HMAC authentication
-                          credentials.
+                        description: Value specifies HMAC authentication credentials.
                         properties:
                           access_key:
                             description: AccessKey is the identifier used to look
@@ -162,14 +163,13 @@ spec:
                         type: object
                         x-kubernetes-map-type: atomic
                       value:
-                        description: Value specifies the inline JWT authentication
-                          credentials.
+                        description: Value specifies JWT authentication credentials.
                         properties:
                           algorithm:
                             description: |-
                               Algorithm specifies the signing algorithm.
                               Can be `HS256`, `HS384`, `HS512`, `RS256`, `RS384`, `RS512`, `ES256`, `ES384`, `ES512`, `PS256`, `PS384`, `PS512`, or `EdDSA`.
-                              Currently APISIX only supports `HS256`, `HS512`, `RS256`, and `ES256`. Enterprise supports all algorithms.
+                              Currently APISIX only supports `HS256`, `HS512`, `RS256`, and `ES256`. API7 Enterprise supports all algorithms.
                             type: string
                           base64_secret:
                             description: Base64Secret indicates whether the secret
@@ -252,8 +252,7 @@ spec:
                         type: object
                         x-kubernetes-map-type: atomic
                       value:
-                        description: Value specifies the inline LDAP authentication
-                          credentials.
+                        description: Value specifies LDAP authentication credentials.
                         properties:
                           user_dn:
                             description: UserDN is the distinguished name (DN) of
@@ -304,9 +303,7 @@ spec:
               ingressClassName:
                 description: |-
                   IngressClassName is the name of an IngressClass cluster resource.
-                  controller implementations use this field to know whether they should be
-                  serving this ApisixConsumer resource, by a transitive connection
-                  (controller -> IngressClass -> ApisixConsumer resource).
+                  The controller uses this field to decide whether the resource should be managed.
                 type: string
             required:
             - authParameter
