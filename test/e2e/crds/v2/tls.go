@@ -126,6 +126,9 @@ var _ = Describe("Test ApisixTls", Label("apisix.apache.org", "v2", "apisixtls")
 			err = s.DeleteResourceFromStringWithNamespace(ingressClassYamlTls, "")
 			Expect(err).ShouldNot(HaveOccurred(), "deleting IngressClass")
 		})
+		normalizePEM := func(s string) string {
+			return strings.TrimSpace(s)
+		}
 
 		It("Basic ApisixTls test", func() {
 			const host = "api6.com"
@@ -252,11 +255,11 @@ spec:
 			assert.Nil(GinkgoT(), err, "list tls error")
 			assert.Len(GinkgoT(), tls, 1, "tls number not expect")
 			assert.Len(GinkgoT(), tls[0].Certificates, 1, "length of certificates not expect")
-			assert.Equal(GinkgoT(), serverCert, tls[0].Certificates[0].Certificate, "tls cert not expect")
+			assert.Equal(GinkgoT(), normalizePEM(serverCert), normalizePEM(tls[0].Certificates[0].Certificate), "tls cert not expect")
 			assert.ElementsMatch(GinkgoT(), []string{host}, tls[0].Snis)
 			assert.NotNil(GinkgoT(), tls[0].Client, "client configuration should not be nil")
 			assert.NotEmpty(GinkgoT(), tls[0].Client.CA, "client CA should not be empty")
-			assert.Equal(GinkgoT(), caCert, tls[0].Client.CA, "client CA should be test-ca-secret")
+			assert.Equal(GinkgoT(), normalizePEM(caCert), normalizePEM(tls[0].Client.CA), "client CA should be test-ca-secret")
 			assert.Equal(GinkgoT(), int64(1), *tls[0].Client.Depth, "client depth should be 1")
 		})
 

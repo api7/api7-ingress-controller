@@ -134,6 +134,8 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 	case *apiv2.ApisixConsumer:
 		result, err = d.translator.TranslateApisixConsumer(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "consumer")
+	case *v1alpha1.GatewayProxy:
+		return d.updateConfigForGatewayProxy(tctx, t)
 	}
 	if err != nil {
 		return err
@@ -194,7 +196,7 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 	// This mode is full synchronization,
 	// which only needs to be saved in cache
 	// and triggered by a timer for synchronization
-	if d.BackendMode == BackendModeAPISIXStandalone || d.BackendMode == BackendModeAPISIX || apiv2.Is(obj) {
+	if d.BackendMode == BackendModeAPISIXStandalone || d.BackendMode == BackendModeAPISIX {
 		return nil
 	}
 

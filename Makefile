@@ -29,7 +29,7 @@ KIND_NAME ?= apisix-ingress-cluster
 
 GATEAY_API_VERSION ?= v1.2.0
 DASHBOARD_VERSION ?= dev
-ADC_VERSION ?= 0.19.0
+ADC_VERSION ?= 0.20.0
 
 TEST_TIMEOUT ?= 80m
 TEST_DIR ?= ./test/e2e/

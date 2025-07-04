@@ -32,6 +32,7 @@ type Deployer interface {
 	CleanupAdditionalGateway(identifier string) error
 	GetAdminEndpoint(...*corev1.Service) string
 	DefaultDataplaneResource() DataplaneResource
+	Name() string
 }
 
 var NewDeployer func(*Scaffold) Deployer
@@ -42,4 +43,5 @@ type DeployDataplaneOptions struct {
 	SkipCreateTunnels bool
 	ServiceHTTPPort   int
 	ServiceHTTPSPort  int
+	Replicas          *int
 }

@@ -24,7 +24,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	_ "github.com/apache/apisix-ingress-controller/test/e2e/crds"
+	_ "github.com/apache/apisix-ingress-controller/test/e2e/crds/v1alpha1"
+	_ "github.com/apache/apisix-ingress-controller/test/e2e/crds/v2"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	_ "github.com/apache/apisix-ingress-controller/test/e2e/gatewayapi"
 	_ "github.com/apache/apisix-ingress-controller/test/e2e/ingress"
@@ -38,9 +39,7 @@ func TestAPISIXE2E(t *testing.T) {
 	_ = framework.NewFramework()
 
 	// init newDeployer function
-	scaffold.NewDeployer = func(s *scaffold.Scaffold) scaffold.Deployer {
-		return scaffold.NewAPISIXDeployer(s)
-	}
+	scaffold.NewDeployer = scaffold.NewAPISIXDeployer
 
 	_, _ = fmt.Fprintf(GinkgoWriter, "Starting APISIX standalone e2e suite\n")
 	RunSpecs(t, "apisix standalone e2e suite")
