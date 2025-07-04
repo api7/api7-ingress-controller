@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package apisix
+package e2e
 
 import (
 	"fmt"
@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	_ "github.com/apache/apisix-ingress-controller/test/e2e/api7"
 	_ "github.com/apache/apisix-ingress-controller/test/e2e/crds/v1alpha1"
 	_ "github.com/apache/apisix-ingress-controller/test/e2e/crds/v2"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
@@ -32,15 +33,17 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-// TestAPISIXE2E runs e2e tests using the APISIX standalone mode
-func TestAPISIXE2E(t *testing.T) {
+// Run e2e tests using the Ginkgo runner.
+func TestE2E(t *testing.T) {
 	RegisterFailHandler(Fail)
-	// init framework
-	_ = framework.NewFramework()
+	f := framework.NewFramework()
 
 	// init newDeployer function
-	scaffold.NewDeployer = scaffold.NewAPISIXDeployer
+	scaffold.NewDeployer = scaffold.NewAPI7Deployer
 
-	_, _ = fmt.Fprintf(GinkgoWriter, "Starting APISIX standalone e2e suite\n")
-	RunSpecs(t, "apisix standalone e2e suite")
+	BeforeSuite(f.BeforeSuite)
+	AfterSuite(f.AfterSuite)
+
+	_, _ = fmt.Fprintf(GinkgoWriter, "Starting apisix-ingress suite\n")
+	RunSpecs(t, "e2e suite")
 }

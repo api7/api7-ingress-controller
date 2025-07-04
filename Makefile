@@ -17,18 +17,20 @@
 
 # Image URL to use all building/pushing image targets
 
-VERSION ?= 2.0.0-rc1
+VERSION ?= 2.0.0
 
 RELEASE_SRC = apache-apisix-ingress-controller-${VERSION}-src
 
 IMAGE_TAG ?= dev
-IMG ?= apache/apisix-ingress-controller:$(IMAGE_TAG)
+
+IMG ?= api7/api7-ingress-controller:$(IMAGE_TAG)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.30.0
 KIND_NAME ?= apisix-ingress-cluster
 
 GATEAY_API_VERSION ?= v1.2.0
 ADC_VERSION ?= 0.20.0
+DASHBOARD_VERSION ?= dev
 
 TEST_TIMEOUT ?= 80m
 TEST_DIR ?= ./test/e2e/apisix/
@@ -127,12 +129,20 @@ kind-e2e-test: kind-up build-image kind-load-images e2e-test
 e2e-test:
 	go test $(TEST_DIR) -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)" -ginkgo.label-filter="$(TEST_LABEL)"
 
+.PHONY: download-api7ee3-chart
+download-api7ee3-chart:
+	@helm repo add api7 https://charts.api7.ai || true
+	@helm repo update
+	@helm pull api7/api7ee3 --destination "$(shell helm env HELM_REPOSITORY_CACHE)"
+	@echo "Downloaded API7EE3 chart"
+
 .PHONY: conformance-test
 conformance-test:
-	go test -v ./test/conformance -tags=conformance -timeout 60m
+	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test -v ./test/conformance -tags=conformance -timeout 60m
 
 .PHONY: conformance-test-standalone
 conformance-test-standalone:
+	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
 	go test -v ./test/conformance/apisix -tags=conformance -timeout 60m
 
 .PHONY: lint
@@ -158,8 +168,20 @@ kind-down:
 
 .PHONY: kind-load-images
 kind-load-images: pull-infra-images kind-load-ingress-image
+	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev --name $(KIND_NAME) 
+	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION)  --name $(KIND_NAME) 
+	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)  --name $(KIND_NAME) 
 	@kind load docker-image kennethreitz/httpbin:latest --name $(KIND_NAME) 
 	@kind load docker-image jmalloc/echo-server:latest --name $(KIND_NAME)
+
+.PHONY: kind-load-gateway-image
+kind-load-gateway-image:
+	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev --name $(KIND_NAME) 
+
+.PHONY: kind-load-dashboard-images
+kind-load-dashboard-images:
+	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
+	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
 
 .PHONY: kind-load-ingress-image
 kind-load-ingress-image:
@@ -167,6 +189,9 @@ kind-load-ingress-image:
 
 .PHONY: pull-infra-images
 pull-infra-images:
+	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev
+	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION) 
+	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)
 	@docker pull kennethreitz/httpbin:latest
 	@docker pull jmalloc/echo-server:latest
 

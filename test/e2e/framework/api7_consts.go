@@ -15,33 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package scaffold
+package framework
 
 import (
-	corev1 "k8s.io/api/core/v1"
+	_ "embed"
 )
 
-// Deployer defines the interface for deploying data plane components
-type Deployer interface {
-	DeployDataplane(opts DeployDataplaneOptions)
-	DeployIngress()
-	ScaleIngress(replicas int)
-	BeforeEach()
-	AfterEach()
-	CreateAdditionalGateway(namePrefix string) (string, *corev1.Service, error)
-	CleanupAdditionalGateway(identifier string) error
-	GetAdminEndpoint(...*corev1.Service) string
-	DefaultDataplaneResource() DataplaneResource
-	Name() string
-}
+const (
+	postgres     = "postgres"
+	oceanbase    = "oceanbase"
+	mysql        = "mysql"
+	postgresDSN  = "postgres://api7ee:changeme@api7-postgresql:5432/api7ee"
+	oceanbaseDSN = "mysql://root@tcp(oceanbase:2881)/api7ee"
+	mysqlDSN     = "mysql://root:changeme@tcp(mysql:3306)/api7ee"
+)
 
-var NewDeployer func(*Scaffold) Deployer
-
-type DeployDataplaneOptions struct {
-	Namespace         string
-	ServiceType       string
-	SkipCreateTunnels bool
-	ServiceHTTPPort   int
-	ServiceHTTPSPort  int
-	Replicas          *int
-}
+const (
+	DashboardEndpoint    = "http://api7ee3-dashboard.api7-ee-e2e:7080"
+	DashboardTLSEndpoint = "https://api7ee3-dashboard.api7-ee-e2e:7443"
+	DPManagerTLSEndpoint = "https://api7ee3-dp-manager.api7-ee-e2e:7943"
+)

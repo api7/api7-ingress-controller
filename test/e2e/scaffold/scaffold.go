@@ -59,6 +59,7 @@ type Scaffold struct {
 	kubectlOptions   *k8s.KubectlOptions
 	namespace        string
 	t                testing.TestingT
+	nodes            []corev1.Node
 	dataplaneService *corev1.Service
 	httpbinService   *corev1.Service
 

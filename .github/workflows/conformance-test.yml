@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: APISIX Conformance Test
+name: Conformance Test
 
 on:
   push:
@@ -43,21 +43,22 @@ jobs:
         id: go
         uses: actions/setup-go@v4
         with:
-          go-version: "1.23"
+          go-version: "1.22"
 
       - name: Install kind
         run: |
           go install sigs.k8s.io/kind@v0.23.0
 
+      - name: Install Helm
+        run: |
+          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+          chmod 700 get_helm.sh
+          ./get_helm.sh
+
   conformance-test:
     timeout-minutes: 60
     needs: 
       - prepare
-    strategy:
-      matrix:
-        provider_type:
-        - apisix-standalone
-        - apisix
     runs-on: buildjet-2vcpu-ubuntu-2204
     steps:
       - name: Checkout
@@ -68,7 +69,14 @@ jobs:
       - name: Setup Go Env
         uses: actions/setup-go@v4
         with:
-          go-version: "1.23"
+          go-version: "1.22"
+
+      - name: Login to Private Registry
+        uses: docker/login-action@v1
+        with:
+          registry: hkccr.ccs.tencentyun.com
+          username: ${{ secrets.PRIVATE_DOCKER_USERNAME }}
+          password: ${{ secrets.PRIVATE_DOCKER_PASSWORD }}
 
       - name: Build images
         env:
@@ -95,32 +103,37 @@ jobs:
 
       - name: Loading Docker Image to Kind Cluster
         run: |
-          make kind-load-ingress-image
+          make kind-load-images
+
+      - name: Install API7EE3
+        run: |
+          make download-api7ee3-chart
 
       - name: Run Conformance Test
         shell: bash
-        continue-on-error: true
         env:
-          PROVIDER_TYPE: ${{ matrix.provider_type }}
+          API7_EE_LICENSE: ${{ secrets.API7_EE_LICENSE }}
+        continue-on-error: true
         run: |
-          make conformance-test-standalone
+          make conformance-test
       
-      - name: Get Logs from apisix-ingress-controller
+      - name: Get Logs from api7-ingress-controller
         shell: bash
         run: |
+          export KUBECONFIG=/tmp/apisix-ingress-cluster.kubeconfig
           kubectl logs -n apisix-conformance-test -l app=apisix-ingress-controller
 
       - name: Upload Gateway API Conformance Report
         if: ${{ github.event_name == 'push' }}
         uses: actions/upload-artifact@v4
         with:
-          name: apisix-ingress-controller-conformance-report-${{ matrix.provider_type }}.yaml
+          name: apisix-ingress-controller-conformance-report.yaml
           path: apisix-ingress-controller-conformance-report.yaml
 
       - name: Format Conformance Test Report
         if: ${{ github.event_name == 'pull_request' }}
         run: |
-          echo '# conformance test report - ${{ matrix.provider_type }} mode' > report.md
+          echo '# conformance test report' > report.md
           echo '```yaml' >> report.md
           cat apisix-ingress-controller-conformance-report.yaml >> report.md
           echo '```' >> report.md
@@ -129,6 +142,6 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         uses: mshick/add-pr-comment@v2
         with:
-          message-id: 'apisix-conformance-test-report'
+          message-id: 'conformance-test-report'
           message-path: |
             report.md

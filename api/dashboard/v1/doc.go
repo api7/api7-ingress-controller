@@ -15,33 +15,4 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package scaffold
-
-import (
-	corev1 "k8s.io/api/core/v1"
-)
-
-// Deployer defines the interface for deploying data plane components
-type Deployer interface {
-	DeployDataplane(opts DeployDataplaneOptions)
-	DeployIngress()
-	ScaleIngress(replicas int)
-	BeforeEach()
-	AfterEach()
-	CreateAdditionalGateway(namePrefix string) (string, *corev1.Service, error)
-	CleanupAdditionalGateway(identifier string) error
-	GetAdminEndpoint(...*corev1.Service) string
-	DefaultDataplaneResource() DataplaneResource
-	Name() string
-}
-
-var NewDeployer func(*Scaffold) Deployer
-
-type DeployDataplaneOptions struct {
-	Namespace         string
-	ServiceType       string
-	SkipCreateTunnels bool
-	ServiceHTTPPort   int
-	ServiceHTTPSPort  int
-	Replicas          *int
-}
+package v1
