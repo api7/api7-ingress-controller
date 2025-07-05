@@ -360,8 +360,8 @@ func (d *adcClient) sync(ctx context.Context, task Task) error {
 	log.Debugw("syncing resources", zap.Any("task", task))
 
 	if len(task.configs) == 0 {
-		log.Errorw("no adc configs provided", zap.Any("task", task))
-		return errors.New("no adc configs provided")
+		log.Warnw("no adc configs provided", zap.Any("task", task))
+		return nil
 	}
 
 	// for global rules, we need to list all global rules and set it to the task resources
