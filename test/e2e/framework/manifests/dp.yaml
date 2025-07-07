@@ -158,7 +158,7 @@ metadata:
     app.kubernetes.io/name: apisix
   name: api7ee3-apisix{{- if .TLSEnabled }}-mtls{{- end }}
 spec:
-  replicas: 1
+  replicas: {{ default 1 .Replicas }}
   selector:
     matchLabels:
       app.kubernetes.io/instance: api7ee3

@@ -396,7 +396,18 @@ func (d *adcClient) sync(ctx context.Context, task Task) error {
 			if err != nil {
 				return err
 			}
-			task.Resources.GlobalRules = *globalRules
+			var globalrule adctypes.GlobalRule
+			if len(globalRules) > 0 {
+				merged := make(adctypes.Plugins)
+				for _, item := range globalRules {
+					for k, v := range item.Plugins {
+						merged[k] = v
+					}
+				}
+				globalrule = adctypes.GlobalRule(merged)
+			}
+
+			task.Resources.GlobalRules = globalrule
 			log.Debugw("syncing resources global rules", zap.Any("globalRules", task.Resources.GlobalRules))
 
 			syncFilePath, cleanup, err := prepareSyncFile(task.Resources)

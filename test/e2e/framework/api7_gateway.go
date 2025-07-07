@@ -59,6 +59,7 @@ type API7DeployOptions struct {
 	ServiceType      string
 	ServiceHTTPPort  int
 	ServiceHTTPSPort int
+	Replicas         *int
 }
 
 func (f *Framework) DeployGateway(opts API7DeployOptions) *corev1.Service {
