@@ -75,8 +75,8 @@ spec:
           value: "%s"
 `
 	getGatewayProxySpec := func() string {
-		if adminEndpoint := s.Deployer.GetAdminEndpoint(); strings.Contains(adminEndpoint, "api7ee3-dashboard") {
-			return fmt.Sprintf(gatewayProxyYamlAPI7, adminEndpoint, s.AdminKey())
+		if s.Deployer.Name() == "api7ee" {
+			return fmt.Sprintf(gatewayProxyYamlAPI7, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 		}
 		return fmt.Sprintf(gatewayProxyYaml, framework.ProviderType, s.AdminKey())
 	}

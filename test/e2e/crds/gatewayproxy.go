@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gruntwork-io/terratest/modules/k8s"
@@ -134,7 +133,7 @@ spec:
 `
 	BeforeEach(func() {
 		By("create GatewayProxy")
-		if strings.Contains(s.Deployer.GetAdminEndpoint(), "api7ee3-dashboard") {
+		if s.Deployer.Name() == "api7ee" {
 			err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxySpecAPI7, s.Deployer.GetAdminEndpoint(), s.AdminKey()))
 		} else {
 			err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxySpec, framework.ProviderType, s.AdminKey()))
@@ -163,6 +162,10 @@ spec:
 
 	Context("Test GatewayProxy update configs", func() {
 		It("scaling apisix pods to test that the controller watches endpoints", func() {
+			if s.Deployer.Name() == "api7ee" {
+				Skip("this case only for apisix/apisix-standalone mode")
+			}
+
 			By("scale apisix to replicas 2")
 			s.Deployer.DeployDataplane(scaffold.DeployDataplaneOptions{
 				Replicas: ptr.To(2),
