@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gruntwork-io/terratest/modules/k8s"
@@ -64,6 +65,29 @@ spec:
       headers:
         "X-Pod-Hostname": "$hostname"
 `
+	const gatewayProxySpecAPI7 = `
+apiVersion: apisix.apache.org/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: apisix-proxy-config
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+  plugins:
+  - name: response-rewrite
+    enabled: true
+    config: 
+      headers:
+        "X-Pod-Hostname": "$hostname"
+`
+
 	const gatewayClassSpec = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
@@ -110,7 +134,11 @@ spec:
 `
 	BeforeEach(func() {
 		By("create GatewayProxy")
-		err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxySpec, framework.ProviderType, s.AdminKey()))
+		if strings.Contains(s.Deployer.GetAdminEndpoint(), "api7ee3-dashboard") {
+			err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxySpecAPI7, s.Deployer.GetAdminEndpoint(), s.AdminKey()))
+		} else {
+			err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxySpec, framework.ProviderType, s.AdminKey()))
+		}
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 		time.Sleep(time.Second)
 

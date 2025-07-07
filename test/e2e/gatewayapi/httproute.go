@@ -58,7 +58,26 @@ spec:
         adminKey:
           value: "%s"
 `
+	var gatewayProxyYamlAPI7 = `
+apiVersion: apisix.apache.org/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: apisix-proxy-config
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+`
 	getGatewayProxySpec := func() string {
+		if adminEndpoint := s.Deployer.GetAdminEndpoint(); strings.Contains(adminEndpoint, "api7ee3-dashboard") {
+			return fmt.Sprintf(gatewayProxyYamlAPI7, adminEndpoint, s.AdminKey())
+		}
 		return fmt.Sprintf(gatewayProxyYaml, framework.ProviderType, s.AdminKey())
 	}
 
