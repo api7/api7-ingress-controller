@@ -38,6 +38,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
+	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/provider/adc/translator"
 	"github.com/apache/apisix-ingress-controller/internal/types"
@@ -75,6 +76,9 @@ type adcClient struct {
 	executor ADCExecutor
 
 	Options
+
+	updater         status.Updater
+	statusUpdateMap map[types.NamespacedNameKind][]string
 }
 
 type Task struct {
@@ -85,7 +89,7 @@ type Task struct {
 	configs       []adcConfig
 }
 
-func New(opts ...Option) (provider.Provider, error) {
+func New(updater status.Updater, opts ...Option) (provider.Provider, error) {
 	o := Options{}
 	o.ApplyOptions(opts)
 
@@ -96,6 +100,7 @@ func New(opts ...Option) (provider.Provider, error) {
 		parentRefs: make(map[types.NamespacedNameKind][]types.NamespacedNameKind),
 		store:      NewStore(),
 		executor:   &DefaultADCExecutor{},
+		updater:    updater,
 	}, nil
 }
 
@@ -327,6 +332,7 @@ func (d *adcClient) Sync(ctx context.Context) error {
 
 	log.Debugw("syncing resources with multiple configs", zap.Any("configs", cfg))
 
+	failedMap := map[string]types.ADCExecutionErrors{}
 	var failedConfigs []string
 	for name, config := range cfg {
 		resources, err := d.store.GetResources(name)
@@ -346,8 +352,13 @@ func (d *adcClient) Sync(ctx context.Context) error {
 		}); err != nil {
 			log.Errorw("failed to sync resources", zap.String("name", name), zap.Error(err))
 			failedConfigs = append(failedConfigs, name)
+			var execErrs types.ADCExecutionErrors
+			if errors.As(err, &execErrs) {
+				failedMap[name] = execErrs
+			}
 		}
 	}
+	d.handleADCExecutionErrors(failedMap)
 	if len(failedConfigs) > 0 {
 		return fmt.Errorf("failed to sync %d configs: %s",
 			len(failedConfigs),
@@ -400,20 +411,18 @@ func (d *adcClient) sync(ctx context.Context, task Task) error {
 
 	args := BuildADCExecuteArgs(syncFilePath, task.Labels, task.ResourceTypes)
 
-	var failedConfigs []string
+	var errs types.ADCExecutionErrors
 	for _, config := range task.configs {
 		if err := d.executor.Execute(ctx, d.BackendMode, config, args); err != nil {
-			log.Errorw("failed to execute adc command",
-				zap.Error(err),
-				zap.String("configName", config.Name),
-				zap.Any("serverAddrs", config.ServerAddrs),
-				zap.Bool("tlsVerify", config.TlsVerify),
-			)
-			failedConfigs = append(failedConfigs, config.Name)
+			log.Errorw("failed to execute adc command", zap.Error(err), zap.Any("config", config))
+			var execErr types.ADCExecutionError
+			if errors.As(err, &execErr) {
+				errs.Errors = append(errs.Errors, execErr)
+			}
 		}
 	}
-	if len(failedConfigs) > 0 {
-		return fmt.Errorf("failed to execute adc command for configs: %s", strings.Join(failedConfigs, ", "))
+	if len(errs.Errors) > 0 {
+		return errs
 	}
 	return nil
 }
@@ -440,4 +449,9 @@ func prepareSyncFile(resources any) (string, func(), error) {
 	log.Debugw("generated adc file", zap.String("filename", tmpFile.Name()), zap.String("json", string(data)))
 
 	return tmpFile.Name(), cleanup, nil
+}
+
+func (d *adcClient) handleADCExecutionErrors(statusesMap map[string]types.ADCExecutionErrors) {
+	statusUpdateMap := d.resolveADCExecutionErrors(statusesMap)
+	d.handleStatusUpdate(statusUpdateMap)
 }
