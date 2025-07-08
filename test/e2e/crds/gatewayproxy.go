@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/ptr"
 
+	"github.com/apache/apisix-ingress-controller/internal/provider/adc"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
@@ -63,6 +64,29 @@ spec:
       headers:
         "X-Pod-Hostname": "$hostname"
 `
+	const gatewayProxySpecAPI7 = `
+apiVersion: apisix.apache.org/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: apisix-proxy-config
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+  plugins:
+  - name: response-rewrite
+    enabled: true
+    config: 
+      headers:
+        "X-Pod-Hostname": "$hostname"
+`
+
 	const gatewayClassSpec = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
@@ -109,7 +133,11 @@ spec:
 `
 	BeforeEach(func() {
 		By("create GatewayProxy")
-		err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxySpec, framework.ProviderType, s.AdminKey()))
+		if s.Deployer.Name() == "api7ee" {
+			err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxySpecAPI7, s.Deployer.GetAdminEndpoint(), s.AdminKey()))
+		} else {
+			err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxySpec, framework.ProviderType, s.AdminKey()))
+		}
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 		time.Sleep(time.Second)
 
@@ -134,6 +162,10 @@ spec:
 
 	Context("Test GatewayProxy update configs", func() {
 		It("scaling apisix pods to test that the controller watches endpoints", func() {
+			if s.Deployer.Name() == "api7ee" {
+				Skip("this case only for apisix/apisix-standalone mode")
+			}
+
 			By("scale apisix to replicas 2")
 			s.Deployer.DeployDataplane(scaffold.DeployDataplaneOptions{
 				Replicas: ptr.To(2),
@@ -171,6 +203,23 @@ spec:
 
 				tunnel.Close()
 			}
+		})
+	})
+
+	Context("Backend server", func() {
+		It("backend server on apisix/apisix-standalone mode", func() {
+			var (
+				keyword string
+			)
+
+			if framework.ProviderType == adc.BackendModeAPISIX {
+				keyword = fmt.Sprintf(`{"config.ServerAddrs": ["%s"]}`, s.Deployer.GetAdminEndpoint())
+			} else {
+				keyword = fmt.Sprintf(`{"config.ServerAddrs": ["http://%s:9180"]}`, s.GetPodIP(s.Namespace(), "app.kubernetes.io/name=apisix"))
+			}
+
+			By(fmt.Sprintf("wait for keyword: %s", keyword))
+			s.WaitControllerManagerLog(keyword, 60, time.Minute)
 		})
 	})
 })

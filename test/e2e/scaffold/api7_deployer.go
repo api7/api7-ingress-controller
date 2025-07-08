@@ -27,6 +27,7 @@ import (
 	. "github.com/onsi/gomega"    //nolint:staticcheck
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	"github.com/apache/apisix-ingress-controller/pkg/utils"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
@@ -160,6 +161,9 @@ func (s *API7Deployer) DeployDataplane(deployOpts DeployDataplaneOptions) {
 	if deployOpts.ServiceHTTPSPort != 0 {
 		opts.ServiceHTTPSPort = deployOpts.ServiceHTTPSPort
 	}
+	if deployOpts.Replicas != nil {
+		opts.Replicas = deployOpts.Replicas
+	}
 
 	svc := s.DeployGateway(opts)
 
@@ -169,6 +173,12 @@ func (s *API7Deployer) DeployDataplane(deployOpts DeployDataplaneOptions) {
 		err := s.newAPISIXTunnels()
 		Expect(err).ToNot(HaveOccurred(), "creating apisix tunnels")
 	}
+}
+
+func (s *API7Deployer) ScaleDataplane(replicas int) {
+	s.DeployDataplane(DeployDataplaneOptions{
+		Replicas: ptr.To(replicas),
+	})
 }
 
 func (s *API7Deployer) newAPISIXTunnels() error {

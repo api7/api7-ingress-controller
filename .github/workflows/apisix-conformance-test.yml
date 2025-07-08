@@ -31,6 +31,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  pull-requests: write
+
 jobs:
   prepare:
     name: Prepare
@@ -116,7 +119,7 @@ jobs:
         if: ${{ github.event_name == 'push' }}
         uses: actions/upload-artifact@v4
         with:
-          name: apisix-ingress-controller-conformance-report.yaml
+          name: apisix-ingress-controller-conformance-report-${{ matrix.provider_type }}.yaml
           path: apisix-ingress-controller-conformance-report.yaml
 
       - name: Format Conformance Test Report
@@ -129,8 +132,8 @@ jobs:
 
       - name: Report Conformance Test Result to PR Comment
         if: ${{ github.event_name == 'pull_request' }}
-        uses: mshick/add-pr-comment@v2
+        uses: ./.github/actions/add-pr-comment
         with:
-          message-id: 'apisix-conformance-test-report'
+          message-id: 'apisix-conformance-test-report-${{ matrix.provider_type }}'
           message-path: |
             report.md

@@ -33,6 +33,7 @@ import (
 	"go.uber.org/zap"
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
+	"github.com/apache/apisix-ingress-controller/internal/types"
 )
 
 type ADCExecutor interface {
@@ -51,15 +52,26 @@ func (e *DefaultADCExecutor) Execute(ctx context.Context, mode string, config ad
 }
 
 func (e *DefaultADCExecutor) runADC(ctx context.Context, mode string, config adcConfig, args []string) error {
-	var failedAddrs []string
+	var execErrs = types.ADCExecutionError{
+		Name: config.Name,
+	}
+
 	for _, addr := range config.ServerAddrs {
 		if err := e.runForSingleServerWithTimeout(ctx, addr, mode, config, args); err != nil {
 			log.Errorw("failed to run adc for server", zap.String("server", addr), zap.Error(err))
-			failedAddrs = append(failedAddrs, addr)
+			var execErr types.ADCExecutionServerAddrError
+			if errors.As(err, &execErr) {
+				execErrs.FailedErrors = append(execErrs.FailedErrors, execErr)
+			} else {
+				execErrs.FailedErrors = append(execErrs.FailedErrors, types.ADCExecutionServerAddrError{
+					ServerAddr: addr,
+					Err:        err.Error(),
+				})
+			}
 		}
 	}
-	if len(failedAddrs) > 0 {
-		return fmt.Errorf("failed to run adc for servers: [%s]", strings.Join(failedAddrs, ", "))
+	if len(execErrs.FailedErrors) > 0 {
+		return execErrs
 	}
 	return nil
 }
@@ -86,16 +98,34 @@ func (e *DefaultADCExecutor) runForSingleServer(ctx context.Context, serverAddr,
 	cmd.Stderr = &stderr
 	cmd.Env = append(os.Environ(), env...)
 
-	log.Debug("running adc command",
+	log.Debugw("running adc command",
 		zap.String("command", strings.Join(cmd.Args, " ")),
-		zap.Strings("env", env),
+		zap.Strings("env", filterSensitiveEnv(env)),
 	)
 
 	if err := cmd.Run(); err != nil {
 		return e.buildCmdError(err, stdout.Bytes(), stderr.Bytes())
 	}
 
-	return e.handleOutput(stdout.Bytes())
+	result, err := e.handleOutput(stdout.Bytes())
+	if err != nil {
+		log.Errorw("failed to handle adc output",
+			zap.Error(err),
+			zap.String("stdout", stdout.String()),
+			zap.String("stderr", stderr.String()),
+		)
+		return fmt.Errorf("failed to handle adc output: %w", err)
+	}
+	if result.FailedCount > 0 && len(result.Failed) > 0 {
+		log.Errorw("adc sync failed", zap.Any("result", result))
+		return types.ADCExecutionServerAddrError{
+			ServerAddr:     serverAddr,
+			Err:            result.Failed[0].Reason,
+			FailedStatuses: result.Failed,
+		}
+	}
+	log.Debugw("adc sync success", zap.Any("result", result))
+	return nil
 }
 
 func (e *DefaultADCExecutor) prepareEnv(serverAddr, mode, token string) []string {
@@ -106,6 +136,19 @@ func (e *DefaultADCExecutor) prepareEnv(serverAddr, mode, token string) []string
 		"ADC_SERVER=" + serverAddr,
 		"ADC_TOKEN=" + token,
 	}
+}
+
+// filterSensitiveEnv filters out sensitive information from environment variables for logging
+func filterSensitiveEnv(env []string) []string {
+	filtered := make([]string, 0, len(env))
+	for _, envVar := range env {
+		if strings.Contains(envVar, "ADC_TOKEN=") {
+			filtered = append(filtered, "ADC_TOKEN=***")
+		} else {
+			filtered = append(filtered, envVar)
+		}
+	}
+	return filtered
 }
 
 func (e *DefaultADCExecutor) buildCmdError(runErr error, stdout, stderr []byte) error {
@@ -121,9 +164,9 @@ func (e *DefaultADCExecutor) buildCmdError(runErr error, stdout, stderr []byte) 
 	return errors.New("failed to sync resources: " + errMsg + ", exit err: " + runErr.Error())
 }
 
-func (e *DefaultADCExecutor) handleOutput(output []byte) error {
+func (e *DefaultADCExecutor) handleOutput(output []byte) (*adctypes.SyncResult, error) {
 	var result adctypes.SyncResult
-	log.Debugf("adc output: %s", string(output))
+	log.Debugw("adc output", zap.String("output", string(output)))
 	if lines := bytes.Split(output, []byte{'\n'}); len(lines) > 0 {
 		output = lines[len(lines)-1]
 	}
@@ -132,16 +175,10 @@ func (e *DefaultADCExecutor) handleOutput(output []byte) error {
 			zap.Error(err),
 			zap.String("stdout", string(output)),
 		)
-		return errors.New("failed to parse adc result: " + err.Error())
+		return nil, errors.New("failed to parse adc result: " + err.Error())
 	}
 
-	if result.FailedCount > 0 && len(result.Failed) > 0 {
-		log.Errorw("adc sync failed", zap.Any("result", result))
-		return errors.New(result.Failed[0].Reason)
-	}
-
-	log.Debugw("adc sync success", zap.Any("result", result))
-	return nil
+	return &result, nil
 }
 
 func BuildADCExecuteArgs(filePath string, labels map[string]string, types []string) []string {

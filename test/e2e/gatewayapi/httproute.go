@@ -34,7 +34,6 @@ import (
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
-	"github.com/apache/apisix-ingress-controller/internal/provider/adc"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
@@ -42,9 +41,7 @@ import (
 var _ = Describe("Test HTTPRoute", Label("networking.k8s.io", "httproute"), func() {
 	s := scaffold.NewDefaultScaffold()
 
-	getGatewayProxySpec := func(endpoint, adminKey string) string {
-		if framework.ProviderType == adc.BackendModeAPISIXStandalone {
-			var gatewayProxyYaml = `
+	var gatewayProxyYaml = `
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
@@ -54,16 +51,14 @@ spec:
     type: ControlPlane
     controlPlane:
       service:
-        name: apisix-standalone
+        name: %s
         port: 9180
       auth:
         type: AdminKey
         adminKey:
           value: "%s"
 `
-			return fmt.Sprintf(gatewayProxyYaml, adminKey)
-		}
-		var gatewayProxyYaml = `
+	var gatewayProxyYamlAPI7 = `
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
@@ -79,7 +74,11 @@ spec:
         adminKey:
           value: "%s"
 `
-		return fmt.Sprintf(gatewayProxyYaml, endpoint, adminKey)
+	getGatewayProxySpec := func() string {
+		if s.Deployer.Name() == "api7ee" {
+			return fmt.Sprintf(gatewayProxyYamlAPI7, s.Deployer.GetAdminEndpoint(), s.AdminKey())
+		}
+		return fmt.Sprintf(gatewayProxyYaml, framework.ProviderType, s.AdminKey())
 	}
 
 	var gatewayClassYaml = `
@@ -153,8 +152,7 @@ spec:
 
 	var beforeEachHTTP = func() {
 		By("create GatewayProxy")
-		gatewayProxy := getGatewayProxySpec(s.Deployer.GetAdminEndpoint(), s.AdminKey())
-		err := s.CreateResourceFromString(gatewayProxy)
+		err := s.CreateResourceFromString(getGatewayProxySpec())
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 		time.Sleep(5 * time.Second)
 
@@ -184,8 +182,7 @@ spec:
 
 	var beforeEachHTTPS = func() {
 		By("create GatewayProxy")
-		gatewayProxy := getGatewayProxySpec(s.Deployer.GetAdminEndpoint(), s.AdminKey())
-		err := s.CreateResourceFromString(gatewayProxy)
+		err := s.CreateResourceFromString(getGatewayProxySpec())
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 		time.Sleep(5 * time.Second)
 
