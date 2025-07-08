@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -62,10 +61,8 @@ func (r *IngressClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithEventFilter(
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
-				predicate.NewPredicateFuncs(func(obj client.Object) bool {
-					_, ok := obj.(*corev1.Secret)
-					return ok
-				}),
+				predicate.AnnotationChangedPredicate{},
+				predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
 			),
 		).
 		Watches(
@@ -219,7 +216,7 @@ func (r *IngressClassReconciler) processInfrastructure(tctx *provider.TranslateC
 					Namespace: namespace,
 					Name:      secretRef.Name,
 				}, secret); err != nil {
-					log.Error(err, "failed to get secret for gateway proxy", "namespace", namespace, "name", secretRef.Name)
+					r.Log.Error(err, "failed to get secret for gateway proxy", "namespace", namespace, "name", secretRef.Name)
 					return err
 				}
 				tctx.Secrets[client.ObjectKey{

@@ -65,10 +65,7 @@ func (r *ConsumerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithEventFilter(
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
-				predicate.NewPredicateFuncs(func(obj client.Object) bool {
-					_, ok := obj.(*corev1.Secret)
-					return ok
-				}),
+				predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
 			),
 		).
 		Watches(&gatewayv1.Gateway{},
@@ -215,7 +212,7 @@ func (r *ConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 	rk := utils.NamespacedNameKind(consumer)
 
-	if err := ProcessGatewayProxy(r.Client, tctx, gateway, rk); err != nil {
+	if err := ProcessGatewayProxy(r.Client, r.Log, tctx, gateway, rk); err != nil {
 		r.Log.Error(err, "failed to process gateway proxy", "gateway", gateway)
 		statusErr = err
 	}

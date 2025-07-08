@@ -274,7 +274,8 @@ func (t *Translator) fillHTTPRoutePolicies(routes []*adctypes.Route, policies []
 			for _, data := range policy.Spec.Vars {
 				var v []adctypes.StringOrSlice
 				if err := json.Unmarshal(data.Raw, &v); err != nil {
-					log.Errorf("failed to unmarshal spec.Vars item to []StringOrSlice, data: %s", string(data.Raw)) // todo: update status
+					log.Errorw("failed to unmarshal spec.Vars item to []StringOrSlice", zap.Error(err), zap.String("data", string(data.Raw)))
+					// todo: update status
 					continue
 				}
 				route.Vars = append(route.Vars, v)
@@ -283,7 +284,7 @@ func (t *Translator) fillHTTPRoutePolicies(routes []*adctypes.Route, policies []
 	}
 }
 
-func (t *Translator) translateEndpointSlice(portName *string, weight int, endpointSlices []discoveryv1.EndpointSlice) adctypes.UpstreamNodes {
+func (t *Translator) translateEndpointSlice(portName *string, weight int, endpointSlices []discoveryv1.EndpointSlice, endpointFilter func(*discoveryv1.Endpoint) bool) adctypes.UpstreamNodes {
 	var nodes adctypes.UpstreamNodes
 	if len(endpointSlices) == 0 {
 		return nodes
@@ -294,6 +295,9 @@ func (t *Translator) translateEndpointSlice(portName *string, weight int, endpoi
 				continue
 			}
 			for _, endpoint := range endpointSlice.Endpoints {
+				if endpointFilter != nil && !endpointFilter(&endpoint) {
+					continue
+				}
 				for _, addr := range endpoint.Addresses {
 					node := adctypes.UpstreamNode{
 						Host:   addr,
@@ -312,11 +316,19 @@ func (t *Translator) translateEndpointSlice(portName *string, weight int, endpoi
 	return nodes
 }
 
-func (t *Translator) TranslateBackendRef(tctx *provider.TranslateContext, ref gatewayv1.BackendRef) (adctypes.UpstreamNodes, error) {
-	return t.translateBackendRef(tctx, ref)
+func DefaultEndpointFilter(endpoint *discoveryv1.Endpoint) bool {
+	if endpoint.Conditions.Ready != nil && !*endpoint.Conditions.Ready {
+		log.Debugw("skip not ready endpoint", zap.Any("endpoint", endpoint))
+		return false
+	}
+	return true
 }
 
-func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref gatewayv1.BackendRef) (adctypes.UpstreamNodes, error) {
+func (t *Translator) TranslateBackendRefWithFilter(tctx *provider.TranslateContext, ref gatewayv1.BackendRef, endpointFilter func(*discoveryv1.Endpoint) bool) (adctypes.UpstreamNodes, error) {
+	return t.translateBackendRef(tctx, ref, endpointFilter)
+}
+
+func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref gatewayv1.BackendRef, endpointFilter func(*discoveryv1.Endpoint) bool) (adctypes.UpstreamNodes, error) {
 	if ref.Kind != nil && *ref.Kind != "Service" {
 		return adctypes.UpstreamNodes{}, fmt.Errorf("kind %s is not supported", *ref.Kind)
 	}
@@ -363,21 +375,21 @@ func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref ga
 	}
 
 	endpointSlices := tctx.EndpointSlices[key]
-	return t.translateEndpointSlice(portName, weight, endpointSlices), nil
+	return t.translateEndpointSlice(portName, weight, endpointSlices, endpointFilter), nil
 }
 
 // calculateHTTPRoutePriority calculates the priority of the HTTP route.
 // ref: https://github.com/Kong/kubernetes-ingress-controller/blob/57472721319e2c63e56cb8540425257e8e02520f/internal/dataplane/translator/subtranslator/httproute_atc.go#L279-L296
 func calculateHTTPRoutePriority(match *gatewayv1.HTTPRouteMatch, ruleIndex int, hosts []string) uint64 {
 	const (
-		// PreciseHostnameShiftBits assigns bit 43-50 for the length of hostname(max length=253).
-		PreciseHostnameShiftBits = 43
-		// HostnameLengthShiftBits assigns bits 35-42 for the length of hostname(max length=253).
-		HostnameLengthShiftBits = 35
-		// ExactPathShiftBits assigns bit 34 to mark if the match is exact path match.
-		ExactPathShiftBits = 34
-		// PathLengthShiftBits assigns bits 23-32 to path length. (max length = 1024, but must start with /)
-		PathLengthShiftBits = 23
+		// PreciseHostnameShiftBits assigns bit 31-38 for the length of hostname(max length=253).
+		// which has 8 bits, so the max length of hostname is 2^8-1 = 255.
+		PreciseHostnameShiftBits = 31
+
+		// HostnameLengthShiftBits assigns bits 23-30 for the length of hostname(max length=253).
+		// which has 8 bits, so the max length of hostname is 2^8-1 = 255.
+		HostnameLengthShiftBits = 23
+
 		// MethodMatchShiftBits assigns bit 22 to mark if method is specified.
 		MethodMatchShiftBits = 22
 		// HeaderNumberShiftBits assign bits 17-21 to number of headers. (max number of headers = 16)
@@ -416,20 +428,6 @@ func calculateHTTPRoutePriority(match *gatewayv1.HTTPRouteMatch, ruleIndex int, 
 
 	if maxHostnameLength > 0 {
 		priority |= (uint64(maxHostnameLength) << HostnameLengthShiftBits)
-	}
-
-	// ExactPathShiftBits
-	if match.Path != nil && match.Path.Type != nil && *match.Path.Type == gatewayv1.PathMatchExact {
-		priority |= (1 << ExactPathShiftBits)
-	}
-
-	// PathLengthShiftBits
-	// max length of path is 1024, but path must start with /, so we use PathLength-1 to fill the bits.
-	if match.Path != nil && match.Path.Value != nil {
-		pathLength := len(*match.Path.Value)
-		if pathLength > 0 {
-			priority |= (uint64(pathLength-1) << PathLengthShiftBits)
-		}
 	}
 
 	// MethodMatchShiftBits
@@ -475,7 +473,7 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 				namespace := gatewayv1.Namespace(httpRoute.Namespace)
 				backend.Namespace = &namespace
 			}
-			upNodes, err := t.translateBackendRef(tctx, backend.BackendRef)
+			upNodes, err := t.translateBackendRef(tctx, backend.BackendRef, DefaultEndpointFilter)
 			if err != nil {
 				backendErr = err
 				continue

@@ -20,7 +20,10 @@ package adc
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -35,6 +38,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
+	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/provider/adc/translator"
 	"github.com/apache/apisix-ingress-controller/internal/types"
@@ -46,6 +50,20 @@ type adcConfig struct {
 	ServerAddrs []string
 	Token       string
 	TlsVerify   bool
+}
+
+// MarshalJSON implements custom JSON marshaling for adcConfig
+// It excludes the Token field for security reasons
+func (c adcConfig) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Name        string   `json:"name"`
+		ServerAddrs []string `json:"serverAddrs"`
+		TlsVerify   bool     `json:"tlsVerify"`
+	}{
+		Name:        c.Name,
+		ServerAddrs: c.ServerAddrs,
+		TlsVerify:   c.TlsVerify,
+	})
 }
 
 type BackendMode string
@@ -72,6 +90,9 @@ type adcClient struct {
 	executor ADCExecutor
 
 	Options
+
+	updater         status.Updater
+	statusUpdateMap map[types.NamespacedNameKind][]string
 }
 
 type Task struct {
@@ -82,7 +103,7 @@ type Task struct {
 	configs       []adcConfig
 }
 
-func New(opts ...Option) (provider.Provider, error) {
+func New(updater status.Updater, opts ...Option) (provider.Provider, error) {
 	o := Options{}
 	o.ApplyOptions(opts)
 
@@ -93,6 +114,7 @@ func New(opts ...Option) (provider.Provider, error) {
 		parentRefs: make(map[types.NamespacedNameKind][]types.NamespacedNameKind),
 		store:      NewStore(),
 		executor:   &DefaultADCExecutor{},
+		updater:    updater,
 	}, nil
 }
 
@@ -285,6 +307,7 @@ func (d *adcClient) Start(ctx context.Context) error {
 	initalSyncDelay := d.InitSyncDelay
 	time.AfterFunc(initalSyncDelay, func() {
 		if err := d.Sync(ctx); err != nil {
+			log.Error(err)
 			return
 		}
 	})
@@ -298,7 +321,7 @@ func (d *adcClient) Start(ctx context.Context) error {
 		select {
 		case <-ticker.C:
 			if err := d.Sync(ctx); err != nil {
-				log.Errorw("failed to sync resources", zap.Error(err))
+				log.Error(err)
 			}
 		case <-ctx.Done():
 			return nil
@@ -323,25 +346,38 @@ func (d *adcClient) Sync(ctx context.Context) error {
 
 	log.Debugw("syncing resources with multiple configs", zap.Any("configs", cfg))
 
+	failedMap := map[string]types.ADCExecutionErrors{}
+	var failedConfigs []string
 	for name, config := range cfg {
 		resources, err := d.store.GetResources(name)
 		if err != nil {
-			return err
+			log.Errorw("failed to get resources from store", zap.String("name", name), zap.Error(err))
+			failedConfigs = append(failedConfigs, name)
+			continue
 		}
 		if resources == nil {
 			continue
 		}
 
-		err = d.sync(ctx, Task{
+		if err := d.sync(ctx, Task{
 			Name:      name + "-sync",
 			configs:   []adcConfig{config},
 			Resources: *resources,
-		})
-		if err != nil {
-			return err
+		}); err != nil {
+			log.Errorw("failed to sync resources", zap.String("name", name), zap.Error(err))
+			failedConfigs = append(failedConfigs, name)
+			var execErrs types.ADCExecutionErrors
+			if errors.As(err, &execErrs) {
+				failedMap[name] = execErrs
+			}
 		}
 	}
-
+	d.handleADCExecutionErrors(failedMap)
+	if len(failedConfigs) > 0 {
+		return fmt.Errorf("failed to sync %d configs: %s",
+			len(failedConfigs),
+			strings.Join(failedConfigs, ", "))
+	}
 	return nil
 }
 
@@ -349,10 +385,49 @@ func (d *adcClient) sync(ctx context.Context, task Task) error {
 	log.Debugw("syncing resources", zap.Any("task", task))
 
 	if len(task.configs) == 0 {
-		log.Errorw("no adc configs provided", zap.Any("task", task))
-		return errors.New("no adc configs provided")
+		log.Warnw("no adc configs provided", zap.Any("task", task))
+		return nil
 	}
 
+	// for global rules, we need to list all global rules and set it to the task resources
+	if slices.Contains(task.ResourceTypes, "global_rule") {
+		for _, config := range task.configs {
+			globalRules, err := d.store.ListGlobalRules(config.Name)
+			if err != nil {
+				return err
+			}
+			var globalrule adctypes.GlobalRule
+			if len(globalRules) > 0 {
+				merged := make(adctypes.Plugins)
+				for _, item := range globalRules {
+					for k, v := range item.Plugins {
+						merged[k] = v
+					}
+				}
+				globalrule = adctypes.GlobalRule(merged)
+			}
+
+			task.Resources.GlobalRules = globalrule
+			log.Debugw("syncing resources global rules", zap.Any("globalRules", task.Resources.GlobalRules))
+
+			syncFilePath, cleanup, err := prepareSyncFile(task.Resources)
+			if err != nil {
+				return err
+			}
+			defer cleanup()
+
+			args := BuildADCExecuteArgs(syncFilePath, task.Labels, task.ResourceTypes)
+
+			if err := d.executor.Execute(ctx, d.BackendMode, config, args); err != nil {
+				log.Errorw("failed to execute adc command", zap.Error(err), zap.Any("config", config))
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	// every task resources is the same, so we can use the first config to prepare the sync file
 	syncFilePath, cleanup, err := prepareSyncFile(task.Resources)
 	if err != nil {
 		return err
@@ -361,12 +436,18 @@ func (d *adcClient) sync(ctx context.Context, task Task) error {
 
 	args := BuildADCExecuteArgs(syncFilePath, task.Labels, task.ResourceTypes)
 
-	log.Debugw("syncing resources with multiple configs", zap.Any("configs", task.configs))
+	var errs types.ADCExecutionErrors
 	for _, config := range task.configs {
 		if err := d.executor.Execute(ctx, d.BackendMode, config, args); err != nil {
 			log.Errorw("failed to execute adc command", zap.Error(err), zap.Any("config", config))
-			return err
+			var execErr types.ADCExecutionError
+			if errors.As(err, &execErr) {
+				errs.Errors = append(errs.Errors, execErr)
+			}
 		}
+	}
+	if len(errs.Errors) > 0 {
+		return errs
 	}
 	return nil
 }
@@ -390,7 +471,12 @@ func prepareSyncFile(resources any) (string, func(), error) {
 		return "", nil, err
 	}
 
-	log.Debugf("generated adc file, filename: %s, json: %s\n", tmpFile.Name(), string(data))
+	log.Debugw("generated adc file", zap.String("filename", tmpFile.Name()), zap.String("json", string(data)))
 
 	return tmpFile.Name(), cleanup, nil
+}
+
+func (d *adcClient) handleADCExecutionErrors(statusesMap map[string]types.ADCExecutionErrors) {
+	statusUpdateMap := d.resolveADCExecutionErrors(statusesMap)
+	d.handleStatusUpdate(statusUpdateMap)
 }

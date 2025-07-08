@@ -18,6 +18,7 @@
 package adc
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/api7/gopkg/pkg/log"
@@ -55,7 +56,7 @@ func (s *Store) Insert(name string, resourceTypes []string, resources adctypes.R
 		s.cacheMap[name] = db
 		targetCache = s.cacheMap[name]
 	}
-	log.Debugf("Inserting resources into cache for %s", name)
+	log.Debugw("Inserting resources into cache for", zap.String("name", name))
 	selector := &cache.KindLabelSelector{
 		Kind:      Labels[label.LabelKind],
 		Name:      Labels[label.LabelName],
@@ -63,7 +64,7 @@ func (s *Store) Insert(name string, resourceTypes []string, resources adctypes.R
 	}
 	for _, resourceType := range resourceTypes {
 		switch resourceType {
-		case "service":
+		case adctypes.TypeService:
 			services, err := targetCache.ListServices(selector)
 			if err != nil {
 				return err
@@ -78,7 +79,7 @@ func (s *Store) Insert(name string, resourceTypes []string, resources adctypes.R
 					return err
 				}
 			}
-		case "consumer":
+		case adctypes.TypeConsumer:
 			consumers, err := targetCache.ListConsumers(selector)
 			if err != nil {
 				return err
@@ -93,7 +94,7 @@ func (s *Store) Insert(name string, resourceTypes []string, resources adctypes.R
 					return err
 				}
 			}
-		case "ssl":
+		case adctypes.TypeSSL:
 			ssls, err := targetCache.ListSSL(selector)
 			if err != nil {
 				return err
@@ -109,7 +110,7 @@ func (s *Store) Insert(name string, resourceTypes []string, resources adctypes.R
 					return err
 				}
 			}
-		case "global_rule":
+		case adctypes.TypeGlobalRule:
 			// List existing global rules that match the selector
 			globalRules, err := targetCache.ListGlobalRules(selector)
 			if err != nil {
@@ -136,7 +137,7 @@ func (s *Store) Insert(name string, resourceTypes []string, resources adctypes.R
 					return err
 				}
 			}
-		case "plugin_metadata":
+		case adctypes.TypePluginMetadata:
 			s.pluginMetadataMap[name] = resources.PluginMetadata
 		default:
 			continue
@@ -159,47 +160,47 @@ func (s *Store) Delete(name string, resourceTypes []string, Labels map[string]st
 	}
 	for _, resourceType := range resourceTypes {
 		switch resourceType {
-		case "service":
+		case adctypes.TypeService:
 			services, err := targetCache.ListServices(selector)
 			if err != nil {
-				log.Errorf("failed to list services: %v", err)
+				log.Errorw("failed to list services", zap.Error(err))
 			}
 			for _, service := range services {
 				if err := targetCache.DeleteService(service); err != nil {
-					log.Errorf("failed to delete service %s: %v", service.ID, err)
+					log.Errorw("failed to delete service", zap.Error(err), zap.String("service", service.ID))
 				}
 			}
-		case "ssl":
+		case adctypes.TypeSSL:
 			ssls, err := targetCache.ListSSL(selector)
 			if err != nil {
-				log.Errorf("failed to list ssl: %v", err)
+				log.Errorw("failed to list ssl", zap.Error(err))
 			}
 			for _, ssl := range ssls {
 				if err := targetCache.DeleteSSL(ssl); err != nil {
-					log.Errorf("failed to delete ssl %s: %v", ssl.ID, err)
+					log.Errorw("failed to delete ssl", zap.Error(err), zap.String("ssl", ssl.ID))
 				}
 			}
-		case "consumer":
+		case adctypes.TypeConsumer:
 			consumers, err := targetCache.ListConsumers(selector)
 			if err != nil {
-				log.Errorf("failed to list consumers: %v", err)
+				log.Errorw("failed to list consumers", zap.Error(err))
 			}
 			for _, consumer := range consumers {
 				if err := targetCache.DeleteConsumer(consumer); err != nil {
-					log.Errorf("failed to delete consumer %s: %v", consumer.Username, err)
+					log.Errorw("failed to delete consumer", zap.Error(err), zap.String("consumer", consumer.Username))
 				}
 			}
-		case "global_rule":
+		case adctypes.TypeGlobalRule:
 			globalRules, err := targetCache.ListGlobalRules(selector)
 			if err != nil {
-				log.Errorf("failed to list global rules: %v", err)
+				log.Errorw("failed to list global rules", zap.Error(err))
 			}
 			for _, globalRule := range globalRules {
 				if err := targetCache.DeleteGlobalRule(globalRule); err != nil {
-					log.Errorf("failed to delete global rule %s: %v", globalRule.ID, err)
+					log.Errorw("failed to delete global rule", zap.Error(err), zap.String("global rule", globalRule.ID))
 				}
 			}
-		case "plugin_metadata":
+		case adctypes.TypePluginMetadata:
 			delete(s.pluginMetadataMap, name)
 		}
 	}
@@ -243,4 +244,76 @@ func (s *Store) GetResources(name string) (*adctypes.Resources, error) {
 		GlobalRules:    globalrule,
 		PluginMetadata: metadata,
 	}, nil
+}
+
+func (s *Store) ListGlobalRules(name string) ([]*adctypes.GlobalRuleItem, error) {
+	s.Lock()
+	defer s.Unlock()
+	targetCache, ok := s.cacheMap[name]
+	if !ok {
+		return nil, fmt.Errorf("cache not found for name: %s", name)
+	}
+	globalRules, err := targetCache.ListGlobalRules()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list global rules: %w", err)
+	}
+	return globalRules, nil
+}
+
+func (s *Store) GetResourceLabel(name, resourceType string, id string) (map[string]string, error) {
+	s.Lock()
+	defer s.Unlock()
+	targetCache, ok := s.cacheMap[name]
+	if !ok {
+		return nil, fmt.Errorf("cache not found for name: %s", name)
+	}
+	switch resourceType {
+	case adctypes.TypeService:
+		service, err := targetCache.GetService(id)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get service: %w", err)
+		}
+		return service.Labels, nil
+	case adctypes.TypeRoute:
+		services, err := targetCache.ListServices()
+		if err != nil {
+			return nil, fmt.Errorf("failed to list services: %w", err)
+		}
+		for _, service := range services {
+			for _, route := range service.Routes {
+				if route.ID == id {
+					// Return labels from the service that contains the route
+					return route.GetLabels(), nil
+				}
+			}
+		}
+		return nil, fmt.Errorf("route not found: %s", id)
+	case adctypes.TypeSSL:
+		ssl, err := targetCache.GetSSL(id)
+		if err != nil {
+			return nil, err
+		}
+		if ssl != nil {
+			return ssl.GetLabels(), nil
+		}
+	case adctypes.TypeConsumer:
+		consumer, err := targetCache.GetConsumer(id)
+		if err != nil {
+			return nil, err
+		}
+		if consumer != nil {
+			return consumer.Labels, nil
+		}
+	case adctypes.TypeGlobalRule:
+		globalRule, err := targetCache.GetGlobalRule(id)
+		if err != nil {
+			return nil, err
+		}
+		if globalRule != nil {
+			return globalRule.GetLabels(), nil
+		}
+	default:
+		return nil, fmt.Errorf("unknown resource type: %s", resourceType)
+	}
+	return nil, nil
 }

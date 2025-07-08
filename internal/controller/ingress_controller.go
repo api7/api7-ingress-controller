@@ -75,6 +75,7 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
 				predicate.AnnotationChangedPredicate{},
+				predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
 			),
 		).
 		Watches(
@@ -470,7 +471,7 @@ func (r *IngressReconciler) processTLS(tctx *provider.TranslateContext, ingress 
 			Namespace: ingress.Namespace,
 			Name:      tls.SecretName,
 		}, &secret); err != nil {
-			log.Error(err, "failed to get secret", "namespace", ingress.Namespace, "name", tls.SecretName)
+			r.Log.Error(err, "failed to get secret", "namespace", ingress.Namespace, "name", tls.SecretName)
 			return err
 		}
 
