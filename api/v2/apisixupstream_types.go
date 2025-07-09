@@ -96,10 +96,8 @@ type ApisixUpstreamExternalNode struct {
 
 // ApisixUpstreamConfig defines configuration for upstream services.
 type ApisixUpstreamConfig struct {
-	// LoadBalancer specifies the load balancing algorithms to route traffic to the backend.
-	// Default is `roundrobin`.
-	// Can be `roundrobin`, `chash`, `ewma`, or `least_conn`.
-	// +kubebuilder:validation:Enum=roundrobin;chash;ewma;least_conn;
+	// LoadBalancer specifies the load balancer configuration for Kubernetes Service.
+	// +kubebuilder:validation:Optional
 	LoadBalancer *LoadBalancer `json:"loadbalancer,omitempty" yaml:"loadbalancer,omitempty"`
 
 	// Scheme is the protocol used to communicate with the upstream.
