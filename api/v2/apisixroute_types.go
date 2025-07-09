@@ -190,6 +190,7 @@ type ApisixRouteHTTPBackend struct {
 	// The default is `endpoints`.
 	ResolveGranularity string `json:"resolveGranularity,omitempty" yaml:"resolveGranularity,omitempty"`
 	// Weight specifies the relative traffic weight for this backend.
+	// +kubebuilder:validation:Optional
 	Weight *int `json:"weight" yaml:"weight"`
 	// Subset specifies a named subset of the target Service.
 	// The subset must be pre-defined in the corresponding ApisixUpstream resource.

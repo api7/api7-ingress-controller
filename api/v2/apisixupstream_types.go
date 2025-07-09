@@ -174,7 +174,6 @@ type LoadBalancer struct {
 	// Can be `roundrobin`, `chash`, `ewma`, or `least_conn`.
 	// +kubebuilder:validation:Enum=roundrobin;chash;ewma;least_conn;
 	// +kubebuilder:default=roundrobin
-	// +kubebuilder:validation:Required
 	Type string `json:"type" yaml:"type"`
 	// HashOn specified the type of field used for hashing, required when type is `chash`.
 	// Default is `vars`. Can be `vars`, `header`, `cookie`, `consumer`, or `vars_combinations`.
