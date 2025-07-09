@@ -1315,7 +1315,7 @@ ApisixUpstreamConfig defines configuration for upstream services.
 
 | Field | Description |
 | --- | --- |
-| `loadbalancer` _[LoadBalancer](#loadbalancer)_ | LoadBalancer specifies the load balancing algorithms to route traffic to the backend. Default is `roundrobin`. Can be `roundrobin`, `chash`, `ewma`, or `least_conn`. |
+| `loadbalancer` _[LoadBalancer](#loadbalancer)_ | LoadBalancer specifies the load balancer configuration for Kubernetes Service. |
 | `scheme` _string_ | Scheme is the protocol used to communicate with the upstream. Default is `http`. Can be `http`, `https`, `grpc`, or `grpcs`. |
 | `retries` _integer_ | Retries defines the number of retry attempts APISIX should make when a failure occurs. Failures include timeouts, network errors, or 5xx status codes. |
 | `timeout` _[UpstreamTimeout](#upstreamtimeout)_ | Timeout specifies the connection, send, and read timeouts for upstream requests. |
@@ -1375,7 +1375,7 @@ definitions and custom configuration.
 | --- | --- |
 | `ingressClassName` _string_ | IngressClassName is the name of an IngressClass cluster resource. Controller implementations use this field to determine whether they should process this ApisixUpstream resource. |
 | `externalNodes` _[ApisixUpstreamExternalNode](#apisixupstreamexternalnode) array_ | ExternalNodes defines a static list of backend nodes located outside the cluster. When this field is set, the upstream will route traffic directly to these nodes without DNS resolution or service discovery. |
-| `loadbalancer` _[LoadBalancer](#loadbalancer)_ | LoadBalancer specifies the load balancing algorithms to route traffic to the backend. Default is `roundrobin`. Can be `roundrobin`, `chash`, `ewma`, or `least_conn`. |
+| `loadbalancer` _[LoadBalancer](#loadbalancer)_ | LoadBalancer specifies the load balancer configuration for Kubernetes Service. |
 | `scheme` _string_ | Scheme is the protocol used to communicate with the upstream. Default is `http`. Can be `http`, `https`, `grpc`, or `grpcs`. |
 | `retries` _integer_ | Retries defines the number of retry attempts APISIX should make when a failure occurs. Failures include timeouts, network errors, or 5xx status codes. |
 | `timeout` _[UpstreamTimeout](#upstreamtimeout)_ | Timeout specifies the connection, send, and read timeouts for upstream requests. |
@@ -1545,7 +1545,7 @@ them if they are set on the port level.
 
 | Field | Description |
 | --- | --- |
-| `loadbalancer` _[LoadBalancer](#loadbalancer)_ | LoadBalancer specifies the load balancing algorithms to route traffic to the backend. Default is `roundrobin`. Can be `roundrobin`, `chash`, `ewma`, or `least_conn`. |
+| `loadbalancer` _[LoadBalancer](#loadbalancer)_ | LoadBalancer specifies the load balancer configuration for Kubernetes Service. |
 | `scheme` _string_ | Scheme is the protocol used to communicate with the upstream. Default is `http`. Can be `http`, `https`, `grpc`, or `grpcs`. |
 | `retries` _integer_ | Retries defines the number of retry attempts APISIX should make when a failure occurs. Failures include timeouts, network errors, or 5xx status codes. |
 | `timeout` _[UpstreamTimeout](#upstreamtimeout)_ | Timeout specifies the connection, send, and read timeouts for upstream requests. |

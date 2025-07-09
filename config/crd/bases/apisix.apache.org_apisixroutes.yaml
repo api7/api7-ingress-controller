@@ -175,7 +175,6 @@ spec:
                         required:
                         - serviceName
                         - servicePort
-                        - weight
                         type: object
                       type: array
                     match:

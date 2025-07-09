@@ -258,15 +258,8 @@ spec:
                   should process this ApisixUpstream resource.
                 type: string
               loadbalancer:
-                description: |-
-                  LoadBalancer specifies the load balancing algorithms to route traffic to the backend.
-                  Default is `roundrobin`.
-                  Can be `roundrobin`, `chash`, `ewma`, or `least_conn`.
-                enum:
-                - roundrobin
-                - chash
-                - ewma
-                - least_conn
+                description: LoadBalancer specifies the load balancer configuration
+                  for Kubernetes Service.
                 properties:
                   hashOn:
                     default: vars
@@ -510,15 +503,8 @@ spec:
                       - active
                       type: object
                     loadbalancer:
-                      description: |-
-                        LoadBalancer specifies the load balancing algorithms to route traffic to the backend.
-                        Default is `roundrobin`.
-                        Can be `roundrobin`, `chash`, `ewma`, or `least_conn`.
-                      enum:
-                      - roundrobin
-                      - chash
-                      - ewma
-                      - least_conn
+                      description: LoadBalancer specifies the load balancer configuration
+                        for Kubernetes Service.
                       properties:
                         hashOn:
                           default: vars
