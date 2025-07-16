@@ -416,7 +416,7 @@ metadata:
   name: httpbin-external-domain
 spec:
   type: ExternalName
-  externalName: postman-echo.com
+  externalName: httpbin.org
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -579,7 +579,7 @@ spec:
 				GET("/get").
 				WithHost("httpbin.external").
 				Expect().
-				Status(http.StatusMovedPermanently)
+				Status(http.StatusOK)
 		})
 
 		It("Match Port", func() {
