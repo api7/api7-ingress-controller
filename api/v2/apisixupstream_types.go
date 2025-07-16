@@ -223,28 +223,28 @@ type ActiveHealthCheck struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Enum=http;https;tcp;
 	// Type is the health check type. Can be `http`, `https`, or `tcp`.
-	Type    string        `json:"type,omitempty" yaml:"type,omitempty"`
+	Type string `json:"type,omitempty" yaml:"type,omitempty"`
 	// Timeout sets health check timeout in seconds.
 	Timeout time.Duration `json:"timeout,omitempty" yaml:"timeout,omitempty"`
 	// +kubebuilder:validation:Minimum=0
 	// Concurrency sets the number of targets to be checked at the same time.
-	Concurrency int    `json:"concurrency,omitempty" yaml:"concurrency,omitempty"`
+	Concurrency int `json:"concurrency,omitempty" yaml:"concurrency,omitempty"`
 	// Host sets the upstream host.
-	Host        string `json:"host,omitempty" yaml:"host,omitempty"`
+	Host string `json:"host,omitempty" yaml:"host,omitempty"`
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=65535
 	// Port sets the upstream port.
-	Port           int32                       `json:"port,omitempty" yaml:"port,omitempty"`
+	Port int32 `json:"port,omitempty" yaml:"port,omitempty"`
 	// HTTPPath sets the HTTP probe request path.
-	HTTPPath       string                      `json:"httpPath,omitempty" yaml:"httpPath,omitempty"`
+	HTTPPath string `json:"httpPath,omitempty" yaml:"httpPath,omitempty"`
 	// StrictTLS sets whether to enforce TLS.
-	StrictTLS      *bool                       `json:"strictTLS,omitempty" yaml:"strictTLS,omitempty"`
+	StrictTLS *bool `json:"strictTLS,omitempty" yaml:"strictTLS,omitempty"`
 	// RequestHeaders sets the request headers.
-	RequestHeaders []string                    `json:"requestHeaders,omitempty" yaml:"requestHeaders,omitempty"`
+	RequestHeaders []string `json:"requestHeaders,omitempty" yaml:"requestHeaders,omitempty"`
 	// Healthy configures the rules that define an upstream node as healthy.
-	Healthy        *ActiveHealthCheckHealthy   `json:"healthy,omitempty" yaml:"healthy,omitempty"`
-	// Unhealthy configures the rules that define an upstream node as unhealthy. 
-	Unhealthy      *ActiveHealthCheckUnhealthy `json:"unhealthy,omitempty" yaml:"unhealthy,omitempty"`
+	Healthy *ActiveHealthCheckHealthy `json:"healthy,omitempty" yaml:"healthy,omitempty"`
+	// Unhealthy configures the rules that define an upstream node as unhealthy.
+	Unhealthy *ActiveHealthCheckUnhealthy `json:"unhealthy,omitempty" yaml:"unhealthy,omitempty"`
 }
 
 // PassiveHealthCheck defines the conditions used to determine whether
@@ -303,7 +303,7 @@ type PassiveHealthCheckUnhealthy struct {
 	// TCPFailures define the number of TCP failures to define an unhealthy target.
 	TCPFailures int `json:"tcpFailures,omitempty" yaml:"tcpFailures,omitempty"`
 	// Timeout sets health check timeout in seconds.
-	Timeouts    int `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	Timeouts int `json:"timeout,omitempty" yaml:"timeout,omitempty"`
 }
 
 func init() {

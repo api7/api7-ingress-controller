@@ -91,7 +91,7 @@ type ApisixRouteHTTP struct {
 	Backends []ApisixRouteHTTPBackend `json:"backends,omitempty" yaml:"backends,omitempty"`
 	// Upstreams references ApisixUpstream CRDs.
 	Upstreams []ApisixRouteUpstreamReference `json:"upstreams,omitempty" yaml:"upstreams,omitempty"`
-	
+
 	// Websocket enables or disables websocket support for this route.
 	// +kubebuilder:validation:Optional
 	Websocket bool `json:"websocket" yaml:"websocket"`

@@ -80,6 +80,7 @@ type ApisixConsumerBasicAuth struct {
 	// Value specifies the basic authentication credentials.
 	Value *ApisixConsumerBasicAuthValue `json:"value,omitempty" yaml:"value,omitempty"`
 }
+
 // ApisixConsumerBasicAuthValue defines the username and password configuration for basic authentication.
 type ApisixConsumerBasicAuthValue struct {
 	// Username is the basic authentication username.
