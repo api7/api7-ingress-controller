@@ -39,7 +39,7 @@
 
 ### Types
 
-This section describes the types used by the CRDs.
+In this section you will find types that the CRDs rely on.
 
 {{- /* Display Types that are not exported Kinds */ -}}
 {{- range $typ := $gv.SortedTypes -}}
