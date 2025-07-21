@@ -44,6 +44,8 @@ CRD_DOCS_CONFIG ?= docs/assets/crd/config.yaml
 CRD_DOCS_OUTPUT ?= docs/en/latest/api-reference.md
 CRD_DOCS_TEMPLATE ?= docs/assets/template
 
+export KUBECONFIG = /tmp/$(KIND_NAME).kubeconfig
+
 # go 
 VERSYM="github.com/apache/apisix-ingress-controller/internal/version._buildVersion"
 GITSHASYM="github.com/apache/apisix-ingress-controller/internal/version._buildGitRevision"
