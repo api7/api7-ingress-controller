@@ -1,4 +1,29 @@
-# APISIX Ingress Controller Upgrade Guide
+---
+title: Upgrade Guide
+keywords:
+  - APISIX Ingress
+  - Apache APISIX
+  - Kubernetes Ingress
+  - Gateway API
+---
+<!--
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+-->
 
 ## Upgrading from 1.x.x to 2.0.0: Key Changes and Considerations
 
@@ -21,7 +46,7 @@ There were two main deployment architectures in 1.x.x:
 
 #### Architecture in 2.0.0
 
-![upgrade to 2.0.0 architecture](./assets/images/upgrade-to-architecture.png)
+![upgrade to 2.0.0 architecture](../../assets/images/upgrade-to-architecture.png)
 
 ##### Mock-ETCD Mode Deprecated
 
@@ -39,7 +64,13 @@ etcdserver:
 
 ##### Controller-Only Configuration Source
 
-In 2.0.0, all data plane configurations must originate from the Ingress Controller. Configurations via Admin API or any external methods are no longer supported and will be ignored or may cause errors.
+Starting with APISIX Ingress Controller 2.0.0, the controller is the single source of truth. Manual Admin API changes will be overwritten on the next full sync. The prior approach, which allowed controller-managed and manually added configurations to coexist, was incorrect and is now deprecated.
+
+#### APISIX With Etcd (Admin API) synchronization performance
+
+In APISIX Ingress Controller 2.0.0, ADC performs scheduled resource synchronization by comparing resources against the admin API response.
+
+Because the Admin API fills in default values, the submitted content may differ from the returned result. This breaks the diff, triggering full updates to data plane resources, causing cache invalidation and significant performance impact.
 
 ### Ingress Configuration Changes
 
@@ -108,14 +139,24 @@ spec:
 
 #### `ApisixUpstream`
 
-Due to current limitations in the ADC (API Definition Controller) component, the following fields are not yet supported:
+Due to current limitations in the [ADC](https://github.com/api7/adc) component, the following fields are not yet supported:
 
 * `spec.discovery`: Service Discovery
 * `spec.healthCheck`: Health Checking
 
 More details: [ADC Backend Differences](https://github.com/api7/adc/blob/2449ca81e3c61169f8c1e59efb4c1173a766bce2/libs/backend-apisix-standalone/README.md#differences-in-upstream)
 
-#### Limited Support for Ingress Annotations
+#### `ApisixClusterConfig`
+
+The `ApisixClusterConfig` CRD has been removed in 2.0.0. global rules and configurations should now be managed through the `ApisixGlobalRule` CRDs.
+
+#### Ingress
+
+##### API Version Support
+
+Currently supports networking.k8s.io/v1 only. Support for other Ingress API versions (networking.k8s.io/v1beta1 and extensions/v1beta1) is not yet available in 2.0.0.
+
+##### Limited Support for Ingress Annotations
 
 Ingress annotations used in version 1.x.x are not fully supported in 2.0.0. If your existing setup relies on any of the following annotations, validate compatibility or consider delaying the upgrade.
 
@@ -162,10 +203,10 @@ Ingress annotations used in version 1.x.x are not fully supported in 2.0.0. If y
 
 ### Summary
 
-| Category         | Description                                                                                          |
-| ---------------- | ---------------------------------------------------------------------------------------------------- |
-| Architecture     | The `mock-etcd` component has been removed. Configuration is now centralized through the Controller. |
-| Configuration    | Static configuration fields have been removed. Use `GatewayProxy` CRD to configure the data plane.   |
-| Data Plane       | Requires APISIX version 3.13.0 running in `standalone` mode.                                         |
-| API              | Some fields in `Ingress Annotations` and `ApisixUpstream` are not yet supported.                     |
-| Upgrade Strategy | Blue-green deployment or canary release is recommended before full switchover.                       |
+| Category         | Description                                                                                                                       |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture     | The `mock-etcd` component has been removed. Configuration is now centralized through the Controller.                              |
+| Configuration    | Static configuration fields have been removed. Use `GatewayProxy` CRD to configure the data plane.                                |
+| Data Plane       | The Admin API configuration method is still supported. Support for the Standalone API-driven mode was introduced in APISIX 3.13.0 and later. |
+| API              | Some fields in `Ingress Annotations` and `ApisixUpstream` are not yet supported.                                                  |
+| Upgrade Strategy | Blue-green deployment or canary release is recommended before full switchover.                                                    |

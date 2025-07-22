@@ -19,6 +19,7 @@
 
 VERSION ?= 2.0.0
 
+RELEASE_SRC = apache-apisix-ingress-controller-${VERSION}-src
 
 IMAGE_TAG ?= dev
 
@@ -31,14 +32,17 @@ GATEAY_API_VERSION ?= v1.2.0
 DASHBOARD_VERSION ?= dev
 ADC_VERSION ?= 0.20.0
 
+GINKGO_VERSION ?= 2.20.0
 TEST_TIMEOUT ?= 80m
 TEST_DIR ?= ./test/e2e/
+E2E_NODES ?= 2
 
 # CRD Reference Documentation
 CRD_REF_DOCS_VERSION ?= v0.1.0
 CRD_REF_DOCS ?= $(LOCALBIN)/crd-ref-docs
-CRD_DOCS_CONFIG ?= docs/crd/config.yaml
-CRD_DOCS_OUTPUT ?= docs/crd/api.md
+CRD_DOCS_CONFIG ?= docs/assets/crd/config.yaml
+CRD_DOCS_OUTPUT ?= docs/en/latest/api-reference.md
+CRD_DOCS_TEMPLATE ?= docs/assets/template
 
 export KUBECONFIG = /tmp/$(KIND_NAME).kubeconfig
 
@@ -137,6 +141,14 @@ download-api7ee3-chart:
 	@helm pull api7/api7ee3 --destination "$(shell helm env HELM_REPOSITORY_CACHE)"
 	@echo "Downloaded API7EE3 chart"
 
+.PHONY: ginkgo-e2e-test
+ginkgo-e2e-test:
+	@ginkgo -cover -coverprofile=coverage.txt -r --randomize-all --randomize-suites --trace --focus=$(E2E_FOCUS) --nodes=$(E2E_NODES) $(TEST_DIR)
+
+.PHONY: install-ginkgo
+install-ginkgo:
+	@go install github.com/onsi/ginkgo/v2/ginkgo@v$(GINKGO_VERSION)
+
 .PHONY: conformance-test
 conformance-test:
 	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test -v ./test/conformance -tags=conformance -timeout 60m
@@ -170,15 +182,15 @@ kind-down:
 
 .PHONY: kind-load-images
 kind-load-images: pull-infra-images kind-load-ingress-image
-	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev --name $(KIND_NAME) 
-	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION)  --name $(KIND_NAME) 
-	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)  --name $(KIND_NAME) 
-	@kind load docker-image kennethreitz/httpbin:latest --name $(KIND_NAME) 
+	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev --name $(KIND_NAME)
+	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
+	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
+	@kind load docker-image kennethreitz/httpbin:latest --name $(KIND_NAME)
 	@kind load docker-image jmalloc/echo-server:latest --name $(KIND_NAME)
 
 .PHONY: kind-load-gateway-image
 kind-load-gateway-image:
-	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev --name $(KIND_NAME) 
+	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev --name $(KIND_NAME)
 
 .PHONY: kind-load-dashboard-images
 kind-load-dashboard-images:
@@ -192,7 +204,7 @@ kind-load-ingress-image:
 .PHONY: pull-infra-images
 pull-infra-images:
 	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev
-	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION) 
+	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION)
 	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)
 	@docker pull kennethreitz/httpbin:latest
 	@docker pull jmalloc/echo-server:latest
@@ -389,7 +401,7 @@ generate-crd-docs: manifests ## Generate CRD reference documentation in a single
 		--source-path=./api \
 		--config=$(CRD_DOCS_CONFIG) \
 		--renderer=markdown \
-		--templates-dir=./docs/template \
+		--templates-dir=$(CRD_DOCS_TEMPLATE) \
 		--output-path=$(CRD_DOCS_OUTPUT) \
 		--max-depth=100
 	@echo "CRD reference documentation generated at $(CRD_DOCS_OUTPUT)"
@@ -402,7 +414,7 @@ generate-crd-docs-grouped: manifests ## Generate CRD reference documentation gro
 		--source-path=./api \
 		--config=$(CRD_DOCS_CONFIG) \
 		--renderer=markdown \
-		--templates-dir=./docs/template \
+		--templates-dir=$(CRD_DOCS_TEMPLATE) \
 		--output-path=docs/crd/groups \
 		--output-mode=group
 	@echo "CRD reference documentation generated in docs/crd/groups directory"
@@ -416,3 +428,56 @@ verify-license:
 .PHONY: update-license
 update-license:
 	docker run -it --rm -v $(PWD):/github/workspace apache/skywalking-eyes header fix
+
+### verify-mdlint:        Verify markdown files lint rules.
+.PHONY: verify-mdlint
+verify-mdlint:
+	docker run -it --rm -v $(PWD):/work tmknom/markdownlint '**/*.md' --ignore node_modules --ignore CHANGELOG.md
+
+### update-mdlint:        Update markdown files lint rules.
+.PHONY: update-mdlint
+update-mdlint:
+	docker run -it --rm -v $(PWD):/work tmknom/markdownlint '**/*.md' -f --ignore node_modules --ignore vendor --ignore CHANGELOG.md
+
+### verify-yamllint:	  Verify yaml files lint rules for `examples` directory.
+.PHONY: verify-yamllint
+verify-yamllint:
+	docker run -it --rm -v $(PWD):/yaml peterdavehello/yamllint yamllint examples
+
+### update-yamlfmt:       Update yaml files format for `examples` directory.
+.PHONY: update-yamlfmt
+update-yamlfmt:
+	go install github.com/google/yamlfmt/cmd/yamlfmt@latest && yamlfmt examples
+
+### verify-all:           Verify all verify- rules.
+.PHONY: verify-all
+verify-all: verify-license verify-mdlint verify-yamllint
+
+### update-all:           Update all update- rules.
+.PHONY: update-all
+update-all: update-license update-mdlint update-gofmt
+
+### release-src:      Release source
+release-src:
+	tar -zcvf $(RELEASE_SRC).tgz \
+	--exclude .github \
+	--exclude .git \
+	--exclude .idea \
+	--exclude .gitignore \
+	--exclude .DS_Store \
+	--exclude docs \
+	--exclude examples \
+	--exclude scripts \
+	--exclude samples \
+	--exclude test \
+	--exclude release \
+	--exclude $(RELEASE_SRC).tgz \
+	.
+
+	gpg --batch --yes --armor --detach-sig $(RELEASE_SRC).tgz
+	shasum -a 512 $(RELEASE_SRC).tgz > $(RELEASE_SRC).tgz.sha512
+
+	mkdir -p release
+	mv $(RELEASE_SRC).tgz release/$(RELEASE_SRC).tgz
+	mv $(RELEASE_SRC).tgz.asc release/$(RELEASE_SRC).tgz.asc
+	mv $(RELEASE_SRC).tgz.sha512 release/$(RELEASE_SRC).tgz.sha512
