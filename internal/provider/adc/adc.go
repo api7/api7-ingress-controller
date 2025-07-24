@@ -452,6 +452,9 @@ func (d *adcClient) sync(ctx context.Context, task Task) error {
 			pkgmetrics.RecordSyncDuration(config.Name, resourceType, status, duration)
 		}
 
+		if len(errs.Errors) > 0 {
+			return errs
+		}
 		return nil
 	}
 
