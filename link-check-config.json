@@ -11,6 +11,9 @@
     },
     {
       "pattern": "/enterprise/reference/built-in-variable"
+    },
+    {
+      "pattern": "/apisix/reference/built-in-variables"
     }
   ],
   "replacementPatterns": [
