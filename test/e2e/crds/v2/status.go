@@ -19,6 +19,7 @@ package v2
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -101,16 +102,31 @@ spec:
 			Expect(err).NotTo(HaveOccurred(), "creating ApisixRoute with valid plugin")
 
 			By("check ApisixRoute status")
-			s.RetryAssertion(func() string {
-				output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
-				return output
-			}).Should(
-				And(
-					ContainSubstring(`status: "False"`),
-					ContainSubstring(`reason: SyncFailed`),
-					ContainSubstring(`unknown plugin [non-existent-plugin]`),
-				),
-			)
+			if os.Getenv("PROVIDER_TYPE") == "apisix" {
+				s.RetryAssertion(func() string {
+					output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
+					log.Printf("output: %s", output)
+					return output
+				}).Should(
+					And(
+						ContainSubstring(`status: "False"`),
+						ContainSubstring(`reason: SyncFailed`),
+						ContainSubstring(`unknown plugin [non-existent-plugin]`),
+					),
+				)
+			} else {
+				s.RetryAssertion(func() string {
+					output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
+					log.Printf("output: %s", output)
+					return output
+				}).Should(
+					And(
+						ContainSubstring(`status: "False"`),
+						ContainSubstring(`reason: SyncFailed`),
+						ContainSubstring(`(non-existent-plugin) not found`),
+					),
+				)
+			}
 
 			By("Update ApisixRoute")
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apiv2.ApisixRoute{}, ar)
@@ -125,6 +141,9 @@ spec:
 		})
 
 		It("dataplane unavailable", func() {
+			if os.Getenv("PROVIDER_TYPE") == "api7ee" {
+				Skip("skip for api7ee mode because it use dashboard admin api")
+			}
 			By("apply ApisixRoute")
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apiv2.ApisixRoute{}, ar)
 
@@ -290,6 +309,9 @@ spec:
 		})
 
 		It("dataplane unavailable", func() {
+			if os.Getenv("PROVIDER_TYPE") == "api7ee" {
+				Skip("skip for api7ee mode because it use dashboard admin api")
+			}
 			By("Create HTTPRoute")
 			err := s.CreateResourceFromString(httproute)
 			Expect(err).NotTo(HaveOccurred(), "creating HTTPRoute")
