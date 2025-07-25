@@ -1,10 +1,10 @@
 ---
 title: Custom Resource Definitions API Reference
-slug: /reference/apisix-ingress-controller/crd-reference
+slug: /reference/apisix-ingress-controller/api-reference
 description: Explore detailed reference documentation for the custom resource definitions (CRDs) supported by the APISIX Ingress Controller.
 ---
 
-This document provides the API resource description the APISIX Ingress Controller custom resource definitions (CRDs).
+This document provides the API resource description for the APISIX Ingress Controller custom resource definitions (CRDs).
 
 ## Packages
 - [apisix.apache.org/v1alpha1](#apisixapacheorgv1alpha1)
@@ -102,7 +102,7 @@ PluginConfig defines plugin configuration.
 
 ### Types
 
-In this section you will find types that the CRDs rely on.
+This section describes the types used by the CRDs.
 #### AdminKeyAuth
 
 
@@ -607,7 +607,7 @@ ApisixUpstream defines configuration for upstream services.
 
 ### Types
 
-In this section you will find types that the CRDs rely on.
+This section describes the types used by the CRDs.
 #### ActiveHealthCheck
 
 
