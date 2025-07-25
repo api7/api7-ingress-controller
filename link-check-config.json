@@ -8,6 +8,9 @@
     },
     {
       "pattern": "^#"
+    },
+    {
+      "pattern": "/enterprise/reference/built-in-variable"
     }
   ],
   "replacementPatterns": [
