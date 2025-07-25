@@ -18,11 +18,12 @@
 package types
 
 import (
-	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
-	v2 "github.com/apache/apisix-ingress-controller/api/v2"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/networking/v1"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
+	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
+	v2 "github.com/apache/apisix-ingress-controller/api/v2"
 )
 
 const DefaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
