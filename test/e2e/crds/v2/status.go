@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package apisix
+package v2
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	"github.com/apache/apisix-ingress-controller/internal/provider/adc"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
@@ -101,16 +103,31 @@ spec:
 			Expect(err).NotTo(HaveOccurred(), "creating ApisixRoute with valid plugin")
 
 			By("check ApisixRoute status")
-			s.RetryAssertion(func() string {
-				output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
-				return output
-			}).Should(
-				And(
-					ContainSubstring(`status: "False"`),
-					ContainSubstring(`reason: SyncFailed`),
-					ContainSubstring(`unknown plugin [non-existent-plugin]`),
-				),
-			)
+			if os.Getenv("PROVIDER_TYPE") == "apisix" {
+				s.RetryAssertion(func() string {
+					output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
+					log.Printf("output: %s", output)
+					return output
+				}).Should(
+					And(
+						ContainSubstring(`status: "False"`),
+						ContainSubstring(`reason: SyncFailed`),
+						ContainSubstring(`unknown plugin [non-existent-plugin]`),
+					),
+				)
+			} else {
+				s.RetryAssertion(func() string {
+					output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
+					log.Printf("output: %s", output)
+					return output
+				}).Should(
+					And(
+						ContainSubstring(`status: "False"`),
+						ContainSubstring(`reason: SyncFailed`),
+						ContainSubstring(`(non-existent-plugin) not found`),
+					),
+				)
+			}
 
 			By("Update ApisixRoute")
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apiv2.ApisixRoute{}, ar)
@@ -125,6 +142,9 @@ spec:
 		})
 
 		It("dataplane unavailable", func() {
+			if os.Getenv("PROVIDER_TYPE") == adc.BackendModeAPI7EE {
+				Skip("skip for api7ee mode because it use dashboard admin api")
+			}
 			By("apply ApisixRoute")
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apiv2.ApisixRoute{}, ar)
 
@@ -290,6 +310,9 @@ spec:
 		})
 
 		It("dataplane unavailable", func() {
+			if os.Getenv("PROVIDER_TYPE") == adc.BackendModeAPI7EE {
+				Skip("skip for api7ee mode because it use dashboard admin api")
+			}
 			By("Create HTTPRoute")
 			err := s.CreateResourceFromString(httproute)
 			Expect(err).NotTo(HaveOccurred(), "creating HTTPRoute")
