@@ -1921,7 +1921,7 @@ spec:
 		})
 	})
 
-	FContext("Test HTTPRoute sync during startup", func() {
+	Context("Test HTTPRoute sync during startup", func() {
 		BeforeEach(beforeEachHTTP)
 		var route = `
 apiVersion: gateway.networking.k8s.io/v1
