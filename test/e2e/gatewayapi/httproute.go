@@ -33,7 +33,6 @@ import (
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
-	"github.com/apache/apisix-ingress-controller/internal/provider/adc"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
@@ -1963,9 +1962,6 @@ spec:
       port: 80
 `
 		It("Should sync ApisixRoute during startup", func() {
-			if s.Deployer.Name() == adc.BackendModeAPI7EE {
-				Skip("don't need to run on api7ee mode")
-			}
 			By("apply ApisixRoute")
 			Expect(s.CreateResourceFromString(route2)).ShouldNot(HaveOccurred(), "applying HTTPRoute with non-existent parent")
 			s.ResourceApplied("HTTPRoute", "httpbin", route, 1)
