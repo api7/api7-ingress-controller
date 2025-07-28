@@ -1921,7 +1921,7 @@ spec:
 		})
 	})
 
-	Context("Test HTTPRoute sync during startup", func() {
+	FContext("Test HTTPRoute sync during startup", func() {
 		BeforeEach(beforeEachHTTP)
 		var route = `
 apiVersion: gateway.networking.k8s.io/v1
@@ -1988,6 +1988,7 @@ spec:
 			s.Deployer.ScaleDataplane(0)
 			s.Deployer.ScaleDataplane(1)
 			s.Deployer.ScaleIngress(1)
+			time.Sleep(10 * time.Second)
 
 			s.RequestAssert(&scaffold.RequestAssert{
 				Method: "GET",

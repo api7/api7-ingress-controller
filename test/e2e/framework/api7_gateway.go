@@ -62,7 +62,7 @@ type API7DeployOptions struct {
 	Replicas         *int
 }
 
-func (f *Framework) DeployGateway(opts API7DeployOptions) *corev1.Service {
+func (f *Framework) DeployGateway(opts *API7DeployOptions) *corev1.Service {
 	if opts.ServiceName == "" {
 		opts.ServiceName = "api7ee3-apisix-gateway-mtls"
 	}
