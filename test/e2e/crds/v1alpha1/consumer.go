@@ -23,7 +23,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/apache/apisix-ingress-controller/internal/provider/adc"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
@@ -616,9 +615,6 @@ spec:
 		})
 
 		It("Should sync Consumer during startup", func() {
-			if s.Deployer.Name() == adc.BackendModeAPI7EE {
-				Skip("don't need to run on api7ee mode")
-			}
 			Expect(s.CreateResourceFromString(consumer2)).NotTo(HaveOccurred(), "creating unused consumer")
 			s.ResourceApplied("Consumer", "consumer-sample", consumer1, 1)
 
