@@ -139,7 +139,7 @@ func TestMain(m *testing.M) {
 	gatewayGroupId := f.CreateNewGatewayGroupWithIngress()
 	adminKey := f.GetAdminKey(gatewayGroupId)
 
-	svc := f.DeployGateway(framework.API7DeployOptions{
+	svc := f.DeployGateway(&framework.API7DeployOptions{
 		Namespace:              namespace,
 		GatewayGroupID:         gatewayGroupId,
 		DPManagerEndpoint:      framework.DPManagerTLSEndpoint,
