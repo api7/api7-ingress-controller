@@ -94,6 +94,8 @@ type adcClient struct {
 
 	updater         status.Updater
 	statusUpdateMap map[types.NamespacedNameKind][]string
+
+	syncCh chan struct{}
 }
 
 type Task struct {
@@ -116,6 +118,7 @@ func New(updater status.Updater, opts ...Option) (provider.Provider, error) {
 		store:      NewStore(),
 		executor:   &DefaultADCExecutor{},
 		updater:    updater,
+		syncCh:     make(chan struct{}, 1),
 	}, nil
 }
 
@@ -220,6 +223,7 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 	// which only needs to be saved in cache
 	// and triggered by a timer for synchronization
 	if d.BackendMode == BackendModeAPISIXStandalone || d.BackendMode == BackendModeAPISIX {
+		d.syncNotify()
 		return nil
 	}
 
@@ -289,6 +293,8 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 				Name:    obj.GetName(),
 				configs: configs,
 			})
+		} else {
+			d.syncNotify()
 		}
 		return nil
 	case BackendModeAPI7EE:
@@ -306,12 +312,14 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 
 func (d *adcClient) Start(ctx context.Context) error {
 	initalSyncDelay := d.InitSyncDelay
-	time.AfterFunc(initalSyncDelay, func() {
-		if err := d.Sync(ctx); err != nil {
-			log.Error(err)
-			return
-		}
-	})
+	if initalSyncDelay > 0 {
+		time.AfterFunc(initalSyncDelay, func() {
+			if err := d.Sync(ctx); err != nil {
+				log.Error(err)
+				return
+			}
+		})
+	}
 
 	if d.SyncPeriod < 1 {
 		return nil
@@ -319,13 +327,19 @@ func (d *adcClient) Start(ctx context.Context) error {
 	ticker := time.NewTicker(d.SyncPeriod)
 	defer ticker.Stop()
 	for {
+		synced := false
 		select {
+		case <-d.syncCh:
+			synced = true
 		case <-ticker.C:
+			synced = true
+		case <-ctx.Done():
+			return nil
+		}
+		if synced {
 			if err := d.Sync(ctx); err != nil {
 				log.Error(err)
 			}
-		case <-ctx.Done():
-			return nil
 		}
 	}
 }
@@ -504,6 +518,13 @@ func (d *adcClient) sync(ctx context.Context, task Task) error {
 		return errs
 	}
 	return nil
+}
+
+func (d *adcClient) syncNotify() {
+	select {
+	case d.syncCh <- struct{}{}:
+	default:
+	}
 }
 
 func prepareSyncFile(resources any) (string, func(), error) {
