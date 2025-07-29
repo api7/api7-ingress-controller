@@ -29,20 +29,6 @@ import (
 // HasAPIResource checks if a specific API resource is available in the current cluster.
 // It uses the Discovery API to query the cluster's available resources and returns true
 // if the resource is found, false otherwise.
-//
-// This function gracefully handles errors and will return false if:
-// - The discovery client cannot be created
-// - The API server cannot be reached
-// - The group/version is not available
-// - Any other discovery-related error occurs
-//
-// Usage:
-//
-//	if HasAPIResource(mgr, &gatewayv1.Gateway{}) {
-//	    // Gateway API is available, register the controller
-//	} else {
-//	    // Gateway API not available, skip controller setup
-//	}
 func HasAPIResource(mgr ctrl.Manager, obj client.Object) bool {
 	return HasAPIResourceWithLogger(mgr, obj, ctrl.Log.WithName("api-detection"))
 }
