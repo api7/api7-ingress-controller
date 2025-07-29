@@ -27,6 +27,7 @@ IMG ?= api7/api7-ingress-controller:$(IMAGE_TAG)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.30.0
 KIND_NAME ?= apisix-ingress-cluster
+KIND_NODE_IMAGE ?= kindest/node:v1.30.0@sha256:047357ac0cfea04663786a612ba1eaba9702bef25227a794b52890dd8bcd692e
 
 GATEAY_API_VERSION ?= v1.2.0
 DASHBOARD_VERSION ?= dev
@@ -169,7 +170,7 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 .PHONY: kind-up
 kind-up:
 	@kind get clusters 2>&1 | grep -v $(KIND_NAME) \
-		&& kind create cluster --name $(KIND_NAME) \
+		&& kind create cluster --name $(KIND_NAME) --image $(KIND_NODE_IMAGE) \
 		|| echo "kind cluster already exists"
 	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
 	kubectl wait --for=condition=Ready nodes --all
