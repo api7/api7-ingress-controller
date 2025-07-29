@@ -114,7 +114,6 @@ func (s *API7Deployer) AfterEach() {
 		if output != "" {
 			_, _ = fmt.Fprintln(GinkgoWriter, output)
 		}
-		return
 	}
 
 	// Delete all additional namespaces
