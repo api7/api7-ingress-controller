@@ -141,8 +141,6 @@ spec:
                     required:
                     - auth
                     type: object
-                    x-kubernetes-validations:
-                    - rule: has(self.endpoints) != has(self.service)
                   type:
                     description: Type specifies the type of provider. Can only be
                       `ControlPlane`.
@@ -152,10 +150,6 @@ spec:
                 required:
                 - type
                 type: object
-                x-kubernetes-validations:
-                - message: controlPlane must be specified when type is ControlPlane
-                  rule: 'self.type == ''ControlPlane'' ? has(self.controlPlane) :
-                    true'
               publishService:
                 description: |-
                   PublishService specifies the LoadBalancer-type Service whose external address the controller uses to
