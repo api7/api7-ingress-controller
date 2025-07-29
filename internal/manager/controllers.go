@@ -111,7 +111,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Updater: updater,
 		})
 	} else {
-		setupLog.Info("Skipping GatewayClass controller setup, API not found in cluster", "api", "gateway.networking.k8s.io/v1.GatewayClass")
+		setupLog.Info("Skipping GatewayClass controller setup, API not found in cluster", "api", utils.FormatGVK(&gatewayv1.GatewayClass{}))
 	}
 
 	if utils.HasAPIResource(mgr, &gatewayv1.Gateway{}) {
@@ -123,7 +123,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Updater:  updater,
 		})
 	} else {
-		setupLog.Info("Skipping Gateway controller setup, API not found in cluster", "api", "gateway.networking.k8s.io/v1.Gateway")
+		setupLog.Info("Skipping Gateway controller setup, API not found in cluster", "api", utils.FormatGVK(&gatewayv1.Gateway{}))
 	}
 
 	if utils.HasAPIResource(mgr, &gatewayv1.HTTPRoute{}) {
@@ -136,7 +136,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Readier:  readier,
 		})
 	} else {
-		setupLog.Info("Skipping HTTPRoute controller setup, API not found in cluster", "api", "gateway.networking.k8s.io/v1.HTTPRoute")
+		setupLog.Info("Skipping HTTPRoute controller setup, API not found in cluster", "api", utils.FormatGVK(&gatewayv1.HTTPRoute{}))
 	}
 
 	// Core Kubernetes Controllers - always register these
@@ -167,7 +167,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Readier:  readier,
 		})
 	} else {
-		setupLog.Info("Skipping Consumer controller setup, API not found in cluster", "api", "apisix.apache.org/v1alpha1.Consumer")
+		setupLog.Info("Skipping Consumer controller setup, API not found in cluster", "api", utils.FormatGVK(&v1alpha1.Consumer{}))
 	}
 
 	controllers = append(controllers, &controller.GatewayProxyController{

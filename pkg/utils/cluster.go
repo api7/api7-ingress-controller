@@ -70,3 +70,8 @@ func HasAPIResourceWithLogger(mgr ctrl.Manager, obj client.Object, logger logr.L
 	logger.Info("API resource kind not found in group/version")
 	return false
 }
+
+func FormatGVK(obj client.Object) string {
+	gvk := types.GvkOf(obj)
+	return gvk.GroupVersion().String() + "." + gvk.Kind
+}
