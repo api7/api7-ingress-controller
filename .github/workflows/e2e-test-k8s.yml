@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: APISIX E2E Test Kubernetes
+name: E2E Test For Kubernetes
 
 on:
   push:
@@ -34,7 +34,7 @@ concurrency:
 jobs:
   prepare:
     name: Prepare
-    runs-on: buildjet-2vcpu-ubuntu-2204
+    runs-on: buildjet-2vcpu-ubuntu-1804
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,21 +47,18 @@ jobs:
 
       - name: Install kind
         run: |
-          go install sigs.k8s.io/kind@v0.13.0
+          go install sigs.k8s.io/kind@v0.23.0
+
+      - name: Install Helm
+        run: |
+          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+          chmod 700 get_helm.sh
+          ./get_helm.sh
 
   e2e-test:
     needs: 
       - prepare
-    strategy:
-      matrix:
-        provider_type:
-        - apisix-standalone
-        - apisix
-        cases_subset:
-        - apisix.apache.org
-        - networking.k8s.io
-      fail-fast: false
-    runs-on: buildjet-2vcpu-ubuntu-2204
+    runs-on: buildjet-2vcpu-ubuntu-1804
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -80,13 +77,19 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      - name: Login to Private Registry
+        uses: docker/login-action@v1
+        with:
+          registry: hkccr.ccs.tencentyun.com
+          username: ${{ secrets.PRIVATE_DOCKER_USERNAME }}
+          password: ${{ secrets.PRIVATE_DOCKER_PASSWORD }}
+
       - name: Build images
         env:
           TAG: dev
           ARCH: amd64
           ENABLE_PROXY: "false"
           BASE_IMAGE_TAG: "debug"
-          ADC_VERSION: "dev"
         run: |
           echo "building images..."
           make build-image
@@ -102,24 +105,26 @@ jobs:
 
       - name: Launch Kind Cluster
         env:
-          KIND_NAME: apisix-ingress-cluster
           KIND_NODE_IMAGE: kindest/node:v1.18.20@sha256:38a8726ece5d7867fb0ede63d718d27ce2d41af519ce68be5ae7fcca563537ed
         run: |
-          kind create cluster --name 
-
-      - name: Loading Docker Image to Kind Cluster
-        run: |
-          make kind-load-ingress-image
+          make kind-up
 
       - name: Install Gateway API And CRDs
         run: |
           make install
 
+      - name: Download API7EE3 Chart
+        run: |
+          make download-api7ee3-chart
+
+      - name: Loading Docker Image to Kind Cluster
+        run: |
+          make kind-load-images
+
       - name: Run E2E test suite
         shell: bash
         env:
-          TEST_DIR: "./test/e2e/apisix/"
-          PROVIDER_TYPE: ${{ matrix.provider_type }}
-          TEST_LABEL: ${{ matrix.cases_subset }}
+          API7_EE_LICENSE: ${{ secrets.API7_EE_LICENSE }}
+          PROVIDER_TYPE: api7ee
         run: |
           make e2e-test
