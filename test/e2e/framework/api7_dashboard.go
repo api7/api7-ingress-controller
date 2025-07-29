@@ -210,6 +210,8 @@ postgresql:
   builtin: false
 {{- end }}
   primary:
+    containerSecurityContext:
+      enabled: false
     persistence:
       enabled: false
   readReplicas:
