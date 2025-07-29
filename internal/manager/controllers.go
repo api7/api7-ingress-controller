@@ -37,6 +37,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	types "github.com/apache/apisix-ingress-controller/internal/types"
+	"github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
 // K8s
@@ -97,101 +98,138 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 	if err := indexer.SetupIndexer(mgr); err != nil {
 		return nil, err
 	}
-	return []Controller{
-		&controller.GatewayClassReconciler{
+
+	setupLog := ctrl.LoggerFrom(ctx).WithName("setup")
+	var controllers []Controller
+
+	// Gateway API Controllers - conditional registration based on API availability
+	if utils.HasAPIResource(mgr, &gatewayv1.GatewayClass{}) {
+		controllers = append(controllers, &controller.GatewayClassReconciler{
 			Client:  mgr.GetClient(),
 			Scheme:  mgr.GetScheme(),
 			Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName("GatewayClass"),
 			Updater: updater,
-		},
-		&controller.GatewayReconciler{
+		})
+	} else {
+		setupLog.Info("Skipping GatewayClass controller setup, API not found in cluster", "api", "gateway.networking.k8s.io/v1.GatewayClass")
+	}
+
+	if utils.HasAPIResource(mgr, &gatewayv1.Gateway{}) {
+		controllers = append(controllers, &controller.GatewayReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Gateway"),
 			Provider: pro,
 			Updater:  updater,
-		},
-		&controller.HTTPRouteReconciler{
+		})
+	} else {
+		setupLog.Info("Skipping Gateway controller setup, API not found in cluster", "api", "gateway.networking.k8s.io/v1.Gateway")
+	}
+
+	if utils.HasAPIResource(mgr, &gatewayv1.HTTPRoute{}) {
+		controllers = append(controllers, &controller.HTTPRouteReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("HTTPRoute"),
 			Provider: pro,
 			Updater:  updater,
 			Readier:  readier,
-		},
-		&controller.IngressReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Ingress"),
-			Provider: pro,
-			Updater:  updater,
-			Readier:  readier,
-		},
-		&controller.ConsumerReconciler{
+		})
+	} else {
+		setupLog.Info("Skipping HTTPRoute controller setup, API not found in cluster", "api", "gateway.networking.k8s.io/v1.HTTPRoute")
+	}
+
+	// Core Kubernetes Controllers - always register these
+	controllers = append(controllers, &controller.IngressReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Ingress"),
+		Provider: pro,
+		Updater:  updater,
+		Readier:  readier,
+	})
+
+	controllers = append(controllers, &controller.IngressClassReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("IngressClass"),
+		Provider: pro,
+	})
+
+	// v1alpha1 Extension Controllers - conditional registration
+	if utils.HasAPIResource(mgr, &v1alpha1.Consumer{}) {
+		controllers = append(controllers, &controller.ConsumerReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Consumer"),
 			Provider: pro,
 			Updater:  updater,
 			Readier:  readier,
-		},
-		&controller.IngressClassReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("IngressClass"),
-			Provider: pro,
-		},
-		&controller.ApisixGlobalRuleReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixGlobalRule"),
-			Provider: pro,
-			Updater:  updater,
-			Readier:  readier,
-		},
-		&controller.ApisixRouteReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixRoute"),
-			Provider: pro,
-			Updater:  updater,
-			Readier:  readier,
-		},
-		&controller.ApisixConsumerReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixConsumer"),
-			Provider: pro,
-			Updater:  updater,
-			Readier:  readier,
-		},
-		&controller.ApisixPluginConfigReconciler{
-			Client:  mgr.GetClient(),
-			Scheme:  mgr.GetScheme(),
-			Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixPluginConfig"),
-			Updater: updater,
-		},
-		&controller.ApisixTlsReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixTls"),
-			Provider: pro,
-			Updater:  updater,
-			Readier:  readier,
-		},
-		&controller.ApisixUpstreamReconciler{
-			Client:  mgr.GetClient(),
-			Scheme:  mgr.GetScheme(),
-			Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixUpstream"),
-			Updater: updater,
-		},
-		&controller.GatewayProxyController{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("GatewayProxy"),
-			Provider: pro,
-		},
-	}, nil
+		})
+	} else {
+		setupLog.Info("Skipping Consumer controller setup, API not found in cluster", "api", "apisix.apache.org/v1alpha1.Consumer")
+	}
+
+	controllers = append(controllers, &controller.GatewayProxyController{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("GatewayProxy"),
+		Provider: pro,
+	})
+
+	// APISIX v2 Controllers - always register these as they are core to the controller
+	controllers = append(controllers, &controller.ApisixGlobalRuleReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixGlobalRule"),
+		Provider: pro,
+		Updater:  updater,
+		Readier:  readier,
+	})
+
+	controllers = append(controllers, &controller.ApisixRouteReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixRoute"),
+		Provider: pro,
+		Updater:  updater,
+		Readier:  readier,
+	})
+
+	controllers = append(controllers, &controller.ApisixConsumerReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixConsumer"),
+		Provider: pro,
+		Updater:  updater,
+		Readier:  readier,
+	})
+
+	controllers = append(controllers, &controller.ApisixPluginConfigReconciler{
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixPluginConfig"),
+		Updater: updater,
+	})
+
+	controllers = append(controllers, &controller.ApisixTlsReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixTls"),
+		Provider: pro,
+		Updater:  updater,
+		Readier:  readier,
+	})
+
+	controllers = append(controllers, &controller.ApisixUpstreamReconciler{
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixUpstream"),
+		Updater: updater,
+	})
+
+	setupLog.Info("Controllers setup completed", "total_controllers", len(controllers))
+	return controllers, nil
 }
 
 func registerReadinessGVK(c client.Client, readier readiness.ReadinessManager) {
