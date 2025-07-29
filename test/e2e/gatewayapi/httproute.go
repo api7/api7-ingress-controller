@@ -1985,7 +1985,6 @@ spec:
 			s.Deployer.ScaleDataplane(0)
 			s.Deployer.ScaleDataplane(1)
 			s.Deployer.ScaleIngress(1)
-			time.Sleep(10 * time.Second)
 
 			s.RequestAssert(&scaffold.RequestAssert{
 				Method: "GET",
