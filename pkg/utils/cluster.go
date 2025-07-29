@@ -56,7 +56,6 @@ func HasAPIResourceWithLogger(mgr ctrl.Manager, obj client.Object, logger logr.L
 	// Query server resources for the specific group/version
 	apiResources, err := discoveryClient.ServerResourcesForGroupVersion(groupVersion)
 	if err != nil {
-		// This is expected for unsupported API versions, so we log at debug level
 		logger.Info("group/version not available in cluster", "error", err)
 		return false
 	}
@@ -64,7 +63,6 @@ func HasAPIResourceWithLogger(mgr ctrl.Manager, obj client.Object, logger logr.L
 	// Check if the specific kind exists in the resource list
 	for _, res := range apiResources.APIResources {
 		if res.Kind == gvk.Kind {
-			logger.Info("API resource found in cluster")
 			return true
 		}
 	}
