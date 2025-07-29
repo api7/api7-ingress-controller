@@ -75,7 +75,7 @@ spec:
           value: "%s"
 `
 	getGatewayProxySpec := func() string {
-		if s.Deployer.Name() == "api7ee" {
+		if s.Deployer.Name() == adc.BackendModeAPI7EE {
 			return fmt.Sprintf(gatewayProxyYamlAPI7, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 		}
 		return fmt.Sprintf(gatewayProxyYaml, framework.ProviderType, s.AdminKey())
@@ -1963,9 +1963,6 @@ spec:
       port: 80
 `
 		It("Should sync ApisixRoute during startup", func() {
-			if s.Deployer.Name() == adc.BackendModeAPI7EE {
-				Skip("don't need to run on api7ee mode")
-			}
 			By("apply ApisixRoute")
 			Expect(s.CreateResourceFromString(route2)).ShouldNot(HaveOccurred(), "applying HTTPRoute with non-existent parent")
 			s.ResourceApplied("HTTPRoute", "httpbin", route, 1)

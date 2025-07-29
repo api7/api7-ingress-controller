@@ -148,6 +148,7 @@ func (s *API7Deployer) DeployDataplane(deployOpts DeployDataplaneOptions) {
 		ForIngressGatewayGroup: true,
 		ServiceHTTPPort:        9080,
 		ServiceHTTPSPort:       9443,
+		Replicas:               ptr.To(1),
 	}
 	if deployOpts.Namespace != "" {
 		opts.Namespace = deployOpts.Namespace
@@ -164,13 +165,22 @@ func (s *API7Deployer) DeployDataplane(deployOpts DeployDataplaneOptions) {
 	if deployOpts.Replicas != nil {
 		opts.Replicas = deployOpts.Replicas
 	}
+	if opts.Replicas != nil && *opts.Replicas == 0 {
+		deployOpts.SkipCreateTunnels = true
+	}
 
-	svc := s.DeployGateway(opts)
+	for _, close := range []func(){
+		s.closeApisixHttpTunnel,
+		s.closeApisixHttpsTunnel,
+	} {
+		close()
+	}
 
+	svc := s.DeployGateway(&opts)
 	s.dataplaneService = svc
 
 	if !deployOpts.SkipCreateTunnels {
-		err := s.newAPISIXTunnels()
+		err := s.newAPISIXTunnels(opts.ServiceName)
 		Expect(err).ToNot(HaveOccurred(), "creating apisix tunnels")
 	}
 }
@@ -181,8 +191,7 @@ func (s *API7Deployer) ScaleDataplane(replicas int) {
 	})
 }
 
-func (s *API7Deployer) newAPISIXTunnels() error {
-	serviceName := "api7ee3-apisix-gateway-mtls"
+func (s *API7Deployer) newAPISIXTunnels(serviceName string) error {
 	httpTunnel, httpsTunnel, err := s.createDataplaneTunnels(s.dataplaneService, s.kubectlOptions, serviceName)
 	if err != nil {
 		return err
@@ -247,7 +256,7 @@ func (s *API7Deployer) CreateAdditionalGateway(namePrefix string) (string, *core
 	serviceName := fmt.Sprintf("api7ee3-apisix-gateway-%s", namePrefix)
 
 	// Deploy dataplane for this gateway group
-	svc := s.DeployGateway(framework.API7DeployOptions{
+	svc := s.DeployGateway(&framework.API7DeployOptions{
 		GatewayGroupID:         gatewayGroupID,
 		Namespace:              additionalNS,
 		Name:                   serviceName,

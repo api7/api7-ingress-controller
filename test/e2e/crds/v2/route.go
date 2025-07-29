@@ -224,7 +224,7 @@ spec:
 		})
 
 		It("Test ApisixRoute filterFunc", func() {
-			if s.Deployer.Name() == "api7ee" {
+			if s.Deployer.Name() == adc.BackendModeAPI7EE {
 				Skip("filterFunc is not supported in api7ee")
 			}
 			const apisixRouteSpec = `
@@ -711,9 +711,6 @@ spec:
       servicePort: 80
 `
 		It("Should sync ApisixRoute during startup", func() {
-			if s.Deployer.Name() == adc.BackendModeAPI7EE {
-				Skip("don't need to run on api7ee mode")
-			}
 			By("apply ApisixRoute")
 			Expect(s.CreateResourceFromString(route2)).ShouldNot(HaveOccurred(), "apply ApisixRoute with nonexistent ingressClassName")
 			Expect(s.CreateResourceFromString(route3)).ShouldNot(HaveOccurred(), "apply ApisixRoute without ingressClassName")
