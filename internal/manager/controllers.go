@@ -98,49 +98,58 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 		return nil, err
 	}
 	return []Controller{
-		&controller.GatewayClassReconciler{
-			Client:  mgr.GetClient(),
-			Scheme:  mgr.GetScheme(),
-			Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName("GatewayClass"),
-			Updater: updater,
-		},
-		&controller.GatewayReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Gateway"),
-			Provider: pro,
-			Updater:  updater,
-		},
-		&controller.HTTPRouteReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("HTTPRoute"),
-			Provider: pro,
-			Updater:  updater,
-			Readier:  readier,
-		},
-		&controller.IngressReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Ingress"),
-			Provider: pro,
-			Updater:  updater,
-			Readier:  readier,
-		},
-		&controller.ConsumerReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Consumer"),
-			Provider: pro,
-			Updater:  updater,
-			Readier:  readier,
-		},
-		&controller.IngressClassReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("IngressClass"),
-			Provider: pro,
-		},
+		/*
+			&controller.GatewayClassReconciler{
+				Client:  mgr.GetClient(),
+				Scheme:  mgr.GetScheme(),
+				Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName("GatewayClass"),
+				Updater: updater,
+			},
+		*/
+		/*
+			&controller.GatewayReconciler{
+				Client:   mgr.GetClient(),
+				Scheme:   mgr.GetScheme(),
+				Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Gateway"),
+				Provider: pro,
+				Updater:  updater,
+			},
+		*/
+		/*
+			&controller.HTTPRouteReconciler{
+				Client:   mgr.GetClient(),
+				Scheme:   mgr.GetScheme(),
+				Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("HTTPRoute"),
+				Provider: pro,
+				Updater:  updater,
+				Readier:  readier,
+			},
+		*/
+		/*
+				&controller.IngressReconciler{
+					Client:   mgr.GetClient(),
+					Scheme:   mgr.GetScheme(),
+					Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Ingress"),
+					Provider: pro,
+					Updater:  updater,
+					Readier:  readier,
+				},
+
+			&controller.ConsumerReconciler{
+				Client:   mgr.GetClient(),
+				Scheme:   mgr.GetScheme(),
+				Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Consumer"),
+				Provider: pro,
+				Updater:  updater,
+				Readier:  readier,
+			},
+			&controller.IngressClassReconciler{
+				Client:   mgr.GetClient(),
+				Scheme:   mgr.GetScheme(),
+				Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("IngressClass"),
+				Provider: pro,
+			},
+		*/
 		&controller.ApisixGlobalRuleReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
