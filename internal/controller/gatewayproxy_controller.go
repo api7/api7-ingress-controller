@@ -55,7 +55,7 @@ type GatewayProxyController struct {
 
 func (r *GatewayProxyController) SetupWithManager(mrg ctrl.Manager) error {
 	// Check and store EndpointSlice API support
-	r.supportsEndpointSlice = pkgutils.HasAPIResourceWithLogger(mrg, &discoveryv1.EndpointSlice{}, r.Log.WithName("api-detection"))
+	r.supportsEndpointSlice = pkgutils.HasAPIResource(mrg, &discoveryv1.EndpointSlice{})
 
 	bdr := ctrl.NewControllerManagedBy(mrg).
 		For(&v1alpha1.GatewayProxy{}).
