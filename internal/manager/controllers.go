@@ -37,6 +37,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	types "github.com/apache/apisix-ingress-controller/internal/types"
+	"github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
 // K8s
@@ -97,21 +98,26 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 	if err := indexer.SetupIndexer(mgr); err != nil {
 		return nil, err
 	}
-	return []Controller{
-		&controller.GatewayClassReconciler{
+
+	setupLog := ctrl.LoggerFrom(ctx).WithName("setup")
+	var controllers []Controller
+
+	// Gateway API Controllers - conditional registration based on API availability
+	for resource, controller := range map[client.Object]Controller{
+		&gatewayv1.GatewayClass{}: &controller.GatewayClassReconciler{
 			Client:  mgr.GetClient(),
 			Scheme:  mgr.GetScheme(),
 			Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName("GatewayClass"),
 			Updater: updater,
 		},
-		&controller.GatewayReconciler{
+		&gatewayv1.Gateway{}: &controller.GatewayReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Gateway"),
 			Provider: pro,
 			Updater:  updater,
 		},
-		&controller.HTTPRouteReconciler{
+		&gatewayv1.HTTPRoute{}: &controller.HTTPRouteReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("HTTPRoute"),
@@ -119,18 +125,28 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Updater:  updater,
 			Readier:  readier,
 		},
-		&controller.IngressReconciler{
+		&v1alpha1.Consumer{}: &controller.ConsumerReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Ingress"),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Consumer"),
 			Provider: pro,
 			Updater:  updater,
 			Readier:  readier,
 		},
-		&controller.ConsumerReconciler{
+	} {
+		if utils.HasAPIResource(mgr, resource) {
+			controllers = append(controllers, controller)
+		} else {
+			setupLog.Info("Skipping controller setup, API not found in cluster", "api", utils.FormatGVK(resource))
+		}
+	}
+
+	controllers = append(controllers, []Controller{
+		// Core Kubernetes Controllers - always register these
+		&controller.IngressReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Consumer"),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Ingress"),
 			Provider: pro,
 			Updater:  updater,
 			Readier:  readier,
@@ -141,6 +157,14 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("IngressClass"),
 			Provider: pro,
 		},
+		// Gateway Proxy Controller - always register this as it is core to the controller
+		&controller.GatewayProxyController{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("GatewayProxy"),
+			Provider: pro,
+		},
+		// APISIX v2 Controllers - always register these as they are core to the controller
 		&controller.ApisixGlobalRuleReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
@@ -185,13 +209,10 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixUpstream"),
 			Updater: updater,
 		},
-		&controller.GatewayProxyController{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("GatewayProxy"),
-			Provider: pro,
-		},
-	}, nil
+	}...)
+
+	setupLog.Info("Controllers setup completed", "total_controllers", len(controllers))
+	return controllers, nil
 }
 
 func registerReadinessGVK(c client.Client, readier readiness.ReadinessManager) {
