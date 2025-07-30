@@ -59,11 +59,17 @@ type ApisixRouteReconciler struct {
 	Provider provider.Provider
 	Updater  status.Updater
 	Readier  readiness.ReadinessManager
+
+	// supportsEndpointSlice indicates whether the cluster supports EndpointSlice API
+	supportsEndpointSlice bool
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	// Check and store EndpointSlice API support
+	r.supportsEndpointSlice = pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
+
+	bdr := ctrl.NewControllerManagedBy(mgr).
 		For(&apiv2.ApisixRoute{}).
 		WithEventFilter(
 			predicate.Or(
@@ -81,10 +87,21 @@ func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Watches(&v1alpha1.GatewayProxy{},
 			handler.EnqueueRequestsFromMapFunc(r.listApisixRouteForGatewayProxy),
-		).
-		Watches(&discoveryv1.EndpointSlice{},
+		)
+
+	// Conditionally watch EndpointSlice or Endpoints based on cluster API support
+	if r.supportsEndpointSlice {
+		bdr = bdr.Watches(&discoveryv1.EndpointSlice{},
 			handler.EnqueueRequestsFromMapFunc(r.listApisixRoutesForService),
-		).
+		)
+	} else {
+		r.Log.Info("EndpointSlice API not available, falling back to Endpoints API for service discovery")
+		bdr = bdr.Watches(&corev1.Endpoints{},
+			handler.EnqueueRequestsFromMapFunc(r.listApisixRoutesForEndpoints),
+		)
+	}
+
+	return bdr.
 		Watches(&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.listApisixRoutesForSecret),
 		).
@@ -341,23 +358,46 @@ func (r *ApisixRouteReconciler) validateBackends(ctx context.Context, tc *provid
 		}
 		tc.Services[serviceNN] = &service
 
-		var endpoints discoveryv1.EndpointSliceList
-		if err := r.List(ctx, &endpoints,
-			client.InNamespace(service.Namespace),
-			client.MatchingLabels{
-				discoveryv1.LabelServiceName: service.Name,
-			},
-		); err != nil {
-			return types.ReasonError{
-				Reason:  string(apiv2.ConditionReasonInvalidSpec),
-				Message: fmt.Sprintf("failed to list endpoint slices: %v", err),
+		// Conditionally collect EndpointSlice or Endpoints based on cluster API support
+		if r.supportsEndpointSlice {
+			var endpoints discoveryv1.EndpointSliceList
+			if err := r.List(ctx, &endpoints,
+				client.InNamespace(service.Namespace),
+				client.MatchingLabels{
+					discoveryv1.LabelServiceName: service.Name,
+				},
+			); err != nil {
+				return types.ReasonError{
+					Reason:  string(apiv2.ConditionReasonInvalidSpec),
+					Message: fmt.Sprintf("failed to list endpoint slices: %v", err),
+				}
+			}
+
+			// backend.subset specifies a subset of upstream nodes.
+			// It specifies that the target pod's label should be a superset of the subset labels of the ApisixUpstream of the serviceName
+			subsetLabels := r.getSubsetLabels(tc, serviceNN, backend)
+			tc.EndpointSlices[serviceNN] = r.filterEndpointSlicesBySubsetLabels(ctx, endpoints.Items, subsetLabels)
+		} else {
+			// Fallback to Endpoints API for Kubernetes 1.18 compatibility
+			var ep corev1.Endpoints
+			if err := r.Get(ctx, serviceNN, &ep); err != nil {
+				if client.IgnoreNotFound(err) != nil {
+					return types.ReasonError{
+						Reason:  string(apiv2.ConditionReasonInvalidSpec),
+						Message: fmt.Sprintf("failed to get endpoints: %v", err),
+					}
+				}
+				// If endpoints not found, create empty EndpointSlice list
+				tc.EndpointSlices[serviceNN] = []discoveryv1.EndpointSlice{}
+			} else {
+				// Convert Endpoints to EndpointSlice format for internal consistency
+				convertedEndpointSlices := pkgutils.ConvertEndpointsToEndpointSlice(&ep)
+
+				// Apply subset filtering to converted EndpointSlices
+				subsetLabels := r.getSubsetLabels(tc, serviceNN, backend)
+				tc.EndpointSlices[serviceNN] = r.filterEndpointSlicesBySubsetLabels(ctx, convertedEndpointSlices, subsetLabels)
 			}
 		}
-
-		// backend.subset specifies a subset of upstream nodes.
-		// It specifies that the target pod's label should be a superset of the subset labels of the ApisixUpstream of the serviceName
-		subsetLabels := r.getSubsetLabels(tc, serviceNN, backend)
-		tc.EndpointSlices[serviceNN] = r.filterEndpointSlicesBySubsetLabels(ctx, endpoints.Items, subsetLabels)
 	}
 
 	return nil
@@ -428,6 +468,32 @@ func (r *ApisixRouteReconciler) listApisixRoutesForService(ctx context.Context, 
 	var (
 		namespace   = endpointSlice.GetNamespace()
 		serviceName = endpointSlice.Labels[discoveryv1.LabelServiceName]
+		arList      apiv2.ApisixRouteList
+	)
+	if err := r.List(ctx, &arList, client.MatchingFields{
+		indexer.ServiceIndexRef: indexer.GenIndexKey(namespace, serviceName),
+	}); err != nil {
+		r.Log.Error(err, "failed to list apisixroutes by service", "service", serviceName)
+		return nil
+	}
+	requests := make([]reconcile.Request, 0, len(arList.Items))
+	for _, ar := range arList.Items {
+		requests = append(requests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
+	}
+	return pkgutils.DedupComparable(requests)
+}
+
+// listApisixRoutesForEndpoints handles Endpoints objects and converts them to ApisixRoute reconcile requests.
+// This function provides backward compatibility for Kubernetes 1.18 clusters that don't support EndpointSlice.
+func (r *ApisixRouteReconciler) listApisixRoutesForEndpoints(ctx context.Context, obj client.Object) []reconcile.Request {
+	endpoint, ok := obj.(*corev1.Endpoints)
+	if !ok {
+		return nil
+	}
+
+	var (
+		namespace   = endpoint.GetNamespace()
+		serviceName = endpoint.GetName() // For Endpoints, the name is the service name
 		arList      apiv2.ApisixRouteList
 	)
 	if err := r.List(ctx, &arList, client.MatchingFields{

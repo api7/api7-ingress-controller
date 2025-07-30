@@ -54,6 +54,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
+	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
 const (
@@ -1416,6 +1417,10 @@ func distinctRequests(requests []reconcile.Request) []reconcile.Request {
 }
 
 func addProviderEndpointsToTranslateContext(tctx *provider.TranslateContext, c client.Client, serviceNN k8stypes.NamespacedName) error {
+	return addProviderEndpointsToTranslateContextWithEndpointSliceSupport(tctx, c, serviceNN, true)
+}
+
+func addProviderEndpointsToTranslateContextWithEndpointSliceSupport(tctx *provider.TranslateContext, c client.Client, serviceNN k8stypes.NamespacedName, supportsEndpointSlice bool) error {
 	log.Debugw("to process provider endpoints by provider.service", zap.Any("service", serviceNN))
 	var (
 		service corev1.Service
@@ -1426,19 +1431,37 @@ func addProviderEndpointsToTranslateContext(tctx *provider.TranslateContext, c c
 	}
 	tctx.Services[serviceNN] = &service
 
-	// get es
-	var (
-		esList discoveryv1.EndpointSliceList
-	)
-	if err := c.List(tctx, &esList,
-		client.InNamespace(serviceNN.Namespace),
-		client.MatchingLabels{
-			discoveryv1.LabelServiceName: serviceNN.Name,
-		}); err != nil {
-		log.Errorw("failed to get endpoints for GatewayProxy provider", zap.Error(err), zap.Any("endpoints", serviceNN))
-		return err
+	// Conditionally get EndpointSlice or Endpoints based on cluster API support
+	if supportsEndpointSlice {
+		// get es
+		var (
+			esList discoveryv1.EndpointSliceList
+		)
+		if err := c.List(tctx, &esList,
+			client.InNamespace(serviceNN.Namespace),
+			client.MatchingLabels{
+				discoveryv1.LabelServiceName: serviceNN.Name,
+			}); err != nil {
+			log.Errorw("failed to get endpoints for GatewayProxy provider", zap.Error(err), zap.Any("endpoints", serviceNN))
+			return err
+		}
+		tctx.EndpointSlices[serviceNN] = esList.Items
+	} else {
+		// Fallback to Endpoints API for Kubernetes 1.18 compatibility
+		var endpoints corev1.Endpoints
+		if err := c.Get(tctx, serviceNN, &endpoints); err != nil {
+			if client.IgnoreNotFound(err) != nil {
+				log.Errorw("failed to get endpoints for GatewayProxy provider", zap.Error(err), zap.Any("endpoints", serviceNN))
+				return err
+			}
+			// If endpoints not found, create empty EndpointSlice list
+			tctx.EndpointSlices[serviceNN] = []discoveryv1.EndpointSlice{}
+		} else {
+			// Convert Endpoints to EndpointSlice format for internal consistency
+			convertedEndpointSlices := pkgutils.ConvertEndpointsToEndpointSlice(&endpoints)
+			tctx.EndpointSlices[serviceNN] = convertedEndpointSlices
+		}
 	}
-	tctx.EndpointSlices[serviceNN] = esList.Items
 
 	return nil
 }
