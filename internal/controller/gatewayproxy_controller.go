@@ -62,6 +62,7 @@ func (r *GatewayProxyController) SetupWithManager(mrg ctrl.Manager) error {
 		WithEventFilter(
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
+				predicate.NewPredicateFuncs(TypePredicate[*corev1.Endpoints]()),
 				predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
 			),
 		).

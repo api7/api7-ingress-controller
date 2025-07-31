@@ -72,7 +72,7 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.genericEvent = make(chan event.GenericEvent, 100)
 
 	// Check and store EndpointSlice API support
-	r.supportsEndpointSlice = pkgutils.HasAPIResourceWithLogger(mgr, &discoveryv1.EndpointSlice{}, r.Log.WithName("api-detection"))
+	r.supportsEndpointSlice = pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
 
 	bdr := ctrl.NewControllerManagedBy(mgr).
 		For(&networkingv1.Ingress{},
@@ -84,6 +84,7 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
 				predicate.AnnotationChangedPredicate{},
+				predicate.NewPredicateFuncs(TypePredicate[*corev1.Endpoints]()),
 				predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
 			),
 		).
