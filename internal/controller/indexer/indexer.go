@@ -31,6 +31,7 @@ import (
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	"github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
 const (
@@ -51,20 +52,43 @@ const (
 )
 
 func SetupIndexer(mgr ctrl.Manager) error {
+	setupLog := ctrl.LoggerFrom(context.Background()).WithName("indexer-setup")
+
+	// Gateway API indexers - conditional setup based on API availability
+	for resource, setup := range map[client.Object]func(ctrl.Manager) error{
+		&gatewayv1.Gateway{}:      setupGatewayIndexer,
+		&gatewayv1.HTTPRoute{}:    setupHTTPRouteIndexer,
+		&gatewayv1.GatewayClass{}: setupGatewayClassIndexer,
+		&v1alpha1.Consumer{}:      setupConsumerIndexer,
+	} {
+		if utils.HasAPIResource(mgr, resource) {
+			if err := setup(mgr); err != nil {
+				return err
+			}
+		} else {
+			setupLog.Info("Skipping indexer setup, API not found in cluster", "api", utils.FormatGVK(resource))
+		}
+	}
+
+	// Gateway secret index needs conditional setup since it uses Gateway API
+	if utils.HasAPIResource(mgr, &gatewayv1.Gateway{}) {
+		if err := setupGatewaySecretIndex(mgr); err != nil {
+			return err
+		}
+	} else {
+		setupLog.Info("Skipping indexer setup, API not found in cluster", "api", utils.FormatGVK(&gatewayv1.Gateway{}))
+	}
+
+	// Core Kubernetes and APISIX indexers - always setup these
 	for _, setup := range []func(ctrl.Manager) error{
-		setupGatewayIndexer,
-		setupHTTPRouteIndexer,
 		setupIngressIndexer,
-		setupConsumerIndexer,
 		setupBackendTrafficPolicyIndexer,
 		setupIngressClassIndexer,
 		setupGatewayProxyIndexer,
-		setupGatewaySecretIndex,
 		setupApisixRouteIndexer,
 		setupApisixPluginConfigIndexer,
 		setupApisixTlsIndexer,
 		setupApisixConsumerIndexer,
-		setupGatewayClassIndexer,
 	} {
 		if err := setup(mgr); err != nil {
 			return err
