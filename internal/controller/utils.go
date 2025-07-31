@@ -1225,6 +1225,40 @@ func ListMatchingRequests(
 	return requests
 }
 
+func listIngressClassV1beta1RequestsForGatewayProxy(
+	ctx context.Context,
+	c client.Client,
+	obj client.Object,
+	logger logr.Logger,
+	listFunc func(context.Context, client.Object) []reconcile.Request,
+) []reconcile.Request {
+	gatewayProxy, ok := obj.(*v1alpha1.GatewayProxy)
+	if !ok {
+		return nil
+	}
+
+	ingressClassList := &networkingv1beta1.IngressClassList{}
+	if err := c.List(ctx, ingressClassList, client.MatchingFields{
+		indexer.IngressClassParametersRef: indexer.GenIndexKey(gatewayProxy.GetNamespace(), gatewayProxy.GetName()),
+	}); err != nil {
+		logger.Error(err, "failed to list ingress classes for gateway proxy", "gatewayproxy", gatewayProxy.GetName())
+		return nil
+	}
+
+	requestSet := make(map[string]reconcile.Request)
+	for _, ingressClass := range ingressClassList.Items {
+		for _, req := range listFunc(ctx, &ingressClass) {
+			requestSet[req.String()] = req
+		}
+	}
+
+	requests := make([]reconcile.Request, 0, len(requestSet))
+	for _, req := range requestSet {
+		requests = append(requests, req)
+	}
+	return requests
+}
+
 func listIngressClassRequestsForGatewayProxy(
 	ctx context.Context,
 	c client.Client,
