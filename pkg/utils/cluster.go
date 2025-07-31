@@ -63,6 +63,7 @@ func HasAPIResourceWithLogger(mgr ctrl.Manager, obj client.Object, logger logr.L
 	// Check if the specific kind exists in the resource list
 	for _, res := range apiResources.APIResources {
 		if res.Kind == gvk.Kind {
+			logger.Info("API resource kind found in group/version", "kind", res.Kind)
 			return true
 		}
 	}
