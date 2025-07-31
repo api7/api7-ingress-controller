@@ -40,7 +40,7 @@ type ApisixPluginConfigReconciler struct {
 	Log     logr.Logger
 	Updater status.Updater
 
-	ICGVK schema.GroupVersionKind
+	ICGV schema.GroupVersion
 }
 
 // SetupWithManager sets up the controller with the Manager.

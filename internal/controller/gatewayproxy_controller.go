@@ -52,7 +52,7 @@ type GatewayProxyController struct {
 	Log      logr.Logger
 	Provider provider.Provider
 
-	ICGVK schema.GroupVersionKind
+	ICGV schema.GroupVersion
 	// supportsEndpointSlice indicates whether the cluster supports EndpointSlice API
 	supportsEndpointSlice bool
 	supportsGateway       bool
@@ -158,8 +158,8 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
-	switch r.ICGVK.Version {
-	case networkingv1.SchemeGroupVersion.Version, "":
+	switch r.ICGV.String() {
+	case networkingv1.SchemeGroupVersion.String(), "":
 		var ingressClassList networkingv1.IngressClassList
 		// list IngressClasses that reference the GatewayProxy
 		if err := r.List(ctx, &ingressClassList, client.MatchingFields{indexer.IngressClassParametersRef: indexKey}); err != nil {
@@ -170,7 +170,7 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 		for _, item := range ingressClassList.Items {
 			tctx.GatewayProxyReferrers[req.NamespacedName] = append(tctx.GatewayProxyReferrers[req.NamespacedName], utils.NamespacedNameKind(&item))
 		}
-	case networkingv1beta1.SchemeGroupVersion.Version:
+	case networkingv1beta1.SchemeGroupVersion.String():
 		var ingressClassList networkingv1beta1.IngressClassList
 		// list IngressClasses that reference the GatewayProxy
 		if err := r.List(ctx, &ingressClassList, client.MatchingFields{indexer.IngressClassParametersRef: indexKey}); err != nil {

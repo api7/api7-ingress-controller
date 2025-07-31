@@ -53,7 +53,7 @@ type ApisixTlsReconciler struct {
 	Updater  status.Updater
 	Readier  readiness.ReadinessManager
 
-	ICGVK schema.GroupVersionKind
+	ICGV schema.GroupVersion
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -117,7 +117,7 @@ func (r *ApisixTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	tctx := provider.NewDefaultTranslateContext(ctx)
 
 	// get the ingress class
-	ingressClass, err := GetIngressClass(tctx, r.Client, r.Log, tls.Spec.IngressClassName, r.ICGVK.Version)
+	ingressClass, err := GetIngressClass(tctx, r.Client, r.Log, tls.Spec.IngressClassName, r.ICGV.String())
 	if err != nil {
 		r.Log.Error(err, "failed to get IngressClass")
 		r.updateStatus(&tls, metav1.Condition{
@@ -242,7 +242,7 @@ func (r *ApisixTlsReconciler) checkIngressClass(obj client.Object) bool {
 		return false
 	}
 
-	return matchesIngressClass(context.Background(), r.Client, r.Log, tls.Spec.IngressClassName, r.ICGVK.Version)
+	return matchesIngressClass(context.Background(), r.Client, r.Log, tls.Spec.IngressClassName, r.ICGV.String())
 }
 
 func (r *ApisixTlsReconciler) listApisixTlsForSecret(ctx context.Context, obj client.Object) []reconcile.Request {

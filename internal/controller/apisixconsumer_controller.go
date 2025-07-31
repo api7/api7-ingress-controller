@@ -55,7 +55,7 @@ type ApisixConsumerReconciler struct {
 	Updater  status.Updater
 	Readier  readiness.ReadinessManager
 
-	ICGVK schema.GroupVersionKind
+	ICGV schema.GroupVersion
 }
 
 // Reconcile FIXME: implement the reconcile logic (For now, it dose nothing other than directly accepting)
@@ -90,7 +90,7 @@ func (r *ApisixConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		r.updateStatus(ac, err)
 	}()
 
-	ingressClass, err = GetIngressClass(tctx, r.Client, r.Log, ac.Spec.IngressClassName, r.ICGVK.Version)
+	ingressClass, err = GetIngressClass(tctx, r.Client, r.Log, ac.Spec.IngressClassName, r.ICGV.String())
 	if err != nil {
 		r.Log.Error(err, "failed to get IngressClass")
 		return ctrl.Result{}, err
@@ -149,7 +149,7 @@ func (r *ApisixConsumerReconciler) checkIngressClass(obj client.Object) bool {
 		return false
 	}
 
-	return matchesIngressClass(context.Background(), r.Client, r.Log, ac.Spec.IngressClassName, r.ICGVK.Version)
+	return matchesIngressClass(context.Background(), r.Client, r.Log, ac.Spec.IngressClassName, r.ICGV.String())
 }
 
 func (r *ApisixConsumerReconciler) listApisixConsumerForGatewayProxy(ctx context.Context, obj client.Object) []reconcile.Request {

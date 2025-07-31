@@ -105,10 +105,10 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 	setupLog := ctrl.LoggerFrom(ctx).WithName("setup")
 	var controllers []Controller
 
-	icgvk := types.GvkOf(&v1.IngressClass{})
+	icgv := v1.SchemeGroupVersion
 	if !utils.HasAPIResource(mgr, &v1.IngressClass{}) {
 		setupLog.Info("IngressClass v1 not found, falling back to IngressClass v1beta1")
-		icgvk = types.GvkOf(&v1beta1.IngressClass{})
+		icgv = v1beta1.SchemeGroupVersion
 		controllers = append(controllers, &controller.IngressClassV1beta1Reconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
@@ -177,7 +177,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Scheme:   mgr.GetScheme(),
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("GatewayProxy"),
 			Provider: pro,
-			ICGVK:    icgvk,
+			ICGV:     icgv,
 		},
 		&controller.ApisixRouteReconciler{
 			Client:   mgr.GetClient(),
@@ -186,7 +186,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Provider: pro,
 			Updater:  updater,
 			Readier:  readier,
-			ICGVK:    icgvk,
+			ICGV:     icgv,
 		},
 		/*
 			&controller.ApisixGlobalRuleReconciler{

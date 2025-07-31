@@ -52,7 +52,7 @@ type ApisixGlobalRuleReconciler struct {
 
 	Readier readiness.ReadinessManager
 
-	ICGVK schema.GroupVersionKind
+	ICGV schema.GroupVersion
 }
 
 // Reconcile implements the reconciliation logic for ApisixGlobalRule
@@ -85,7 +85,7 @@ func (r *ApisixGlobalRuleReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	tctx := provider.NewDefaultTranslateContext(ctx)
 
 	// get the ingress class
-	ingressClass, err := GetIngressClass(tctx, r.Client, r.Log, globalRule.Spec.IngressClassName, r.ICGVK.Version)
+	ingressClass, err := GetIngressClass(tctx, r.Client, r.Log, globalRule.Spec.IngressClassName, r.ICGV.String())
 	if err != nil {
 		r.Log.Error(err, "failed to get IngressClass")
 		return ctrl.Result{}, err
@@ -160,7 +160,7 @@ func (r *ApisixGlobalRuleReconciler) checkIngressClass(obj client.Object) bool {
 		return false
 	}
 
-	return matchesIngressClass(context.Background(), r.Client, r.Log, globalRule.Spec.IngressClassName, r.ICGVK.Version)
+	return matchesIngressClass(context.Background(), r.Client, r.Log, globalRule.Spec.IngressClassName, r.ICGV.Version)
 }
 
 // listGlobalRulesForIngressClass list all global rules that use a specific ingress class

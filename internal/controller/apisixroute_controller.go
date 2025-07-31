@@ -63,7 +63,7 @@ type ApisixRouteReconciler struct {
 	Updater  status.Updater
 	Readier  readiness.ReadinessManager
 
-	ICGVK schema.GroupVersionKind
+	ICGV schema.GroupVersion
 	// supportsEndpointSlice indicates whether the cluster supports EndpointSlice API
 	supportsEndpointSlice bool
 }
@@ -150,7 +150,7 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		r.updateStatus(&ar, err)
 	}()
 
-	if ic, err = GetIngressClass(tctx, r.Client, r.Log, ar.Spec.IngressClassName, r.ICGVK.Version); err != nil {
+	if ic, err = GetIngressClass(tctx, r.Client, r.Log, ar.Spec.IngressClassName, r.ICGV.String()); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err = ProcessIngressClassParameters(tctx, r.Client, r.Log, &ar, ic); err != nil {
@@ -255,7 +255,11 @@ func (r *ApisixRouteReconciler) validatePluginConfig(ctx context.Context, tc *pr
 	// Check if ApisixPluginConfig has IngressClassName and if it matches
 	if in.Spec.IngressClassName != pc.Spec.IngressClassName && pc.Spec.IngressClassName != "" {
 		ic := &unstructured.Unstructured{}
-		ic.SetGroupVersionKind(r.ICGVK)
+		ic.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   r.ICGV.Group,
+			Version: r.ICGV.Version,
+			Kind:    types.KindIngressClass,
+		})
 		if err := r.Get(ctx, client.ObjectKey{Name: pc.Spec.IngressClassName}, ic); err != nil {
 			return types.ReasonError{
 				Reason:  string(apiv2.ConditionReasonInvalidSpec),
