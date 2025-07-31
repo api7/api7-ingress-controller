@@ -64,6 +64,7 @@ func SetupIndexer(mgr ctrl.Manager) error {
 		&networkingv1.Ingress{}:           setupIngressIndexer,
 		&networkingv1.IngressClass{}:      setupIngressClassIndexer,
 		&networkingv1beta1.IngressClass{}: setupIngressClassV1beta1Indexer,
+		&v1alpha1.BackendTrafficPolicy{}:  setupBackendTrafficPolicyIndexer,
 	} {
 		if utils.HasAPIResource(mgr, resource) {
 			if err := setup(mgr); err != nil {
@@ -85,7 +86,6 @@ func SetupIndexer(mgr ctrl.Manager) error {
 
 	// Core Kubernetes and APISIX indexers - always setup these
 	for _, setup := range []func(ctrl.Manager) error{
-		setupBackendTrafficPolicyIndexer,
 		setupGatewayProxyIndexer,
 		setupApisixRouteIndexer,
 		setupApisixPluginConfigIndexer,
