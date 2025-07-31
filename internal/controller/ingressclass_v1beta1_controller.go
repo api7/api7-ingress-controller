@@ -187,7 +187,7 @@ func (r *IngressClassV1beta1Reconciler) processInfrastructure(tctx *provider.Tra
 		return nil
 	}
 
-	namespace := IngressClassV1beta1.Namespace
+	namespace := "default"
 	if IngressClassV1beta1.Spec.Parameters.Namespace != nil {
 		namespace = *IngressClassV1beta1.Spec.Parameters.Namespace
 	}
