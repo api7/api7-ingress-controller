@@ -165,10 +165,7 @@ func (r *ApisixGlobalRuleReconciler) checkIngressClass(obj client.Object) bool {
 
 // listGlobalRulesForIngressClass list all global rules that use a specific ingress class
 func (r *ApisixGlobalRuleReconciler) listGlobalRulesForIngressClass(ctx context.Context, obj client.Object) []reconcile.Request {
-	ingressClass, ok := obj.(*networkingv1.IngressClass)
-	if !ok {
-		return nil
-	}
+	ingressClass := convertIngressClass(obj)
 
 	return ListMatchingRequests(
 		ctx,

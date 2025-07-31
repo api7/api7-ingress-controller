@@ -30,6 +30,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -77,7 +78,7 @@ func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			),
 		).
 		Watches(
-			&networkingv1.IngressClass{},
+			&networkingv1beta1.IngressClass{},
 			handler.EnqueueRequestsFromMapFunc(r.listApisixRouteForIngressClass),
 			builder.WithPredicates(
 				predicate.NewPredicateFuncs(matchesIngressController),
@@ -498,10 +499,7 @@ func (r *ApisixRouteReconciler) listApisixRoutesForSecret(ctx context.Context, o
 }
 
 func (r *ApisixRouteReconciler) listApisixRouteForIngressClass(ctx context.Context, object client.Object) (requests []reconcile.Request) {
-	ingressClass, ok := object.(*networkingv1.IngressClass)
-	if !ok {
-		return nil
-	}
+	ingressClass := convertIngressClass(object)
 
 	return ListMatchingRequests(
 		ctx,

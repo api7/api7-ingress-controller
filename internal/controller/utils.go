@@ -1259,10 +1259,7 @@ func listIngressClassRequestsForGatewayProxy(
 }
 
 func matchesIngressController(obj client.Object) bool {
-	ingressClass, ok := obj.(*networkingv1.IngressClass)
-	if !ok {
-		return false
-	}
+	ingressClass := convertIngressClass(obj)
 	return matchesController(ingressClass.Spec.Controller)
 }
 
