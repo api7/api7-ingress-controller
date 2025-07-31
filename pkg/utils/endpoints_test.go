@@ -73,21 +73,6 @@ func TestIsIPv6(t *testing.T) {
 	}
 }
 
-func createEndpointWithHostname(address, hostname string) discoveryv1.Endpoint {
-	return discoveryv1.Endpoint{
-		Addresses: []string{address},
-		Conditions: discoveryv1.EndpointConditions{
-			Ready: ptr.To(true),
-		},
-		Hostname: ptr.To(hostname),
-		TargetRef: &corev1.ObjectReference{
-			Kind:      "Pod",
-			Name:      hostname,
-			Namespace: "default",
-		},
-	}
-}
-
 func TestConvertEndpointsToEndpointSlice(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -498,6 +483,21 @@ func createNotReadyEndpoint(address string) discoveryv1.Endpoint {
 		Addresses: []string{address},
 		Conditions: discoveryv1.EndpointConditions{
 			Ready: ptr.To(false),
+		},
+	}
+}
+
+func createEndpointWithHostname(address, hostname string) discoveryv1.Endpoint {
+	return discoveryv1.Endpoint{
+		Addresses: []string{address},
+		Conditions: discoveryv1.EndpointConditions{
+			Ready: ptr.To(true),
+		},
+		Hostname: ptr.To(hostname),
+		TargetRef: &corev1.ObjectReference{
+			Kind:      "Pod",
+			Name:      hostname,
+			Namespace: "default",
 		},
 	}
 }
