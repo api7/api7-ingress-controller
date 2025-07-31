@@ -52,6 +52,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
+	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
 // HTTPRouteReconciler reconciles a GatewayClass object.
@@ -67,18 +68,39 @@ type HTTPRouteReconciler struct { //nolint:revive
 
 	Updater status.Updater
 	Readier readiness.ReadinessManager
+
+	// supportsEndpointSlice indicates whether the cluster supports EndpointSlice API
+	supportsEndpointSlice bool
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.genericEvent = make(chan event.GenericEvent, 100)
 
+	// Check and store EndpointSlice API support
+	r.supportsEndpointSlice = pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
+
 	bdr := ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.HTTPRoute{}).
-		WithEventFilter(predicate.GenerationChangedPredicate{}).
-		Watches(&discoveryv1.EndpointSlice{},
+		WithEventFilter(
+			predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				predicate.NewPredicateFuncs(TypePredicate[*corev1.Endpoints]()),
+			))
+
+	// Conditionally watch EndpointSlice or Endpoints based on cluster API support
+	if r.supportsEndpointSlice {
+		bdr = bdr.Watches(&discoveryv1.EndpointSlice{},
 			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesByServiceBef),
-		).
+		)
+	} else {
+		r.Log.Info("EndpointSlice API not available, falling back to Endpoints API for service discovery")
+		bdr = bdr.Watches(&corev1.Endpoints{},
+			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesByServiceForEndpoints),
+		)
+	}
+
+	bdr = bdr.
 		Watches(&v1alpha1.PluginConfig{},
 			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesByExtensionRef),
 		).
@@ -268,6 +290,36 @@ func (r *HTTPRouteReconciler) listHTTPRoutesByServiceBef(ctx context.Context, ob
 	}
 	namespace := endpointSlice.GetNamespace()
 	serviceName := endpointSlice.Labels[discoveryv1.LabelServiceName]
+
+	hrList := &gatewayv1.HTTPRouteList{}
+	if err := r.List(ctx, hrList, client.MatchingFields{
+		indexer.ServiceIndexRef: indexer.GenIndexKey(namespace, serviceName),
+	}); err != nil {
+		r.Log.Error(err, "failed to list httproutes by service", "service", serviceName)
+		return nil
+	}
+	requests := make([]reconcile.Request, 0, len(hrList.Items))
+	for _, hr := range hrList.Items {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: client.ObjectKey{
+				Namespace: hr.Namespace,
+				Name:      hr.Name,
+			},
+		})
+	}
+	return requests
+}
+
+// listHTTPRoutesByServiceForEndpoints handles Endpoints objects and converts them to HTTPRoute reconcile requests.
+// This function provides backward compatibility for Kubernetes 1.18 clusters that don't support EndpointSlice.
+func (r *HTTPRouteReconciler) listHTTPRoutesByServiceForEndpoints(ctx context.Context, obj client.Object) []reconcile.Request {
+	endpoint, ok := obj.(*corev1.Endpoints)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to Endpoints")
+		return nil
+	}
+	namespace := endpoint.GetNamespace()
+	serviceName := endpoint.GetName() // For Endpoints, the name is the service name
 
 	hrList := &gatewayv1.HTTPRouteList{}
 	if err := r.List(ctx, hrList, client.MatchingFields{
@@ -520,19 +572,37 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 		}
 		tctx.Services[targetNN] = &service
 
-		endpointSliceList := new(discoveryv1.EndpointSliceList)
-		if err := r.List(tctx, endpointSliceList,
-			client.InNamespace(targetNN.Namespace),
-			client.MatchingLabels{
-				discoveryv1.LabelServiceName: targetNN.Name,
-			},
-		); err != nil {
-			r.Log.Error(err, "failed to list endpoint slices", "Service", targetNN)
-			terr = err
-			continue
+		// Conditionally collect EndpointSlice or Endpoints based on cluster API support
+		if r.supportsEndpointSlice {
+			endpointSliceList := new(discoveryv1.EndpointSliceList)
+			if err := r.List(tctx, endpointSliceList,
+				client.InNamespace(targetNN.Namespace),
+				client.MatchingLabels{
+					discoveryv1.LabelServiceName: targetNN.Name,
+				},
+			); err != nil {
+				r.Log.Error(err, "failed to list endpoint slices", "Service", targetNN)
+				terr = err
+				continue
+			}
+			tctx.EndpointSlices[targetNN] = endpointSliceList.Items
+		} else {
+			// Fallback to Endpoints API for Kubernetes 1.18 compatibility
+			var endpoints corev1.Endpoints
+			if err := r.Get(tctx, targetNN, &endpoints); err != nil {
+				if client.IgnoreNotFound(err) != nil {
+					r.Log.Error(err, "failed to get endpoints", "Service", targetNN)
+					terr = err
+					continue
+				}
+				// If endpoints not found, create empty EndpointSlice list
+				tctx.EndpointSlices[targetNN] = []discoveryv1.EndpointSlice{}
+			} else {
+				// Convert Endpoints to EndpointSlice format for internal consistency
+				convertedEndpointSlices := pkgutils.ConvertEndpointsToEndpointSlice(&endpoints)
+				tctx.EndpointSlices[targetNN] = convertedEndpointSlices
+			}
 		}
-
-		tctx.EndpointSlices[targetNN] = endpointSliceList.Items
 	}
 	return terr
 }
