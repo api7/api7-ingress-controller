@@ -264,7 +264,7 @@ func (r *ApisixTlsReconciler) listApisixTlsForSecret(ctx context.Context, obj cl
 
 // listApisixTlsForIngressClass list all TLS that use a specific ingress class
 func (r *ApisixTlsReconciler) listApisixTlsForIngressClass(ctx context.Context, obj client.Object) []reconcile.Request {
-	ingressClass = convertIngressClass(obj)
+	ingressClass := convertIngressClass(obj)
 
 	return ListMatchingRequests(
 		ctx,
