@@ -1286,7 +1286,7 @@ func ProcessIngressClassParameters(tctx *provider.TranslateContext, c client.Cli
 	parameters := ingressClass.Spec.Parameters
 	// check if the parameters reference GatewayProxy
 	if parameters.APIGroup != nil && *parameters.APIGroup == v1alpha1.GroupVersion.Group && parameters.Kind == KindGatewayProxy {
-		ns := object.GetNamespace()
+		ns := "default"
 		if parameters.Namespace != nil {
 			ns = *parameters.Namespace
 		}

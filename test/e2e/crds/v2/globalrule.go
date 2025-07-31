@@ -57,8 +57,6 @@ spec:
     apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
     name: "apisix-proxy-config"
-    namespace: "default"
-    scope: "Namespace"
 `
 
 var _ = Describe("Test GlobalRule", Label("apisix.apache.org", "v2", "apisixglobalrule"), func() {
