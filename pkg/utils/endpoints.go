@@ -18,19 +18,25 @@
 package utils
 
 import (
+	"fmt"
+	"net"
+
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 )
 
-// ConvertEndpointsToEndpointSlice converts a Kubernetes Endpoints object to an EndpointSlice object.
+// ConvertEndpointsToEndpointSlice converts a Kubernetes Endpoints object to one
+// or more EndpointSlice objects, supporting IPv4/IPv6 dual stack.
 // This function is used to provide backward compatibility for Kubernetes 1.18 clusters that don't
 // have EndpointSlice support but still use the older Endpoints API.
 //
 // The conversion follows these rules:
-// - Each Endpoints subset becomes a separate EndpointSlice
-// - Endpoint addresses are mapped to EndpointSlice endpoints
+// - Each Endpoints subset is split into separate IPv4 and IPv6 EndpointSlices
+// - Uses net.ParseIP for reliable address family detection instead of string matching
+// - IPv4 and IPv6 endpoints from the same subset are separated into different slices
+// - Naming convention: <svc-name>-<subset-index>-v4 / -v6
 // - Port information is preserved
 // - Ready state is mapped from Endpoints addresses vs notReadyAddresses
 //
@@ -41,127 +47,104 @@ func ConvertEndpointsToEndpointSlice(ep *corev1.Endpoints) []discoveryv1.Endpoin
 		return nil
 	}
 
-	//nolint:prealloc
 	var endpointSlices []discoveryv1.EndpointSlice
 
 	// If there are no subsets, create an empty EndpointSlice
 	if len(ep.Subsets) == 0 {
-		endpointSlice := discoveryv1.EndpointSlice{
+		endpointSlices = append(endpointSlices, discoveryv1.EndpointSlice{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      ep.Name,
-				Namespace: ep.Namespace,
-				Labels: map[string]string{
-					discoveryv1.LabelServiceName: ep.Name,
-				},
+				Name:            ep.Name + "-v4", // Default to v4
+				Namespace:       ep.Namespace,
+				Labels:          map[string]string{discoveryv1.LabelServiceName: ep.Name},
+				OwnerReferences: ep.OwnerReferences,
 			},
-			AddressType: discoveryv1.AddressTypeIPv4, // Default to IPv4
+			AddressType: discoveryv1.AddressTypeIPv4,
 			Ports:       []discoveryv1.EndpointPort{},
 			Endpoints:   []discoveryv1.Endpoint{},
-		}
-		endpointSlices = append(endpointSlices, endpointSlice)
+		})
 		return endpointSlices
 	}
 
-	// Convert each subset to an EndpointSlice
 	for i, subset := range ep.Subsets {
 		// Create ports array
 		var ports []discoveryv1.EndpointPort
-		for _, port := range subset.Ports {
-			endpointPort := discoveryv1.EndpointPort{
-				Name:     &port.Name,
-				Port:     &port.Port,
-				Protocol: &port.Protocol,
+		for _, p := range subset.Ports {
+			epPort := discoveryv1.EndpointPort{
+				Port:     &p.Port,
+				Protocol: &p.Protocol,
 			}
-			ports = append(ports, endpointPort)
+			if p.Name != "" {
+				epPort.Name = &p.Name
+			}
+			ports = append(ports, epPort)
 		}
 
-		// Create endpoints array from addresses (ready endpoints)
-		var endpoints []discoveryv1.Endpoint
-		for _, addr := range subset.Addresses {
-			endpoint := discoveryv1.Endpoint{
+		// Separate IPv4 and IPv6 addresses
+		var (
+			ipv4Endpoints []discoveryv1.Endpoint
+			ipv6Endpoints []discoveryv1.Endpoint
+		)
+		buildEndpoint := func(addr corev1.EndpointAddress, ready bool) discoveryv1.Endpoint {
+			e := discoveryv1.Endpoint{
 				Addresses: []string{addr.IP},
 				Conditions: discoveryv1.EndpointConditions{
-					Ready: ptr.To(true), // Addresses in Endpoints.Addresses are ready
+					Ready: ptr.To(ready),
 				},
 			}
-
-			// Add target ref if available
 			if addr.TargetRef != nil {
-				endpoint.TargetRef = addr.TargetRef
+				e.TargetRef = addr.TargetRef
 			}
-
-			// Add hostname if available
 			if addr.Hostname != "" {
-				endpoint.Hostname = &addr.Hostname
+				e.Hostname = &addr.Hostname
 			}
-
-			endpoints = append(endpoints, endpoint)
+			return e
 		}
 
-		// Add not ready addresses
-		for _, addr := range subset.NotReadyAddresses {
-			endpoint := discoveryv1.Endpoint{
-				Addresses: []string{addr.IP},
-				Conditions: discoveryv1.EndpointConditions{
-					Ready: ptr.To(false), // NotReadyAddresses are not ready
+		// Process ready addresses
+		for _, a := range subset.Addresses {
+			if isIPv6(a.IP) {
+				ipv6Endpoints = append(ipv6Endpoints, buildEndpoint(a, true))
+			} else {
+				ipv4Endpoints = append(ipv4Endpoints, buildEndpoint(a, true))
+			}
+		}
+		// Process not ready addresses
+		for _, a := range subset.NotReadyAddresses {
+			if isIPv6(a.IP) {
+				ipv6Endpoints = append(ipv6Endpoints, buildEndpoint(a, false))
+			} else {
+				ipv4Endpoints = append(ipv4Endpoints, buildEndpoint(a, false))
+			}
+		}
+
+		// Create EndpointSlices for each address type
+		makeSlice := func(suffix string, addrType discoveryv1.AddressType, eps []discoveryv1.Endpoint) discoveryv1.EndpointSlice {
+			return discoveryv1.EndpointSlice{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            fmt.Sprintf("%s-%d-%s", ep.Name, i, suffix),
+					Namespace:       ep.Namespace,
+					Labels:          map[string]string{discoveryv1.LabelServiceName: ep.Name},
+					OwnerReferences: ep.OwnerReferences,
 				},
-			}
-
-			// Add target ref if available
-			if addr.TargetRef != nil {
-				endpoint.TargetRef = addr.TargetRef
-			}
-
-			// Add hostname if available
-			if addr.Hostname != "" {
-				endpoint.Hostname = &addr.Hostname
-			}
-
-			endpoints = append(endpoints, endpoint)
-		}
-
-		// Determine address type based on first endpoint
-		addressType := discoveryv1.AddressTypeIPv4
-		if len(endpoints) > 0 && len(endpoints[0].Addresses) > 0 {
-			// Simple IPv6 detection - if address contains colons, assume IPv6
-			if containsColon(endpoints[0].Addresses[0]) {
-				addressType = discoveryv1.AddressTypeIPv6
+				AddressType: addrType,
+				Ports:       ports,
+				Endpoints:   eps,
 			}
 		}
 
-		// Create EndpointSlice name with suffix if multiple subsets
-		name := ep.Name
-		if len(ep.Subsets) > 1 {
-			name = ep.Name + "-" + string(rune('a'+i))
+		if len(ipv4Endpoints) > 0 {
+			endpointSlices = append(endpointSlices, makeSlice("v4", discoveryv1.AddressTypeIPv4, ipv4Endpoints))
 		}
-
-		endpointSlice := discoveryv1.EndpointSlice{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: ep.Namespace,
-				Labels: map[string]string{
-					discoveryv1.LabelServiceName: ep.Name,
-				},
-				// Copy owner references if they exist
-				OwnerReferences: ep.OwnerReferences,
-			},
-			AddressType: addressType,
-			Ports:       ports,
-			Endpoints:   endpoints,
+		if len(ipv6Endpoints) > 0 {
+			endpointSlices = append(endpointSlices, makeSlice("v6", discoveryv1.AddressTypeIPv6, ipv6Endpoints))
 		}
-
-		endpointSlices = append(endpointSlices, endpointSlice)
 	}
 
 	return endpointSlices
 }
 
-// containsColon is a simple helper to detect IPv6 addresses
-func containsColon(addr string) bool {
-	for _, char := range addr {
-		if char == ':' {
-			return true
-		}
-	}
-	return false
+// isIPv6 uses net.ParseIP to determine if an IP address is IPv6
+func isIPv6(ip string) bool {
+	parsed := net.ParseIP(ip)
+	return parsed != nil && parsed.To4() == nil
 }
