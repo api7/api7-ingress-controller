@@ -284,7 +284,7 @@ func setupIngressClassV1beta1Indexer(mgr ctrl.Manager) error {
 		context.Background(),
 		&networkingv1beta1.IngressClass{},
 		IngressClass,
-		IngressClassIndexFunc,
+		IngressClassV1beta1IndexFunc,
 	); err != nil {
 		return err
 	}
@@ -294,7 +294,7 @@ func setupIngressClassV1beta1Indexer(mgr ctrl.Manager) error {
 		context.Background(),
 		&networkingv1beta1.IngressClass{},
 		IngressClassParametersRef,
-		IngressClassParametersRefIndexFunc,
+		IngressClassV1beta1ParametersRefIndexFunc,
 	); err != nil {
 		return err
 	}
@@ -419,6 +419,15 @@ func setupBackendTrafficPolicyIndexer(mgr ctrl.Manager) error {
 		return err
 	}
 	return nil
+}
+
+func IngressClassV1beta1IndexFunc(rawObj client.Object) []string {
+	ingressClass := rawObj.(*networkingv1beta1.IngressClass)
+	if ingressClass.Spec.Controller == "" {
+		return nil
+	}
+	controllerName := ingressClass.Spec.Controller
+	return []string{controllerName}
 }
 
 func IngressClassIndexFunc(rawObj client.Object) []string {
@@ -722,6 +731,22 @@ func BackendTrafficPolicyIndexFunc(rawObj client.Object) []string {
 
 func IngressClassParametersRefIndexFunc(rawObj client.Object) []string {
 	ingressClass := rawObj.(*networkingv1.IngressClass)
+	// check if the IngressClass references this gateway proxy
+	if ingressClass.Spec.Parameters != nil &&
+		ingressClass.Spec.Parameters.APIGroup != nil &&
+		*ingressClass.Spec.Parameters.APIGroup == v1alpha1.GroupVersion.Group &&
+		ingressClass.Spec.Parameters.Kind == "GatewayProxy" {
+		ns := ingressClass.GetNamespace()
+		if ingressClass.Spec.Parameters.Namespace != nil {
+			ns = *ingressClass.Spec.Parameters.Namespace
+		}
+		return []string{GenIndexKey(ns, ingressClass.Spec.Parameters.Name)}
+	}
+	return nil
+}
+
+func IngressClassV1beta1ParametersRefIndexFunc(rawObj client.Object) []string {
+	ingressClass := rawObj.(*networkingv1beta1.IngressClass)
 	// check if the IngressClass references this gateway proxy
 	if ingressClass.Spec.Parameters != nil &&
 		ingressClass.Spec.Parameters.APIGroup != nil &&
