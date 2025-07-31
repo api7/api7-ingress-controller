@@ -47,7 +47,7 @@ spec:
 `
 
 const ingressClassYaml = `
-apiVersion: networking.k8s.io/v1
+apiVersion: networking.k8s.io/v1beta1
 kind: IngressClass
 metadata:
   name: apisix
