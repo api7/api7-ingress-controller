@@ -179,16 +179,6 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Provider: pro,
 			ICGVK:    icgvk,
 		},
-		// APISIX v2 Controllers - always register these as they are core to the controller
-		&controller.ApisixGlobalRuleReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixGlobalRule"),
-			Provider: pro,
-			Updater:  updater,
-			Readier:  readier,
-			ICGVK:    icgvk,
-		},
 		&controller.ApisixRouteReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
@@ -198,45 +188,62 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Readier:  readier,
 			ICGVK:    icgvk,
 		},
-		&controller.ApisixConsumerReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixConsumer"),
-			Provider: pro,
-			Updater:  updater,
-			Readier:  readier,
-			ICGVK:    icgvk,
-		},
-		&controller.ApisixPluginConfigReconciler{
-			Client:  mgr.GetClient(),
-			Scheme:  mgr.GetScheme(),
-			Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixPluginConfig"),
-			Updater: updater,
-			ICGVK:   icgvk,
-		},
-		&controller.ApisixTlsReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixTls"),
-			Provider: pro,
-			Updater:  updater,
-			Readier:  readier,
-			ICGVK:    icgvk,
-		},
-		&controller.ApisixUpstreamReconciler{
-			Client:  mgr.GetClient(),
-			Scheme:  mgr.GetScheme(),
-			Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixUpstream"),
-			Updater: updater,
-			ICGVK:   icgvk,
-		},
+		/*
+			&controller.ApisixGlobalRuleReconciler{
+				Client:   mgr.GetClient(),
+				Scheme:   mgr.GetScheme(),
+				Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixGlobalRule"),
+				Provider: pro,
+				Updater:  updater,
+				Readier:  readier,
+				ICGVK:    icgvk,
+			},
+
+			&controller.ApisixConsumerReconciler{
+				Client:   mgr.GetClient(),
+				Scheme:   mgr.GetScheme(),
+				Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixConsumer"),
+				Provider: pro,
+				Updater:  updater,
+				Readier:  readier,
+				ICGVK:    icgvk,
+			},
+			&controller.ApisixPluginConfigReconciler{
+				Client:  mgr.GetClient(),
+				Scheme:  mgr.GetScheme(),
+				Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixPluginConfig"),
+				Updater: updater,
+				ICGVK:   icgvk,
+			},
+			&controller.ApisixTlsReconciler{
+				Client:   mgr.GetClient(),
+				Scheme:   mgr.GetScheme(),
+				Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixTls"),
+				Provider: pro,
+				Updater:  updater,
+				Readier:  readier,
+				ICGVK:    icgvk,
+			},
+			&controller.ApisixUpstreamReconciler{
+				Client:  mgr.GetClient(),
+				Scheme:  mgr.GetScheme(),
+				Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixUpstream"),
+				Updater: updater,
+				ICGVK:   icgvk,
+			},
+		*/
 	}...)
 
 	setupLog.Info("Controllers setup completed", "total_controllers", len(controllers))
 	return controllers, nil
 }
 
+var skip = true
+
 func registerReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManager) {
+	if skip {
+		return
+	}
 	c := mgr.GetClient()
 	log := ctrl.LoggerFrom(context.Background()).WithName("readiness")
 
