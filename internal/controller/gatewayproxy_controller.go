@@ -55,11 +55,13 @@ type GatewayProxyController struct {
 	ICGVK schema.GroupVersionKind
 	// supportsEndpointSlice indicates whether the cluster supports EndpointSlice API
 	supportsEndpointSlice bool
+	supportsGateway       bool
 }
 
 func (r *GatewayProxyController) SetupWithManager(mrg ctrl.Manager) error {
 	// Check and store EndpointSlice API support
 	r.supportsEndpointSlice = pkgutils.HasAPIResource(mrg, &discoveryv1.EndpointSlice{})
+	r.supportsGateway = pkgutils.HasAPIResource(mrg, &gatewayv1.Gateway{})
 
 	bdr := ctrl.NewControllerManagedBy(mrg).
 		For(&v1alpha1.GatewayProxy{}).
@@ -141,19 +143,19 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 		tctx.Secrets[secretNN] = &secret
 	}
 
-	// list Gateways that reference the GatewayProxy
-	var (
-		gatewayList gatewayv1.GatewayList
-		indexKey    = indexer.GenIndexKey(gp.GetNamespace(), gp.GetName())
-	)
-	if err := r.List(ctx, &gatewayList, client.MatchingFields{indexer.ParametersRef: indexKey}); err != nil {
-		r.Log.Error(err, "failed to list GatewayList")
-		return ctrl.Result{}, nil
-	}
+	indexKey := indexer.GenIndexKey(gp.GetNamespace(), gp.GetName())
 
-	// append referrers to translate context
-	for _, item := range gatewayList.Items {
-		tctx.GatewayProxyReferrers[req.NamespacedName] = append(tctx.GatewayProxyReferrers[req.NamespacedName], utils.NamespacedNameKind(&item))
+	// list Gateways that reference the GatewayProxy
+	if r.supportsGateway {
+		var gatewayList gatewayv1.GatewayList
+		if err := r.List(ctx, &gatewayList, client.MatchingFields{indexer.ParametersRef: indexKey}); err != nil {
+			r.Log.Error(err, "failed to list GatewayList")
+			return ctrl.Result{}, nil
+		}
+		// append referrers to translate context
+		for _, item := range gatewayList.Items {
+			tctx.GatewayProxyReferrers[req.NamespacedName] = append(tctx.GatewayProxyReferrers[req.NamespacedName], utils.NamespacedNameKind(&item))
+		}
 	}
 
 	switch r.ICGVK.Version {
