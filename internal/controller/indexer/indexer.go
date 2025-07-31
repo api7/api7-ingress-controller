@@ -57,10 +57,13 @@ func SetupIndexer(mgr ctrl.Manager) error {
 
 	// Gateway API indexers - conditional setup based on API availability
 	for resource, setup := range map[client.Object]func(ctrl.Manager) error{
-		&gatewayv1.Gateway{}:      setupGatewayIndexer,
-		&gatewayv1.HTTPRoute{}:    setupHTTPRouteIndexer,
-		&gatewayv1.GatewayClass{}: setupGatewayClassIndexer,
-		&v1alpha1.Consumer{}:      setupConsumerIndexer,
+		&gatewayv1.Gateway{}:              setupGatewayIndexer,
+		&gatewayv1.HTTPRoute{}:            setupHTTPRouteIndexer,
+		&gatewayv1.GatewayClass{}:         setupGatewayClassIndexer,
+		&v1alpha1.Consumer{}:              setupConsumerIndexer,
+		&networkingv1.Ingress{}:           setupIngressIndexer,
+		&networkingv1.IngressClass{}:      setupIngressClassIndexer,
+		&networkingv1beta1.IngressClass{}: setupIngressClassV1beta1Indexer,
 	} {
 		if utils.HasAPIResource(mgr, resource) {
 			if err := setup(mgr); err != nil {
@@ -82,9 +85,7 @@ func SetupIndexer(mgr ctrl.Manager) error {
 
 	// Core Kubernetes and APISIX indexers - always setup these
 	for _, setup := range []func(ctrl.Manager) error{
-		setupIngressIndexer,
 		setupBackendTrafficPolicyIndexer,
-		setupIngressClassIndexer,
 		setupGatewayProxyIndexer,
 		setupApisixRouteIndexer,
 		setupApisixPluginConfigIndexer,

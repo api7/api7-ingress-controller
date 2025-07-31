@@ -105,14 +105,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 	var controllers []Controller
 
 	icgvk := types.GvkOf(&v1.IngressClass{})
-	if utils.HasAPIResource(mgr, &v1.IngressClass{}) {
-		controllers = append(controllers, &controller.IngressClassReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("IngressClass"),
-			Provider: pro,
-		})
-	} else {
+	if !utils.HasAPIResource(mgr, &v1.IngressClass{}) {
 		setupLog.Info("IngressClass v1 not found, falling back to IngressClass v1beta1")
 		icgvk = types.GvkOf(&v1beta1.IngressClass{})
 		controllers = append(controllers, &controller.IngressClassV1beta1Reconciler{
@@ -161,6 +154,12 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Provider: pro,
 			Updater:  updater,
 			Readier:  readier,
+		},
+		&v1.IngressClass{}: &controller.IngressClassReconciler{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("IngressClass"),
+			Provider: pro,
 		},
 	} {
 		if utils.HasAPIResource(mgr, resource) {
