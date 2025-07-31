@@ -35,11 +35,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -93,10 +95,13 @@ func GetEnableReferenceGrant() bool {
 
 // IsDefaultIngressClass returns whether an IngressClass is the default IngressClass.
 func IsDefaultIngressClass(obj client.Object) bool {
-	if ingressClass, ok := obj.(*networkingv1.IngressClass); ok {
-		return ingressClass.Annotations[defaultIngressClassAnnotation] == "true"
+	switch obj.(type) {
+	case *networkingv1.IngressClass, *networkingv1beta1.IngressClass:
+	default:
+		return false
 	}
-	return false
+	annotations := obj.GetAnnotations()
+	return annotations[defaultIngressClassAnnotation] == "true"
 }
 
 func acceptedMessage(kind string) string {
@@ -1261,34 +1266,13 @@ func matchesIngressController(obj client.Object) bool {
 	return matchesController(ingressClass.Spec.Controller)
 }
 
-func matchesIngressClass(c client.Client, log logr.Logger, ingressClassName string) bool {
-	if ingressClassName == "" {
-		// Check for default ingress class
-		ingressClassList := &networkingv1.IngressClassList{}
-		if err := c.List(context.Background(), ingressClassList, client.MatchingFields{
-			indexer.IngressClass: config.GetControllerName(),
-		}); err != nil {
-			log.Error(err, "failed to list ingress classes")
-			return false
-		}
-
-		// Find the ingress class that is marked as default
-		for _, ic := range ingressClassList.Items {
-			if IsDefaultIngressClass(&ic) && matchesController(ic.Spec.Controller) {
-				return true
-			}
-		}
+func matchesIngressClass(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string, apiVersion string) bool {
+	ic, err := GetIngressClass(ctx, c, log, ingressClassName, apiVersion)
+	if err != nil {
+		log.Error(err, "failed to get IngressClass", "ingressClassName", ingressClassName)
 		return false
 	}
-
-	// Check if the specified ingress class is controlled by us
-	var ingressClass networkingv1.IngressClass
-	if err := c.Get(context.Background(), client.ObjectKey{Name: ingressClassName}, &ingressClass); err != nil {
-		log.Error(err, "failed to get ingress class", "ingressClass", ingressClassName)
-		return false
-	}
-
-	return matchesController(ingressClass.Spec.Controller)
+	return ic != nil
 }
 
 func ProcessIngressClassParameters(tctx *provider.TranslateContext, c client.Client, log logr.Logger, object client.Object, ingressClass *networkingv1.IngressClass) error {
@@ -1368,10 +1352,10 @@ func ProcessIngressClassParameters(tctx *provider.TranslateContext, c client.Cli
 	return nil
 }
 
-func GetIngressClass(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string) (*networkingv1.IngressClass, error) {
+func GetIngressClassV1Beta1(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string) (*networkingv1beta1.IngressClass, error) {
 	if ingressClassName == "" {
 		// Check for default ingress class
-		ingressClassList := &networkingv1.IngressClassList{}
+		ingressClassList := &networkingv1beta1.IngressClassList{}
 		if err := c.List(ctx, ingressClassList, client.MatchingFields{
 			indexer.IngressClass: config.GetControllerName(),
 		}); err != nil {
@@ -1389,6 +1373,40 @@ func GetIngressClass(ctx context.Context, c client.Client, log logr.Logger, ingr
 	}
 
 	// Check if the specified ingress class is controlled by us
+	var ingressClass networkingv1beta1.IngressClass
+	if err := c.Get(ctx, client.ObjectKey{Name: ingressClassName}, &ingressClass); err != nil {
+		return nil, err
+	}
+
+	if matchesController(ingressClass.Spec.Controller) {
+		return &ingressClass, nil
+	}
+
+	return nil, errors.New("ingress class is not controlled by us")
+}
+
+func GetIngressClassv1(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string) (*networkingv1.IngressClass, error) {
+	if ingressClassName == "" {
+		// Check for default ingress class
+		ingressClassList := &networkingv1.IngressClassList{}
+		if err := c.List(ctx, ingressClassList, client.MatchingFields{
+			indexer.IngressClass: config.GetControllerName(),
+		}); err != nil {
+			log.Error(err, "failed to list ingress classes")
+			return nil, err
+		}
+
+		// Find the ingress class that is marked as default
+		for _, ic := range ingressClassList.Items {
+			if IsDefaultIngressClass(&ic) && matchesController(ic.Spec.Controller) {
+				return &ic, nil
+			}
+		}
+		log.V(1).Info("no default ingress class found")
+		return nil, errors.New("no default ingress class found")
+	}
+
+	// Check if the specified ingress class is controlled by us
 	var ingressClass networkingv1.IngressClass
 	if err := c.Get(ctx, client.ObjectKey{Name: ingressClassName}, &ingressClass); err != nil {
 		return nil, err
@@ -1399,6 +1417,21 @@ func GetIngressClass(ctx context.Context, c client.Client, log logr.Logger, ingr
 	}
 
 	return nil, errors.New("ingress class is not controlled by us")
+}
+
+func GetIngressClass(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string, apiVersion string) (*networkingv1.IngressClass, error) {
+	switch apiVersion {
+	case networkingv1beta1.SchemeGroupVersion.String(), "":
+		icBeta, err := GetIngressClassV1Beta1(ctx, c, log, ingressClassName)
+		if err != nil {
+			return nil, err
+		}
+		return convertIngressClass(icBeta), nil
+	case networkingv1.SchemeGroupVersion.String():
+		return GetIngressClassv1(ctx, c, log, ingressClassName)
+	default:
+		return nil, fmt.Errorf("unsupported IngressClass API version: %s", apiVersion)
+	}
 }
 
 // distinctRequests distinct the requests
@@ -1482,4 +1515,38 @@ func MatchConsumerGatewayRef(ctx context.Context, c client.Client, log logr.Logg
 		return false
 	}
 	return matchesController(string(gatewayClass.Spec.ControllerName))
+}
+
+func convertIngressClass(obj client.Object) *networkingv1.IngressClass {
+	switch t := obj.(type) {
+	case *networkingv1beta1.IngressClass:
+		icv1 := &networkingv1.IngressClass{
+			TypeMeta:   t.TypeMeta,
+			ObjectMeta: t.ObjectMeta,
+			Spec: networkingv1.IngressClassSpec{
+				Controller: t.Spec.Controller,
+				Parameters: &networkingv1.IngressClassParametersReference{
+					APIGroup: t.Spec.Parameters.APIGroup,
+					Kind:     t.Spec.Parameters.Kind,
+					Name:     t.Spec.Parameters.Name,
+				},
+			},
+		}
+		icv1.APIVersion = networkingv1.SchemeGroupVersion.String()
+		return icv1
+	case *networkingv1.IngressClass:
+		return t
+	default:
+		panic(fmt.Sprintf("unexpected type %T for IngressClass", t))
+	}
+}
+
+func GetIngressClassName(obj client.Object) string {
+	switch t := obj.(type) {
+	case *networkingv1.Ingress:
+		return ptr.Deref(t.Spec.IngressClassName, "")
+	case *networkingv1beta1.IngressClass:
+		return ""
+	}
+	return ""
 }

@@ -31,7 +31,9 @@ import (
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -59,6 +61,8 @@ type ApisixRouteReconciler struct {
 	Provider provider.Provider
 	Updater  status.Updater
 	Readier  readiness.ReadinessManager
+
+	ICGVK schema.GroupVersionKind
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -128,7 +132,7 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		r.updateStatus(&ar, err)
 	}()
 
-	if ic, err = GetIngressClass(tctx, r.Client, r.Log, ar.Spec.IngressClassName); err != nil {
+	if ic, err = GetIngressClass(tctx, r.Client, r.Log, ar.Spec.IngressClassName, r.ICGVK.Version); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err = ProcessIngressClassParameters(tctx, r.Client, r.Log, &ar, ic); err != nil {
@@ -232,14 +236,16 @@ func (r *ApisixRouteReconciler) validatePluginConfig(ctx context.Context, tc *pr
 
 	// Check if ApisixPluginConfig has IngressClassName and if it matches
 	if in.Spec.IngressClassName != pc.Spec.IngressClassName && pc.Spec.IngressClassName != "" {
-		var pcIC networkingv1.IngressClass
-		if err := r.Get(ctx, client.ObjectKey{Name: pc.Spec.IngressClassName}, &pcIC); err != nil {
+		ic := &unstructured.Unstructured{}
+		ic.SetGroupVersionKind(r.ICGVK)
+		if err := r.Get(ctx, client.ObjectKey{Name: pc.Spec.IngressClassName}, ic); err != nil {
 			return types.ReasonError{
 				Reason:  string(apiv2.ConditionReasonInvalidSpec),
 				Message: fmt.Sprintf("failed to get IngressClass %s for ApisixPluginConfig %s: %v", pc.Spec.IngressClassName, pcNN, err),
 			}
 		}
-		if !matchesController(pcIC.Spec.Controller) {
+		controllerName, _, _ := unstructured.NestedString(ic.Object, "spec", "controller")
+		if !matchesController(controllerName) {
 			return types.ReasonError{
 				Reason:  string(apiv2.ConditionReasonInvalidSpec),
 				Message: fmt.Sprintf("ApisixPluginConfig %s references IngressClass %s with non-matching controller", pcNN, pc.Spec.IngressClassName),

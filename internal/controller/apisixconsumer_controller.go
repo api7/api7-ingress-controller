@@ -27,6 +27,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -53,6 +54,8 @@ type ApisixConsumerReconciler struct {
 	Provider provider.Provider
 	Updater  status.Updater
 	Readier  readiness.ReadinessManager
+
+	ICGVK schema.GroupVersionKind
 }
 
 // Reconcile FIXME: implement the reconcile logic (For now, it dose nothing other than directly accepting)
@@ -87,7 +90,7 @@ func (r *ApisixConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		r.updateStatus(ac, err)
 	}()
 
-	ingressClass, err = GetIngressClass(tctx, r.Client, r.Log, ac.Spec.IngressClassName)
+	ingressClass, err = GetIngressClass(tctx, r.Client, r.Log, ac.Spec.IngressClassName, r.ICGVK.Version)
 	if err != nil {
 		r.Log.Error(err, "failed to get IngressClass")
 		return ctrl.Result{}, err
@@ -146,7 +149,7 @@ func (r *ApisixConsumerReconciler) checkIngressClass(obj client.Object) bool {
 		return false
 	}
 
-	return matchesIngressClass(r.Client, r.Log, ac.Spec.IngressClassName)
+	return matchesIngressClass(context.Background(), r.Client, r.Log, ac.Spec.IngressClassName, r.ICGVK.Version)
 }
 
 func (r *ApisixConsumerReconciler) listApisixConsumerForGatewayProxy(ctx context.Context, obj client.Object) []reconcile.Request {
@@ -154,10 +157,7 @@ func (r *ApisixConsumerReconciler) listApisixConsumerForGatewayProxy(ctx context
 }
 
 func (r *ApisixConsumerReconciler) listApisixConsumerForIngressClass(ctx context.Context, obj client.Object) []reconcile.Request {
-	ingressClass, ok := obj.(*networkingv1.IngressClass)
-	if !ok {
-		return nil
-	}
+	ingressClass := convertIngressClass(obj)
 
 	return ListMatchingRequests(
 		ctx,

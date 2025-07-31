@@ -25,8 +25,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -47,6 +49,8 @@ type GatewayProxyController struct {
 	Scheme   *runtime.Scheme
 	Log      logr.Logger
 	Provider provider.Provider
+
+	ICGVK schema.GroupVersionKind
 }
 
 func (r *GatewayProxyController) SetupWithManager(mrg ctrl.Manager) error {
@@ -93,7 +97,7 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 	if providerService == nil {
 		tctx.EndpointSlices[req.NamespacedName] = nil
 	} else {
-		if err := addProviderEndpointsToTranslateContext(tctx, r.Client, types.NamespacedName{
+		if err := addProviderEndpointsToTranslateContext(tctx, r.Client, k8stypes.NamespacedName{
 			Namespace: gp.Namespace,
 			Name:      providerService.Name,
 		}); err != nil {
@@ -106,7 +110,7 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 	if auth.AdminKey != nil && auth.AdminKey.ValueFrom != nil && auth.AdminKey.ValueFrom.SecretKeyRef != nil {
 		var (
 			secret   corev1.Secret
-			secretNN = types.NamespacedName{
+			secretNN = k8stypes.NamespacedName{
 				Namespace: gp.GetNamespace(),
 				Name:      auth.AdminKey.ValueFrom.SecretKeyRef.Name,
 			}
@@ -120,27 +124,42 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 
 	// list Gateways that reference the GatewayProxy
 	var (
-		gatewayList      gatewayv1.GatewayList
-		ingressClassList networkingv1.IngressClassList
-		indexKey         = indexer.GenIndexKey(gp.GetNamespace(), gp.GetName())
+		gatewayList gatewayv1.GatewayList
+		indexKey    = indexer.GenIndexKey(gp.GetNamespace(), gp.GetName())
 	)
 	if err := r.List(ctx, &gatewayList, client.MatchingFields{indexer.ParametersRef: indexKey}); err != nil {
 		r.Log.Error(err, "failed to list GatewayList")
 		return ctrl.Result{}, nil
 	}
 
-	// list IngressClasses that reference the GatewayProxy
-	if err := r.List(ctx, &ingressClassList, client.MatchingFields{indexer.IngressClassParametersRef: indexKey}); err != nil {
-		r.Log.Error(err, "failed to list IngressClassList")
-		return reconcile.Result{}, err
-	}
-
 	// append referrers to translate context
 	for _, item := range gatewayList.Items {
 		tctx.GatewayProxyReferrers[req.NamespacedName] = append(tctx.GatewayProxyReferrers[req.NamespacedName], utils.NamespacedNameKind(&item))
 	}
-	for _, item := range ingressClassList.Items {
-		tctx.GatewayProxyReferrers[req.NamespacedName] = append(tctx.GatewayProxyReferrers[req.NamespacedName], utils.NamespacedNameKind(&item))
+
+	switch r.ICGVK.Version {
+	case networkingv1.SchemeGroupVersion.Version, "":
+		var ingressClassList networkingv1.IngressClassList
+		// list IngressClasses that reference the GatewayProxy
+		if err := r.List(ctx, &ingressClassList, client.MatchingFields{indexer.IngressClassParametersRef: indexKey}); err != nil {
+			r.Log.Error(err, "failed to list IngressClassList")
+			return reconcile.Result{}, err
+		}
+
+		for _, item := range ingressClassList.Items {
+			tctx.GatewayProxyReferrers[req.NamespacedName] = append(tctx.GatewayProxyReferrers[req.NamespacedName], utils.NamespacedNameKind(&item))
+		}
+	case networkingv1beta1.SchemeGroupVersion.Version:
+		var ingressClassList networkingv1beta1.IngressClassList
+		// list IngressClasses that reference the GatewayProxy
+		if err := r.List(ctx, &ingressClassList, client.MatchingFields{indexer.IngressClassParametersRef: indexKey}); err != nil {
+			r.Log.Error(err, "failed to list IngressClassList")
+			return reconcile.Result{}, err
+		}
+
+		for _, item := range ingressClassList.Items {
+			tctx.GatewayProxyReferrers[req.NamespacedName] = append(tctx.GatewayProxyReferrers[req.NamespacedName], utils.NamespacedNameKind(&item))
+		}
 	}
 
 	if err := r.Provider.Update(ctx, tctx, &gp); err != nil {

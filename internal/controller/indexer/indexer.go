@@ -23,6 +23,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -243,6 +244,30 @@ func setupIngressClassIndexer(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
 		&networkingv1.IngressClass{},
+		IngressClassParametersRef,
+		IngressClassParametersRefIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func setupIngressClassV1beta1Indexer(mgr ctrl.Manager) error {
+	// create IngressClass index
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&networkingv1beta1.IngressClass{},
+		IngressClass,
+		IngressClassIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	// create IngressClassParametersRef index
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&networkingv1beta1.IngressClass{},
 		IngressClassParametersRef,
 		IngressClassParametersRefIndexFunc,
 	); err != nil {
