@@ -67,7 +67,7 @@ func ConvertEndpointsToEndpointSlice(ep *corev1.Endpoints) []discoveryv1.Endpoin
 
 	for i, subset := range ep.Subsets {
 		// Create ports array
-		var ports []discoveryv1.EndpointPort
+		ports := make([]discoveryv1.EndpointPort, 0, len(subset.Ports))
 		for _, p := range subset.Ports {
 			epPort := discoveryv1.EndpointPort{
 				Port:     &p.Port,
