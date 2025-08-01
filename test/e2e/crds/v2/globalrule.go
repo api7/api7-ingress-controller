@@ -25,65 +25,32 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
-
-const gatewayProxyYaml = `
-apiVersion: apisix.apache.org/v1alpha1
-kind: GatewayProxy
-metadata:
-  name: apisix-proxy-config
-  namespace: default
-spec:
-  provider:
-    type: ControlPlane
-    controlPlane:
-      endpoints:
-      - %s
-      auth:
-        type: AdminKey
-        adminKey:
-          value: "%s"
-`
-
-const ingressClassYaml = `
-apiVersion: networking.k8s.io/v1
-kind: IngressClass
-metadata:
-  name: apisix
-spec:
-  controller: "apisix.apache.org/apisix-ingress-controller"
-  parameters:
-    apiGroup: "apisix.apache.org"
-    kind: "GatewayProxy"
-    name: "apisix-proxy-config"
-    namespace: "default"
-    scope: "Namespace"
-`
 
 var _ = Describe("Test GlobalRule", Label("apisix.apache.org", "v2", "apisixglobalrule"), func() {
 	s := scaffold.NewScaffold(&scaffold.Options{
 		ControllerName: "apisix.apache.org/apisix-ingress-controller",
 	})
 
-	var ingressYaml = `
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+	var defaultRoute = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
 metadata:
-  name: test-ingress
+  name: default
 spec:
   ingressClassName: apisix
-  rules:
-  - host: globalrule.example.com
-    http:
+  http:
+  - name: rule0
+    match:
+      hosts:
+      - globalrule.example.com
       paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: httpbin-service-e2e-test
-            port:
-              number: 80
+      - /*
+    backends:
+    - serviceName: httpbin-service-e2e-test
+      servicePort: 80
 `
 
 	Context("ApisixGlobalRule Basic Operations", func() {
@@ -95,13 +62,14 @@ spec:
 			time.Sleep(5 * time.Second)
 
 			By("create IngressClass")
-			err = s.CreateResourceFromStringWithNamespace(ingressClassYaml, "")
+			ingressClass := fmt.Sprintf(ingressClassYaml, framework.IngressVersion)
+			err = s.CreateResourceFromStringWithNamespace(ingressClass, "")
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
 			time.Sleep(5 * time.Second)
 
-			By("create Ingress")
-			err = s.CreateResourceFromString(ingressYaml)
-			Expect(err).NotTo(HaveOccurred(), "creating Ingress")
+			By("create ApisixRoute")
+			err = s.CreateResourceFromString(defaultRoute)
+			Expect(err).NotTo(HaveOccurred(), "creating ApisixRoute")
 			time.Sleep(5 * time.Second)
 
 			By("verify Ingress works")

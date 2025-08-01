@@ -25,8 +25,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -38,6 +41,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
+	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
 // GatewayProxyController reconciles a GatewayProxy object.
@@ -47,23 +51,44 @@ type GatewayProxyController struct {
 	Scheme   *runtime.Scheme
 	Log      logr.Logger
 	Provider provider.Provider
+
+	ICGV schema.GroupVersion
+	// supportsEndpointSlice indicates whether the cluster supports EndpointSlice API
+	supportsEndpointSlice bool
+	supportsGateway       bool
 }
 
 func (r *GatewayProxyController) SetupWithManager(mrg ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mrg).
+	// Check and store EndpointSlice API support
+	r.supportsEndpointSlice = pkgutils.HasAPIResource(mrg, &discoveryv1.EndpointSlice{})
+	r.supportsGateway = pkgutils.HasAPIResource(mrg, &gatewayv1.Gateway{})
+
+	bdr := ctrl.NewControllerManagedBy(mrg).
 		For(&v1alpha1.GatewayProxy{}).
 		WithEventFilter(
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
+				predicate.NewPredicateFuncs(TypePredicate[*corev1.Endpoints]()),
 				predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
 			),
 		).
 		Watches(&corev1.Service{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewayProxiesForProviderService),
-		).
-		Watches(&discoveryv1.EndpointSlice{},
+		)
+
+	// Conditionally watch EndpointSlice or Endpoints based on cluster API support
+	if r.supportsEndpointSlice {
+		bdr = bdr.Watches(&discoveryv1.EndpointSlice{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewayProxiesForProviderEndpointSlice),
-		).
+		)
+	} else {
+		r.Log.Info("EndpointSlice API not available, falling back to Endpoints API for provider service discovery")
+		bdr = bdr.Watches(&corev1.Endpoints{},
+			handler.EnqueueRequestsFromMapFunc(r.listGatewayProxiesForProviderEndpoints),
+		)
+	}
+
+	return bdr.
 		Watches(&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewayProxiesForSecret),
 		).
@@ -93,10 +118,10 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 	if providerService == nil {
 		tctx.EndpointSlices[req.NamespacedName] = nil
 	} else {
-		if err := addProviderEndpointsToTranslateContext(tctx, r.Client, types.NamespacedName{
+		if err := addProviderEndpointsToTranslateContextWithEndpointSliceSupport(tctx, r.Client, types.NamespacedName{
 			Namespace: gp.Namespace,
 			Name:      providerService.Name,
-		}); err != nil {
+		}, r.supportsEndpointSlice); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
@@ -106,7 +131,7 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 	if auth.AdminKey != nil && auth.AdminKey.ValueFrom != nil && auth.AdminKey.ValueFrom.SecretKeyRef != nil {
 		var (
 			secret   corev1.Secret
-			secretNN = types.NamespacedName{
+			secretNN = k8stypes.NamespacedName{
 				Namespace: gp.GetNamespace(),
 				Name:      auth.AdminKey.ValueFrom.SecretKeyRef.Name,
 			}
@@ -118,29 +143,44 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 		tctx.Secrets[secretNN] = &secret
 	}
 
+	indexKey := indexer.GenIndexKey(gp.GetNamespace(), gp.GetName())
+
 	// list Gateways that reference the GatewayProxy
-	var (
-		gatewayList      gatewayv1.GatewayList
-		ingressClassList networkingv1.IngressClassList
-		indexKey         = indexer.GenIndexKey(gp.GetNamespace(), gp.GetName())
-	)
-	if err := r.List(ctx, &gatewayList, client.MatchingFields{indexer.ParametersRef: indexKey}); err != nil {
-		r.Log.Error(err, "failed to list GatewayList")
-		return ctrl.Result{}, nil
+	if r.supportsGateway {
+		var gatewayList gatewayv1.GatewayList
+		if err := r.List(ctx, &gatewayList, client.MatchingFields{indexer.ParametersRef: indexKey}); err != nil {
+			r.Log.Error(err, "failed to list GatewayList")
+			return ctrl.Result{}, nil
+		}
+		// append referrers to translate context
+		for _, item := range gatewayList.Items {
+			tctx.GatewayProxyReferrers[req.NamespacedName] = append(tctx.GatewayProxyReferrers[req.NamespacedName], utils.NamespacedNameKind(&item))
+		}
 	}
 
-	// list IngressClasses that reference the GatewayProxy
-	if err := r.List(ctx, &ingressClassList, client.MatchingFields{indexer.IngressClassParametersRef: indexKey}); err != nil {
-		r.Log.Error(err, "failed to list IngressClassList")
-		return reconcile.Result{}, err
-	}
+	switch r.ICGV.String() {
+	case networkingv1.SchemeGroupVersion.String(), "":
+		var ingressClassList networkingv1.IngressClassList
+		// list IngressClasses that reference the GatewayProxy
+		if err := r.List(ctx, &ingressClassList, client.MatchingFields{indexer.IngressClassParametersRef: indexKey}); err != nil {
+			r.Log.Error(err, "failed to list IngressClassList")
+			return reconcile.Result{}, err
+		}
 
-	// append referrers to translate context
-	for _, item := range gatewayList.Items {
-		tctx.GatewayProxyReferrers[req.NamespacedName] = append(tctx.GatewayProxyReferrers[req.NamespacedName], utils.NamespacedNameKind(&item))
-	}
-	for _, item := range ingressClassList.Items {
-		tctx.GatewayProxyReferrers[req.NamespacedName] = append(tctx.GatewayProxyReferrers[req.NamespacedName], utils.NamespacedNameKind(&item))
+		for _, item := range ingressClassList.Items {
+			tctx.GatewayProxyReferrers[req.NamespacedName] = append(tctx.GatewayProxyReferrers[req.NamespacedName], utils.NamespacedNameKind(&item))
+		}
+	case networkingv1beta1.SchemeGroupVersion.String():
+		var ingressClassList networkingv1beta1.IngressClassList
+		// list IngressClasses that reference the GatewayProxy
+		if err := r.List(ctx, &ingressClassList, client.MatchingFields{indexer.IngressClassParametersRef: indexKey}); err != nil {
+			r.Log.Error(err, "failed to list IngressClassList")
+			return reconcile.Result{}, err
+		}
+
+		for _, item := range ingressClassList.Items {
+			tctx.GatewayProxyReferrers[req.NamespacedName] = append(tctx.GatewayProxyReferrers[req.NamespacedName], utils.NamespacedNameKind(&item))
+		}
 	}
 
 	if err := r.Provider.Update(ctx, tctx, &gp); err != nil {
@@ -171,6 +211,20 @@ func (r *GatewayProxyController) listGatewayProxiesForProviderEndpointSlice(ctx 
 
 	return ListRequests(ctx, r.Client, r.Log, &v1alpha1.GatewayProxyList{}, client.MatchingFields{
 		indexer.ServiceIndexRef: indexer.GenIndexKey(endpointSlice.GetNamespace(), endpointSlice.Labels[discoveryv1.LabelServiceName]),
+	})
+}
+
+// listGatewayProxiesForProviderEndpoints handles Endpoints objects and converts them to GatewayProxy reconcile requests.
+// This function provides backward compatibility for Kubernetes 1.18 clusters that don't support EndpointSlice.
+func (r *GatewayProxyController) listGatewayProxiesForProviderEndpoints(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
+	endpoint, ok := obj.(*corev1.Endpoints)
+	if !ok {
+		r.Log.Error(errors.New("unexpected object type"), "failed to convert object to Endpoints")
+		return nil
+	}
+
+	return ListRequests(ctx, r.Client, r.Log, &v1alpha1.GatewayProxyList{}, client.MatchingFields{
+		indexer.ServiceIndexRef: indexer.GenIndexKey(endpoint.GetNamespace(), endpoint.GetName()),
 	})
 }
 

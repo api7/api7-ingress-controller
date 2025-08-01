@@ -23,6 +23,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -56,10 +57,14 @@ func SetupIndexer(mgr ctrl.Manager) error {
 
 	// Gateway API indexers - conditional setup based on API availability
 	for resource, setup := range map[client.Object]func(ctrl.Manager) error{
-		&gatewayv1.Gateway{}:      setupGatewayIndexer,
-		&gatewayv1.HTTPRoute{}:    setupHTTPRouteIndexer,
-		&gatewayv1.GatewayClass{}: setupGatewayClassIndexer,
-		&v1alpha1.Consumer{}:      setupConsumerIndexer,
+		&gatewayv1.Gateway{}:              setupGatewayIndexer,
+		&gatewayv1.HTTPRoute{}:            setupHTTPRouteIndexer,
+		&gatewayv1.GatewayClass{}:         setupGatewayClassIndexer,
+		&v1alpha1.Consumer{}:              setupConsumerIndexer,
+		&networkingv1.Ingress{}:           setupIngressIndexer,
+		&networkingv1.IngressClass{}:      setupIngressClassIndexer,
+		&networkingv1beta1.IngressClass{}: setupIngressClassV1beta1Indexer,
+		&v1alpha1.BackendTrafficPolicy{}:  setupBackendTrafficPolicyIndexer,
 	} {
 		if utils.HasAPIResource(mgr, resource) {
 			if err := setup(mgr); err != nil {
@@ -81,9 +86,6 @@ func SetupIndexer(mgr ctrl.Manager) error {
 
 	// Core Kubernetes and APISIX indexers - always setup these
 	for _, setup := range []func(ctrl.Manager) error{
-		setupIngressIndexer,
-		setupBackendTrafficPolicyIndexer,
-		setupIngressClassIndexer,
 		setupGatewayProxyIndexer,
 		setupApisixRouteIndexer,
 		setupApisixPluginConfigIndexer,
@@ -276,6 +278,30 @@ func setupIngressClassIndexer(mgr ctrl.Manager) error {
 	return nil
 }
 
+func setupIngressClassV1beta1Indexer(mgr ctrl.Manager) error {
+	// create IngressClass index
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&networkingv1beta1.IngressClass{},
+		IngressClass,
+		IngressClassV1beta1IndexFunc,
+	); err != nil {
+		return err
+	}
+
+	// create IngressClassParametersRef index
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&networkingv1beta1.IngressClass{},
+		IngressClassParametersRef,
+		IngressClassV1beta1ParametersRefIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func setupGatewayProxyIndexer(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
@@ -393,6 +419,15 @@ func setupBackendTrafficPolicyIndexer(mgr ctrl.Manager) error {
 		return err
 	}
 	return nil
+}
+
+func IngressClassV1beta1IndexFunc(rawObj client.Object) []string {
+	ingressClass := rawObj.(*networkingv1beta1.IngressClass)
+	if ingressClass.Spec.Controller == "" {
+		return nil
+	}
+	controllerName := ingressClass.Spec.Controller
+	return []string{controllerName}
 }
 
 func IngressClassIndexFunc(rawObj client.Object) []string {
@@ -696,6 +731,22 @@ func BackendTrafficPolicyIndexFunc(rawObj client.Object) []string {
 
 func IngressClassParametersRefIndexFunc(rawObj client.Object) []string {
 	ingressClass := rawObj.(*networkingv1.IngressClass)
+	// check if the IngressClass references this gateway proxy
+	if ingressClass.Spec.Parameters != nil &&
+		ingressClass.Spec.Parameters.APIGroup != nil &&
+		*ingressClass.Spec.Parameters.APIGroup == v1alpha1.GroupVersion.Group &&
+		ingressClass.Spec.Parameters.Kind == "GatewayProxy" {
+		ns := ingressClass.GetNamespace()
+		if ingressClass.Spec.Parameters.Namespace != nil {
+			ns = *ingressClass.Spec.Parameters.Namespace
+		}
+		return []string{GenIndexKey(ns, ingressClass.Spec.Parameters.Name)}
+	}
+	return nil
+}
+
+func IngressClassV1beta1ParametersRefIndexFunc(rawObj client.Object) []string {
+	ingressClass := rawObj.(*networkingv1beta1.IngressClass)
 	// check if the IngressClass references this gateway proxy
 	if ingressClass.Spec.Parameters != nil &&
 		ingressClass.Spec.Parameters.APIGroup != nil &&

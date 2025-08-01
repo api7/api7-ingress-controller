@@ -53,7 +53,7 @@ spec:
 `
 
 const ingressClassYamlTls = `
-apiVersion: networking.k8s.io/v1
+apiVersion: networking.k8s.io/%s
 kind: IngressClass
 metadata:
   name: apisix-tls
@@ -63,8 +63,6 @@ spec:
     apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
     name: "apisix-proxy-tls"
-    namespace: "default"
-    scope: "Namespace"
 `
 
 const apisixRouteYamlTls = `
@@ -107,7 +105,8 @@ var _ = Describe("Test ApisixTls", Label("apisix.apache.org", "v2", "apisixtls")
 			time.Sleep(5 * time.Second)
 
 			By("create IngressClass")
-			err = s.CreateResourceFromStringWithNamespace(ingressClassYamlTls, "")
+			ingressClass := fmt.Sprintf(ingressClassYamlTls, framework.IngressVersion)
+			err = s.CreateResourceFromStringWithNamespace(ingressClass, "")
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
 			time.Sleep(5 * time.Second)
 
@@ -116,16 +115,6 @@ var _ = Describe("Test ApisixTls", Label("apisix.apache.org", "v2", "apisixtls")
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "test-route-tls"}, &apisixRoute, apisixRouteYamlTls)
 		})
 
-		AfterEach(func() {
-			By("delete GatewayProxy")
-			gatewayProxy := fmt.Sprintf(gatewayProxyYamlTls, s.Deployer.GetAdminEndpoint(), s.AdminKey())
-			err := s.DeleteResourceFromStringWithNamespace(gatewayProxy, "default")
-			Expect(err).ShouldNot(HaveOccurred(), "deleting GatewayProxy")
-
-			By("delete IngressClass")
-			err = s.DeleteResourceFromStringWithNamespace(ingressClassYamlTls, "")
-			Expect(err).ShouldNot(HaveOccurred(), "deleting IngressClass")
-		})
 		normalizePEM := func(s string) string {
 			return strings.TrimSpace(s)
 		}

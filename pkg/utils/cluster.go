@@ -22,6 +22,7 @@ import (
 	"k8s.io/client-go/discovery"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
 	"github.com/apache/apisix-ingress-controller/internal/types"
 )
@@ -36,7 +37,12 @@ func HasAPIResource(mgr ctrl.Manager, obj client.Object) bool {
 // HasAPIResourceWithLogger is the same as HasAPIResource but accepts a custom logger
 // for more detailed debugging information.
 func HasAPIResourceWithLogger(mgr ctrl.Manager, obj client.Object, logger logr.Logger) bool {
-	gvk := types.GvkOf(obj)
+	gvk, err := apiutil.GVKForObject(obj, mgr.GetScheme())
+	if err != nil {
+		logger.Info("cannot derive GVK from scheme", "error", err)
+		return false
+	}
+
 	groupVersion := gvk.GroupVersion().String()
 
 	logger = logger.WithValues(
@@ -63,6 +69,7 @@ func HasAPIResourceWithLogger(mgr ctrl.Manager, obj client.Object, logger logr.L
 	// Check if the specific kind exists in the resource list
 	for _, res := range apiResources.APIResources {
 		if res.Kind == gvk.Kind {
+			logger.Info("API resource kind found in group/version", "kind", res.Kind)
 			return true
 		}
 	}
@@ -73,5 +80,5 @@ func HasAPIResourceWithLogger(mgr ctrl.Manager, obj client.Object, logger logr.L
 
 func FormatGVK(obj client.Object) string {
 	gvk := types.GvkOf(obj)
-	return gvk.GroupVersion().String() + "." + gvk.Kind
+	return gvk.String()
 }

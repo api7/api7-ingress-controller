@@ -52,7 +52,8 @@ var _ = Describe("Test ApisixRoute", Label("apisix.apache.org", "v2", "apisixrou
 		time.Sleep(5 * time.Second)
 
 		By("create IngressClass")
-		err = s.CreateResourceFromStringWithNamespace(ingressClassYaml, "")
+		ingressClass := fmt.Sprintf(ingressClassYaml, framework.IngressVersion)
+		err = s.CreateResourceFromStringWithNamespace(ingressClass, "")
 		Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
 		time.Sleep(5 * time.Second)
 	})
@@ -92,7 +93,12 @@ spec:
 			By("update ApisixRoute")
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisixRoute, fmt.Sprintf(apisixRouteSpec, "/headers"))
 			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
-			s.NewAPISIXClient().GET("/headers").WithHost("httpbin").Expect().Status(http.StatusOK)
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/headers",
+				Host:   "httpbin",
+				Check:  scaffold.WithExpectedStatus(http.StatusOK),
+			})
 
 			By("delete ApisixRoute")
 			err := s.DeleteResource("ApisixRoute", "default")

@@ -23,6 +23,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -38,6 +39,8 @@ type ApisixPluginConfigReconciler struct {
 	Scheme  *runtime.Scheme
 	Log     logr.Logger
 	Updater status.Updater
+
+	ICGV schema.GroupVersion
 }
 
 // SetupWithManager sets up the controller with the Manager.

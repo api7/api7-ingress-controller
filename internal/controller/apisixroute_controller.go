@@ -30,8 +30,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -59,21 +62,36 @@ type ApisixRouteReconciler struct {
 	Provider provider.Provider
 	Updater  status.Updater
 	Readier  readiness.ReadinessManager
+
+	ICGV schema.GroupVersion
+	// supportsEndpointSlice indicates whether the cluster supports EndpointSlice API
+	supportsEndpointSlice bool
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	// Check and store EndpointSlice API support
+	r.supportsEndpointSlice = pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
+	var icWatch client.Object
+	switch r.ICGV.String() {
+	case networkingv1beta1.SchemeGroupVersion.String():
+		icWatch = &networkingv1beta1.IngressClass{}
+	default:
+		icWatch = &networkingv1.IngressClass{}
+	}
+
+	bdr := ctrl.NewControllerManagedBy(mgr).
 		For(&apiv2.ApisixRoute{}).
 		WithEventFilter(
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
 				predicate.AnnotationChangedPredicate{},
+				predicate.NewPredicateFuncs(TypePredicate[*corev1.Endpoints]()),
 				predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
 			),
 		).
 		Watches(
-			&networkingv1.IngressClass{},
+			icWatch,
 			handler.EnqueueRequestsFromMapFunc(r.listApisixRouteForIngressClass),
 			builder.WithPredicates(
 				predicate.NewPredicateFuncs(matchesIngressController),
@@ -81,10 +99,21 @@ func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Watches(&v1alpha1.GatewayProxy{},
 			handler.EnqueueRequestsFromMapFunc(r.listApisixRouteForGatewayProxy),
-		).
-		Watches(&discoveryv1.EndpointSlice{},
+		)
+
+	// Conditionally watch EndpointSlice or Endpoints based on cluster API support
+	if r.supportsEndpointSlice {
+		bdr = bdr.Watches(&discoveryv1.EndpointSlice{},
 			handler.EnqueueRequestsFromMapFunc(r.listApisixRoutesForService),
-		).
+		)
+	} else {
+		r.Log.Info("EndpointSlice API not available, falling back to Endpoints API for service discovery")
+		bdr = bdr.Watches(&corev1.Endpoints{},
+			handler.EnqueueRequestsFromMapFunc(r.listApisixRoutesForEndpoints),
+		)
+	}
+
+	return bdr.
 		Watches(&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.listApisixRoutesForSecret),
 		).
@@ -128,7 +157,7 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		r.updateStatus(&ar, err)
 	}()
 
-	if ic, err = GetIngressClass(tctx, r.Client, r.Log, ar.Spec.IngressClassName); err != nil {
+	if ic, err = GetIngressClass(tctx, r.Client, r.Log, ar.Spec.IngressClassName, r.ICGV.String()); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err = ProcessIngressClassParameters(tctx, r.Client, r.Log, &ar, ic); err != nil {
@@ -232,14 +261,20 @@ func (r *ApisixRouteReconciler) validatePluginConfig(ctx context.Context, tc *pr
 
 	// Check if ApisixPluginConfig has IngressClassName and if it matches
 	if in.Spec.IngressClassName != pc.Spec.IngressClassName && pc.Spec.IngressClassName != "" {
-		var pcIC networkingv1.IngressClass
-		if err := r.Get(ctx, client.ObjectKey{Name: pc.Spec.IngressClassName}, &pcIC); err != nil {
+		ic := &unstructured.Unstructured{}
+		ic.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   r.ICGV.Group,
+			Version: r.ICGV.Version,
+			Kind:    types.KindIngressClass,
+		})
+		if err := r.Get(ctx, client.ObjectKey{Name: pc.Spec.IngressClassName}, ic); err != nil {
 			return types.ReasonError{
 				Reason:  string(apiv2.ConditionReasonInvalidSpec),
 				Message: fmt.Sprintf("failed to get IngressClass %s for ApisixPluginConfig %s: %v", pc.Spec.IngressClassName, pcNN, err),
 			}
 		}
-		if !matchesController(pcIC.Spec.Controller) {
+		controllerName, _, _ := unstructured.NestedString(ic.Object, "spec", "controller")
+		if !matchesController(controllerName) {
 			return types.ReasonError{
 				Reason:  string(apiv2.ConditionReasonInvalidSpec),
 				Message: fmt.Sprintf("ApisixPluginConfig %s references IngressClass %s with non-matching controller", pcNN, pc.Spec.IngressClassName),
@@ -341,23 +376,46 @@ func (r *ApisixRouteReconciler) validateBackends(ctx context.Context, tc *provid
 		}
 		tc.Services[serviceNN] = &service
 
-		var endpoints discoveryv1.EndpointSliceList
-		if err := r.List(ctx, &endpoints,
-			client.InNamespace(service.Namespace),
-			client.MatchingLabels{
-				discoveryv1.LabelServiceName: service.Name,
-			},
-		); err != nil {
-			return types.ReasonError{
-				Reason:  string(apiv2.ConditionReasonInvalidSpec),
-				Message: fmt.Sprintf("failed to list endpoint slices: %v", err),
+		// Conditionally collect EndpointSlice or Endpoints based on cluster API support
+		if r.supportsEndpointSlice {
+			var endpoints discoveryv1.EndpointSliceList
+			if err := r.List(ctx, &endpoints,
+				client.InNamespace(service.Namespace),
+				client.MatchingLabels{
+					discoveryv1.LabelServiceName: service.Name,
+				},
+			); err != nil {
+				return types.ReasonError{
+					Reason:  string(apiv2.ConditionReasonInvalidSpec),
+					Message: fmt.Sprintf("failed to list endpoint slices: %v", err),
+				}
+			}
+
+			// backend.subset specifies a subset of upstream nodes.
+			// It specifies that the target pod's label should be a superset of the subset labels of the ApisixUpstream of the serviceName
+			subsetLabels := r.getSubsetLabels(tc, serviceNN, backend)
+			tc.EndpointSlices[serviceNN] = r.filterEndpointSlicesBySubsetLabels(ctx, endpoints.Items, subsetLabels)
+		} else {
+			// Fallback to Endpoints API for Kubernetes 1.18 compatibility
+			var ep corev1.Endpoints
+			if err := r.Get(ctx, serviceNN, &ep); err != nil {
+				if client.IgnoreNotFound(err) != nil {
+					return types.ReasonError{
+						Reason:  string(apiv2.ConditionReasonInvalidSpec),
+						Message: fmt.Sprintf("failed to get endpoints: %v", err),
+					}
+				}
+				// If endpoints not found, create empty EndpointSlice list
+				tc.EndpointSlices[serviceNN] = []discoveryv1.EndpointSlice{}
+			} else {
+				// Convert Endpoints to EndpointSlice format for internal consistency
+				convertedEndpointSlices := pkgutils.ConvertEndpointsToEndpointSlice(&ep)
+
+				// Apply subset filtering to converted EndpointSlices
+				subsetLabels := r.getSubsetLabels(tc, serviceNN, backend)
+				tc.EndpointSlices[serviceNN] = r.filterEndpointSlicesBySubsetLabels(ctx, convertedEndpointSlices, subsetLabels)
 			}
 		}
-
-		// backend.subset specifies a subset of upstream nodes.
-		// It specifies that the target pod's label should be a superset of the subset labels of the ApisixUpstream of the serviceName
-		subsetLabels := r.getSubsetLabels(tc, serviceNN, backend)
-		tc.EndpointSlices[serviceNN] = r.filterEndpointSlicesBySubsetLabels(ctx, endpoints.Items, subsetLabels)
 	}
 
 	return nil
@@ -443,6 +501,32 @@ func (r *ApisixRouteReconciler) listApisixRoutesForService(ctx context.Context, 
 	return pkgutils.DedupComparable(requests)
 }
 
+// listApisixRoutesForEndpoints handles Endpoints objects and converts them to ApisixRoute reconcile requests.
+// This function provides backward compatibility for Kubernetes 1.18 clusters that don't support EndpointSlice.
+func (r *ApisixRouteReconciler) listApisixRoutesForEndpoints(ctx context.Context, obj client.Object) []reconcile.Request {
+	endpoint, ok := obj.(*corev1.Endpoints)
+	if !ok {
+		return nil
+	}
+
+	var (
+		namespace   = endpoint.GetNamespace()
+		serviceName = endpoint.GetName() // For Endpoints, the name is the service name
+		arList      apiv2.ApisixRouteList
+	)
+	if err := r.List(ctx, &arList, client.MatchingFields{
+		indexer.ServiceIndexRef: indexer.GenIndexKey(namespace, serviceName),
+	}); err != nil {
+		r.Log.Error(err, "failed to list apisixroutes by service", "service", serviceName)
+		return nil
+	}
+	requests := make([]reconcile.Request, 0, len(arList.Items))
+	for _, ar := range arList.Items {
+		requests = append(requests, reconcile.Request{NamespacedName: utils.NamespacedName(&ar)})
+	}
+	return pkgutils.DedupComparable(requests)
+}
+
 func (r *ApisixRouteReconciler) listApisixRoutesForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
 	secret, ok := obj.(*corev1.Secret)
 	if !ok {
@@ -492,10 +576,7 @@ func (r *ApisixRouteReconciler) listApisixRoutesForSecret(ctx context.Context, o
 }
 
 func (r *ApisixRouteReconciler) listApisixRouteForIngressClass(ctx context.Context, object client.Object) (requests []reconcile.Request) {
-	ingressClass, ok := object.(*networkingv1.IngressClass)
-	if !ok {
-		return nil
-	}
+	ingressClass := convertIngressClass(object)
 
 	return ListMatchingRequests(
 		ctx,
@@ -513,8 +594,13 @@ func (r *ApisixRouteReconciler) listApisixRouteForIngressClass(ctx context.Conte
 	)
 }
 
-func (r *ApisixRouteReconciler) listApisixRouteForGatewayProxy(ctx context.Context, object client.Object) (requests []reconcile.Request) {
-	return listIngressClassRequestsForGatewayProxy(ctx, r.Client, object, r.Log, r.listApisixRouteForIngressClass)
+func (r *ApisixRouteReconciler) listApisixRouteForGatewayProxy(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
+	switch r.ICGV.String() {
+	case networkingv1beta1.SchemeGroupVersion.String():
+		return listIngressClassV1beta1RequestsForGatewayProxy(ctx, r.Client, obj, r.Log, r.listApisixRouteForIngressClass)
+	default:
+		return listIngressClassRequestsForGatewayProxy(ctx, r.Client, obj, r.Log, r.listApisixRouteForIngressClass)
+	}
 }
 
 func (r *ApisixRouteReconciler) listApisixRouteForApisixUpstream(ctx context.Context, object client.Object) (requests []reconcile.Request) {
@@ -556,13 +642,20 @@ func (r *ApisixRouteReconciler) listApisixRoutesForPluginConfig(ctx context.Cont
 
 	// First check if the ApisixPluginConfig has matching IngressClassName
 	if pc.Spec.IngressClassName != "" {
-		var ic networkingv1.IngressClass
-		if err := r.Get(ctx, client.ObjectKey{Name: pc.Spec.IngressClassName}, &ic); err != nil {
+		var icObj client.Object
+		switch r.ICGV.String() {
+		case networkingv1beta1.SchemeGroupVersion.String():
+			icObj = &networkingv1beta1.IngressClass{}
+		default:
+			icObj = &networkingv1.IngressClass{}
+		}
+		if err := r.Get(ctx, client.ObjectKey{Name: pc.Spec.IngressClassName}, icObj); err != nil {
 			if client.IgnoreNotFound(err) != nil {
 				r.Log.Error(err, "failed to get IngressClass for ApisixPluginConfig", "pluginconfig", pc.Name)
 			}
 			return nil
 		}
+		ic := convertIngressClass(icObj)
 		if !matchesController(ic.Spec.Controller) {
 			return nil
 		}
