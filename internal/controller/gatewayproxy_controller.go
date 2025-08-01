@@ -63,30 +63,27 @@ func (r *GatewayProxyController) SetupWithManager(mrg ctrl.Manager) error {
 	r.supportsEndpointSlice = pkgutils.HasAPIResource(mrg, &discoveryv1.EndpointSlice{})
 	r.supportsGateway = pkgutils.HasAPIResource(mrg, &gatewayv1.Gateway{})
 
+	eventFilters := []predicate.Predicate{
+		predicate.GenerationChangedPredicate{},
+		predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
+	}
+
+	if !r.supportsEndpointSlice {
+		eventFilters = append(eventFilters, predicate.NewPredicateFuncs(TypePredicate[*corev1.Endpoints]()))
+	}
+
 	bdr := ctrl.NewControllerManagedBy(mrg).
 		For(&v1alpha1.GatewayProxy{}).
-		WithEventFilter(
-			predicate.Or(
-				predicate.GenerationChangedPredicate{},
-				predicate.NewPredicateFuncs(TypePredicate[*corev1.Endpoints]()),
-				predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
-			),
-		).
+		WithEventFilter(predicate.Or(eventFilters...)).
 		Watches(&corev1.Service{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewayProxiesForProviderService),
 		)
 
 	// Conditionally watch EndpointSlice or Endpoints based on cluster API support
-	if r.supportsEndpointSlice {
-		bdr = bdr.Watches(&discoveryv1.EndpointSlice{},
-			handler.EnqueueRequestsFromMapFunc(r.listGatewayProxiesForProviderEndpointSlice),
-		)
-	} else {
-		r.Log.Info("EndpointSlice API not available, falling back to Endpoints API for provider service discovery")
-		bdr = bdr.Watches(&corev1.Endpoints{},
-			handler.EnqueueRequestsFromMapFunc(r.listGatewayProxiesForProviderEndpoints),
-		)
-	}
+	bdr = watchEndpointSliceOrEndpoints(bdr, r.supportsEndpointSlice,
+		r.listGatewayProxiesForProviderEndpointSlice,
+		r.listGatewayProxiesForProviderEndpoints,
+		r.Log)
 
 	return bdr.
 		Watches(&corev1.Secret{},

@@ -80,25 +80,23 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Check and store EndpointSlice API support
 	r.supportsEndpointSlice = pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
 
+	eventFilters := []predicate.Predicate{
+		predicate.GenerationChangedPredicate{},
+	}
+
+	if !r.supportsEndpointSlice {
+		eventFilters = append(eventFilters, predicate.NewPredicateFuncs(TypePredicate[*corev1.Endpoints]()))
+	}
+
 	bdr := ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.HTTPRoute{}).
-		WithEventFilter(
-			predicate.Or(
-				predicate.GenerationChangedPredicate{},
-				predicate.NewPredicateFuncs(TypePredicate[*corev1.Endpoints]()),
-			))
+		WithEventFilter(predicate.Or(eventFilters...))
 
 	// Conditionally watch EndpointSlice or Endpoints based on cluster API support
-	if r.supportsEndpointSlice {
-		bdr = bdr.Watches(&discoveryv1.EndpointSlice{},
-			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesByServiceBef),
-		)
-	} else {
-		r.Log.Info("EndpointSlice API not available, falling back to Endpoints API for service discovery")
-		bdr = bdr.Watches(&corev1.Endpoints{},
-			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesByServiceForEndpoints),
-		)
-	}
+	bdr = watchEndpointSliceOrEndpoints(bdr, r.supportsEndpointSlice,
+		r.listHTTPRoutesByServiceBef,
+		r.listHTTPRoutesByServiceForEndpoints,
+		r.Log)
 
 	bdr = bdr.
 		Watches(&v1alpha1.PluginConfig{},

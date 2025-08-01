@@ -42,8 +42,10 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -1601,4 +1603,14 @@ func GetIngressClassName(obj client.Object) string {
 		return ""
 	}
 	return ""
+}
+
+// watchEndpointSliceOrEndpoints adds watcher for EndpointSlice or Endpoints based on cluster API support
+func watchEndpointSliceOrEndpoints(bdr *ctrl.Builder, supportsEndpointSlice bool, endpointSliceMapFunc, endpointsMapFunc handler.MapFunc, log logr.Logger) *ctrl.Builder {
+	if supportsEndpointSlice {
+		return bdr.Watches(&discoveryv1.EndpointSlice{}, handler.EnqueueRequestsFromMapFunc(endpointSliceMapFunc))
+	} else {
+		log.Info("EndpointSlice API not available, falling back to Endpoints API for service discovery")
+		return bdr.Watches(&corev1.Endpoints{}, handler.EnqueueRequestsFromMapFunc(endpointsMapFunc))
+	}
 }

@@ -74,20 +74,23 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Check and store EndpointSlice API support
 	r.supportsEndpointSlice = pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
 
+	eventFilters := []predicate.Predicate{
+		predicate.GenerationChangedPredicate{},
+		predicate.AnnotationChangedPredicate{},
+		predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
+	}
+
+	if !r.supportsEndpointSlice {
+		eventFilters = append(eventFilters, predicate.NewPredicateFuncs(TypePredicate[*corev1.Endpoints]()))
+	}
+
 	bdr := ctrl.NewControllerManagedBy(mgr).
 		For(&networkingv1.Ingress{},
 			builder.WithPredicates(
 				predicate.NewPredicateFuncs(r.checkIngressClass),
 			),
 		).
-		WithEventFilter(
-			predicate.Or(
-				predicate.GenerationChangedPredicate{},
-				predicate.AnnotationChangedPredicate{},
-				predicate.NewPredicateFuncs(TypePredicate[*corev1.Endpoints]()),
-				predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
-			),
-		).
+		WithEventFilter(predicate.Or(eventFilters...)).
 		Watches(
 			&networkingv1.IngressClass{},
 			handler.EnqueueRequestsFromMapFunc(r.listIngressForIngressClass),
@@ -97,18 +100,10 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		)
 
 	// Conditionally watch EndpointSlice or Endpoints based on cluster API support
-	if r.supportsEndpointSlice {
-		bdr = bdr.Watches(
-			&discoveryv1.EndpointSlice{},
-			handler.EnqueueRequestsFromMapFunc(r.listIngressesByService),
-		)
-	} else {
-		r.Log.Info("EndpointSlice API not available, falling back to Endpoints API for service discovery")
-		bdr = bdr.Watches(
-			&corev1.Endpoints{},
-			handler.EnqueueRequestsFromMapFunc(r.listIngressesByEndpoints),
-		)
-	}
+	bdr = watchEndpointSliceOrEndpoints(bdr, r.supportsEndpointSlice,
+		r.listIngressesByService,
+		r.listIngressesByEndpoints,
+		r.Log)
 
 	return bdr.
 		Watches(
