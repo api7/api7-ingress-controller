@@ -356,44 +356,15 @@ func (r *ApisixRouteReconciler) validateBackends(ctx context.Context, tc *provid
 		}
 		tc.Services[serviceNN] = &service
 
-		// Conditionally collect EndpointSlice or Endpoints based on cluster API support
-		if r.supportsEndpointSlice {
-			var endpoints discoveryv1.EndpointSliceList
-			if err := r.List(ctx, &endpoints,
-				client.InNamespace(service.Namespace),
-				client.MatchingLabels{
-					discoveryv1.LabelServiceName: service.Name,
-				},
-			); err != nil {
-				return types.ReasonError{
-					Reason:  string(apiv2.ConditionReasonInvalidSpec),
-					Message: fmt.Sprintf("failed to list endpoint slices: %v", err),
-				}
-			}
+		// backend.subset specifies a subset of upstream nodes.
+		// It specifies that the target pod's label should be a superset of the subset labels of the ApisixUpstream of the serviceName
+		subsetLabels := r.getSubsetLabels(tc, serviceNN, backend)
 
-			// backend.subset specifies a subset of upstream nodes.
-			// It specifies that the target pod's label should be a superset of the subset labels of the ApisixUpstream of the serviceName
-			subsetLabels := r.getSubsetLabels(tc, serviceNN, backend)
-			tc.EndpointSlices[serviceNN] = r.filterEndpointSlicesBySubsetLabels(ctx, endpoints.Items, subsetLabels)
-		} else {
-			// Fallback to Endpoints API for Kubernetes 1.18 compatibility
-			var ep corev1.Endpoints
-			if err := r.Get(ctx, serviceNN, &ep); err != nil {
-				if client.IgnoreNotFound(err) != nil {
-					return types.ReasonError{
-						Reason:  string(apiv2.ConditionReasonInvalidSpec),
-						Message: fmt.Sprintf("failed to get endpoints: %v", err),
-					}
-				}
-				// If endpoints not found, create empty EndpointSlice list
-				tc.EndpointSlices[serviceNN] = []discoveryv1.EndpointSlice{}
-			} else {
-				// Convert Endpoints to EndpointSlice format for internal consistency
-				convertedEndpointSlices := pkgutils.ConvertEndpointsToEndpointSlice(&ep)
-
-				// Apply subset filtering to converted EndpointSlices
-				subsetLabels := r.getSubsetLabels(tc, serviceNN, backend)
-				tc.EndpointSlices[serviceNN] = r.filterEndpointSlicesBySubsetLabels(ctx, convertedEndpointSlices, subsetLabels)
+		// Collect endpoints with EndpointSlice support and subset filtering
+		if err := collectEndpointsWithEndpointSliceSupport(ctx, r.Client, tc, serviceNN, r.supportsEndpointSlice, subsetLabels); err != nil {
+			return types.ReasonError{
+				Reason:  string(apiv2.ConditionReasonInvalidSpec),
+				Message: err.Error(),
 			}
 		}
 	}
@@ -664,42 +635,4 @@ func (r *ApisixRouteReconciler) getSubsetLabels(tctx *provider.TranslateContext,
 	}
 
 	return nil
-}
-
-func (r *ApisixRouteReconciler) filterEndpointSlicesBySubsetLabels(ctx context.Context, in []discoveryv1.EndpointSlice, labels map[string]string) []discoveryv1.EndpointSlice {
-	if len(labels) == 0 {
-		return in
-	}
-
-	for i := range in {
-		in[i] = r.filterEndpointSliceByTargetPod(ctx, in[i], labels)
-	}
-
-	return utils.Filter(in, func(v discoveryv1.EndpointSlice) bool {
-		return len(v.Endpoints) > 0
-	})
-}
-
-// filterEndpointSliceByTargetPod filters item.Endpoints which is not a subset of labels
-func (r *ApisixRouteReconciler) filterEndpointSliceByTargetPod(ctx context.Context, item discoveryv1.EndpointSlice, labels map[string]string) discoveryv1.EndpointSlice {
-	item.Endpoints = utils.Filter(item.Endpoints, func(v discoveryv1.Endpoint) bool {
-		if v.TargetRef == nil || v.TargetRef.Kind != KindPod {
-			return true
-		}
-
-		var (
-			pod   corev1.Pod
-			podNN = k8stypes.NamespacedName{
-				Namespace: v.TargetRef.Namespace,
-				Name:      v.TargetRef.Name,
-			}
-		)
-		if err := r.Get(ctx, podNN, &pod); err != nil {
-			return false
-		}
-
-		return utils.IsSubsetOf(labels, pod.GetLabels())
-	})
-
-	return item
 }

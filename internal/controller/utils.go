@@ -957,10 +957,11 @@ func ProcessGatewayProxy(r client.Client, log logr.Logger, tctx *provider.Transl
 					}
 
 					if cp.Service != nil {
-						if err := addProviderEndpointsToTranslateContext(tctx, r, k8stypes.NamespacedName{
+						serviceNN := k8stypes.NamespacedName{
 							Namespace: gatewayProxy.GetNamespace(),
 							Name:      cp.Service.Name,
-						}); err != nil {
+						}
+						if err := addProviderEndpointsToTranslateContext(tctx, r, serviceNN); err != nil {
 							return err
 						}
 					}
@@ -1357,10 +1358,11 @@ func ProcessIngressClassParameters(tctx *provider.TranslateContext, c client.Cli
 
 				// process control plane provider service
 				if cp.Service != nil {
-					if err := addProviderEndpointsToTranslateContext(tctx, c, client.ObjectKey{
+					serviceNN := k8stypes.NamespacedName{
 						Namespace: gatewayProxy.GetNamespace(),
 						Name:      cp.Service.Name,
-					}); err != nil {
+					}
+					if err := addProviderEndpointsToTranslateContext(tctx, c, serviceNN); err != nil {
 						return err
 					}
 				}
@@ -1419,10 +1421,6 @@ func distinctRequests(requests []reconcile.Request) []reconcile.Request {
 }
 
 func addProviderEndpointsToTranslateContext(tctx *provider.TranslateContext, c client.Client, serviceNN k8stypes.NamespacedName) error {
-	return addProviderEndpointsToTranslateContextWithEndpointSliceSupport(tctx, c, serviceNN, true)
-}
-
-func addProviderEndpointsToTranslateContextWithEndpointSliceSupport(tctx *provider.TranslateContext, c client.Client, serviceNN k8stypes.NamespacedName, supportsEndpointSlice bool) error {
 	log.Debugw("to process provider endpoints by provider.service", zap.Any("service", serviceNN))
 	var (
 		service corev1.Service
@@ -1433,39 +1431,7 @@ func addProviderEndpointsToTranslateContextWithEndpointSliceSupport(tctx *provid
 	}
 	tctx.Services[serviceNN] = &service
 
-	// Conditionally get EndpointSlice or Endpoints based on cluster API support
-	if supportsEndpointSlice {
-		// get es
-		var (
-			esList discoveryv1.EndpointSliceList
-		)
-		if err := c.List(tctx, &esList,
-			client.InNamespace(serviceNN.Namespace),
-			client.MatchingLabels{
-				discoveryv1.LabelServiceName: serviceNN.Name,
-			}); err != nil {
-			log.Errorw("failed to get endpoints for GatewayProxy provider", zap.Error(err), zap.Any("endpoints", serviceNN))
-			return err
-		}
-		tctx.EndpointSlices[serviceNN] = esList.Items
-	} else {
-		// Fallback to Endpoints API for Kubernetes 1.18 compatibility
-		var endpoints corev1.Endpoints
-		if err := c.Get(tctx, serviceNN, &endpoints); err != nil {
-			if client.IgnoreNotFound(err) != nil {
-				log.Errorw("failed to get endpoints for GatewayProxy provider", zap.Error(err), zap.Any("endpoints", serviceNN))
-				return err
-			}
-			// If endpoints not found, create empty EndpointSlice list
-			tctx.EndpointSlices[serviceNN] = []discoveryv1.EndpointSlice{}
-		} else {
-			// Convert Endpoints to EndpointSlice format for internal consistency
-			convertedEndpointSlices := pkgutils.ConvertEndpointsToEndpointSlice(&endpoints)
-			tctx.EndpointSlices[serviceNN] = convertedEndpointSlices
-		}
-	}
-
-	return nil
+	return collectEndpointsWithEndpointSliceSupport(tctx, c, tctx, serviceNN, true, nil)
 }
 
 func TypePredicate[T client.Object]() func(obj client.Object) bool {
@@ -1517,4 +1483,95 @@ func watchEndpointSliceOrEndpoints(bdr *ctrl.Builder, supportsEndpointSlice bool
 		log.Info("EndpointSlice API not available, falling back to Endpoints API for service discovery")
 		return bdr.Watches(&corev1.Endpoints{}, handler.EnqueueRequestsFromMapFunc(endpointsMapFunc))
 	}
+}
+
+// collectEndpointsWithEndpointSliceSupport collects endpoints and adds them to the translate context
+// It handles both EndpointSlice (K8s 1.19+) and Endpoints (K8s 1.18) APIs with automatic fallback
+func collectEndpointsWithEndpointSliceSupport(
+	ctx context.Context,
+	c client.Client,
+	tctx *provider.TranslateContext,
+	serviceNN k8stypes.NamespacedName,
+	supportsEndpointSlice bool,
+	subsetLabels map[string]string,
+) error {
+	if supportsEndpointSlice {
+		var endpoints discoveryv1.EndpointSliceList
+		if err := c.List(ctx, &endpoints,
+			client.InNamespace(serviceNN.Namespace),
+			client.MatchingLabels{
+				discoveryv1.LabelServiceName: serviceNN.Name,
+			},
+		); err != nil {
+			return fmt.Errorf("failed to list endpoint slices: %v", err)
+		}
+
+		if len(subsetLabels) == 0 {
+			tctx.EndpointSlices[serviceNN] = endpoints.Items
+		} else {
+			// Apply subset filtering
+			tctx.EndpointSlices[serviceNN] = filterEndpointSlicesBySubsetLabels(ctx, c, endpoints.Items, subsetLabels)
+		}
+	} else {
+		// Fallback to Endpoints API for Kubernetes 1.18 compatibility
+		var ep corev1.Endpoints
+		if err := c.Get(ctx, serviceNN, &ep); err != nil {
+			if client.IgnoreNotFound(err) != nil {
+				return fmt.Errorf("failed to get endpoints: %v", err)
+			}
+			// If endpoints not found, create empty EndpointSlice list
+			tctx.EndpointSlices[serviceNN] = []discoveryv1.EndpointSlice{}
+		} else {
+			// Convert Endpoints to EndpointSlice format for internal consistency
+			convertedEndpointSlices := pkgutils.ConvertEndpointsToEndpointSlice(&ep)
+
+			if len(subsetLabels) == 0 {
+				tctx.EndpointSlices[serviceNN] = convertedEndpointSlices
+			} else {
+				// Apply subset filtering to converted EndpointSlices
+				tctx.EndpointSlices[serviceNN] = filterEndpointSlicesBySubsetLabels(ctx, c, convertedEndpointSlices, subsetLabels)
+			}
+		}
+	}
+
+	return nil
+}
+
+// filterEndpointSlicesBySubsetLabels filters EndpointSlices by subset labels
+func filterEndpointSlicesBySubsetLabels(ctx context.Context, c client.Client, endpointSlices []discoveryv1.EndpointSlice, labels map[string]string) []discoveryv1.EndpointSlice {
+	if len(labels) == 0 {
+		return endpointSlices
+	}
+
+	for i := range endpointSlices {
+		endpointSlices[i] = filterEndpointSliceByTargetPod(ctx, c, endpointSlices[i], labels)
+	}
+
+	return utils.Filter(endpointSlices, func(v discoveryv1.EndpointSlice) bool {
+		return len(v.Endpoints) > 0
+	})
+}
+
+// filterEndpointSliceByTargetPod filters item.Endpoints which is not a subset of labels
+func filterEndpointSliceByTargetPod(ctx context.Context, c client.Client, item discoveryv1.EndpointSlice, labels map[string]string) discoveryv1.EndpointSlice {
+	item.Endpoints = utils.Filter(item.Endpoints, func(v discoveryv1.Endpoint) bool {
+		if v.TargetRef == nil || v.TargetRef.Kind != KindPod {
+			return true
+		}
+
+		var (
+			pod   corev1.Pod
+			podNN = k8stypes.NamespacedName{
+				Namespace: v.TargetRef.Namespace,
+				Name:      v.TargetRef.Name,
+			}
+		)
+		if err := c.Get(ctx, podNN, &pod); err != nil {
+			return false
+		}
+
+		return utils.IsSubsetOf(labels, pod.GetLabels())
+	})
+
+	return item
 }

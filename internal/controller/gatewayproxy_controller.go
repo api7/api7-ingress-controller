@@ -109,10 +109,11 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 	if providerService == nil {
 		tctx.EndpointSlices[req.NamespacedName] = nil
 	} else {
-		if err := addProviderEndpointsToTranslateContextWithEndpointSliceSupport(tctx, r.Client, types.NamespacedName{
+		serviceNN := types.NamespacedName{
 			Namespace: gp.Namespace,
 			Name:      providerService.Name,
-		}, r.supportsEndpointSlice); err != nil {
+		}
+		if err := collectEndpointsWithEndpointSliceSupport(tctx, r.Client, tctx, serviceNN, r.supportsEndpointSlice, nil); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
