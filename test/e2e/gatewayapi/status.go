@@ -29,7 +29,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = Describe("Test Gateway API Status", Label("apisix.apache.org", "v2", "apisixroute"), func() {
+var _ = Describe("Test Gateway API Status", Label("networking.k8s.io", "httproute"), func() {
 	var (
 		s = scaffold.NewScaffold(&scaffold.Options{
 			ControllerName: "apisix.apache.org/apisix-ingress-controller",
