@@ -1296,7 +1296,7 @@ func listIngressClassRequestsForGatewayProxy(
 }
 
 func matchesIngressController(obj client.Object) bool {
-	ingressClass := convertIngressClass(obj)
+	ingressClass := pkgutils.ConvertToIngressClassV1(obj)
 	return matchesController(ingressClass.Spec.Controller)
 }
 
@@ -1460,7 +1460,7 @@ func GetIngressClass(ctx context.Context, c client.Client, log logr.Logger, ingr
 		if err != nil {
 			return nil, err
 		}
-		return convertIngressClass(icBeta), nil
+		return pkgutils.ConvertToIngressClassV1(icBeta), nil
 	default:
 		return GetIngressClassv1(ctx, c, log, ingressClassName)
 	}
@@ -1569,30 +1569,6 @@ func MatchConsumerGatewayRef(ctx context.Context, c client.Client, log logr.Logg
 		return false
 	}
 	return matchesController(string(gatewayClass.Spec.ControllerName))
-}
-
-func convertIngressClass(obj client.Object) *networkingv1.IngressClass {
-	switch t := obj.(type) {
-	case *networkingv1beta1.IngressClass:
-		icv1 := &networkingv1.IngressClass{
-			TypeMeta:   t.TypeMeta,
-			ObjectMeta: t.ObjectMeta,
-			Spec: networkingv1.IngressClassSpec{
-				Controller: t.Spec.Controller,
-				Parameters: &networkingv1.IngressClassParametersReference{
-					APIGroup: t.Spec.Parameters.APIGroup,
-					Kind:     t.Spec.Parameters.Kind,
-					Name:     t.Spec.Parameters.Name,
-				},
-			},
-		}
-		icv1.APIVersion = networkingv1.SchemeGroupVersion.String()
-		return icv1
-	case *networkingv1.IngressClass:
-		return t
-	default:
-		panic(fmt.Sprintf("unexpected type %T for IngressClass", t))
-	}
 }
 
 func GetIngressClassName(obj client.Object) string {

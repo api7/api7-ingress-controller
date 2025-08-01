@@ -573,7 +573,7 @@ func (r *ApisixRouteReconciler) listApisixRoutesForSecret(ctx context.Context, o
 }
 
 func (r *ApisixRouteReconciler) listApisixRouteForIngressClass(ctx context.Context, object client.Object) (requests []reconcile.Request) {
-	ingressClass := convertIngressClass(object)
+	ingressClass := pkgutils.ConvertToIngressClassV1(object)
 
 	return ListMatchingRequests(
 		ctx,
@@ -652,7 +652,7 @@ func (r *ApisixRouteReconciler) listApisixRoutesForPluginConfig(ctx context.Cont
 			}
 			return nil
 		}
-		ic := convertIngressClass(icObj)
+		ic := pkgutils.ConvertToIngressClassV1(icObj)
 		if !matchesController(ic.Spec.Controller) {
 			return nil
 		}

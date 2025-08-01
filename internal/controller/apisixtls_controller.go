@@ -43,6 +43,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
+	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
 // ApisixTlsReconciler reconciles a ApisixTls object
@@ -272,7 +273,7 @@ func (r *ApisixTlsReconciler) listApisixTlsForSecret(ctx context.Context, obj cl
 
 // listApisixTlsForIngressClass list all TLS that use a specific ingress class
 func (r *ApisixTlsReconciler) listApisixTlsForIngressClass(ctx context.Context, obj client.Object) []reconcile.Request {
-	ingressClass := convertIngressClass(obj)
+	ingressClass := pkgutils.ConvertToIngressClassV1(obj)
 
 	return ListMatchingRequests(
 		ctx,

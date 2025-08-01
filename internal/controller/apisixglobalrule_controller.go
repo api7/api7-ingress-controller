@@ -41,6 +41,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
+	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
 // ApisixGlobalRuleReconciler reconciles a ApisixGlobalRule object
@@ -172,7 +173,7 @@ func (r *ApisixGlobalRuleReconciler) checkIngressClass(obj client.Object) bool {
 
 // listGlobalRulesForIngressClass list all global rules that use a specific ingress class
 func (r *ApisixGlobalRuleReconciler) listGlobalRulesForIngressClass(ctx context.Context, obj client.Object) []reconcile.Request {
-	ingressClass := convertIngressClass(obj)
+	ingressClass := pkgutils.ConvertToIngressClassV1(obj)
 
 	return ListMatchingRequests(
 		ctx,

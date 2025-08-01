@@ -44,6 +44,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
+	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
 // ApisixConsumerReconciler reconciles a ApisixConsumer object
@@ -171,7 +172,7 @@ func (r *ApisixConsumerReconciler) listApisixConsumerForGatewayProxy(ctx context
 }
 
 func (r *ApisixConsumerReconciler) listApisixConsumerForIngressClass(ctx context.Context, obj client.Object) []reconcile.Request {
-	ingressClass := convertIngressClass(obj)
+	ingressClass := pkgutils.ConvertToIngressClassV1(obj)
 
 	return ListMatchingRequests(
 		ctx,
