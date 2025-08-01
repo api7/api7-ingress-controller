@@ -38,6 +38,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
+	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
 // GatewayProxyController reconciles a GatewayProxy object.
@@ -47,23 +48,38 @@ type GatewayProxyController struct {
 	Scheme   *runtime.Scheme
 	Log      logr.Logger
 	Provider provider.Provider
+
+	// supportsEndpointSlice indicates whether the cluster supports EndpointSlice API
+	supportsEndpointSlice bool
 }
 
 func (r *GatewayProxyController) SetupWithManager(mrg ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mrg).
+	// Check and store EndpointSlice API support
+	r.supportsEndpointSlice = pkgutils.HasAPIResource(mrg, &discoveryv1.EndpointSlice{})
+
+	eventFilters := []predicate.Predicate{
+		predicate.GenerationChangedPredicate{},
+		predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
+	}
+
+	if !r.supportsEndpointSlice {
+		eventFilters = append(eventFilters, predicate.NewPredicateFuncs(TypePredicate[*corev1.Endpoints]()))
+	}
+
+	bdr := ctrl.NewControllerManagedBy(mrg).
 		For(&v1alpha1.GatewayProxy{}).
-		WithEventFilter(
-			predicate.Or(
-				predicate.GenerationChangedPredicate{},
-				predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
-			),
-		).
+		WithEventFilter(predicate.Or(eventFilters...)).
 		Watches(&corev1.Service{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewayProxiesForProviderService),
-		).
-		Watches(&discoveryv1.EndpointSlice{},
-			handler.EnqueueRequestsFromMapFunc(r.listGatewayProxiesForProviderEndpointSlice),
-		).
+		)
+
+	// Conditionally watch EndpointSlice or Endpoints based on cluster API support
+	bdr = watchEndpointSliceOrEndpoints(bdr, r.supportsEndpointSlice,
+		r.listGatewayProxiesForProviderEndpointSlice,
+		r.listGatewayProxiesForProviderEndpoints,
+		r.Log)
+
+	return bdr.
 		Watches(&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewayProxiesForSecret),
 		).
@@ -93,10 +109,10 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 	if providerService == nil {
 		tctx.EndpointSlices[req.NamespacedName] = nil
 	} else {
-		if err := addProviderEndpointsToTranslateContext(tctx, r.Client, types.NamespacedName{
+		if err := addProviderEndpointsToTranslateContextWithEndpointSliceSupport(tctx, r.Client, types.NamespacedName{
 			Namespace: gp.Namespace,
 			Name:      providerService.Name,
-		}); err != nil {
+		}, r.supportsEndpointSlice); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
@@ -171,6 +187,20 @@ func (r *GatewayProxyController) listGatewayProxiesForProviderEndpointSlice(ctx 
 
 	return ListRequests(ctx, r.Client, r.Log, &v1alpha1.GatewayProxyList{}, client.MatchingFields{
 		indexer.ServiceIndexRef: indexer.GenIndexKey(endpointSlice.GetNamespace(), endpointSlice.Labels[discoveryv1.LabelServiceName]),
+	})
+}
+
+// listGatewayProxiesForProviderEndpoints handles Endpoints objects and converts them to GatewayProxy reconcile requests.
+// This function provides backward compatibility for Kubernetes 1.18 clusters that don't support EndpointSlice.
+func (r *GatewayProxyController) listGatewayProxiesForProviderEndpoints(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
+	endpoint, ok := obj.(*corev1.Endpoints)
+	if !ok {
+		r.Log.Error(errors.New("unexpected object type"), "failed to convert object to Endpoints")
+		return nil
+	}
+
+	return ListRequests(ctx, r.Client, r.Log, &v1alpha1.GatewayProxyList{}, client.MatchingFields{
+		indexer.ServiceIndexRef: indexer.GenIndexKey(endpoint.GetNamespace(), endpoint.GetName()),
 	})
 }
 

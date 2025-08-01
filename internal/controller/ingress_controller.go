@@ -48,6 +48,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
+	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
 // IngressReconciler reconciles a Ingress object.
@@ -61,36 +62,50 @@ type IngressReconciler struct { //nolint:revive
 
 	Updater status.Updater
 	Readier readiness.ReadinessManager
+
+	// supportsEndpointSlice indicates whether the cluster supports EndpointSlice API
+	supportsEndpointSlice bool
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.genericEvent = make(chan event.GenericEvent, 100)
 
-	return ctrl.NewControllerManagedBy(mgr).
+	// Check and store EndpointSlice API support
+	r.supportsEndpointSlice = pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
+
+	eventFilters := []predicate.Predicate{
+		predicate.GenerationChangedPredicate{},
+		predicate.AnnotationChangedPredicate{},
+		predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
+	}
+
+	if !r.supportsEndpointSlice {
+		eventFilters = append(eventFilters, predicate.NewPredicateFuncs(TypePredicate[*corev1.Endpoints]()))
+	}
+
+	bdr := ctrl.NewControllerManagedBy(mgr).
 		For(&networkingv1.Ingress{},
 			builder.WithPredicates(
 				predicate.NewPredicateFuncs(r.checkIngressClass),
 			),
 		).
-		WithEventFilter(
-			predicate.Or(
-				predicate.GenerationChangedPredicate{},
-				predicate.AnnotationChangedPredicate{},
-				predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
-			),
-		).
+		WithEventFilter(predicate.Or(eventFilters...)).
 		Watches(
 			&networkingv1.IngressClass{},
 			handler.EnqueueRequestsFromMapFunc(r.listIngressForIngressClass),
 			builder.WithPredicates(
 				predicate.NewPredicateFuncs(r.matchesIngressController),
 			),
-		).
-		Watches(
-			&discoveryv1.EndpointSlice{},
-			handler.EnqueueRequestsFromMapFunc(r.listIngressesByService),
-		).
+		)
+
+	// Conditionally watch EndpointSlice or Endpoints based on cluster API support
+	bdr = watchEndpointSliceOrEndpoints(bdr, r.supportsEndpointSlice,
+		r.listIngressesByService,
+		r.listIngressesByEndpoints,
+		r.Log)
+
+	return bdr.
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.listIngressesBySecret),
@@ -296,6 +311,40 @@ func (r *IngressReconciler) listIngressesByService(ctx context.Context, obj clie
 
 	namespace := endpointSlice.GetNamespace()
 	serviceName := endpointSlice.Labels[discoveryv1.LabelServiceName]
+
+	ingressList := &networkingv1.IngressList{}
+	if err := r.List(ctx, ingressList, client.MatchingFields{
+		indexer.ServiceIndexRef: indexer.GenIndexKey(namespace, serviceName),
+	}); err != nil {
+		r.Log.Error(err, "failed to list ingresses by service", "service", serviceName)
+		return nil
+	}
+
+	requests := make([]reconcile.Request, 0, len(ingressList.Items))
+	for _, ingress := range ingressList.Items {
+		if r.checkIngressClass(&ingress) {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: client.ObjectKey{
+					Namespace: ingress.Namespace,
+					Name:      ingress.Name,
+				},
+			})
+		}
+	}
+	return requests
+}
+
+// listIngressesByEndpoints handles Endpoints objects and converts them to Ingress reconcile requests.
+// This function provides backward compatibility for Kubernetes 1.18 clusters that don't support EndpointSlice.
+func (r *IngressReconciler) listIngressesByEndpoints(ctx context.Context, obj client.Object) []reconcile.Request {
+	endpoint, ok := obj.(*corev1.Endpoints)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to Endpoints")
+		return nil
+	}
+
+	namespace := endpoint.GetNamespace()
+	serviceName := endpoint.GetName() // For Endpoints, the name is the service name
 
 	ingressList := &networkingv1.IngressList{}
 	if err := r.List(ctx, ingressList, client.MatchingFields{
@@ -557,20 +606,38 @@ func (r *IngressReconciler) processBackendService(tctx *provider.TranslateContex
 		return err
 	}
 
-	// get the endpoint slices
-	endpointSliceList := &discoveryv1.EndpointSliceList{}
-	if err := r.List(tctx, endpointSliceList,
-		client.InNamespace(namespace),
-		client.MatchingLabels{
-			discoveryv1.LabelServiceName: backendService.Name,
-		},
-	); err != nil {
-		r.Log.Error(err, "failed to list endpoint slices", "namespace", namespace, "name", backendService.Name)
-		return err
-	}
+	// Conditionally get EndpointSlice or Endpoints based on cluster API support
+	if r.supportsEndpointSlice {
+		// get the endpoint slices
+		endpointSliceList := &discoveryv1.EndpointSliceList{}
+		if err := r.List(tctx, endpointSliceList,
+			client.InNamespace(namespace),
+			client.MatchingLabels{
+				discoveryv1.LabelServiceName: backendService.Name,
+			},
+		); err != nil {
+			r.Log.Error(err, "failed to list endpoint slices", "namespace", namespace, "name", backendService.Name)
+			return err
+		}
 
-	// save the endpoint slices to the translate context
-	tctx.EndpointSlices[serviceNS] = endpointSliceList.Items
+		// save the endpoint slices to the translate context
+		tctx.EndpointSlices[serviceNS] = endpointSliceList.Items
+	} else {
+		// Fallback to Endpoints API for Kubernetes 1.18 compatibility
+		var endpoints corev1.Endpoints
+		if err := r.Get(tctx, serviceNS, &endpoints); err != nil {
+			if client.IgnoreNotFound(err) != nil {
+				r.Log.Error(err, "failed to get endpoints", "namespace", namespace, "name", backendService.Name)
+				return err
+			}
+			// If endpoints not found, create empty EndpointSlice list
+			tctx.EndpointSlices[serviceNS] = []discoveryv1.EndpointSlice{}
+		} else {
+			// Convert Endpoints to EndpointSlice format for internal consistency
+			convertedEndpointSlices := pkgutils.ConvertEndpointsToEndpointSlice(&endpoints)
+			tctx.EndpointSlices[serviceNS] = convertedEndpointSlices
+		}
+	}
 	tctx.Services[serviceNS] = &service
 	return nil
 }

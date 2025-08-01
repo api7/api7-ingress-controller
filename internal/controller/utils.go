@@ -40,8 +40,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -54,6 +56,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
+	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
 const (
@@ -1416,6 +1419,10 @@ func distinctRequests(requests []reconcile.Request) []reconcile.Request {
 }
 
 func addProviderEndpointsToTranslateContext(tctx *provider.TranslateContext, c client.Client, serviceNN k8stypes.NamespacedName) error {
+	return addProviderEndpointsToTranslateContextWithEndpointSliceSupport(tctx, c, serviceNN, true)
+}
+
+func addProviderEndpointsToTranslateContextWithEndpointSliceSupport(tctx *provider.TranslateContext, c client.Client, serviceNN k8stypes.NamespacedName, supportsEndpointSlice bool) error {
 	log.Debugw("to process provider endpoints by provider.service", zap.Any("service", serviceNN))
 	var (
 		service corev1.Service
@@ -1426,19 +1433,37 @@ func addProviderEndpointsToTranslateContext(tctx *provider.TranslateContext, c c
 	}
 	tctx.Services[serviceNN] = &service
 
-	// get es
-	var (
-		esList discoveryv1.EndpointSliceList
-	)
-	if err := c.List(tctx, &esList,
-		client.InNamespace(serviceNN.Namespace),
-		client.MatchingLabels{
-			discoveryv1.LabelServiceName: serviceNN.Name,
-		}); err != nil {
-		log.Errorw("failed to get endpoints for GatewayProxy provider", zap.Error(err), zap.Any("endpoints", serviceNN))
-		return err
+	// Conditionally get EndpointSlice or Endpoints based on cluster API support
+	if supportsEndpointSlice {
+		// get es
+		var (
+			esList discoveryv1.EndpointSliceList
+		)
+		if err := c.List(tctx, &esList,
+			client.InNamespace(serviceNN.Namespace),
+			client.MatchingLabels{
+				discoveryv1.LabelServiceName: serviceNN.Name,
+			}); err != nil {
+			log.Errorw("failed to get endpoints for GatewayProxy provider", zap.Error(err), zap.Any("endpoints", serviceNN))
+			return err
+		}
+		tctx.EndpointSlices[serviceNN] = esList.Items
+	} else {
+		// Fallback to Endpoints API for Kubernetes 1.18 compatibility
+		var endpoints corev1.Endpoints
+		if err := c.Get(tctx, serviceNN, &endpoints); err != nil {
+			if client.IgnoreNotFound(err) != nil {
+				log.Errorw("failed to get endpoints for GatewayProxy provider", zap.Error(err), zap.Any("endpoints", serviceNN))
+				return err
+			}
+			// If endpoints not found, create empty EndpointSlice list
+			tctx.EndpointSlices[serviceNN] = []discoveryv1.EndpointSlice{}
+		} else {
+			// Convert Endpoints to EndpointSlice format for internal consistency
+			convertedEndpointSlices := pkgutils.ConvertEndpointsToEndpointSlice(&endpoints)
+			tctx.EndpointSlices[serviceNN] = convertedEndpointSlices
+		}
 	}
-	tctx.EndpointSlices[serviceNN] = esList.Items
 
 	return nil
 }
@@ -1482,4 +1507,14 @@ func MatchConsumerGatewayRef(ctx context.Context, c client.Client, log logr.Logg
 		return false
 	}
 	return matchesController(string(gatewayClass.Spec.ControllerName))
+}
+
+// watchEndpointSliceOrEndpoints adds watcher for EndpointSlice or Endpoints based on cluster API support
+func watchEndpointSliceOrEndpoints(bdr *ctrl.Builder, supportsEndpointSlice bool, endpointSliceMapFunc, endpointsMapFunc handler.MapFunc, log logr.Logger) *ctrl.Builder {
+	if supportsEndpointSlice {
+		return bdr.Watches(&discoveryv1.EndpointSlice{}, handler.EnqueueRequestsFromMapFunc(endpointSliceMapFunc))
+	} else {
+		log.Info("EndpointSlice API not available, falling back to Endpoints API for service discovery")
+		return bdr.Watches(&corev1.Endpoints{}, handler.EnqueueRequestsFromMapFunc(endpointsMapFunc))
+	}
 }
