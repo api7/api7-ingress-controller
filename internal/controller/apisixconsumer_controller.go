@@ -24,6 +24,7 @@ import (
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -114,6 +115,14 @@ func (r *ApisixConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ApisixConsumerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	var icWatch client.Object
+	switch r.ICGV.String() {
+	case networkingv1beta1.SchemeGroupVersion.String():
+		icWatch = &networkingv1beta1.IngressClass{}
+	default:
+		icWatch = &networkingv1.IngressClass{}
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiv2.ApisixConsumer{},
 			builder.WithPredicates(
@@ -127,7 +136,7 @@ func (r *ApisixConsumerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			),
 		).
 		Watches(
-			&networkingv1.IngressClass{},
+			icWatch,
 			handler.EnqueueRequestsFromMapFunc(r.listApisixConsumerForIngressClass),
 			builder.WithPredicates(
 				predicate.NewPredicateFuncs(matchesIngressController),
@@ -153,7 +162,12 @@ func (r *ApisixConsumerReconciler) checkIngressClass(obj client.Object) bool {
 }
 
 func (r *ApisixConsumerReconciler) listApisixConsumerForGatewayProxy(ctx context.Context, obj client.Object) []reconcile.Request {
-	return listIngressClassRequestsForGatewayProxy(ctx, r.Client, obj, r.Log, r.listApisixConsumerForIngressClass)
+	switch r.ICGV.String() {
+	case networkingv1beta1.SchemeGroupVersion.String():
+		return listIngressClassV1beta1RequestsForGatewayProxy(ctx, r.Client, obj, r.Log, r.listApisixConsumerForIngressClass)
+	default:
+		return listIngressClassRequestsForGatewayProxy(ctx, r.Client, obj, r.Log, r.listApisixConsumerForIngressClass)
+	}
 }
 
 func (r *ApisixConsumerReconciler) listApisixConsumerForIngressClass(ctx context.Context, obj client.Object) []reconcile.Request {

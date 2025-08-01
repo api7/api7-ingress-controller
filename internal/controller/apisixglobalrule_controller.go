@@ -23,6 +23,7 @@ import (
 
 	"github.com/go-logr/logr"
 	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -127,6 +128,12 @@ func (r *ApisixGlobalRuleReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ApisixGlobalRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	var icWatch client.Object
+	if r.ICGV.String() == networkingv1beta1.SchemeGroupVersion.String() {
+		icWatch = &networkingv1beta1.IngressClass{}
+	} else {
+		icWatch = &networkingv1.IngressClass{}
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiv2.ApisixGlobalRule{},
 			builder.WithPredicates(
@@ -140,7 +147,7 @@ func (r *ApisixGlobalRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			),
 		).
 		Watches(
-			&networkingv1.IngressClass{},
+			icWatch,
 			handler.EnqueueRequestsFromMapFunc(r.listGlobalRulesForIngressClass),
 			builder.WithPredicates(
 				predicate.NewPredicateFuncs(matchesIngressController),
@@ -160,7 +167,7 @@ func (r *ApisixGlobalRuleReconciler) checkIngressClass(obj client.Object) bool {
 		return false
 	}
 
-	return matchesIngressClass(context.Background(), r.Client, r.Log, globalRule.Spec.IngressClassName, r.ICGV.Version)
+	return matchesIngressClass(context.Background(), r.Client, r.Log, globalRule.Spec.IngressClassName, r.ICGV.String())
 }
 
 // listGlobalRulesForIngressClass list all global rules that use a specific ingress class
@@ -184,7 +191,12 @@ func (r *ApisixGlobalRuleReconciler) listGlobalRulesForIngressClass(ctx context.
 }
 
 func (r *ApisixGlobalRuleReconciler) listGlobalRulesForGatewayProxy(ctx context.Context, obj client.Object) []reconcile.Request {
-	return listIngressClassRequestsForGatewayProxy(ctx, r.Client, obj, r.Log, r.listGlobalRulesForIngressClass)
+	switch r.ICGV.String() {
+	case networkingv1beta1.SchemeGroupVersion.String():
+		return listIngressClassV1beta1RequestsForGatewayProxy(ctx, r.Client, obj, r.Log, r.listGlobalRulesForIngressClass)
+	default:
+		return listIngressClassRequestsForGatewayProxy(ctx, r.Client, obj, r.Log, r.listGlobalRulesForIngressClass)
+	}
 }
 
 // updateStatus updates the ApisixGlobalRule status with the given condition

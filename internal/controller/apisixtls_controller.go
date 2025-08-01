@@ -24,6 +24,7 @@ import (
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -58,6 +59,13 @@ type ApisixTlsReconciler struct {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ApisixTlsReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	var icWatch client.Object
+	switch r.ICGV.String() {
+	case networkingv1beta1.SchemeGroupVersion.String():
+		icWatch = &networkingv1beta1.IngressClass{}
+	default:
+		icWatch = &networkingv1.IngressClass{}
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiv2.ApisixTls{},
 			builder.WithPredicates(
@@ -72,7 +80,7 @@ func (r *ApisixTlsReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			),
 		).
 		Watches(
-			&networkingv1.IngressClass{},
+			icWatch,
 			handler.EnqueueRequestsFromMapFunc(r.listApisixTlsForIngressClass),
 			builder.WithPredicates(
 				predicate.NewPredicateFuncs(matchesIngressController),
@@ -284,5 +292,10 @@ func (r *ApisixTlsReconciler) listApisixTlsForIngressClass(ctx context.Context, 
 
 // listApisixTlsForGatewayProxy list all TLS that use a specific gateway proxy
 func (r *ApisixTlsReconciler) listApisixTlsForGatewayProxy(ctx context.Context, obj client.Object) []reconcile.Request {
-	return listIngressClassRequestsForGatewayProxy(ctx, r.Client, obj, r.Log, r.listApisixTlsForIngressClass)
+	switch r.ICGV.String() {
+	case networkingv1beta1.SchemeGroupVersion.String():
+		return listIngressClassV1beta1RequestsForGatewayProxy(ctx, r.Client, obj, r.Log, r.listApisixTlsForIngressClass)
+	default:
+		return listIngressClassRequestsForGatewayProxy(ctx, r.Client, obj, r.Log, r.listApisixTlsForIngressClass)
+	}
 }
