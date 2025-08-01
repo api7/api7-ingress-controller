@@ -159,8 +159,8 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	switch r.ICGV.String() {
-	case networkingv1.SchemeGroupVersion.String(), "":
-		var ingressClassList networkingv1.IngressClassList
+	case networkingv1beta1.SchemeGroupVersion.String():
+		var ingressClassList networkingv1beta1.IngressClassList
 		// list IngressClasses that reference the GatewayProxy
 		if err := r.List(ctx, &ingressClassList, client.MatchingFields{indexer.IngressClassParametersRef: indexKey}); err != nil {
 			r.Log.Error(err, "failed to list IngressClassList")
@@ -170,8 +170,8 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 		for _, item := range ingressClassList.Items {
 			tctx.GatewayProxyReferrers[req.NamespacedName] = append(tctx.GatewayProxyReferrers[req.NamespacedName], utils.NamespacedNameKind(&item))
 		}
-	case networkingv1beta1.SchemeGroupVersion.String():
-		var ingressClassList networkingv1beta1.IngressClassList
+	default:
+		var ingressClassList networkingv1.IngressClassList
 		// list IngressClasses that reference the GatewayProxy
 		if err := r.List(ctx, &ingressClassList, client.MatchingFields{indexer.IngressClassParametersRef: indexKey}); err != nil {
 			r.Log.Error(err, "failed to list IngressClassList")

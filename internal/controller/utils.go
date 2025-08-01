@@ -1453,16 +1453,14 @@ func GetIngressClassv1(ctx context.Context, c client.Client, log logr.Logger, in
 
 func GetIngressClass(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string, apiVersion string) (*networkingv1.IngressClass, error) {
 	switch apiVersion {
-	case networkingv1beta1.SchemeGroupVersion.String(), "":
+	case networkingv1beta1.SchemeGroupVersion.String():
 		icBeta, err := GetIngressClassV1Beta1(ctx, c, log, ingressClassName)
 		if err != nil {
 			return nil, err
 		}
 		return convertIngressClass(icBeta), nil
-	case networkingv1.SchemeGroupVersion.String():
-		return GetIngressClassv1(ctx, c, log, ingressClassName)
 	default:
-		return nil, fmt.Errorf("unsupported IngressClass API version: %s", apiVersion)
+		return GetIngressClassv1(ctx, c, log, ingressClassName)
 	}
 }
 

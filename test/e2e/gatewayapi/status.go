@@ -40,61 +40,61 @@ var _ = Describe("Test Gateway API Status", Label("apisix.apache.org", "v2", "ap
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-name: httpbin
+  name: httpbin
 spec:
-parentRefs:
-- name: apisix
-hostnames:
-- "httpbin"
-rules:
-- matches: 
-- path:
-	type: Exact
-	value: /get
-backendRefs:
-- name: httpbin-service-e2e-test
-  port: 80
+  parentRefs:
+  - name: apisix
+  hostnames:
+  - "httpbin"
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /get
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
 `
 		const gatewayClass = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
-name: %s
+  name: %s
 spec:
-controllerName: %s
+  controllerName: %s
 `
 		const gatewayProxy = `
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
-name: apisix-proxy-config
+  name: apisix-proxy-config
 spec:
-provider:
-type: ControlPlane
-controlPlane:
-  endpoints:
-  - %s
-  auth:
-	type: AdminKey
-	adminKey:
-	  value: "%s"
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
 `
 		const defaultGateway = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-name: apisix
+  name: apisix
 spec:
-gatewayClassName: %s
-listeners:
-- name: http1
-  protocol: HTTP
-  port: 80
-infrastructure:
-parametersRef:
-  group: apisix.apache.org
-  kind: GatewayProxy
-  name: apisix-proxy-config
+  gatewayClassName: %s
+  listeners:
+    - name: http1
+      protocol: HTTP
+      port: 80
+  infrastructure:
+    parametersRef:
+      group: apisix.apache.org
+      kind: GatewayProxy
+      name: apisix-proxy-config
 `
 		BeforeEach(func() {
 			By("create GatewayProxy")
