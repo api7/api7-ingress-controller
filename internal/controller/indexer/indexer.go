@@ -32,6 +32,7 @@ import (
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	intypes "github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
@@ -705,7 +706,7 @@ func GatewayParametersRefIndexFunc(rawObj client.Object) []string {
 	gw := rawObj.(*gatewayv1.Gateway)
 	if gw.Spec.Infrastructure != nil && gw.Spec.Infrastructure.ParametersRef != nil {
 		// now we only care about kind: GatewayProxy
-		if gw.Spec.Infrastructure.ParametersRef.Kind == "GatewayProxy" {
+		if gw.Spec.Infrastructure.ParametersRef.Kind == intypes.KindGatewayProxy {
 			name := gw.Spec.Infrastructure.ParametersRef.Name
 			return []string{GenIndexKey(gw.GetNamespace(), name)}
 		}
@@ -735,7 +736,7 @@ func IngressClassParametersRefIndexFunc(rawObj client.Object) []string {
 	if ingressClass.Spec.Parameters != nil &&
 		ingressClass.Spec.Parameters.APIGroup != nil &&
 		*ingressClass.Spec.Parameters.APIGroup == v1alpha1.GroupVersion.Group &&
-		ingressClass.Spec.Parameters.Kind == "GatewayProxy" {
+		ingressClass.Spec.Parameters.Kind == intypes.KindGatewayProxy {
 		ns := ingressClass.GetNamespace()
 		if ingressClass.Spec.Parameters.Namespace != nil {
 			ns = *ingressClass.Spec.Parameters.Namespace
@@ -751,7 +752,7 @@ func IngressClassV1beta1ParametersRefIndexFunc(rawObj client.Object) []string {
 	if ingressClass.Spec.Parameters != nil &&
 		ingressClass.Spec.Parameters.APIGroup != nil &&
 		*ingressClass.Spec.Parameters.APIGroup == v1alpha1.GroupVersion.Group &&
-		ingressClass.Spec.Parameters.Kind == "GatewayProxy" {
+		ingressClass.Spec.Parameters.Kind == intypes.KindGatewayProxy {
 		ns := ingressClass.GetNamespace()
 		if ingressClass.Spec.Parameters.Namespace != nil {
 			ns = *ingressClass.Spec.Parameters.Namespace
