@@ -642,13 +642,20 @@ func (r *ApisixRouteReconciler) listApisixRoutesForPluginConfig(ctx context.Cont
 
 	// First check if the ApisixPluginConfig has matching IngressClassName
 	if pc.Spec.IngressClassName != "" {
-		var ic networkingv1.IngressClass
-		if err := r.Get(ctx, client.ObjectKey{Name: pc.Spec.IngressClassName}, &ic); err != nil {
+		var icObj client.Object
+		switch r.ICGV.String() {
+		case networkingv1beta1.SchemeGroupVersion.String():
+			icObj = &networkingv1beta1.IngressClass{}
+		default:
+			icObj = &networkingv1.IngressClass{}
+		}
+		if err := r.Get(ctx, client.ObjectKey{Name: pc.Spec.IngressClassName}, icObj); err != nil {
 			if client.IgnoreNotFound(err) != nil {
 				r.Log.Error(err, "failed to get IngressClass for ApisixPluginConfig", "pluginconfig", pc.Name)
 			}
 			return nil
 		}
+		ic := convertIngressClass(icObj)
 		if !matchesController(ic.Spec.Controller) {
 			return nil
 		}

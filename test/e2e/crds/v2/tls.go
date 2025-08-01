@@ -53,7 +53,7 @@ spec:
 `
 
 const ingressClassYamlTls = `
-apiVersion: networking.k8s.io/v1
+apiVersion: networking.k8s.io/%s
 kind: IngressClass
 metadata:
   name: apisix-tls
@@ -63,8 +63,6 @@ spec:
     apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
     name: "apisix-proxy-tls"
-    namespace: "default"
-    scope: "Namespace"
 `
 
 const apisixRouteYamlTls = `
@@ -107,7 +105,7 @@ var _ = Describe("Test ApisixTls", Label("apisix.apache.org", "v2", "apisixtls")
 			time.Sleep(5 * time.Second)
 
 			By("create IngressClass")
-			ingressClass := fmt.Sprintf(ingressClassYaml, framework.IngressVersion)
+			ingressClass := fmt.Sprintf(ingressClassYamlTls, framework.IngressVersion)
 			err = s.CreateResourceFromStringWithNamespace(ingressClass, "")
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
 			time.Sleep(5 * time.Second)
