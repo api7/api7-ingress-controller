@@ -45,6 +45,8 @@ CRD_DOCS_CONFIG ?= docs/assets/crd/config.yaml
 CRD_DOCS_OUTPUT ?= docs/en/latest/reference/api-reference.md
 CRD_DOCS_TEMPLATE ?= docs/assets/template
 
+INGRESS_VERSION ?= v1
+
 export KUBECONFIG = /tmp/$(KIND_NAME).kubeconfig
 
 # go 

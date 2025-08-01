@@ -107,7 +107,8 @@ var _ = Describe("Test ApisixTls", Label("apisix.apache.org", "v2", "apisixtls")
 			time.Sleep(5 * time.Second)
 
 			By("create IngressClass")
-			err = s.CreateResourceFromStringWithNamespace(ingressClassYamlTls, "")
+			ingressClass := fmt.Sprintf(ingressClassYaml, framework.IngressVersion)
+			err = s.CreateResourceFromStringWithNamespace(ingressClass, "")
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
 			time.Sleep(5 * time.Second)
 
