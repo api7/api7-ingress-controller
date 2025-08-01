@@ -22,7 +22,6 @@ on:
     branches:
       - master
       - release-v2-dev
-      - ci/k8s-1-18
   pull_request:
     branches:
       - master
