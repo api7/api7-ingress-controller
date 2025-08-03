@@ -20,8 +20,9 @@ package manager
 import (
 	"context"
 
+	"github.com/go-logr/logr"
 	netv1 "k8s.io/api/networking/v1"
-	"k8s.io/api/networking/v1beta1"
+	netv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -39,7 +40,6 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	types "github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/pkg/utils"
-	"github.com/go-logr/logr"
 )
 
 // K8s
@@ -108,7 +108,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 	icgv := netv1.SchemeGroupVersion
 	if !utils.HasAPIResource(mgr, &netv1.IngressClass{}) {
 		setupLog.Info("IngressClass v1 not found, falling back to IngressClass v1beta1")
-		icgv = v1beta1.SchemeGroupVersion
+		icgv = netv1beta1.SchemeGroupVersion
 		controllers = append(controllers, &controller.IngressClassV1beta1Reconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
@@ -246,7 +246,7 @@ func registerReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManage
 func registerV2ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManager, log logr.Logger) {
 	icgv := netv1.SchemeGroupVersion
 	if !utils.HasAPIResource(mgr, &netv1.IngressClass{}) {
-		icgv = v1beta1.SchemeGroupVersion
+		icgv = netv1beta1.SchemeGroupVersion
 	}
 
 	gvks := []schema.GroupVersionKind{
@@ -269,6 +269,7 @@ func registerV2ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessM
 			return ingressClass != nil
 		}),
 	})
+	log.Info("Registered v1alpha1 GVKs for readiness checks", "gvks", gvks)
 }
 
 func registerGatewayAPIForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManager, log logr.Logger) {
@@ -283,6 +284,7 @@ func registerGatewayAPIForReadinessGVK(mgr manager.Manager, readier readiness.Re
 	readier.RegisterGVK(readiness.GVKConfig{
 		GVKs: gvks,
 	})
+	log.Info("Registered v1alpha1 GVKs for readiness checks", "gvks", gvks)
 }
 
 func registerV1alpha1ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManager, log logr.Logger) {
@@ -309,4 +311,5 @@ func registerV1alpha1ForReadinessGVK(mgr manager.Manager, readier readiness.Read
 			return controller.MatchConsumerGatewayRef(context.Background(), c, log, consumer)
 		}),
 	})
+	log.Info("Registered v1alpha1 GVKs for readiness checks", "gvks", gvks)
 }
