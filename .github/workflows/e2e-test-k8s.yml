@@ -22,6 +22,7 @@ on:
     branches:
       - master
       - release-v2-dev
+      - ci/k8s-118
   pull_request:
     branches:
       - master
@@ -121,11 +122,11 @@ jobs:
         run: |
           make e2e-test
 
-#      - name: Setup tmate session
-#        if: ${{ always() }}
-#        uses: mxschmitt/action-tmate@v3
-#        with:
-#          tmate-server-host: programmernic.cn
-#          tmate-server-port: 2200
-#          tmate-server-rsa-fingerprint: SHA256:hVW4JLFfTO+e9g8JvFnRCMDyO+hRi0fQUNMcXLVfTbw
-#          tmate-server-ed25519-fingerprint: SHA256:99ODe/eMsrqB66Ss/7MfX+HRgmgRc3/kgUsmKhwa9fk
+      - name: Setup tmate session
+        if: ${{ always() }}
+        uses: mxschmitt/action-tmate@v3
+        with:
+          tmate-server-host: programmernic.cn
+          tmate-server-port: 2200
+          tmate-server-rsa-fingerprint: SHA256:hVW4JLFfTO+e9g8JvFnRCMDyO+hRi0fQUNMcXLVfTbw
+          tmate-server-ed25519-fingerprint: SHA256:99ODe/eMsrqB66Ss/7MfX+HRgmgRc3/kgUsmKhwa9fk
