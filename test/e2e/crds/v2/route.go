@@ -716,7 +716,7 @@ spec:
     - serviceName: httpbin-service-e2e-test
       servicePort: 80
 `
-		FIt("Should sync ApisixRoute during startup", func() {
+		It("Should sync ApisixRoute during startup", func() {
 			By("apply ApisixRoute")
 			Expect(s.CreateResourceFromString(route2)).ShouldNot(HaveOccurred(), "apply ApisixRoute with nonexistent ingressClassName")
 			Expect(s.CreateResourceFromString(route3)).ShouldNot(HaveOccurred(), "apply ApisixRoute without ingressClassName")

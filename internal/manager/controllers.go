@@ -21,7 +21,6 @@ import (
 	"context"
 
 	netv1 "k8s.io/api/networking/v1"
-	v1 "k8s.io/api/networking/v1"
 	"k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -245,8 +244,8 @@ func registerReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManage
 }
 
 func registerV2ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManager, log logr.Logger) {
-	icgv := v1.SchemeGroupVersion
-	if !utils.HasAPIResource(mgr, &v1.IngressClass{}) {
+	icgv := netv1.SchemeGroupVersion
+	if !utils.HasAPIResource(mgr, &netv1.IngressClass{}) {
 		icgv = v1beta1.SchemeGroupVersion
 	}
 
