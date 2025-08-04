@@ -113,6 +113,11 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 			Namespace: gp.Namespace,
 			Name:      providerService.Name,
 		}
+		service := &corev1.Service{}
+		if err := r.Get(ctx, serviceNN, service); err != nil {
+			return reconcile.Result{}, err
+		}
+		tctx.Services[serviceNN] = service
 		if err := collectEndpointsWithEndpointSliceSupport(tctx, r.Client, tctx, serviceNN, r.supportsEndpointSlice, nil); err != nil {
 			return reconcile.Result{}, err
 		}
