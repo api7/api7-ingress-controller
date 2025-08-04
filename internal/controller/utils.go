@@ -41,7 +41,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -1569,16 +1568,6 @@ func MatchConsumerGatewayRef(ctx context.Context, c client.Client, log logr.Logg
 		return false
 	}
 	return matchesController(string(gatewayClass.Spec.ControllerName))
-}
-
-func GetIngressClassName(obj client.Object) string {
-	switch t := obj.(type) {
-	case *networkingv1.Ingress:
-		return ptr.Deref(t.Spec.IngressClassName, "")
-	case *networkingv1beta1.IngressClass:
-		return ""
-	}
-	return ""
 }
 
 // watchEndpointSliceOrEndpoints adds watcher for EndpointSlice or Endpoints based on cluster API support

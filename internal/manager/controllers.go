@@ -257,7 +257,7 @@ func registerV2ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessM
 		types.GvkOf(&apiv2.ApisixConsumer{}),
 	}
 	if utils.HasAPIResource(mgr, &netv1.Ingress{}) {
-		gvks = append(gvks, types.GvkOf(&netv1.IngressClass{}))
+		gvks = append(gvks, types.GvkOf(&netv1.Ingress{}))
 	}
 
 	c := mgr.GetClient()

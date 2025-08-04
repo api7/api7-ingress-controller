@@ -187,13 +187,16 @@ func (r *IngressClassV1beta1Reconciler) processInfrastructure(tctx *provider.Tra
 		return nil
 	}
 
+	// Since v1beta1 does not support specifying the target namespace,
+	// and GatewayProxy is a namespace-scoped resource, we default to using
+	// the "default" namespace for convenience.
 	namespace := "default"
 	if IngressClassV1beta1.Spec.Parameters.Namespace != nil {
 		namespace = *IngressClassV1beta1.Spec.Parameters.Namespace
 	}
 
 	gatewayProxy := new(v1alpha1.GatewayProxy)
-	if err := r.Get(context.Background(), client.ObjectKey{
+	if err := r.Get(tctx, client.ObjectKey{
 		Namespace: namespace,
 		Name:      IngressClassV1beta1.Spec.Parameters.Name,
 	}, gatewayProxy); err != nil {
@@ -212,7 +215,7 @@ func (r *IngressClassV1beta1Reconciler) processInfrastructure(tctx *provider.Tra
 			if auth.AdminKey.ValueFrom.SecretKeyRef != nil {
 				secretRef := auth.AdminKey.ValueFrom.SecretKeyRef
 				secret := &corev1.Secret{}
-				if err := r.Get(context.Background(), client.ObjectKey{
+				if err := r.Get(tctx, client.ObjectKey{
 					Namespace: namespace,
 					Name:      secretRef.Name,
 				}, secret); err != nil {
