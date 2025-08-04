@@ -196,7 +196,7 @@ func (r *IngressClassV1beta1Reconciler) processInfrastructure(tctx *provider.Tra
 		namespace = *IngressClassV1beta1.Spec.Parameters.Namespace
 	}
 	// Check for annotation override
-	if annotationNamespace, exists := IngressClassV1beta1.Annotations[gatewayProxyNamespaceAnnotation]; exists && annotationNamespace != "" {
+	if annotationNamespace, exists := IngressClassV1beta1.Annotations[parametersNamespaceAnnotation]; exists && annotationNamespace != "" {
 		namespace = annotationNamespace
 	}
 

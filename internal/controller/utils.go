@@ -78,8 +78,8 @@ const (
 )
 
 const (
-	defaultIngressClassAnnotation   = "ingressclass.kubernetes.io/is-default-class"
-	gatewayProxyNamespaceAnnotation = "apisix.apache.org/gatewayproxy-namespace"
+	defaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
+	parametersNamespaceAnnotation = "apisix.apache.org/parameters-namespace"
 )
 
 var (
@@ -1326,7 +1326,7 @@ func ProcessIngressClassParameters(tctx *provider.TranslateContext, c client.Cli
 		if parameters.Namespace != nil {
 			ns = *parameters.Namespace
 		}
-		if annotationNamespace, exists := ingressClass.Annotations[gatewayProxyNamespaceAnnotation]; exists && annotationNamespace != "" {
+		if annotationNamespace, exists := ingressClass.Annotations[parametersNamespaceAnnotation]; exists && annotationNamespace != "" {
 			ns = annotationNamespace
 		}
 

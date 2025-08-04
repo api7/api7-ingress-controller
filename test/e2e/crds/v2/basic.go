@@ -120,7 +120,7 @@ kind: IngressClass
 metadata:
   name: apisix
   annotations:
-    apisix.apache.org/gatewayproxy-namespace: %s
+    apisix.apache.org/parameters-namespace: %s
 spec:
   controller: apisix.apache.org/apisix-ingress-controller
   parameters:
