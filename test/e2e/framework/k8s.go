@@ -215,6 +215,12 @@ func (f *Framework) GetPods(namespace, selector string) []corev1.Pod {
 	return podList.Items
 }
 
+func (f *Framework) GetEndpoints(namespace, name string) *corev1.Endpoints {
+	endpoints, err := f.clientset.CoreV1().Endpoints(cmp.Or(namespace, _namespace)).Get(f.Context, name, metav1.GetOptions{})
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred())
+	return endpoints
+}
+
 func (f *Framework) applySSLSecret(namespace, name string, cert, pkey, caCert []byte) {
 	kind := "Secret"
 	apiVersion := "v1"

@@ -570,36 +570,11 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 		}
 		tctx.Services[targetNN] = &service
 
-		// Conditionally collect EndpointSlice or Endpoints based on cluster API support
-		if r.supportsEndpointSlice {
-			endpointSliceList := new(discoveryv1.EndpointSliceList)
-			if err := r.List(tctx, endpointSliceList,
-				client.InNamespace(targetNN.Namespace),
-				client.MatchingLabels{
-					discoveryv1.LabelServiceName: targetNN.Name,
-				},
-			); err != nil {
-				r.Log.Error(err, "failed to list endpoint slices", "Service", targetNN)
-				terr = err
-				continue
-			}
-			tctx.EndpointSlices[targetNN] = endpointSliceList.Items
-		} else {
-			// Fallback to Endpoints API for Kubernetes 1.18 compatibility
-			var endpoints corev1.Endpoints
-			if err := r.Get(tctx, targetNN, &endpoints); err != nil {
-				if client.IgnoreNotFound(err) != nil {
-					r.Log.Error(err, "failed to get endpoints", "Service", targetNN)
-					terr = err
-					continue
-				}
-				// If endpoints not found, create empty EndpointSlice list
-				tctx.EndpointSlices[targetNN] = []discoveryv1.EndpointSlice{}
-			} else {
-				// Convert Endpoints to EndpointSlice format for internal consistency
-				convertedEndpointSlices := pkgutils.ConvertEndpointsToEndpointSlice(&endpoints)
-				tctx.EndpointSlices[targetNN] = convertedEndpointSlices
-			}
+		// Collect endpoints with EndpointSlice support
+		if err := resolveServiceEndpoints(tctx, r.Client, tctx, targetNN, r.supportsEndpointSlice, nil); err != nil {
+			r.Log.Error(err, "failed to collect endpoints", "Service", targetNN)
+			terr = err
+			continue
 		}
 	}
 	return terr

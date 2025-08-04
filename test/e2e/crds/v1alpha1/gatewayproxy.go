@@ -168,19 +168,15 @@ spec:
 
 			By("scale apisix to replicas 2")
 			s.Deployer.DeployDataplane(scaffold.DeployDataplaneOptions{
-				Replicas: ptr.To(2),
+				Replicas:          ptr.To(2),
+				SkipCreateTunnels: true,
 			})
 
 			By("check pod ready")
-			err = wait.PollUntilContextTimeout(context.Background(), time.Second, 10*time.Second, true, func(ctx context.Context) (done bool, err error) {
-				pods := s.GetPods(s.Namespace(), "app.kubernetes.io/name=apisix")
-				if len(pods) != 2 {
+			err = wait.PollUntilContextTimeout(context.Background(), time.Second, 60*time.Second, true, func(ctx context.Context) (done bool, err error) {
+				endpoints := s.GetEndpoints(s.Namespace(), framework.ProviderType)
+				if len(endpoints.Subsets) != 1 || len(endpoints.Subsets[0].Addresses) != 2 {
 					return false, nil
-				}
-				for _, pod := range pods {
-					if pod.Status.PodIP == "" {
-						return false, nil
-					}
 				}
 				return true, nil
 			})
