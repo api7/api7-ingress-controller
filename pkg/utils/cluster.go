@@ -18,7 +18,11 @@
 package utils
 
 import (
+	"fmt"
+
 	"github.com/go-logr/logr"
+	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/client-go/discovery"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -79,5 +83,29 @@ func HasAPIResourceWithLogger(mgr ctrl.Manager, obj client.Object, logger logr.L
 
 func FormatGVK(obj client.Object) string {
 	gvk := types.GvkOf(obj)
-	return gvk.GroupVersion().String() + "." + gvk.Kind
+	return gvk.String()
+}
+
+func ConvertToIngressClassV1(obj client.Object) *networkingv1.IngressClass {
+	switch t := obj.(type) {
+	case *networkingv1beta1.IngressClass:
+		icv1 := &networkingv1.IngressClass{
+			TypeMeta:   t.TypeMeta,
+			ObjectMeta: t.ObjectMeta,
+			Spec: networkingv1.IngressClassSpec{
+				Controller: t.Spec.Controller,
+				Parameters: &networkingv1.IngressClassParametersReference{
+					APIGroup: t.Spec.Parameters.APIGroup,
+					Kind:     t.Spec.Parameters.Kind,
+					Name:     t.Spec.Parameters.Name,
+				},
+			},
+		}
+		icv1.APIVersion = networkingv1.SchemeGroupVersion.String()
+		return icv1
+	case *networkingv1.IngressClass:
+		return t
+	default:
+		panic(fmt.Sprintf("unexpected type %T for IngressClass", t))
+	}
 }

@@ -23,8 +23,10 @@ import (
 
 	"github.com/go-logr/logr"
 	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -35,12 +37,11 @@ import (
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
-	"github.com/apache/apisix-ingress-controller/internal/controller/config"
-	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
+	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
 // ApisixGlobalRuleReconciler reconciles a ApisixGlobalRule object
@@ -52,6 +53,8 @@ type ApisixGlobalRuleReconciler struct {
 	Updater  status.Updater
 
 	Readier readiness.ReadinessManager
+
+	ICGV schema.GroupVersion
 }
 
 // Reconcile implements the reconciliation logic for ApisixGlobalRule
@@ -84,7 +87,7 @@ func (r *ApisixGlobalRuleReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	tctx := provider.NewDefaultTranslateContext(ctx)
 
 	// get the ingress class
-	ingressClass, err := GetIngressClass(tctx, r.Client, r.Log, globalRule.Spec.IngressClassName)
+	ingressClass, err := GetIngressClass(tctx, r.Client, r.Log, globalRule.Spec.IngressClassName, r.ICGV.String())
 	if err != nil {
 		r.Log.Error(err, "failed to get IngressClass")
 		return ctrl.Result{}, err
@@ -126,6 +129,12 @@ func (r *ApisixGlobalRuleReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ApisixGlobalRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	var icWatch client.Object
+	if r.ICGV.String() == networkingv1beta1.SchemeGroupVersion.String() {
+		icWatch = &networkingv1beta1.IngressClass{}
+	} else {
+		icWatch = &networkingv1.IngressClass{}
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiv2.ApisixGlobalRule{},
 			builder.WithPredicates(
@@ -139,7 +148,7 @@ func (r *ApisixGlobalRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			),
 		).
 		Watches(
-			&networkingv1.IngressClass{},
+			icWatch,
 			handler.EnqueueRequestsFromMapFunc(r.listGlobalRulesForIngressClass),
 			builder.WithPredicates(
 				predicate.NewPredicateFuncs(matchesIngressController),
@@ -159,46 +168,12 @@ func (r *ApisixGlobalRuleReconciler) checkIngressClass(obj client.Object) bool {
 		return false
 	}
 
-	return r.matchesIngressClass(globalRule.Spec.IngressClassName)
-}
-
-// matchesIngressClass checks if the given ingress class name matches our controlled classes
-func (r *ApisixGlobalRuleReconciler) matchesIngressClass(ingressClassName string) bool {
-	if ingressClassName == "" {
-		// Check for default ingress class
-		ingressClassList := &networkingv1.IngressClassList{}
-		if err := r.List(context.Background(), ingressClassList, client.MatchingFields{
-			indexer.IngressClass: config.GetControllerName(),
-		}); err != nil {
-			r.Log.Error(err, "failed to list ingress classes")
-			return false
-		}
-
-		// Find the ingress class that is marked as default
-		for _, ic := range ingressClassList.Items {
-			if IsDefaultIngressClass(&ic) && matchesController(ic.Spec.Controller) {
-				return true
-			}
-		}
-		return false
-	}
-
-	// Check if the specified ingress class is controlled by us
-	var ingressClass networkingv1.IngressClass
-	if err := r.Get(context.Background(), client.ObjectKey{Name: ingressClassName}, &ingressClass); err != nil {
-		r.Log.Error(err, "failed to get ingress class", "ingressClass", ingressClassName)
-		return false
-	}
-
-	return matchesController(ingressClass.Spec.Controller)
+	return matchesIngressClass(context.Background(), r.Client, r.Log, globalRule.Spec.IngressClassName, r.ICGV.String())
 }
 
 // listGlobalRulesForIngressClass list all global rules that use a specific ingress class
 func (r *ApisixGlobalRuleReconciler) listGlobalRulesForIngressClass(ctx context.Context, obj client.Object) []reconcile.Request {
-	ingressClass, ok := obj.(*networkingv1.IngressClass)
-	if !ok {
-		return nil
-	}
+	ingressClass := pkgutils.ConvertToIngressClassV1(obj)
 
 	return ListMatchingRequests(
 		ctx,
@@ -217,7 +192,12 @@ func (r *ApisixGlobalRuleReconciler) listGlobalRulesForIngressClass(ctx context.
 }
 
 func (r *ApisixGlobalRuleReconciler) listGlobalRulesForGatewayProxy(ctx context.Context, obj client.Object) []reconcile.Request {
-	return listIngressClassRequestsForGatewayProxy(ctx, r.Client, obj, r.Log, r.listGlobalRulesForIngressClass)
+	switch r.ICGV.String() {
+	case networkingv1beta1.SchemeGroupVersion.String():
+		return listIngressClassV1beta1RequestsForGatewayProxy(ctx, r.Client, obj, r.Log, r.listGlobalRulesForIngressClass)
+	default:
+		return listIngressClassRequestsForGatewayProxy(ctx, r.Client, obj, r.Log, r.listGlobalRulesForIngressClass)
+	}
 }
 
 // updateStatus updates the ApisixGlobalRule status with the given condition

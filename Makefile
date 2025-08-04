@@ -27,6 +27,7 @@ IMG ?= api7/api7-ingress-controller:$(IMAGE_TAG)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.30.0
 KIND_NAME ?= apisix-ingress-cluster
+KIND_NODE_IMAGE ?= kindest/node:v1.30.0@sha256:047357ac0cfea04663786a612ba1eaba9702bef25227a794b52890dd8bcd692e
 
 GATEAY_API_VERSION ?= v1.2.0
 DASHBOARD_VERSION ?= dev
@@ -43,6 +44,8 @@ CRD_REF_DOCS ?= $(LOCALBIN)/crd-ref-docs
 CRD_DOCS_CONFIG ?= docs/assets/crd/config.yaml
 CRD_DOCS_OUTPUT ?= docs/en/latest/reference/api-reference.md
 CRD_DOCS_TEMPLATE ?= docs/assets/template
+
+INGRESS_VERSION ?= v1
 
 export KUBECONFIG = /tmp/$(KIND_NAME).kubeconfig
 
@@ -169,7 +172,7 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 .PHONY: kind-up
 kind-up:
 	@kind get clusters 2>&1 | grep -v $(KIND_NAME) \
-		&& kind create cluster --name $(KIND_NAME) \
+		&& kind create cluster --name $(KIND_NAME) --image $(KIND_NODE_IMAGE) \
 		|| echo "kind cluster already exists"
 	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
 	kubectl wait --for=condition=Ready nodes --all
@@ -299,6 +302,10 @@ uninstall-gateway-api: ## Uninstall Gateway API CRDs from the K8s cluster specif
 .PHONY: install
 install: manifests kustomize install-gateway-api ## Install CRDs into the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/crd | $(KUBECTL) apply -f -
+
+.PHONY: install-crds-nocel
+install-crds-nocel:
+	kubectl apply -f config/crd-nocel
 
 .PHONY: uninstall
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
