@@ -52,7 +52,8 @@ var _ = Describe("Test ApisixRoute", Label("apisix.apache.org", "v2", "apisixrou
 		time.Sleep(5 * time.Second)
 
 		By("create IngressClass")
-		err = s.CreateResourceFromStringWithNamespace(ingressClassYaml, "")
+		ingressClass := fmt.Sprintf(ingressClassYaml, framework.IngressVersion)
+		err = s.CreateResourceFromStringWithNamespace(ingressClass, "")
 		Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
 		time.Sleep(5 * time.Second)
 	})
@@ -131,9 +132,6 @@ spec:
 			Expect(bodyStr).Should(ContainSubstring("apisix_ingress_adc_sync_total"))
 			Expect(bodyStr).Should(ContainSubstring("apisix_ingress_status_update_queue_length"))
 			Expect(bodyStr).Should(ContainSubstring("apisix_ingress_file_io_duration_seconds"))
-
-			// Log metrics for debugging
-			fmt.Printf("Metrics endpoint response:\n%s\n", bodyStr)
 		})
 
 		It("Test plugins in ApisixRoute", func() {

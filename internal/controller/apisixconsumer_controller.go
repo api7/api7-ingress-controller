@@ -24,9 +24,11 @@ import (
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -42,6 +44,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
+	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
 // ApisixConsumerReconciler reconciles a ApisixConsumer object
@@ -53,6 +56,8 @@ type ApisixConsumerReconciler struct {
 	Provider provider.Provider
 	Updater  status.Updater
 	Readier  readiness.ReadinessManager
+
+	ICGV schema.GroupVersion
 }
 
 // Reconcile FIXME: implement the reconcile logic (For now, it dose nothing other than directly accepting)
@@ -87,7 +92,7 @@ func (r *ApisixConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		r.updateStatus(ac, err)
 	}()
 
-	ingressClass, err = GetIngressClass(tctx, r.Client, r.Log, ac.Spec.IngressClassName)
+	ingressClass, err = GetIngressClass(tctx, r.Client, r.Log, ac.Spec.IngressClassName, r.ICGV.String())
 	if err != nil {
 		r.Log.Error(err, "failed to get IngressClass")
 		return ctrl.Result{}, err
@@ -111,6 +116,14 @@ func (r *ApisixConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ApisixConsumerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	var icWatch client.Object
+	switch r.ICGV.String() {
+	case networkingv1beta1.SchemeGroupVersion.String():
+		icWatch = &networkingv1beta1.IngressClass{}
+	default:
+		icWatch = &networkingv1.IngressClass{}
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiv2.ApisixConsumer{},
 			builder.WithPredicates(
@@ -124,7 +137,7 @@ func (r *ApisixConsumerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			),
 		).
 		Watches(
-			&networkingv1.IngressClass{},
+			icWatch,
 			handler.EnqueueRequestsFromMapFunc(r.listApisixConsumerForIngressClass),
 			builder.WithPredicates(
 				predicate.NewPredicateFuncs(matchesIngressController),
@@ -146,18 +159,20 @@ func (r *ApisixConsumerReconciler) checkIngressClass(obj client.Object) bool {
 		return false
 	}
 
-	return matchesIngressClass(r.Client, r.Log, ac.Spec.IngressClassName)
+	return matchesIngressClass(context.Background(), r.Client, r.Log, ac.Spec.IngressClassName, r.ICGV.String())
 }
 
 func (r *ApisixConsumerReconciler) listApisixConsumerForGatewayProxy(ctx context.Context, obj client.Object) []reconcile.Request {
-	return listIngressClassRequestsForGatewayProxy(ctx, r.Client, obj, r.Log, r.listApisixConsumerForIngressClass)
+	switch r.ICGV.String() {
+	case networkingv1beta1.SchemeGroupVersion.String():
+		return listIngressClassV1beta1RequestsForGatewayProxy(ctx, r.Client, obj, r.Log, r.listApisixConsumerForIngressClass)
+	default:
+		return listIngressClassRequestsForGatewayProxy(ctx, r.Client, obj, r.Log, r.listApisixConsumerForIngressClass)
+	}
 }
 
 func (r *ApisixConsumerReconciler) listApisixConsumerForIngressClass(ctx context.Context, obj client.Object) []reconcile.Request {
-	ingressClass, ok := obj.(*networkingv1.IngressClass)
-	if !ok {
-		return nil
-	}
+	ingressClass := pkgutils.ConvertToIngressClassV1(obj)
 
 	return ListMatchingRequests(
 		ctx,

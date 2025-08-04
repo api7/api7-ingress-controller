@@ -1987,10 +1987,11 @@ spec:
 			s.Deployer.ScaleIngress(1)
 
 			s.RequestAssert(&scaffold.RequestAssert{
-				Method: "GET",
-				Path:   "/get",
-				Host:   "httpbin",
-				Check:  scaffold.WithExpectedStatus(http.StatusOK),
+				Method:  "GET",
+				Path:    "/get",
+				Host:    "httpbin",
+				Timeout: 1 * time.Minute,
+				Check:   scaffold.WithExpectedStatus(http.StatusOK),
 			})
 			s.RequestAssert(&scaffold.RequestAssert{
 				Method: "GET",

@@ -229,7 +229,7 @@ func (r *IngressReconciler) getIngressClass(ctx context.Context, obj client.Obje
 	if ingress.Spec.IngressClassName != nil {
 		ingressClassName = *ingress.Spec.IngressClassName
 	}
-	return GetIngressClass(ctx, r.Client, r.Log, ingressClassName)
+	return GetIngressClass(ctx, r.Client, r.Log, ingressClassName, "")
 }
 
 // checkIngressClass check if the ingress uses the ingress class that we control
@@ -606,37 +606,10 @@ func (r *IngressReconciler) processBackendService(tctx *provider.TranslateContex
 		return err
 	}
 
-	// Conditionally get EndpointSlice or Endpoints based on cluster API support
-	if r.supportsEndpointSlice {
-		// get the endpoint slices
-		endpointSliceList := &discoveryv1.EndpointSliceList{}
-		if err := r.List(tctx, endpointSliceList,
-			client.InNamespace(namespace),
-			client.MatchingLabels{
-				discoveryv1.LabelServiceName: backendService.Name,
-			},
-		); err != nil {
-			r.Log.Error(err, "failed to list endpoint slices", "namespace", namespace, "name", backendService.Name)
-			return err
-		}
-
-		// save the endpoint slices to the translate context
-		tctx.EndpointSlices[serviceNS] = endpointSliceList.Items
-	} else {
-		// Fallback to Endpoints API for Kubernetes 1.18 compatibility
-		var endpoints corev1.Endpoints
-		if err := r.Get(tctx, serviceNS, &endpoints); err != nil {
-			if client.IgnoreNotFound(err) != nil {
-				r.Log.Error(err, "failed to get endpoints", "namespace", namespace, "name", backendService.Name)
-				return err
-			}
-			// If endpoints not found, create empty EndpointSlice list
-			tctx.EndpointSlices[serviceNS] = []discoveryv1.EndpointSlice{}
-		} else {
-			// Convert Endpoints to EndpointSlice format for internal consistency
-			convertedEndpointSlices := pkgutils.ConvertEndpointsToEndpointSlice(&endpoints)
-			tctx.EndpointSlices[serviceNS] = convertedEndpointSlices
-		}
+	// Collect endpoints with EndpointSlice support
+	if err := resolveServiceEndpoints(tctx, r.Client, tctx, serviceNS, r.supportsEndpointSlice, nil); err != nil {
+		r.Log.Error(err, "failed to collect endpoints", "namespace", namespace, "name", backendService.Name)
+		return err
 	}
 	tctx.Services[serviceNS] = &service
 	return nil

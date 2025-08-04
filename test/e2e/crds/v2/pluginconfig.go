@@ -50,7 +50,7 @@ spec:
 `
 
 const ingressClassYamlPluginConfig = `
-apiVersion: networking.k8s.io/v1
+apiVersion: networking.k8s.io/%s
 kind: IngressClass
 metadata:
   name: apisix
@@ -60,8 +60,6 @@ spec:
     apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
     name: "apisix-proxy-config"
-    namespace: "default"
-    scope: "Namespace"
 `
 
 var _ = Describe("Test ApisixPluginConfig", Label("apisix.apache.org", "v2", "apisixpluginconfig"), func() {
@@ -81,7 +79,8 @@ var _ = Describe("Test ApisixPluginConfig", Label("apisix.apache.org", "v2", "ap
 			time.Sleep(5 * time.Second)
 
 			By("create IngressClass")
-			err = s.CreateResourceFromStringWithNamespace(ingressClassYamlPluginConfig, "")
+			ingressClass := fmt.Sprintf(ingressClassYamlPluginConfig, framework.IngressVersion)
+			err = s.CreateResourceFromStringWithNamespace(ingressClass, "")
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
 			time.Sleep(5 * time.Second)
 		})

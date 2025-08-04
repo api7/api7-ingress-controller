@@ -35,6 +35,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -76,7 +77,10 @@ const (
 	KindApisixConsumer     = "ApisixConsumer"
 )
 
-const defaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
+const (
+	defaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
+	parametersNamespaceAnnotation = "apisix.apache.org/parameters-namespace"
+)
 
 var (
 	ErrNoMatchingListenerHostname = errors.New("no matching hostnames in listener")
@@ -96,10 +100,13 @@ func GetEnableReferenceGrant() bool {
 
 // IsDefaultIngressClass returns whether an IngressClass is the default IngressClass.
 func IsDefaultIngressClass(obj client.Object) bool {
-	if ingressClass, ok := obj.(*networkingv1.IngressClass); ok {
-		return ingressClass.Annotations[defaultIngressClassAnnotation] == "true"
+	switch obj.(type) {
+	case *networkingv1.IngressClass, *networkingv1beta1.IngressClass:
+	default:
+		return false
 	}
-	return false
+	annotations := obj.GetAnnotations()
+	return annotations[defaultIngressClassAnnotation] == "true"
 }
 
 func acceptedMessage(kind string) string {
@@ -957,10 +964,11 @@ func ProcessGatewayProxy(r client.Client, log logr.Logger, tctx *provider.Transl
 					}
 
 					if cp.Service != nil {
-						if err := addProviderEndpointsToTranslateContext(tctx, r, k8stypes.NamespacedName{
+						serviceNN := k8stypes.NamespacedName{
 							Namespace: gatewayProxy.GetNamespace(),
 							Name:      cp.Service.Name,
-						}); err != nil {
+						}
+						if err := addProviderEndpointsToTranslateContext(tctx, r, serviceNN); err != nil {
 							return err
 						}
 					}
@@ -1222,6 +1230,40 @@ func ListMatchingRequests(
 	return requests
 }
 
+func listIngressClassV1beta1RequestsForGatewayProxy(
+	ctx context.Context,
+	c client.Client,
+	obj client.Object,
+	logger logr.Logger,
+	listFunc func(context.Context, client.Object) []reconcile.Request,
+) []reconcile.Request {
+	gatewayProxy, ok := obj.(*v1alpha1.GatewayProxy)
+	if !ok {
+		return nil
+	}
+
+	ingressClassList := &networkingv1beta1.IngressClassList{}
+	if err := c.List(ctx, ingressClassList, client.MatchingFields{
+		indexer.IngressClassParametersRef: indexer.GenIndexKey(gatewayProxy.GetNamespace(), gatewayProxy.GetName()),
+	}); err != nil {
+		logger.Error(err, "failed to list ingress classes for gateway proxy", "gatewayproxy", gatewayProxy.GetName())
+		return nil
+	}
+
+	requestSet := make(map[string]reconcile.Request)
+	for _, ingressClass := range ingressClassList.Items {
+		for _, req := range listFunc(ctx, &ingressClass) {
+			requestSet[req.String()] = req
+		}
+	}
+
+	requests := make([]reconcile.Request, 0, len(requestSet))
+	for _, req := range requestSet {
+		requests = append(requests, req)
+	}
+	return requests
+}
+
 func listIngressClassRequestsForGatewayProxy(
 	ctx context.Context,
 	c client.Client,
@@ -1257,41 +1299,17 @@ func listIngressClassRequestsForGatewayProxy(
 }
 
 func matchesIngressController(obj client.Object) bool {
-	ingressClass, ok := obj.(*networkingv1.IngressClass)
-	if !ok {
-		return false
-	}
+	ingressClass := pkgutils.ConvertToIngressClassV1(obj)
 	return matchesController(ingressClass.Spec.Controller)
 }
 
-func matchesIngressClass(c client.Client, log logr.Logger, ingressClassName string) bool {
-	if ingressClassName == "" {
-		// Check for default ingress class
-		ingressClassList := &networkingv1.IngressClassList{}
-		if err := c.List(context.Background(), ingressClassList, client.MatchingFields{
-			indexer.IngressClass: config.GetControllerName(),
-		}); err != nil {
-			log.Error(err, "failed to list ingress classes")
-			return false
-		}
-
-		// Find the ingress class that is marked as default
-		for _, ic := range ingressClassList.Items {
-			if IsDefaultIngressClass(&ic) && matchesController(ic.Spec.Controller) {
-				return true
-			}
-		}
+func matchesIngressClass(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string, apiVersion string) bool {
+	ic, err := GetIngressClass(ctx, c, log, ingressClassName, apiVersion)
+	if err != nil {
+		log.Error(err, "failed to get IngressClass", "ingressClassName", ingressClassName)
 		return false
 	}
-
-	// Check if the specified ingress class is controlled by us
-	var ingressClass networkingv1.IngressClass
-	if err := c.Get(context.Background(), client.ObjectKey{Name: ingressClassName}, &ingressClass); err != nil {
-		log.Error(err, "failed to get ingress class", "ingressClass", ingressClassName)
-		return false
-	}
-
-	return matchesController(ingressClass.Spec.Controller)
+	return ic != nil
 }
 
 func ProcessIngressClassParameters(tctx *provider.TranslateContext, c client.Client, log logr.Logger, object client.Object, ingressClass *networkingv1.IngressClass) error {
@@ -1305,9 +1323,12 @@ func ProcessIngressClassParameters(tctx *provider.TranslateContext, c client.Cli
 	parameters := ingressClass.Spec.Parameters
 	// check if the parameters reference GatewayProxy
 	if parameters.APIGroup != nil && *parameters.APIGroup == v1alpha1.GroupVersion.Group && parameters.Kind == KindGatewayProxy {
-		ns := object.GetNamespace()
+		ns := "default"
 		if parameters.Namespace != nil {
 			ns = *parameters.Namespace
+		}
+		if annotationNamespace, exists := ingressClass.Annotations[parametersNamespaceAnnotation]; exists && annotationNamespace != "" {
+			ns = annotationNamespace
 		}
 
 		gatewayProxy := &v1alpha1.GatewayProxy{}
@@ -1357,10 +1378,11 @@ func ProcessIngressClassParameters(tctx *provider.TranslateContext, c client.Cli
 
 				// process control plane provider service
 				if cp.Service != nil {
-					if err := addProviderEndpointsToTranslateContext(tctx, c, client.ObjectKey{
+					serviceNN := k8stypes.NamespacedName{
 						Namespace: gatewayProxy.GetNamespace(),
 						Name:      cp.Service.Name,
-					}); err != nil {
+					}
+					if err := addProviderEndpointsToTranslateContext(tctx, c, serviceNN); err != nil {
 						return err
 					}
 				}
@@ -1371,10 +1393,10 @@ func ProcessIngressClassParameters(tctx *provider.TranslateContext, c client.Cli
 	return nil
 }
 
-func GetIngressClass(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string) (*networkingv1.IngressClass, error) {
+func GetIngressClassV1Beta1(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string) (*networkingv1beta1.IngressClass, error) {
 	if ingressClassName == "" {
 		// Check for default ingress class
-		ingressClassList := &networkingv1.IngressClassList{}
+		ingressClassList := &networkingv1beta1.IngressClassList{}
 		if err := c.List(ctx, ingressClassList, client.MatchingFields{
 			indexer.IngressClass: config.GetControllerName(),
 		}); err != nil {
@@ -1392,6 +1414,40 @@ func GetIngressClass(ctx context.Context, c client.Client, log logr.Logger, ingr
 	}
 
 	// Check if the specified ingress class is controlled by us
+	var ingressClass networkingv1beta1.IngressClass
+	if err := c.Get(ctx, client.ObjectKey{Name: ingressClassName}, &ingressClass); err != nil {
+		return nil, err
+	}
+
+	if matchesController(ingressClass.Spec.Controller) {
+		return &ingressClass, nil
+	}
+
+	return nil, errors.New("ingress class is not controlled by us")
+}
+
+func GetIngressClassv1(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string) (*networkingv1.IngressClass, error) {
+	if ingressClassName == "" {
+		// Check for default ingress class
+		ingressClassList := &networkingv1.IngressClassList{}
+		if err := c.List(ctx, ingressClassList, client.MatchingFields{
+			indexer.IngressClass: config.GetControllerName(),
+		}); err != nil {
+			log.Error(err, "failed to list ingress classes")
+			return nil, err
+		}
+
+		// Find the ingress class that is marked as default
+		for _, ic := range ingressClassList.Items {
+			if IsDefaultIngressClass(&ic) && matchesController(ic.Spec.Controller) {
+				return &ic, nil
+			}
+		}
+		log.V(1).Info("no default ingress class found")
+		return nil, errors.New("no default ingress class found")
+	}
+
+	// Check if the specified ingress class is controlled by us
 	var ingressClass networkingv1.IngressClass
 	if err := c.Get(ctx, client.ObjectKey{Name: ingressClassName}, &ingressClass); err != nil {
 		return nil, err
@@ -1402,6 +1458,19 @@ func GetIngressClass(ctx context.Context, c client.Client, log logr.Logger, ingr
 	}
 
 	return nil, errors.New("ingress class is not controlled by us")
+}
+
+func GetIngressClass(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string, apiVersion string) (*networkingv1.IngressClass, error) {
+	switch apiVersion {
+	case networkingv1beta1.SchemeGroupVersion.String():
+		icBeta, err := GetIngressClassV1Beta1(ctx, c, log, ingressClassName)
+		if err != nil {
+			return nil, err
+		}
+		return pkgutils.ConvertToIngressClassV1(icBeta), nil
+	default:
+		return GetIngressClassv1(ctx, c, log, ingressClassName)
+	}
 }
 
 // distinctRequests distinct the requests
@@ -1419,10 +1488,6 @@ func distinctRequests(requests []reconcile.Request) []reconcile.Request {
 }
 
 func addProviderEndpointsToTranslateContext(tctx *provider.TranslateContext, c client.Client, serviceNN k8stypes.NamespacedName) error {
-	return addProviderEndpointsToTranslateContextWithEndpointSliceSupport(tctx, c, serviceNN, true)
-}
-
-func addProviderEndpointsToTranslateContextWithEndpointSliceSupport(tctx *provider.TranslateContext, c client.Client, serviceNN k8stypes.NamespacedName, supportsEndpointSlice bool) error {
 	log.Debugw("to process provider endpoints by provider.service", zap.Any("service", serviceNN))
 	var (
 		service corev1.Service
@@ -1433,39 +1498,7 @@ func addProviderEndpointsToTranslateContextWithEndpointSliceSupport(tctx *provid
 	}
 	tctx.Services[serviceNN] = &service
 
-	// Conditionally get EndpointSlice or Endpoints based on cluster API support
-	if supportsEndpointSlice {
-		// get es
-		var (
-			esList discoveryv1.EndpointSliceList
-		)
-		if err := c.List(tctx, &esList,
-			client.InNamespace(serviceNN.Namespace),
-			client.MatchingLabels{
-				discoveryv1.LabelServiceName: serviceNN.Name,
-			}); err != nil {
-			log.Errorw("failed to get endpoints for GatewayProxy provider", zap.Error(err), zap.Any("endpoints", serviceNN))
-			return err
-		}
-		tctx.EndpointSlices[serviceNN] = esList.Items
-	} else {
-		// Fallback to Endpoints API for Kubernetes 1.18 compatibility
-		var endpoints corev1.Endpoints
-		if err := c.Get(tctx, serviceNN, &endpoints); err != nil {
-			if client.IgnoreNotFound(err) != nil {
-				log.Errorw("failed to get endpoints for GatewayProxy provider", zap.Error(err), zap.Any("endpoints", serviceNN))
-				return err
-			}
-			// If endpoints not found, create empty EndpointSlice list
-			tctx.EndpointSlices[serviceNN] = []discoveryv1.EndpointSlice{}
-		} else {
-			// Convert Endpoints to EndpointSlice format for internal consistency
-			convertedEndpointSlices := pkgutils.ConvertEndpointsToEndpointSlice(&endpoints)
-			tctx.EndpointSlices[serviceNN] = convertedEndpointSlices
-		}
-	}
-
-	return nil
+	return resolveServiceEndpoints(tctx, c, tctx, serviceNN, true, nil)
 }
 
 func TypePredicate[T client.Object]() func(obj client.Object) bool {
@@ -1517,4 +1550,95 @@ func watchEndpointSliceOrEndpoints(bdr *ctrl.Builder, supportsEndpointSlice bool
 		log.Info("EndpointSlice API not available, falling back to Endpoints API for service discovery")
 		return bdr.Watches(&corev1.Endpoints{}, handler.EnqueueRequestsFromMapFunc(endpointsMapFunc))
 	}
+}
+
+// resolveServiceEndpoints collects endpoints and adds them to the translate context
+// It handles both EndpointSlice (K8s 1.19+) and Endpoints (K8s 1.18) APIs with automatic fallback
+func resolveServiceEndpoints(
+	ctx context.Context,
+	c client.Client,
+	tctx *provider.TranslateContext,
+	serviceNN k8stypes.NamespacedName,
+	supportsEndpointSlice bool,
+	subsetLabels map[string]string,
+) error {
+	if supportsEndpointSlice {
+		var endpoints discoveryv1.EndpointSliceList
+		if err := c.List(ctx, &endpoints,
+			client.InNamespace(serviceNN.Namespace),
+			client.MatchingLabels{
+				discoveryv1.LabelServiceName: serviceNN.Name,
+			},
+		); err != nil {
+			return fmt.Errorf("failed to list endpoint slices: %v", err)
+		}
+
+		if len(subsetLabels) == 0 {
+			tctx.EndpointSlices[serviceNN] = endpoints.Items
+		} else {
+			// Apply subset filtering
+			tctx.EndpointSlices[serviceNN] = filterEndpointSlicesBySubsetLabels(ctx, c, endpoints.Items, subsetLabels)
+		}
+	} else {
+		// Fallback to Endpoints API for Kubernetes 1.18 compatibility
+		var ep corev1.Endpoints
+		if err := c.Get(ctx, serviceNN, &ep); err != nil {
+			if client.IgnoreNotFound(err) != nil {
+				return fmt.Errorf("failed to get endpoints: %v", err)
+			}
+			// If endpoints not found, create empty EndpointSlice list
+			tctx.EndpointSlices[serviceNN] = []discoveryv1.EndpointSlice{}
+		} else {
+			// Convert Endpoints to EndpointSlice format for internal consistency
+			convertedEndpointSlices := pkgutils.ConvertEndpointsToEndpointSlice(&ep)
+
+			if len(subsetLabels) == 0 {
+				tctx.EndpointSlices[serviceNN] = convertedEndpointSlices
+			} else {
+				// Apply subset filtering to converted EndpointSlices
+				tctx.EndpointSlices[serviceNN] = filterEndpointSlicesBySubsetLabels(ctx, c, convertedEndpointSlices, subsetLabels)
+			}
+		}
+	}
+
+	return nil
+}
+
+// filterEndpointSlicesBySubsetLabels filters EndpointSlices by subset labels
+func filterEndpointSlicesBySubsetLabels(ctx context.Context, c client.Client, endpointSlices []discoveryv1.EndpointSlice, labels map[string]string) []discoveryv1.EndpointSlice {
+	if len(labels) == 0 {
+		return endpointSlices
+	}
+
+	for i := range endpointSlices {
+		endpointSlices[i] = filterEndpointSliceByTargetPod(ctx, c, endpointSlices[i], labels)
+	}
+
+	return utils.Filter(endpointSlices, func(v discoveryv1.EndpointSlice) bool {
+		return len(v.Endpoints) > 0
+	})
+}
+
+// filterEndpointSliceByTargetPod filters item.Endpoints which is not a subset of labels
+func filterEndpointSliceByTargetPod(ctx context.Context, c client.Client, item discoveryv1.EndpointSlice, labels map[string]string) discoveryv1.EndpointSlice {
+	item.Endpoints = utils.Filter(item.Endpoints, func(v discoveryv1.Endpoint) bool {
+		if v.TargetRef == nil || v.TargetRef.Kind != KindPod {
+			return true
+		}
+
+		var (
+			pod   corev1.Pod
+			podNN = k8stypes.NamespacedName{
+				Namespace: v.TargetRef.Namespace,
+				Name:      v.TargetRef.Name,
+			}
+		)
+		if err := c.Get(ctx, podNN, &pod); err != nil {
+			return false
+		}
+
+		return utils.IsSubsetOf(labels, pod.GetLabels())
+	})
+
+	return item
 }

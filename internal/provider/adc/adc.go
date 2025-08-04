@@ -31,6 +31,7 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -45,6 +46,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
 	pkgmetrics "github.com/apache/apisix-ingress-controller/pkg/metrics"
+	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
 type adcConfig struct {
@@ -152,6 +154,10 @@ func (d *adcClient) Update(ctx context.Context, tctx *provider.TranslateContext,
 	case *networkingv1.IngressClass:
 		result, err = d.translator.TranslateIngressClass(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "global_rule", "plugin_metadata")
+	case *networkingv1beta1.IngressClass:
+		cp := pkgutils.ConvertToIngressClassV1(t.DeepCopy())
+		result, err = d.translator.TranslateIngressClass(tctx, cp)
+		resourceTypes = append(resourceTypes, "global_rule", "plugin_metadata")
 	case *apiv2.ApisixRoute:
 		result, err = d.translator.TranslateApisixRoute(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "service")
@@ -257,7 +263,7 @@ func (d *adcClient) Delete(ctx context.Context, obj client.Object) error {
 	case *v1alpha1.Consumer:
 		resourceTypes = append(resourceTypes, "consumer")
 		labels = label.GenLabel(obj)
-	case *networkingv1.IngressClass:
+	case *networkingv1.IngressClass, *networkingv1beta1.IngressClass:
 		// delete all resources
 	case *apiv2.ApisixGlobalRule:
 		resourceTypes = append(resourceTypes, "global_rule")

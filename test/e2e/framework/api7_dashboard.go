@@ -201,6 +201,7 @@ dp_manager_configuration:
   database:
     dsn: {{ .DSN }}
 prometheus:
+  builtin: false
   server:
     persistence:
       enabled: false
@@ -209,6 +210,8 @@ postgresql:
   builtin: false
 {{- end }}
   primary:
+    containerSecurityContext:
+      enabled: false
     persistence:
       enabled: false
   readReplicas:

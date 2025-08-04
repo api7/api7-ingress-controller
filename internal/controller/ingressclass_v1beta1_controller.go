@@ -23,7 +23,7 @@ import (
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
+	v1beta1 "k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -40,8 +40,8 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
-// IngressClassReconciler reconciles a IngressClass object.
-type IngressClassReconciler struct {
+// IngressClassV1beta1Reconciler reconciles a IngressClassV1beta1 object.
+type IngressClassV1beta1Reconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 	Log    logr.Logger
@@ -50,10 +50,10 @@ type IngressClassReconciler struct {
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *IngressClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *IngressClassV1beta1Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(
-			&networkingv1.IngressClass{},
+			&v1beta1.IngressClass{},
 			builder.WithPredicates(
 				predicate.NewPredicateFuncs(r.matchesController),
 			),
@@ -67,27 +67,27 @@ func (r *IngressClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Watches(
 			&v1alpha1.GatewayProxy{},
-			handler.EnqueueRequestsFromMapFunc(r.listIngressClassesForGatewayProxy),
+			handler.EnqueueRequestsFromMapFunc(r.listIngressClassV1beta1esForGatewayProxy),
 		).
 		Watches(
 			&corev1.Secret{},
-			handler.EnqueueRequestsFromMapFunc(r.listIngressClassesForSecret),
+			handler.EnqueueRequestsFromMapFunc(r.listIngressClassV1beta1esForSecret),
 		).
 		Complete(r)
 }
 
-func (r *IngressClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	ingressClass := new(networkingv1.IngressClass)
-	if err := r.Get(ctx, req.NamespacedName, ingressClass); err != nil {
+func (r *IngressClassV1beta1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	IngressClassV1beta1 := new(v1beta1.IngressClass)
+	if err := r.Get(ctx, req.NamespacedName, IngressClassV1beta1); err != nil {
 		if client.IgnoreNotFound(err) == nil {
-			ingressClass.Name = req.Name
+			IngressClassV1beta1.Name = req.Name
 
-			ingressClass.TypeMeta = metav1.TypeMeta{
+			IngressClassV1beta1.TypeMeta = metav1.TypeMeta{
 				Kind:       KindIngressClass,
-				APIVersion: networkingv1.SchemeGroupVersion.String(),
+				APIVersion: v1beta1.SchemeGroupVersion.String(),
 			}
 
-			if err := r.Provider.Delete(ctx, ingressClass); err != nil {
+			if err := r.Provider.Delete(ctx, IngressClassV1beta1); err != nil {
 				return ctrl.Result{}, err
 			}
 			return ctrl.Result{}, nil
@@ -98,29 +98,29 @@ func (r *IngressClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// Create a translate context
 	tctx := provider.NewDefaultTranslateContext(ctx)
 
-	if err := r.processInfrastructure(tctx, ingressClass); err != nil {
-		r.Log.Error(err, "failed to process infrastructure for ingressclass", "ingressclass", ingressClass.GetName())
+	if err := r.processInfrastructure(tctx, IngressClassV1beta1); err != nil {
+		r.Log.Error(err, "failed to process infrastructure for IngressClassV1beta1", "IngressClassV1beta1", IngressClassV1beta1.GetName())
 		return ctrl.Result{}, err
 	}
 
-	if err := r.Provider.Update(ctx, tctx, ingressClass); err != nil {
-		r.Log.Error(err, "failed to update ingressclass", "ingressclass", ingressClass.GetName())
+	if err := r.Provider.Update(ctx, tctx, IngressClassV1beta1); err != nil {
+		r.Log.Error(err, "failed to update IngressClassV1beta1", "IngressClassV1beta1", IngressClassV1beta1.GetName())
 		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
 }
 
-func (r *IngressClassReconciler) matchesController(obj client.Object) bool {
-	ingressClass, ok := obj.(*networkingv1.IngressClass)
+func (r *IngressClassV1beta1Reconciler) matchesController(obj client.Object) bool {
+	IngressClassV1beta1, ok := obj.(*v1beta1.IngressClass)
 	if !ok {
-		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to IngressClass")
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to IngressClassV1beta1")
 		return false
 	}
-	return matchesController(ingressClass.Spec.Controller)
+	return matchesController(IngressClassV1beta1.Spec.Controller)
 }
 
-func (r *IngressClassReconciler) listIngressClassesForGatewayProxy(ctx context.Context, obj client.Object) []reconcile.Request {
+func (r *IngressClassV1beta1Reconciler) listIngressClassV1beta1esForGatewayProxy(ctx context.Context, obj client.Object) []reconcile.Request {
 	gatewayProxy, ok := obj.(*v1alpha1.GatewayProxy)
 	if !ok {
 		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to GatewayProxy")
@@ -129,29 +129,29 @@ func (r *IngressClassReconciler) listIngressClassesForGatewayProxy(ctx context.C
 	namespace := gatewayProxy.GetNamespace()
 	name := gatewayProxy.GetName()
 
-	ingressClassList := &networkingv1.IngressClassList{}
-	if err := r.List(ctx, ingressClassList, client.MatchingFields{
+	IngressClassV1beta1List := &v1beta1.IngressClassList{}
+	if err := r.List(ctx, IngressClassV1beta1List, client.MatchingFields{
 		indexer.IngressClassParametersRef: indexer.GenIndexKey(namespace, name),
 	}); err != nil {
 		r.Log.Error(err, "failed to list ingress classes for gateway proxy", "gatewayproxy", gatewayProxy.GetName())
 		return nil
 	}
 
-	recs := make([]reconcile.Request, 0, len(ingressClassList.Items))
-	for _, ingressClass := range ingressClassList.Items {
-		if !r.matchesController(&ingressClass) {
+	recs := make([]reconcile.Request, 0, len(IngressClassV1beta1List.Items))
+	for _, IngressClassV1beta1 := range IngressClassV1beta1List.Items {
+		if !r.matchesController(&IngressClassV1beta1) {
 			continue
 		}
 		recs = append(recs, reconcile.Request{
 			NamespacedName: client.ObjectKey{
-				Name: ingressClass.GetName(),
+				Name: IngressClassV1beta1.GetName(),
 			},
 		})
 	}
 	return recs
 }
 
-func (r *IngressClassReconciler) listIngressClassesForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
+func (r *IngressClassV1beta1Reconciler) listIngressClassV1beta1esForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
 	secret, ok := obj.(*corev1.Secret)
 	if !ok {
 		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to Secret")
@@ -170,41 +170,45 @@ func (r *IngressClassReconciler) listIngressClassesForSecret(ctx context.Context
 	// 2. list ingress classes by gateway proxies
 	requests := make([]reconcile.Request, 0)
 	for _, gatewayProxy := range gatewayProxyList.Items {
-		requests = append(requests, r.listIngressClassesForGatewayProxy(ctx, &gatewayProxy)...)
+		requests = append(requests, r.listIngressClassV1beta1esForGatewayProxy(ctx, &gatewayProxy)...)
 	}
 
 	return distinctRequests(requests)
 }
 
-func (r *IngressClassReconciler) processInfrastructure(tctx *provider.TranslateContext, ingressClass *networkingv1.IngressClass) error {
-	if ingressClass.Spec.Parameters == nil {
+func (r *IngressClassV1beta1Reconciler) processInfrastructure(tctx *provider.TranslateContext, IngressClassV1beta1 *v1beta1.IngressClass) error {
+	if IngressClassV1beta1.Spec.Parameters == nil {
 		return nil
 	}
 
-	if ingressClass.Spec.Parameters.APIGroup == nil ||
-		*ingressClass.Spec.Parameters.APIGroup != v1alpha1.GroupVersion.Group ||
-		ingressClass.Spec.Parameters.Kind != KindGatewayProxy {
+	if IngressClassV1beta1.Spec.Parameters.APIGroup == nil ||
+		*IngressClassV1beta1.Spec.Parameters.APIGroup != v1alpha1.GroupVersion.Group ||
+		IngressClassV1beta1.Spec.Parameters.Kind != KindGatewayProxy {
 		return nil
 	}
 
-	namespace := ingressClass.Namespace
-	if ingressClass.Spec.Parameters.Namespace != nil {
-		namespace = *ingressClass.Spec.Parameters.Namespace
+	// Since v1beta1 does not support specifying the target namespace,
+	// and GatewayProxy is a namespace-scoped resource, we first check
+	// for the annotation, then fall back to the spec field, and finally
+	// default to "default" namespace for convenience.
+	namespace := "default"
+	if IngressClassV1beta1.Spec.Parameters.Namespace != nil {
+		namespace = *IngressClassV1beta1.Spec.Parameters.Namespace
 	}
 	// Check for annotation override
-	if annotationNamespace, exists := ingressClass.Annotations[parametersNamespaceAnnotation]; exists && annotationNamespace != "" {
+	if annotationNamespace, exists := IngressClassV1beta1.Annotations[parametersNamespaceAnnotation]; exists && annotationNamespace != "" {
 		namespace = annotationNamespace
 	}
 
 	gatewayProxy := new(v1alpha1.GatewayProxy)
-	if err := r.Get(context.Background(), client.ObjectKey{
+	if err := r.Get(tctx, client.ObjectKey{
 		Namespace: namespace,
-		Name:      ingressClass.Spec.Parameters.Name,
+		Name:      IngressClassV1beta1.Spec.Parameters.Name,
 	}, gatewayProxy); err != nil {
 		return fmt.Errorf("failed to get gateway proxy: %w", err)
 	}
 
-	rk := utils.NamespacedNameKind(ingressClass)
+	rk := utils.NamespacedNameKind(IngressClassV1beta1)
 
 	tctx.GatewayProxies[rk] = *gatewayProxy
 	tctx.ResourceParentRefs[rk] = append(tctx.ResourceParentRefs[rk], rk)
@@ -216,7 +220,7 @@ func (r *IngressClassReconciler) processInfrastructure(tctx *provider.TranslateC
 			if auth.AdminKey.ValueFrom.SecretKeyRef != nil {
 				secretRef := auth.AdminKey.ValueFrom.SecretKeyRef
 				secret := &corev1.Secret{}
-				if err := r.Get(context.Background(), client.ObjectKey{
+				if err := r.Get(tctx, client.ObjectKey{
 					Namespace: namespace,
 					Name:      secretRef.Name,
 				}, secret); err != nil {

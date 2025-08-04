@@ -20,7 +20,10 @@ package types
 import (
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	netv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	kschema "k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
@@ -60,7 +63,7 @@ func KindOf(obj any) string {
 		return KindGatewayClass
 	case *netv1.Ingress:
 		return KindIngress
-	case *netv1.IngressClass:
+	case *netv1.IngressClass, *netv1beta1.IngressClass:
 		return KindIngressClass
 	case *corev1.Secret:
 		return KindSecret
@@ -93,6 +96,26 @@ func KindOf(obj any) string {
 	}
 }
 
+func TypeObject(gvk schema.GroupVersionKind) client.Object {
+	obj, err := kschema.Scheme.New(gvk)
+	if err != nil {
+		panic(err)
+	}
+	return obj.(client.Object)
+}
+
+func TypeList(gvk schema.GroupVersionKind) client.ObjectList {
+	obj, err := kschema.Scheme.New(gvk)
+	if err != nil {
+		panic(err)
+	}
+	list, ok := obj.(client.ObjectList)
+	if !ok {
+		panic("object is not a list")
+	}
+	return list
+}
+
 func GvkOf(obj any) schema.GroupVersionKind {
 	kind := KindOf(obj)
 	switch obj.(type) {
@@ -100,6 +123,8 @@ func GvkOf(obj any) schema.GroupVersionKind {
 		return gatewayv1.SchemeGroupVersion.WithKind(kind)
 	case *netv1.Ingress, *netv1.IngressClass:
 		return netv1.SchemeGroupVersion.WithKind(kind)
+	case *netv1beta1.IngressClass:
+		return netv1beta1.SchemeGroupVersion.WithKind(kind)
 	case *corev1.Secret, *corev1.Service:
 		return corev1.SchemeGroupVersion.WithKind(kind)
 	case *v2.ApisixRoute:
