@@ -23,6 +23,7 @@ import (
 	"os"
 
 	"github.com/go-logr/logr"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -63,6 +64,9 @@ func init() {
 		panic(err)
 	}
 	if err := v1beta1.Install(scheme); err != nil {
+		panic(err)
+	}
+	if err := networkingv1beta1.AddToScheme(scheme); err != nil {
 		panic(err)
 	}
 	// +kubebuilder:scaffold:scheme
@@ -152,7 +156,7 @@ func Run(ctx context.Context, logger logr.Logger) error {
 	}
 
 	readier := readiness.NewReadinessManager(mgr.GetClient())
-	registerReadinessGVK(mgr.GetClient(), readier)
+	registerReadinessGVK(mgr, readier)
 
 	if err := mgr.Add(readier); err != nil {
 		setupLog.Error(err, "unable to add readiness manager")

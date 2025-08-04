@@ -155,9 +155,6 @@ func (f *Framework) deploy() {
 
 	err = f.ensureService("api7-postgresql", _namespace, 1)
 	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "ensuring postgres service")
-
-	err = f.ensureService("api7-prometheus-server", _namespace, 1)
-	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "ensuring prometheus-server service")
 }
 
 func (f *Framework) initDashboard() {

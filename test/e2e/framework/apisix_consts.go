@@ -27,7 +27,8 @@ import (
 )
 
 var (
-	ProviderType = cmp.Or(os.Getenv("PROVIDER_TYPE"), "apisix-standalone")
+	ProviderType   = cmp.Or(os.Getenv("PROVIDER_TYPE"), "apisix-standalone")
+	IngressVersion = cmp.Or(os.Getenv("INGRESS_VERSION"), "v1")
 )
 
 var (

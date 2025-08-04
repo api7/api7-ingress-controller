@@ -20,7 +20,9 @@ package manager
 import (
 	"context"
 
+	"github.com/go-logr/logr"
 	netv1 "k8s.io/api/networking/v1"
+	netv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -103,6 +105,18 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 	setupLog := ctrl.LoggerFrom(ctx).WithName("setup")
 	var controllers []Controller
 
+	icgv := netv1.SchemeGroupVersion
+	if !utils.HasAPIResource(mgr, &netv1.IngressClass{}) {
+		setupLog.Info("IngressClass v1 not found, falling back to IngressClass v1beta1")
+		icgv = netv1beta1.SchemeGroupVersion
+		controllers = append(controllers, &controller.IngressClassV1beta1Reconciler{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("IngressClass"),
+			Provider: pro,
+		})
+	}
+
 	// Gateway API Controllers - conditional registration based on API availability
 	for resource, controller := range map[client.Object]Controller{
 		&gatewayv1.GatewayClass{}: &controller.GatewayClassReconciler{
@@ -134,6 +148,20 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Updater:  updater,
 			Readier:  readier,
 		},
+		&netv1.Ingress{}: &controller.IngressReconciler{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Ingress"),
+			Provider: pro,
+			Updater:  updater,
+			Readier:  readier,
+		},
+		&netv1.IngressClass{}: &controller.IngressClassReconciler{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("IngressClass"),
+			Provider: pro,
+		},
 	} {
 		if utils.HasAPIResource(mgr, resource) {
 			controllers = append(controllers, controller)
@@ -143,36 +171,13 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 	}
 
 	controllers = append(controllers, []Controller{
-		// Core Kubernetes Controllers - always register these
-		&controller.IngressReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Ingress"),
-			Provider: pro,
-			Updater:  updater,
-			Readier:  readier,
-		},
-		&controller.IngressClassReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("IngressClass"),
-			Provider: pro,
-		},
 		// Gateway Proxy Controller - always register this as it is core to the controller
 		&controller.GatewayProxyController{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("GatewayProxy"),
 			Provider: pro,
-		},
-		// APISIX v2 Controllers - always register these as they are core to the controller
-		&controller.ApisixGlobalRuleReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixGlobalRule"),
-			Provider: pro,
-			Updater:  updater,
-			Readier:  readier,
+			ICGV:     icgv,
 		},
 		&controller.ApisixRouteReconciler{
 			Client:   mgr.GetClient(),
@@ -181,6 +186,16 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Provider: pro,
 			Updater:  updater,
 			Readier:  readier,
+			ICGV:     icgv,
+		},
+		&controller.ApisixGlobalRuleReconciler{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixGlobalRule"),
+			Provider: pro,
+			Updater:  updater,
+			Readier:  readier,
+			ICGV:     icgv,
 		},
 		&controller.ApisixConsumerReconciler{
 			Client:   mgr.GetClient(),
@@ -189,12 +204,14 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Provider: pro,
 			Updater:  updater,
 			Readier:  readier,
+			ICGV:     icgv,
 		},
 		&controller.ApisixPluginConfigReconciler{
 			Client:  mgr.GetClient(),
 			Scheme:  mgr.GetScheme(),
 			Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixPluginConfig"),
 			Updater: updater,
+			ICGV:    icgv,
 		},
 		&controller.ApisixTlsReconciler{
 			Client:   mgr.GetClient(),
@@ -203,12 +220,14 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Provider: pro,
 			Updater:  updater,
 			Readier:  readier,
+			ICGV:     icgv,
 		},
 		&controller.ApisixUpstreamReconciler{
 			Client:  mgr.GetClient(),
 			Scheme:  mgr.GetScheme(),
 			Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixUpstream"),
 			Updater: updater,
+			ICGV:    icgv,
 		},
 	}...)
 
@@ -216,40 +235,81 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 	return controllers, nil
 }
 
-func registerReadinessGVK(c client.Client, readier readiness.ReadinessManager) {
+func registerReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManager) {
 	log := ctrl.LoggerFrom(context.Background()).WithName("readiness")
-	readier.RegisterGVK([]readiness.GVKConfig{
-		{
-			GVKs: []schema.GroupVersionKind{
-				types.GvkOf(&gatewayv1.HTTPRoute{}),
-			},
-		},
-		{
-			GVKs: []schema.GroupVersionKind{
-				types.GvkOf(&netv1.Ingress{}),
-				types.GvkOf(&apiv2.ApisixRoute{}),
-				types.GvkOf(&apiv2.ApisixGlobalRule{}),
-				types.GvkOf(&apiv2.ApisixPluginConfig{}),
-				types.GvkOf(&apiv2.ApisixTls{}),
-				types.GvkOf(&apiv2.ApisixConsumer{}),
-			},
-			Filter: readiness.GVKFilter(func(obj *unstructured.Unstructured) bool {
-				icName, _, _ := unstructured.NestedString(obj.Object, "spec", "ingressClassName")
-				ingressClass, _ := controller.GetIngressClass(context.Background(), c, log, icName)
-				return ingressClass != nil
-			}),
-		},
-		{
-			GVKs: []schema.GroupVersionKind{
-				types.GvkOf(&v1alpha1.Consumer{}),
-			},
-			Filter: readiness.GVKFilter(func(obj *unstructured.Unstructured) bool {
-				consumer := &v1alpha1.Consumer{}
-				if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, consumer); err != nil {
-					return false
-				}
-				return controller.MatchConsumerGatewayRef(context.Background(), c, log, consumer)
-			}),
-		},
-	}...)
+
+	registerV2ForReadinessGVK(mgr, readier, log)
+	registerGatewayAPIForReadinessGVK(mgr, readier, log)
+	registerV1alpha1ForReadinessGVK(mgr, readier, log)
+}
+
+func registerV2ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManager, log logr.Logger) {
+	icgv := netv1.SchemeGroupVersion
+	if !utils.HasAPIResource(mgr, &netv1.IngressClass{}) {
+		icgv = netv1beta1.SchemeGroupVersion
+	}
+
+	gvks := []schema.GroupVersionKind{
+		types.GvkOf(&apiv2.ApisixRoute{}),
+		types.GvkOf(&apiv2.ApisixGlobalRule{}),
+		types.GvkOf(&apiv2.ApisixPluginConfig{}),
+		types.GvkOf(&apiv2.ApisixTls{}),
+		types.GvkOf(&apiv2.ApisixConsumer{}),
+	}
+	if utils.HasAPIResource(mgr, &netv1.Ingress{}) {
+		gvks = append(gvks, types.GvkOf(&netv1.Ingress{}))
+	}
+
+	c := mgr.GetClient()
+	readier.RegisterGVK(readiness.GVKConfig{
+		GVKs: gvks,
+		Filter: readiness.GVKFilter(func(obj *unstructured.Unstructured) bool {
+			icName, _, _ := unstructured.NestedString(obj.Object, "spec", "ingressClassName")
+			ingressClass, _ := controller.GetIngressClass(context.Background(), c, log, icName, icgv.String())
+			return ingressClass != nil
+		}),
+	})
+	log.Info("Registered v2 GVKs for readiness checks", "gvks", gvks)
+}
+
+func registerGatewayAPIForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManager, log logr.Logger) {
+	gvks := []schema.GroupVersionKind{}
+	if utils.HasAPIResource(mgr, &gatewayv1.HTTPRoute{}) {
+		gvks = append(gvks, types.GvkOf(&gatewayv1.HTTPRoute{}))
+	}
+	if len(gvks) == 0 {
+		return
+	}
+
+	readier.RegisterGVK(readiness.GVKConfig{
+		GVKs: gvks,
+	})
+	log.Info("Registered Gateway API GVKs for readiness checks", "gvks", gvks)
+}
+
+func registerV1alpha1ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManager, log logr.Logger) {
+	gvks := []schema.GroupVersionKind{}
+
+	for _, resource := range []client.Object{
+		&v1alpha1.Consumer{},
+	} {
+		if utils.HasAPIResource(mgr, resource) {
+			gvks = append(gvks, types.GvkOf(resource))
+		}
+	}
+	if len(gvks) == 0 {
+		return
+	}
+	c := mgr.GetClient()
+	readier.RegisterGVK(readiness.GVKConfig{
+		GVKs: gvks,
+		Filter: readiness.GVKFilter(func(obj *unstructured.Unstructured) bool {
+			consumer := &v1alpha1.Consumer{}
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, consumer); err != nil {
+				return false
+			}
+			return controller.MatchConsumerGatewayRef(context.Background(), c, log, consumer)
+		}),
+	})
+	log.Info("Registered v1alpha1 GVKs for readiness checks", "gvks", gvks)
 }

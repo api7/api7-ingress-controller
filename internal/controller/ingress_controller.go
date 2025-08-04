@@ -229,7 +229,7 @@ func (r *IngressReconciler) getIngressClass(ctx context.Context, obj client.Obje
 	if ingress.Spec.IngressClassName != nil {
 		ingressClassName = *ingress.Spec.IngressClassName
 	}
-	return GetIngressClass(ctx, r.Client, r.Log, ingressClassName)
+	return GetIngressClass(ctx, r.Client, r.Log, ingressClassName, "")
 }
 
 // checkIngressClass check if the ingress uses the ingress class that we control
