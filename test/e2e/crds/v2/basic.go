@@ -95,7 +95,7 @@ var _ = Describe("APISIX Standalone Basic Tests", Label("apisix.apache.org", "v2
 		})
 	})
 
-	Context("IngressClass Annotaions", func() {
+	Context("IngressClass Annotations", func() {
 		It("Basic tests", func() {
 			const gatewayProxyYaml = `
 apiVersion: apisix.apache.org/v1alpha1
