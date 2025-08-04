@@ -188,11 +188,16 @@ func (r *IngressClassV1beta1Reconciler) processInfrastructure(tctx *provider.Tra
 	}
 
 	// Since v1beta1 does not support specifying the target namespace,
-	// and GatewayProxy is a namespace-scoped resource, we default to using
-	// the "default" namespace for convenience.
+	// and GatewayProxy is a namespace-scoped resource, we first check
+	// for the annotation, then fall back to the spec field, and finally
+	// default to "default" namespace for convenience.
 	namespace := "default"
 	if IngressClassV1beta1.Spec.Parameters.Namespace != nil {
 		namespace = *IngressClassV1beta1.Spec.Parameters.Namespace
+	}
+	// Check for annotation override
+	if annotationNamespace, exists := IngressClassV1beta1.Annotations[gatewayProxyNamespaceAnnotation]; exists && annotationNamespace != "" {
+		namespace = annotationNamespace
 	}
 
 	gatewayProxy := new(v1alpha1.GatewayProxy)

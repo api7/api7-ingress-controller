@@ -77,7 +77,10 @@ const (
 	KindApisixConsumer     = "ApisixConsumer"
 )
 
-const defaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
+const (
+	defaultIngressClassAnnotation   = "ingressclass.kubernetes.io/is-default-class"
+	gatewayProxyNamespaceAnnotation = "apisix.apache.org/gatewayproxy-namespace"
+)
 
 var (
 	ErrNoMatchingListenerHostname = errors.New("no matching hostnames in listener")
@@ -1322,6 +1325,9 @@ func ProcessIngressClassParameters(tctx *provider.TranslateContext, c client.Cli
 		ns := "default"
 		if parameters.Namespace != nil {
 			ns = *parameters.Namespace
+		}
+		if annotationNamespace, exists := ingressClass.Annotations[gatewayProxyNamespaceAnnotation]; exists && annotationNamespace != "" {
+			ns = annotationNamespace
 		}
 
 		gatewayProxy := &v1alpha1.GatewayProxy{}
