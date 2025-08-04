@@ -607,7 +607,7 @@ func (r *IngressReconciler) processBackendService(tctx *provider.TranslateContex
 	}
 
 	// Collect endpoints with EndpointSlice support
-	if err := collectEndpointsWithEndpointSliceSupport(tctx, r.Client, tctx, serviceNS, r.supportsEndpointSlice, nil); err != nil {
+	if err := resolveServiceEndpoints(tctx, r.Client, tctx, serviceNS, r.supportsEndpointSlice, nil); err != nil {
 		r.Log.Error(err, "failed to collect endpoints", "namespace", namespace, "name", backendService.Name)
 		return err
 	}

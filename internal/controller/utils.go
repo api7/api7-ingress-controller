@@ -1492,7 +1492,7 @@ func addProviderEndpointsToTranslateContext(tctx *provider.TranslateContext, c c
 	}
 	tctx.Services[serviceNN] = &service
 
-	return collectEndpointsWithEndpointSliceSupport(tctx, c, tctx, serviceNN, true, nil)
+	return resolveServiceEndpoints(tctx, c, tctx, serviceNN, true, nil)
 }
 
 func TypePredicate[T client.Object]() func(obj client.Object) bool {
@@ -1546,9 +1546,9 @@ func watchEndpointSliceOrEndpoints(bdr *ctrl.Builder, supportsEndpointSlice bool
 	}
 }
 
-// collectEndpointsWithEndpointSliceSupport collects endpoints and adds them to the translate context
+// resolveServiceEndpoints collects endpoints and adds them to the translate context
 // It handles both EndpointSlice (K8s 1.19+) and Endpoints (K8s 1.18) APIs with automatic fallback
-func collectEndpointsWithEndpointSliceSupport(
+func resolveServiceEndpoints(
 	ctx context.Context,
 	c client.Client,
 	tctx *provider.TranslateContext,

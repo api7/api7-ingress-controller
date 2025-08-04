@@ -378,7 +378,7 @@ func (r *ApisixRouteReconciler) validateBackends(ctx context.Context, tc *provid
 		subsetLabels := r.getSubsetLabels(tc, serviceNN, backend)
 
 		// Collect endpoints with EndpointSlice support and subset filtering
-		if err := collectEndpointsWithEndpointSliceSupport(ctx, r.Client, tc, serviceNN, r.supportsEndpointSlice, subsetLabels); err != nil {
+		if err := resolveServiceEndpoints(ctx, r.Client, tc, serviceNN, r.supportsEndpointSlice, subsetLabels); err != nil {
 			return types.ReasonError{
 				Reason:  string(apiv2.ConditionReasonInvalidSpec),
 				Message: err.Error(),

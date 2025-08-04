@@ -571,7 +571,7 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 		tctx.Services[targetNN] = &service
 
 		// Collect endpoints with EndpointSlice support
-		if err := collectEndpointsWithEndpointSliceSupport(tctx, r.Client, tctx, targetNN, r.supportsEndpointSlice, nil); err != nil {
+		if err := resolveServiceEndpoints(tctx, r.Client, tctx, targetNN, r.supportsEndpointSlice, nil); err != nil {
 			r.Log.Error(err, "failed to collect endpoints", "Service", targetNN)
 			terr = err
 			continue
