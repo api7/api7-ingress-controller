@@ -269,7 +269,7 @@ func registerV2ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessM
 			return ingressClass != nil
 		}),
 	})
-	log.Info("Registered v1alpha1 GVKs for readiness checks", "gvks", gvks)
+	log.Info("Registered v2 GVKs for readiness checks", "gvks", gvks)
 }
 
 func registerGatewayAPIForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManager, log logr.Logger) {
@@ -284,7 +284,7 @@ func registerGatewayAPIForReadinessGVK(mgr manager.Manager, readier readiness.Re
 	readier.RegisterGVK(readiness.GVKConfig{
 		GVKs: gvks,
 	})
-	log.Info("Registered v1alpha1 GVKs for readiness checks", "gvks", gvks)
+	log.Info("Registered Gateway API GVKs for readiness checks", "gvks", gvks)
 }
 
 func registerV1alpha1ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManager, log logr.Logger) {
