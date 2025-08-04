@@ -191,6 +191,10 @@ func (r *IngressClassReconciler) processInfrastructure(tctx *provider.TranslateC
 	if ingressClass.Spec.Parameters.Namespace != nil {
 		namespace = *ingressClass.Spec.Parameters.Namespace
 	}
+	// Check for annotation override
+	if annotationNamespace, exists := ingressClass.Annotations[parametersNamespaceAnnotation]; exists && annotationNamespace != "" {
+		namespace = annotationNamespace
+	}
 
 	gatewayProxy := new(v1alpha1.GatewayProxy)
 	if err := r.Get(context.Background(), client.ObjectKey{
