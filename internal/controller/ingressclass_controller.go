@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/api7/gopkg/pkg/log"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -194,7 +193,6 @@ func (r *IngressClassReconciler) processInfrastructure(tctx *provider.TranslateC
 	}
 	// Check for annotation override
 	if annotationNamespace, exists := ingressClass.Annotations[gatewayProxyNamespaceAnnotation]; exists && annotationNamespace != "" {
-		log.Debug("override namespace", "namespace", annotationNamespace)
 		namespace = annotationNamespace
 	}
 
