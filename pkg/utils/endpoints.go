@@ -72,9 +72,7 @@ func ConvertEndpointsToEndpointSlice(ep *corev1.Endpoints) []discoveryv1.Endpoin
 			epPort := discoveryv1.EndpointPort{
 				Port:     &p.Port,
 				Protocol: &p.Protocol,
-			}
-			if p.Name != "" {
-				epPort.Name = &p.Name
+				Name:     &p.Name,
 			}
 			ports = append(ports, epPort)
 		}
