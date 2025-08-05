@@ -308,7 +308,7 @@ func TestConvertEndpointsToEndpointSlice(t *testing.T) {
 			},
 			want: []discoveryv1.EndpointSlice{
 				createTestEndpointSlice("test-service-0-v4", discoveryv1.AddressTypeIPv4,
-					[]discoveryv1.EndpointPort{createPlainPort(80)},
+					[]discoveryv1.EndpointPort{createPlainPortWithEmptyName(80)},
 					[]discoveryv1.Endpoint{createEndpointWithHostname("192.168.1.1", "pod-1")}),
 			},
 		},
@@ -462,8 +462,9 @@ func createHTTPSPort(port int32) discoveryv1.EndpointPort {
 	}
 }
 
-func createPlainPort(port int32) discoveryv1.EndpointPort {
+func createPlainPortWithEmptyName(port int32) discoveryv1.EndpointPort {
 	return discoveryv1.EndpointPort{
+		Name:     ptr.To(""),
 		Port:     ptr.To(port),
 		Protocol: ptr.To(corev1.ProtocolTCP),
 	}
