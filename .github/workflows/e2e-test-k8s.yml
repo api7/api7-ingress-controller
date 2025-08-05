@@ -38,7 +38,7 @@ jobs:
       matrix:
         cases_subset:
         - v2
-    runs-on: ubuntu-2004
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v2
