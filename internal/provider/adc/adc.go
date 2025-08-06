@@ -115,13 +115,23 @@ func New(updater status.Updater, readier readiness.ReadinessManager, opts ...Opt
 	o := Options{}
 	o.ApplyOptions(opts)
 
+	// Choose executor based on configuration
+	var executor ADCExecutor
+	if o.UseADCServer && o.ADCServerURL != "" {
+		executor = NewHTTPADCExecutor(o.ADCServerURL)
+		log.Infow("using HTTP ADC Executor", zap.String("server_url", o.ADCServerURL))
+	} else {
+		executor = &DefaultADCExecutor{}
+		log.Infow("using default CLI ADC Executor")
+	}
+
 	return &adcClient{
 		Options:    o,
 		translator: &translator.Translator{},
 		configs:    make(map[types.NamespacedNameKind]adcConfig),
 		parentRefs: make(map[types.NamespacedNameKind][]types.NamespacedNameKind),
 		store:      NewStore(),
-		executor:   &DefaultADCExecutor{},
+		executor:   executor,
 		updater:    updater,
 		readier:    readier,
 		syncCh:     make(chan struct{}, 1),

@@ -28,6 +28,8 @@ type Options struct {
 	SyncPeriod    time.Duration
 	InitSyncDelay time.Duration
 	BackendMode   string
+	ADCServerURL  string
+	UseADCServer  bool
 }
 
 func (o *Options) ApplyToList(lo *Options) {
@@ -42,6 +44,12 @@ func (o *Options) ApplyToList(lo *Options) {
 	}
 	if o.BackendMode != "" {
 		lo.BackendMode = o.BackendMode
+	}
+	if o.ADCServerURL != "" {
+		lo.ADCServerURL = o.ADCServerURL
+	}
+	if o.UseADCServer {
+		lo.UseADCServer = o.UseADCServer
 	}
 }
 

@@ -173,6 +173,8 @@ func Run(ctx context.Context, logger logr.Logger) error {
 		SyncPeriod:    config.ControllerConfig.ProviderConfig.SyncPeriod.Duration,
 		InitSyncDelay: config.ControllerConfig.ProviderConfig.InitSyncDelay.Duration,
 		BackendMode:   string(config.ControllerConfig.ProviderConfig.Type),
+		ADCServerURL:  config.ControllerConfig.ProviderConfig.ADCServerURL,
+		UseADCServer:  config.ControllerConfig.ProviderConfig.UseADCServer,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to create provider")

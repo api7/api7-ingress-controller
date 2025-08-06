@@ -54,6 +54,8 @@ func NewDefaultConfig() *Config {
 			Type:          ProviderTypeAPI7EE,
 			SyncPeriod:    types.TimeDuration{Duration: 0},
 			InitSyncDelay: types.TimeDuration{Duration: 20 * time.Minute},
+			ADCServerURL:  "http://127.0.0.1:3000",
+			UseADCServer:  true,
 		},
 	}
 }

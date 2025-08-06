@@ -342,6 +342,8 @@ data:
                                         # The default value is 0 seconds, which means the controller will not sync.
                                         # If you want to enable the sync, set it to a positive value.
       init_sync_delay: {{ .InitSyncDelay | default "1m" }}
+      adc_server_url: "http://127.0.0.1:3000"
+      use_adc_server: true
 ---
 apiVersion: v1
 kind: Service
@@ -422,6 +424,39 @@ spec:
           capabilities:
             drop:
             - ALL
+      - image: ghcr.io/api7/adc:dev
+        env:
+        - name: ADC_RUNNING_MODE
+          value: ingress
+        - name: ADC_EXPERIMENTAL_FEATURE_FLAGS 
+          value: remote-state-file,parallel-backend-request
+        name: adc-server
+        args:
+        - "server"
+        - "--listen"
+        - "http://127.0.0.1:3000"
+        ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
       volumes:
       - name: ingress-config
         configMap:
