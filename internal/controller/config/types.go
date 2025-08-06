@@ -84,6 +84,4 @@ type ProviderConfig struct {
 	Type          ProviderType       `json:"type" yaml:"type"`
 	SyncPeriod    types.TimeDuration `json:"sync_period" yaml:"sync_period"`
 	InitSyncDelay types.TimeDuration `json:"init_sync_delay" yaml:"init_sync_delay"`
-	ADCServerURL  string             `json:"adc_server_url,omitempty" yaml:"adc_server_url,omitempty"`
-	UseADCServer  bool               `json:"use_adc_server,omitempty" yaml:"use_adc_server,omitempty"`
 }

@@ -115,15 +115,8 @@ func New(updater status.Updater, readier readiness.ReadinessManager, opts ...Opt
 	o := Options{}
 	o.ApplyOptions(opts)
 
-	// Choose executor based on configuration
-	var executor ADCExecutor
-	if o.UseADCServer && o.ADCServerURL != "" {
-		executor = NewHTTPADCExecutor(o.ADCServerURL)
-		log.Infow("using HTTP ADC Executor", zap.String("server_url", o.ADCServerURL))
-	} else {
-		executor = &DefaultADCExecutor{}
-		log.Infow("using default CLI ADC Executor")
-	}
+	executor := NewHTTPADCExecutor("http://127.0.0.1:3000")
+	log.Infow("using HTTP ADC Executor", zap.String("server_url", "http://127.0.0.1:3000"))
 
 	return &adcClient{
 		Options:    o,
