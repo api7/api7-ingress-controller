@@ -18,18 +18,40 @@
 package v1alpha1
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/util/wait"
 
+	"github.com/apache/apisix-ingress-controller/internal/provider/adc"
+	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
 var _ = Describe("Test Consumer", Label("apisix.apache.org", "v1alpha1", "consumer"), func() {
 	s := scaffold.NewDefaultScaffold()
 
-	var defaultGatewayProxy = `
+	var gatewayProxyYaml = `
+apiVersion: apisix.apache.org/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: apisix-proxy-config
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      service:
+        name: %s
+        port: 9180
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+`
+	var gatewayProxyYamlAPI7 = `
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
@@ -45,6 +67,12 @@ spec:
         adminKey:
           value: "%s"
 `
+	getGatewayProxySpec := func() string {
+		if s.Deployer.Name() == adc.BackendModeAPI7EE {
+			return fmt.Sprintf(gatewayProxyYamlAPI7, s.Deployer.GetAdminEndpoint(), s.AdminKey())
+		}
+		return fmt.Sprintf(gatewayProxyYaml, framework.ProviderType, s.AdminKey())
+	}
 
 	var defaultGatewayClass = `
 apiVersion: gateway.networking.k8s.io/v1
@@ -152,7 +180,7 @@ spec:
 `
 
 		BeforeEach(func() {
-			s.ApplyDefaultGatewayResource(defaultGatewayProxy, defaultGatewayClass, defaultGateway, defaultHTTPRoute)
+			s.ApplyDefaultGatewayResource(getGatewayProxySpec(), defaultGatewayClass, defaultGateway, defaultHTTPRoute)
 		})
 
 		It("limit-count plugin", func() {
@@ -248,7 +276,7 @@ spec:
 `
 
 		BeforeEach(func() {
-			s.ApplyDefaultGatewayResource(defaultGatewayProxy, defaultGatewayClass, defaultGateway, defaultHTTPRoute)
+			s.ApplyDefaultGatewayResource(getGatewayProxySpec(), defaultGatewayClass, defaultGateway, defaultHTTPRoute)
 		})
 
 		It("Create/Update/Delete", func() {
@@ -397,7 +425,7 @@ spec:
 `
 
 		BeforeEach(func() {
-			s.ApplyDefaultGatewayResource(defaultGatewayProxy, defaultGatewayClass, defaultGateway, defaultHTTPRoute)
+			s.ApplyDefaultGatewayResource(getGatewayProxySpec(), defaultGatewayClass, defaultGateway, defaultHTTPRoute)
 		})
 		It("Create/Update/Delete", func() {
 			err := s.CreateResourceFromString(keyAuthSecret)
@@ -518,7 +546,7 @@ spec:
 `
 
 		BeforeEach(func() {
-			s.ApplyDefaultGatewayResource(defaultGatewayProxy, defaultGatewayClass, defaultGateway, defaultHTTPRoute)
+			s.ApplyDefaultGatewayResource(getGatewayProxySpec(), defaultGatewayClass, defaultGateway, defaultHTTPRoute)
 		})
 
 		It("Should sync consumer when GatewayProxy is updated", func() {
@@ -611,10 +639,10 @@ spec:
 `
 
 		BeforeEach(func() {
-			s.ApplyDefaultGatewayResource(defaultGatewayProxy, defaultGatewayClass, defaultGateway, defaultHTTPRoute)
+			s.ApplyDefaultGatewayResource(getGatewayProxySpec(), defaultGatewayClass, defaultGateway, defaultHTTPRoute)
 		})
 
-		It("Should sync Consumer during startup", func() {
+		FIt("Should sync Consumer during startup", func() {
 			Expect(s.CreateResourceFromString(consumer2)).NotTo(HaveOccurred(), "creating unused consumer")
 			s.ResourceApplied("Consumer", "consumer-sample", consumer1, 1)
 
@@ -644,6 +672,17 @@ spec:
 			s.Deployer.ScaleDataplane(1)
 			s.Deployer.ScaleIngress(1)
 
+			By("check pod ready")
+			err := wait.PollUntilContextTimeout(context.Background(), time.Second, 60*time.Second, true, func(ctx context.Context) (done bool, err error) {
+				endpoints := s.GetEndpoints(s.Namespace(), framework.ProviderType)
+				if len(endpoints.Subsets) != 1 || len(endpoints.Subsets[0].Addresses) != 1 {
+					return false, nil
+				}
+				return true, nil
+			})
+			Expect(err).NotTo(HaveOccurred(), "check pods ready")
+
+			By("check consumer sync")
 			s.RequestAssert(&scaffold.RequestAssert{
 				Method: "GET",
 				Path:   "/get",

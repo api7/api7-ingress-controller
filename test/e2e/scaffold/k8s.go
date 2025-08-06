@@ -203,9 +203,7 @@ func (s *Scaffold) ApplyDefaultGatewayResource(
 	defaultGateway string,
 	defaultHTTPRoute string,
 ) {
-	By("create GatewayProxy")
-	gatewayProxy := fmt.Sprintf(defaultGatewayProxy, s.Deployer.GetAdminEndpoint(), s.AdminKey())
-	err := s.CreateResourceFromString(gatewayProxy)
+	err := s.CreateResourceFromString(defaultGatewayProxy)
 	Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 	time.Sleep(5 * time.Second)
 

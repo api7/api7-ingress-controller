@@ -150,9 +150,7 @@ func WithExpectedHeaders(expectedHeaders map[string]string) ResponseCheckFunc {
 }
 
 func (s *Scaffold) RequestAssert(r *RequestAssert) bool {
-	if r.Client == nil {
-		r.Client = s.NewAPISIXClient()
-	}
+	r.Client = s.NewAPISIXClient()
 	if r.Method == "" {
 		if len(r.Body) > 0 {
 			r.Method = "POST"
@@ -188,7 +186,18 @@ func (s *Scaffold) RequestAssert(r *RequestAssert) bool {
 		if r.BasicAuth != nil {
 			req = req.WithBasicAuth(r.BasicAuth.Username, r.BasicAuth.Password)
 		}
-		expResp := req.Expect()
+		var err error
+		expResp, err := func() (*httpexpect.Response, error) {
+			defer func() {
+				if rec := recover(); rec != nil {
+					err = fmt.Errorf("panic in Expect(): %v", rec)
+				}
+			}()
+			return req.Expect(), nil
+		}()
+		if err != nil {
+			return err
+		}
 
 		resp := &HTTPResponse{
 			Response: expResp.Raw(),
