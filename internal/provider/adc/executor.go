@@ -413,7 +413,8 @@ func (e *HTTPADCExecutor) handleHTTPResponse(resp *http.Response, serverAddr str
 		zap.String("response", string(body)),
 	)
 
-	if resp.StatusCode != http.StatusOK {
+	// not only 200, HTTP 202 is also accepted
+	if resp.StatusCode/100 != 2 {
 		return types.ADCExecutionServerAddrError{
 			ServerAddr: serverAddr,
 			Err:        fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body)),

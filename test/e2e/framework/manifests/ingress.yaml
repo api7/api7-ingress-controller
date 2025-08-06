@@ -434,20 +434,18 @@ spec:
         args:
         - "server"
         - "--listen"
-        - "http://127.0.0.1:3000"
+        - "http://0.0.0.0:3000"
         ports:
         - name: http
           containerPort: 3000
           protocol: TCP
         livenessProbe:
-          httpGet:
-            path: /healthz
+          tcpSocket:
             port: 3000
           initialDelaySeconds: 10
           periodSeconds: 10
         readinessProbe:
-          httpGet:
-            path: /healthz
+          tcpSocket:
             port: 3000
           initialDelaySeconds: 5
           periodSeconds: 5
@@ -456,7 +454,6 @@ spec:
           capabilities:
             drop:
             - ALL
-          runAsNonRoot: true
       volumes:
       - name: ingress-config
         configMap:
