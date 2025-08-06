@@ -642,7 +642,10 @@ spec:
 			s.ApplyDefaultGatewayResource(getGatewayProxySpec(), defaultGatewayClass, defaultGateway, defaultHTTPRoute)
 		})
 
-		FIt("Should sync Consumer during startup", func() {
+		It("Should sync Consumer during startup", func() {
+			if s.Deployer.Name() == adc.BackendModeAPI7EE {
+				Skip("skipping test in API7EE mode")
+			}
 			Expect(s.CreateResourceFromString(consumer2)).NotTo(HaveOccurred(), "creating unused consumer")
 			s.ResourceApplied("Consumer", "consumer-sample", consumer1, 1)
 
