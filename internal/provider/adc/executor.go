@@ -33,6 +33,7 @@ import (
 
 	"github.com/api7/gopkg/pkg/log"
 	"go.uber.org/zap"
+	"k8s.io/utils/ptr"
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/internal/types"
@@ -210,12 +211,12 @@ type ADCServerTask struct {
 
 // ADCServerOpts represents the options in ADC Server task
 type ADCServerOpts struct {
-	Backend   string            `json:"backend"`
-	Server    string            `json:"server"`
-	Token     string            `json:"token"`
-	Labels    map[string]string `json:"labels,omitempty"`
-	Types     []string          `json:"types,omitempty"`
-	TlsVerify *bool             `json:"tls_verify,omitempty"`
+	Backend             string            `json:"backend"`
+	Server              string            `json:"server"`
+	Token               string            `json:"token"`
+	LabelSelector       map[string]string `json:"labelSelector,omitempty"`
+	IncludeResourceType []string          `json:"includeResourceType,omitempty"`
+	TlsSkipVerify       *bool             `json:"tlsSkipVerify,omitempty"`
 }
 
 // HTTPADCExecutor implements ADCExecutor interface using HTTP calls to ADC Server
@@ -366,12 +367,12 @@ func (e *HTTPADCExecutor) buildHTTPRequest(ctx context.Context, serverAddr, mode
 	reqBody := ADCServerRequest{
 		Task: ADCServerTask{
 			Opts: ADCServerOpts{
-				Backend:   mode,
-				Server:    serverAddr,
-				Token:     config.Token,
-				Labels:    labels,
-				Types:     types,
-				TlsVerify: &tlsVerify,
+				Backend:             mode,
+				Server:              serverAddr,
+				Token:               config.Token,
+				LabelSelector:       labels,
+				IncludeResourceType: types,
+				TlsSkipVerify:       ptr.To(!tlsVerify),
 			},
 			Config: *resources,
 		},
@@ -386,8 +387,9 @@ func (e *HTTPADCExecutor) buildHTTPRequest(ctx context.Context, serverAddr, mode
 		zap.String("url", e.serverURL+"/sync"),
 		zap.String("server", serverAddr),
 		zap.String("mode", mode),
-		zap.Any("labels", labels),
-		zap.Strings("types", types),
+		zap.Any("labelSelector", labels),
+		zap.Strings("includeResourceType", types),
+		zap.Bool("tlsSkipVerify", !tlsVerify),
 	)
 
 	// Create HTTP request
