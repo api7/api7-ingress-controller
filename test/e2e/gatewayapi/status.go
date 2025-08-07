@@ -24,8 +24,8 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/yaml"
 
 	"github.com/apache/apisix-ingress-controller/internal/provider/adc"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
@@ -66,7 +66,26 @@ metadata:
 spec:
   controllerName: %s
 `
-		const gatewayProxy = `
+
+		var gatewayProxyYaml = `
+apiVersion: apisix.apache.org/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: apisix-proxy-config
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      service:
+        name: %s
+        port: 9180
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+`
+
+		var gatewayProxyYamlAPI7 = `
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
 metadata:
@@ -82,6 +101,13 @@ spec:
         adminKey:
           value: "%s"
 `
+		getGatewayProxySpec := func() string {
+			if s.Deployer.Name() == adc.BackendModeAPI7EE {
+				return fmt.Sprintf(gatewayProxyYamlAPI7, s.Deployer.GetAdminEndpoint(), s.AdminKey())
+			}
+			return fmt.Sprintf(gatewayProxyYaml, framework.ProviderType, s.AdminKey())
+		}
+
 		const defaultGateway = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
@@ -101,7 +127,7 @@ spec:
 `
 		BeforeEach(func() {
 			By("create GatewayProxy")
-			gatewayProxy := fmt.Sprintf(gatewayProxy, s.Deployer.GetAdminEndpoint(), s.AdminKey())
+			gatewayProxy := getGatewayProxySpec()
 			err := s.CreateResourceFromString(gatewayProxy)
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)

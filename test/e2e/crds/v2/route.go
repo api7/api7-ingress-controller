@@ -89,14 +89,14 @@ apiVersion: networking.k8s.io/%s
 kind: IngressClass
 metadata:
   name: apisix
+  annotations:
+    apisix.apache.org/parameters-namespace: %s
 spec:
   controller: "apisix.apache.org/apisix-ingress-controller"
   parameters:
     apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
     name: "apisix-proxy-config"
-    scope: Namespace
-    namespace: %s
 `
 	BeforeEach(func() {
 		By("create GatewayProxy")
