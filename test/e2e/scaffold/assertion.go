@@ -188,18 +188,7 @@ func (s *Scaffold) RequestAssert(r *RequestAssert) bool {
 		if r.BasicAuth != nil {
 			req = req.WithBasicAuth(r.BasicAuth.Username, r.BasicAuth.Password)
 		}
-		var err error
-		expResp, err := func() (*httpexpect.Response, error) {
-			defer func() {
-				if rec := recover(); rec != nil {
-					err = fmt.Errorf("panic in Expect(): %v", rec)
-				}
-			}()
-			return req.Expect(), nil
-		}()
-		if err != nil {
-			return err
-		}
+		expResp := req.Expect()
 
 		resp := &HTTPResponse{
 			Response: expResp.Raw(),
