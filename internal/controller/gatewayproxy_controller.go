@@ -193,15 +193,18 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 }
 
 func (r *GatewayProxyController) listGatewayProxiesForProviderService(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
+	r.Log.Info("listGatewayProxiesForProviderService", "obj", obj.GetName())
 	service, ok := obj.(*corev1.Service)
 	if !ok {
 		r.Log.Error(errors.New("unexpected object type"), "failed to convert object to Service")
 		return nil
 	}
 
-	return ListRequests(ctx, r.Client, r.Log, &v1alpha1.GatewayProxyList{}, client.MatchingFields{
+	requests = ListRequests(ctx, r.Client, r.Log, &v1alpha1.GatewayProxyList{}, client.MatchingFields{
 		indexer.ServiceIndexRef: indexer.GenIndexKey(service.GetNamespace(), service.GetName()),
 	})
+	r.Log.Info("listGatewayProxiesForProviderService", "requests", requests)
+	return requests
 }
 
 func (r *GatewayProxyController) listGatewayProxiesForProviderEndpointSlice(ctx context.Context, obj client.Object) (requests []reconcile.Request) {

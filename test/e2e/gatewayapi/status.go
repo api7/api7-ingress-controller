@@ -24,8 +24,11 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"gopkg.in/yaml.v2"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/apache/apisix-ingress-controller/internal/provider/adc"
+	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
@@ -140,7 +143,22 @@ spec:
 				Check:  scaffold.WithExpectedStatus(200),
 			})
 
-			s.Deployer.ScaleDataplane(0)
+			By("get yaml from service")
+			serviceYaml, err := s.GetOutputFromString("svc", framework.ProviderType, "-o", "yaml")
+			Expect(err).NotTo(HaveOccurred(), "getting service yaml")
+			By("update service to type ExternalName with invalid host")
+			var k8sservice corev1.Service
+			err = yaml.Unmarshal([]byte(serviceYaml), &k8sservice)
+			Expect(err).NotTo(HaveOccurred(), "unmarshalling service")
+			oldSpec := k8sservice.Spec
+			k8sservice.Spec = corev1.ServiceSpec{
+				Type:         corev1.ServiceTypeExternalName,
+				ExternalName: "invalid.host",
+			}
+			newServiceYaml, err := yaml.Marshal(k8sservice)
+			Expect(err).NotTo(HaveOccurred(), "marshalling service")
+			err = s.CreateResourceFromString(string(newServiceYaml))
+			Expect(err).NotTo(HaveOccurred(), "creating service")
 
 			By("check ApisixRoute status")
 			s.RetryAssertion(func() string {
@@ -154,7 +172,16 @@ spec:
 					),
 				)
 
-			s.Deployer.ScaleDataplane(1)
+			By("update service to original spec")
+			serviceYaml, err = s.GetOutputFromString("svc", framework.ProviderType, "-o", "yaml")
+			Expect(err).NotTo(HaveOccurred(), "getting service yaml")
+			err = yaml.Unmarshal([]byte(serviceYaml), &k8sservice)
+			Expect(err).NotTo(HaveOccurred(), "unmarshalling service")
+			k8sservice.Spec = oldSpec
+			newServiceYaml, err = yaml.Marshal(k8sservice)
+			Expect(err).NotTo(HaveOccurred(), "marshalling service")
+			err = s.CreateResourceFromString(string(newServiceYaml))
+			Expect(err).NotTo(HaveOccurred(), "creating service")
 
 			By("check ApisixRoute status after scaling up")
 			s.RetryAssertion(func() string {

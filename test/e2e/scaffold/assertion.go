@@ -150,7 +150,9 @@ func WithExpectedHeaders(expectedHeaders map[string]string) ResponseCheckFunc {
 }
 
 func (s *Scaffold) RequestAssert(r *RequestAssert) bool {
-	r.Client = s.NewAPISIXClient()
+	if r.Client == nil {
+		r.Client = s.NewAPISIXClient()
+	}
 	if r.Method == "" {
 		if len(r.Body) > 0 {
 			r.Method = "POST"

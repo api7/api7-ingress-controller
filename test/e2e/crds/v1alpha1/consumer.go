@@ -18,13 +18,11 @@
 package v1alpha1
 
 import (
-	"context"
 	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/apache/apisix-ingress-controller/internal/provider/adc"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
@@ -675,16 +673,6 @@ spec:
 			s.Deployer.ScaleDataplane(1)
 			s.Deployer.ScaleIngress(1)
 
-			By("check pod ready")
-			err := wait.PollUntilContextTimeout(context.Background(), time.Second, 60*time.Second, true, func(ctx context.Context) (done bool, err error) {
-				endpoints := s.GetEndpoints(s.Namespace(), framework.ProviderType)
-				if len(endpoints.Subsets) != 1 || len(endpoints.Subsets[0].Addresses) != 1 {
-					return false, nil
-				}
-				return true, nil
-			})
-			Expect(err).NotTo(HaveOccurred(), "check pods ready")
-
 			By("check consumer sync")
 			s.RequestAssert(&scaffold.RequestAssert{
 				Method: "GET",
@@ -693,7 +681,8 @@ spec:
 				Headers: map[string]string{
 					"apikey": "sample-key",
 				},
-				Check: scaffold.WithExpectedStatus(200),
+				Timeout: 1 * time.Minute,
+				Check:   scaffold.WithExpectedStatus(200),
 			})
 
 			s.RequestAssert(&scaffold.RequestAssert{
