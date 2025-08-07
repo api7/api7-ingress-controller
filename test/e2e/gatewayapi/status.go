@@ -67,47 +67,6 @@ spec:
   controllerName: %s
 `
 
-		var gatewayProxyYaml = `
-apiVersion: apisix.apache.org/v1alpha1
-kind: GatewayProxy
-metadata:
-  name: apisix-proxy-config
-spec:
-  provider:
-    type: ControlPlane
-    controlPlane:
-      service:
-        name: %s
-        port: 9180
-      auth:
-        type: AdminKey
-        adminKey:
-          value: "%s"
-`
-
-		var gatewayProxyYamlAPI7 = `
-apiVersion: apisix.apache.org/v1alpha1
-kind: GatewayProxy
-metadata:
-  name: apisix-proxy-config
-spec:
-  provider:
-    type: ControlPlane
-    controlPlane:
-      endpoints:
-      - %s
-      auth:
-        type: AdminKey
-        adminKey:
-          value: "%s"
-`
-		getGatewayProxySpec := func() string {
-			if s.Deployer.Name() == adc.BackendModeAPI7EE {
-				return fmt.Sprintf(gatewayProxyYamlAPI7, s.Deployer.GetAdminEndpoint(), s.AdminKey())
-			}
-			return fmt.Sprintf(gatewayProxyYaml, framework.ProviderType, s.AdminKey())
-		}
-
 		const defaultGateway = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
@@ -127,8 +86,7 @@ spec:
 `
 		BeforeEach(func() {
 			By("create GatewayProxy")
-			gatewayProxy := getGatewayProxySpec()
-			err := s.CreateResourceFromString(gatewayProxy)
+			err := s.CreateResourceFromString(s.GetGatewayProxySpec())
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
 
