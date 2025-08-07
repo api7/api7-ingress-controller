@@ -275,7 +275,6 @@ func (s *Scaffold) ApplyHTTPRoutePolicy(refNN, hrpNN types.NamespacedName, spec 
 }
 
 func (s *Scaffold) GetGatewayProxySpec() string {
-
 	var gatewayProxyYaml = `
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
