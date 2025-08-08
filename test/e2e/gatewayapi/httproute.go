@@ -33,7 +33,6 @@ import (
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
-	"github.com/apache/apisix-ingress-controller/internal/provider/adc"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
@@ -75,7 +74,7 @@ spec:
           value: "%s"
 `
 	getGatewayProxySpec := func() string {
-		if s.Deployer.Name() == adc.BackendModeAPI7EE {
+		if s.Deployer.Name() == "api7ee" {
 			return fmt.Sprintf(gatewayProxyYamlAPI7, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 		}
 		return fmt.Sprintf(gatewayProxyYaml, framework.ProviderType, s.AdminKey())

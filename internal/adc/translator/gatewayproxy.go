@@ -1,0 +1,107 @@
+package translator
+
+import (
+	"fmt"
+	"net"
+	"strconv"
+
+	"github.com/api7/gopkg/pkg/log"
+	"github.com/pkg/errors"
+	"go.uber.org/zap"
+	discoveryv1 "k8s.io/api/discovery/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
+	types "github.com/apache/apisix-ingress-controller/api/adc"
+	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
+	"github.com/apache/apisix-ingress-controller/internal/provider"
+)
+
+func (t *Translator) TranslateGatewayProxyToConfig(tctx *provider.TranslateContext, gatewayProxy *v1alpha1.GatewayProxy) (*types.Config, error) {
+	if gatewayProxy == nil || gatewayProxy.Spec.Provider == nil {
+		return nil, nil
+	}
+
+	provider := gatewayProxy.Spec.Provider
+	if provider.Type != v1alpha1.ProviderTypeControlPlane || provider.ControlPlane == nil {
+		return nil, nil
+	}
+
+	config := types.Config{
+		Name: k8stypes.NamespacedName{Namespace: gatewayProxy.Namespace, Name: gatewayProxy.Name}.String(),
+	}
+
+	if provider.ControlPlane.TlsVerify != nil {
+		config.TlsVerify = *provider.ControlPlane.TlsVerify
+	}
+
+	if provider.ControlPlane.Auth.Type == v1alpha1.AuthTypeAdminKey && provider.ControlPlane.Auth.AdminKey != nil {
+		if provider.ControlPlane.Auth.AdminKey.ValueFrom != nil && provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
+			secretRef := provider.ControlPlane.Auth.AdminKey.ValueFrom.SecretKeyRef
+			secret, ok := tctx.Secrets[k8stypes.NamespacedName{
+				// we should use gateway proxy namespace
+				Namespace: gatewayProxy.GetNamespace(),
+				Name:      secretRef.Name,
+			}]
+			if ok {
+				if token, ok := secret.Data[secretRef.Key]; ok {
+					config.Token = string(token)
+				}
+			}
+		} else if provider.ControlPlane.Auth.AdminKey.Value != "" {
+			config.Token = provider.ControlPlane.Auth.AdminKey.Value
+		}
+	}
+
+	if config.Token == "" {
+		return nil, errors.New("no token found")
+	}
+
+	endpoints := provider.ControlPlane.Endpoints
+	if len(endpoints) > 0 {
+		config.ServerAddrs = endpoints
+		return &config, nil
+	}
+
+	if provider.ControlPlane.Service != nil {
+		namespacedName := k8stypes.NamespacedName{
+			Namespace: gatewayProxy.Namespace,
+			Name:      provider.ControlPlane.Service.Name,
+		}
+		_, ok := tctx.Services[namespacedName]
+		if !ok {
+			return nil, fmt.Errorf("no service found for service reference: %s", namespacedName)
+		}
+
+		// APISIXStandalone, configurations need to be sent to each data plane instance;
+		// In other cases, the service is directly accessed as the adc backend server address.
+		endpoint := tctx.EndpointSlices[namespacedName]
+		if endpoint == nil {
+			return nil, nil
+		}
+		upstreamNodes, err := t.TranslateBackendRefWithFilter(tctx, gatewayv1.BackendRef{
+			BackendObjectReference: gatewayv1.BackendObjectReference{
+				Name:      gatewayv1.ObjectName(provider.ControlPlane.Service.Name),
+				Namespace: (*gatewayv1.Namespace)(&gatewayProxy.Namespace),
+				Port:      ptr.To(gatewayv1.PortNumber(provider.ControlPlane.Service.Port)),
+			},
+		}, func(endpoint *discoveryv1.Endpoint) bool {
+			if endpoint.Conditions.Terminating != nil && *endpoint.Conditions.Terminating {
+				log.Debugw("skip terminating endpoint", zap.Any("endpoint", endpoint))
+				return false
+			}
+			return true
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, node := range upstreamNodes {
+			config.ServerAddrs = append(config.ServerAddrs, "http://"+net.JoinHostPort(node.Host, strconv.Itoa(node.Port)))
+		}
+
+		log.Debugw("add server address to config.ServiceAddrs", zap.Strings("config.ServerAddrs", config.ServerAddrs))
+	}
+
+	return &config, nil
+}

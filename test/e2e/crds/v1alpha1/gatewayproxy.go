@@ -30,7 +30,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/ptr"
 
-	"github.com/apache/apisix-ingress-controller/internal/provider/adc"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
@@ -133,7 +132,7 @@ spec:
 `
 	BeforeEach(func() {
 		By("create GatewayProxy")
-		if s.Deployer.Name() == adc.BackendModeAPI7EE {
+		if s.Deployer.Name() == "api7ee" {
 			err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxySpecAPI7, s.Deployer.GetAdminEndpoint(), s.AdminKey()))
 		} else {
 			err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxySpec, framework.ProviderType, s.AdminKey()))
@@ -162,7 +161,7 @@ spec:
 
 	Context("Test GatewayProxy update configs", func() {
 		It("scaling apisix pods to test that the controller watches endpoints", func() {
-			if s.Deployer.Name() == adc.BackendModeAPI7EE {
+			if s.Deployer.Name() == "api7ee" {
 				Skip("this case only for apisix/apisix-standalone mode")
 			}
 
@@ -208,7 +207,7 @@ spec:
 				keyword string
 			)
 
-			if framework.ProviderType == adc.BackendModeAPISIX {
+			if framework.ProviderType == "api7ee" {
 				keyword = fmt.Sprintf(`{"config.ServerAddrs": ["%s"]}`, s.Deployer.GetAdminEndpoint())
 			} else {
 				keyword = fmt.Sprintf(`{"config.ServerAddrs": ["http://%s:9180"]}`, s.GetPodIP(s.Namespace(), "app.kubernetes.io/name=apisix"))
