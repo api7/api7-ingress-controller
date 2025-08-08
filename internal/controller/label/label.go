@@ -18,6 +18,8 @@
 package label
 
 import (
+	"fmt"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
@@ -41,7 +43,7 @@ func GenLabel(obj client.Object, args ...string) Label {
 	label[LabelName] = obj.GetName()
 	label[LabelControllerName] = config.ControllerConfig.ControllerName
 	label[LabelManagedBy] = "apisix-ingress-controller"
-	label[LabelID] = string(obj.GetUID())
+	label[LabelID] = fmt.Sprintf("%s/%s/%s", label[LabelKind], label[LabelNamespace], label[LabelName])
 	for i := 0; i < len(args); i += 2 {
 		label[args[i]] = args[i+1]
 	}
