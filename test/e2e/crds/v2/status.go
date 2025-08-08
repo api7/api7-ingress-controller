@@ -66,7 +66,7 @@ spec:
     name: "apisix-proxy-config"
 `
 			ingressClass := fmt.Sprintf(ingressClassYaml, framework.IngressVersion, s.Namespace())
-			err = s.CreateResourceFromStringWithNamespace(ingressClass, "")
+			err = s.CreateResourceFromString(ingressClass)
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
 			time.Sleep(5 * time.Second)
 		})

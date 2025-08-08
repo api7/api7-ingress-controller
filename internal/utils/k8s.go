@@ -21,6 +21,8 @@ import (
 	"net"
 	"regexp"
 
+	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -98,4 +100,26 @@ func ConditionStatus(status bool) metav1.ConditionStatus {
 		return metav1.ConditionTrue
 	}
 	return metav1.ConditionFalse
+}
+
+func GetIngressClassParametersNamespace(ingressClass networkingv1.IngressClass) string {
+	namespace := "default"
+	if ingressClass.Spec.Parameters.Namespace != nil {
+		namespace = *ingressClass.Spec.Parameters.Namespace
+	}
+	if annotationNamespace, exists := ingressClass.Annotations["apisix.apache.org/parameters-namespace"]; exists && annotationNamespace != "" {
+		namespace = annotationNamespace
+	}
+	return namespace
+}
+
+func GetIngressClassV1beta1ParametersNamespace(ingressClass networkingv1beta1.IngressClass) string {
+	namespace := "default"
+	if ingressClass.Spec.Parameters.Namespace != nil {
+		namespace = *ingressClass.Spec.Parameters.Namespace
+	}
+	if annotationNamespace, exists := ingressClass.Annotations["apisix.apache.org/parameters-namespace"]; exists && annotationNamespace != "" {
+		namespace = annotationNamespace
+	}
+	return namespace
 }
