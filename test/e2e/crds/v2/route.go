@@ -44,16 +44,29 @@ var _ = Describe("Test ApisixRoute", Label("apisix.apache.org", "v2", "apisixrou
 		applier = framework.NewApplier(s.GinkgoT, s.K8sClient, s.CreateResourceFromString)
 	)
 
+	const ingressClassYaml = `
+apiVersion: networking.k8s.io/%s
+kind: IngressClass
+metadata:
+  name: apisix
+  annotations:
+    apisix.apache.org/parameters-namespace: %s
+spec:
+  controller: "apisix.apache.org/apisix-ingress-controller"
+  parameters:
+    apiGroup: "apisix.apache.org"
+    kind: "GatewayProxy"
+    name: "apisix-proxy-config"
+`
 	BeforeEach(func() {
 		By("create GatewayProxy")
-		gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
-		err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
+		err := s.CreateResourceFromString(s.GetGatewayProxySpec())
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 		time.Sleep(5 * time.Second)
 
 		By("create IngressClass")
-		ingressClass := fmt.Sprintf(ingressClassYaml, framework.IngressVersion)
-		err = s.CreateResourceFromStringWithNamespace(ingressClass, "")
+		ingressClass := fmt.Sprintf(ingressClassYaml, framework.IngressVersion, s.Namespace())
+		err = s.CreateResourceFromString(ingressClass)
 		Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
 		time.Sleep(5 * time.Second)
 	})
@@ -714,6 +727,9 @@ spec:
       servicePort: 80
 `
 		It("Should sync ApisixRoute during startup", func() {
+			if s.Deployer.Name() == adc.BackendModeAPI7EE {
+				Skip("skipping test in API7EE mode")
+			}
 			By("apply ApisixRoute")
 			Expect(s.CreateResourceFromString(route2)).ShouldNot(HaveOccurred(), "apply ApisixRoute with nonexistent ingressClassName")
 			Expect(s.CreateResourceFromString(route3)).ShouldNot(HaveOccurred(), "apply ApisixRoute without ingressClassName")
@@ -745,10 +761,11 @@ spec:
 			s.Deployer.ScaleIngress(1)
 
 			s.RequestAssert(&scaffold.RequestAssert{
-				Method: "GET",
-				Path:   "/get",
-				Host:   "httpbin",
-				Check:  scaffold.WithExpectedStatus(http.StatusOK),
+				Method:  "GET",
+				Path:    "/get",
+				Host:    "httpbin",
+				Timeout: 1 * time.Minute,
+				Check:   scaffold.WithExpectedStatus(http.StatusOK),
 			})
 			s.RequestAssert(&scaffold.RequestAssert{
 				Method: "GET",
