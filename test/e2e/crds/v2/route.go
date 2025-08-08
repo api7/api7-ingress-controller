@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"time"
@@ -442,7 +441,6 @@ spec:
 			By("verify ApisixRoute works")
 			for _, id := range []string{"1", "11", "111", "1111", "11111"} {
 				host := fmt.Sprintf("httpbin-%s", id)
-				log.Println("host: ", host)
 				Eventually(func() int {
 					return s.NewAPISIXClient().GET("/get").WithHost(host).Expect().Raw().StatusCode
 				}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
