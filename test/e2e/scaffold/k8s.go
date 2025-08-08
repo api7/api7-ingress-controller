@@ -39,6 +39,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	"github.com/apache/apisix-ingress-controller/internal/provider/adc"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 )
 
@@ -203,9 +204,7 @@ func (s *Scaffold) ApplyDefaultGatewayResource(
 	defaultGateway string,
 	defaultHTTPRoute string,
 ) {
-	By("create GatewayProxy")
-	gatewayProxy := fmt.Sprintf(defaultGatewayProxy, s.Deployer.GetAdminEndpoint(), s.AdminKey())
-	err := s.CreateResourceFromString(gatewayProxy)
+	err := s.CreateResourceFromString(defaultGatewayProxy)
 	Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 	time.Sleep(5 * time.Second)
 
@@ -273,4 +272,46 @@ func (s *Scaffold) ApplyHTTPRoutePolicy(refNN, hrpNN types.NamespacedName, spec 
 	for _, condition := range conditions {
 		framework.HTTPRoutePolicyMustHaveCondition(s.GinkgoT, s.K8sClient, 8*time.Second, refNN, hrpNN, condition)
 	}
+}
+
+func (s *Scaffold) GetGatewayProxySpec() string {
+	var gatewayProxyYaml = `
+apiVersion: apisix.apache.org/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: apisix-proxy-config
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      service:
+        name: %s
+        port: 9180
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+`
+
+	var gatewayProxyYamlAPI7 = `
+apiVersion: apisix.apache.org/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: apisix-proxy-config
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+`
+
+	if s.Deployer.Name() == adc.BackendModeAPI7EE {
+		return fmt.Sprintf(gatewayProxyYamlAPI7, s.Deployer.GetAdminEndpoint(), s.AdminKey())
+	}
+	return fmt.Sprintf(gatewayProxyYaml, framework.ProviderType, s.AdminKey())
 }

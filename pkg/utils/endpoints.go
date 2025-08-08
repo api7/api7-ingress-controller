@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/api7/gopkg/pkg/log"
+	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -72,9 +74,7 @@ func ConvertEndpointsToEndpointSlice(ep *corev1.Endpoints) []discoveryv1.Endpoin
 			epPort := discoveryv1.EndpointPort{
 				Port:     &p.Port,
 				Protocol: &p.Protocol,
-			}
-			if p.Name != "" {
-				epPort.Name = &p.Name
+				Name:     &p.Name,
 			}
 			ports = append(ports, epPort)
 		}
@@ -139,6 +139,8 @@ func ConvertEndpointsToEndpointSlice(ep *corev1.Endpoints) []discoveryv1.Endpoin
 			endpointSlices = append(endpointSlices, makeSlice("v6", discoveryv1.AddressTypeIPv6, ipv6Endpoints))
 		}
 	}
+
+	log.Debugw("Converted Endpoints to EndpointSlices", zap.Any("endpointSlices", endpointSlices))
 
 	return endpointSlices
 }
