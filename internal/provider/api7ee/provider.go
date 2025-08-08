@@ -57,7 +57,7 @@ type api7eeProvider struct {
 
 	provider.Options
 
-	configManager common.ConfigManager[adctypes.Config]
+	configManager *common.ConfigManager[adctypes.Config]
 
 	client *adcclient.Client
 }
@@ -75,12 +75,13 @@ func New(updater status.Updater, readier readiness.ReadinessManager, opts ...pro
 	}
 
 	return &api7eeProvider{
-		client:     cli,
-		Options:    o,
-		translator: &translator.Translator{},
-		updater:    updater,
-		readier:    readier,
-		syncCh:     make(chan struct{}, 1),
+		client:        cli,
+		Options:       o,
+		translator:    &translator.Translator{},
+		configManager: common.NewConfigManager[adctypes.Config](),
+		updater:       updater,
+		readier:       readier,
+		syncCh:        make(chan struct{}, 1),
 	}, nil
 }
 

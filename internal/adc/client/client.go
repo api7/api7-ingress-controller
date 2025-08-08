@@ -74,7 +74,7 @@ func (d *Client) Insert(ctx context.Context, args Task) error {
 
 func (d *Client) Remove(ctx context.Context, args Task) error {
 	for _, config := range args.Configs {
-		if err := d.Store.Delete(config.Name, args.ResourceTypes, args.Labels); err != nil {
+		if err := d.Delete(config.Name, args.ResourceTypes, args.Labels); err != nil {
 			log.Errorw("failed to delete resources from store",
 				zap.String("name", config.Name),
 				zap.Error(err),
@@ -102,7 +102,7 @@ func (c *Client) Sync(ctx context.Context, cfg map[string]adctypes.Config) (map[
 	failedMap := map[string]types.ADCExecutionErrors{}
 	var failedConfigs []string
 	for name, config := range cfg {
-		resources, err := c.Store.GetResources(name)
+		resources, err := c.GetResources(name)
 		if err != nil {
 			log.Errorw("failed to get resources from store", zap.String("name", name), zap.Error(err))
 			failedConfigs = append(failedConfigs, name)
@@ -183,7 +183,7 @@ func (c *Client) sync(ctx context.Context, task Task) error {
 				resourceType = "all"
 			}
 
-			err = c.executor.Execute(ctx, "", config, args)
+			err = c.executor.Execute(ctx, c.BackendMode, config, args)
 			duration := time.Since(startTime).Seconds()
 
 			status := "success"
@@ -231,7 +231,7 @@ func (c *Client) sync(ctx context.Context, task Task) error {
 			resourceType = "all"
 		}
 
-		err := c.executor.Execute(ctx, "", config, args)
+		err := c.executor.Execute(ctx, c.BackendMode, config, args)
 		duration := time.Since(startTime).Seconds()
 
 		status := "success"

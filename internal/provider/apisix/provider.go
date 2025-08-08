@@ -59,7 +59,7 @@ type apisixProvider struct {
 
 	syncCh chan struct{}
 
-	configManager common.ConfigManager[adctypes.Config]
+	configManager *common.ConfigManager[adctypes.Config]
 
 	client *adcclient.Client
 }
@@ -77,12 +77,13 @@ func New(updater status.Updater, readier readiness.ReadinessManager, opts ...pro
 	}
 
 	return &apisixProvider{
-		client:     cli,
-		Options:    o,
-		translator: &translator.Translator{},
-		updater:    updater,
-		readier:    readier,
-		syncCh:     make(chan struct{}, 1),
+		client:        cli,
+		Options:       o,
+		translator:    &translator.Translator{},
+		updater:       updater,
+		configManager: common.NewConfigManager[adctypes.Config](),
+		readier:       readier,
+		syncCh:        make(chan struct{}, 1),
 	}, nil
 }
 
