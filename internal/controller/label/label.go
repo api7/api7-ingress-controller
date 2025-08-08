@@ -33,7 +33,7 @@ const (
 	LabelNamespace      = "k8s/namespace"
 	LabelControllerName = "k8s/controller-name"
 	LabelManagedBy      = "manager-by"
-	LabelID             = "k8s/uid"
+	LabelResourceKey    = "k8s/resource-key"
 )
 
 func GenLabel(obj client.Object, args ...string) Label {
@@ -43,7 +43,7 @@ func GenLabel(obj client.Object, args ...string) Label {
 	label[LabelName] = obj.GetName()
 	label[LabelControllerName] = config.ControllerConfig.ControllerName
 	label[LabelManagedBy] = "apisix-ingress-controller"
-	label[LabelID] = fmt.Sprintf("%s/%s/%s", label[LabelKind], label[LabelNamespace], label[LabelName])
+	label[LabelResourceKey] = fmt.Sprintf("%s/%s/%s", label[LabelKind], label[LabelNamespace], label[LabelName])
 	for i := 0; i < len(args); i += 2 {
 		label[args[i]] = args[i+1]
 	}
