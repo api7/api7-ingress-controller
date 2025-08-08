@@ -31,15 +31,17 @@ const (
 	LabelNamespace      = "k8s/namespace"
 	LabelControllerName = "k8s/controller-name"
 	LabelManagedBy      = "manager-by"
+	LabelID             = "k8s/uid"
 )
 
-func GenLabel(client client.Object, args ...string) Label {
+func GenLabel(obj client.Object, args ...string) Label {
 	label := make(Label)
-	label[LabelKind] = client.GetObjectKind().GroupVersionKind().Kind
-	label[LabelNamespace] = client.GetNamespace()
-	label[LabelName] = client.GetName()
+	label[LabelKind] = obj.GetObjectKind().GroupVersionKind().Kind
+	label[LabelNamespace] = obj.GetNamespace()
+	label[LabelName] = obj.GetName()
 	label[LabelControllerName] = config.ControllerConfig.ControllerName
 	label[LabelManagedBy] = "apisix-ingress-controller"
+	label[LabelID] = string(obj.GetUID())
 	for i := 0; i < len(args); i += 2 {
 		label[args[i]] = args[i+1]
 	}

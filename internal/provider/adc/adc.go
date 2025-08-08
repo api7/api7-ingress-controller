@@ -413,6 +413,10 @@ func (d *adcClient) Sync(ctx context.Context) error {
 
 func (d *adcClient) sync(ctx context.Context, task Task) error {
 	log.Debugw("syncing resources", zap.Any("task", task))
+	if len(task.Labels) > 0 {
+		// only keep the id label for filtering resources
+		task.Labels = map[string]string{label.LabelID: task.Labels[label.LabelID]}
+	}
 
 	if len(task.configs) == 0 {
 		log.Warnw("no adc configs provided", zap.Any("task", task))
