@@ -171,6 +171,9 @@ func (c *Client) sync(ctx context.Context, task Task) error {
 				}
 				globalrule = adctypes.GlobalRule(merged)
 			}
+			if task.Resources == nil {
+				task.Resources = &adctypes.Resources{}
+			}
 
 			task.Resources.GlobalRules = globalrule
 			log.Debugw("syncing resources global rules", zap.Any("globalRules", task.Resources.GlobalRules))
