@@ -24,6 +24,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/api7/gopkg/pkg/log"
@@ -37,6 +38,7 @@ import (
 )
 
 type Client struct {
+	mu sync.Mutex
 	*cache.Store
 
 	executor    ADCExecutor
@@ -60,6 +62,8 @@ type Task struct {
 }
 
 func (d *Client) Insert(ctx context.Context, args Task) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	for _, config := range args.Configs {
 		if err := d.Store.Insert(config.Name, args.ResourceTypes, args.Resources, args.Labels); err != nil {
 			log.Errorw("failed to insert resources into store",
@@ -73,6 +77,8 @@ func (d *Client) Insert(ctx context.Context, args Task) error {
 }
 
 func (d *Client) Remove(ctx context.Context, args Task) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	for _, config := range args.Configs {
 		if err := d.Delete(config.Name, args.ResourceTypes, args.Labels); err != nil {
 			log.Errorw("failed to delete resources from store",
@@ -86,10 +92,14 @@ func (d *Client) Remove(ctx context.Context, args Task) error {
 }
 
 func (d *Client) Update(ctx context.Context, args Task) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	return d.sync(ctx, args)
 }
 
 func (c *Client) Sync(ctx context.Context, cfg map[string]adctypes.Config) (map[string]types.ADCExecutionErrors, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	log.Debug("syncing all resources")
 
 	if len(cfg) == 0 {

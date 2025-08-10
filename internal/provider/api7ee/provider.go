@@ -160,7 +160,7 @@ func (d *api7eeProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 		Configs: deleteConfigs,
 	})
 
-	d.client.Insert(ctx, adcclient.Task{
+	task := adcclient.Task{
 		Name:          obj.GetName(),
 		Labels:        label.GenLabel(obj),
 		Configs:       configs,
@@ -172,9 +172,10 @@ func (d *api7eeProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 			SSLs:           result.SSL,
 			Consumers:      result.Consumers,
 		},
-	})
-	d.syncNotify()
-	return nil
+	}
+
+	d.client.Insert(ctx, task)
+	return d.client.Update(ctx, task)
 }
 
 func (d *api7eeProvider) Delete(ctx context.Context, obj client.Object) error {
@@ -220,18 +221,12 @@ func (d *api7eeProvider) Delete(ctx context.Context, obj client.Object) error {
 	})
 
 	log.Debugw("successfully deleted resources from store", zap.Any("object", obj))
-	// Full synchronization is performed on a gateway by gateway basis
-	// and it is not possible to perform scheduled synchronization
-	// on deleted gateway level resources
-	if len(resourceTypes) == 0 {
-		return d.client.Update(ctx, adcclient.Task{
-			Name:    obj.GetName(),
-			Configs: configs,
-		})
-	} else {
-		d.syncNotify()
-	}
-	return nil
+	return d.client.Update(ctx, adcclient.Task{
+		Name:          obj.GetName(),
+		Labels:        labels,
+		ResourceTypes: resourceTypes,
+		Configs:       configs,
+	})
 }
 
 func (d *api7eeProvider) Start(ctx context.Context) error {

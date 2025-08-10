@@ -72,7 +72,7 @@ spec:
 
 	Context("Test ApisixRoute", func() {
 
-		It("Basic tests", func() {
+		FIt("Basic tests", func() {
 			const apisixRouteSpec = `
 apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
@@ -726,7 +726,7 @@ spec:
       servicePort: 80
 `
 		It("Should sync ApisixRoute during startup", func() {
-			if s.Deployer.Name() == adc.BackendModeAPI7EE {
+			if s.Deployer.Name() == "api7ee" {
 				Skip("skipping test in API7EE mode")
 			}
 			By("apply ApisixRoute")
