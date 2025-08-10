@@ -72,7 +72,7 @@ spec:
 
 	Context("Test ApisixRoute", func() {
 
-		FIt("Basic tests", func() {
+		It("Basic tests", func() {
 			const apisixRouteSpec = `
 apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
