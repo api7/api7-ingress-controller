@@ -127,22 +127,28 @@ spec:
 				Check:  scaffold.WithExpectedStatus(200),
 			})
 
-			By("get yaml from service")
-			serviceYaml, err := s.GetOutputFromString("svc", framework.ProviderType, "-o", "yaml")
-			Expect(err).NotTo(HaveOccurred(), "getting service yaml")
-			By("update service to type ExternalName with invalid host")
-			var k8sservice corev1.Service
-			err = yaml.Unmarshal([]byte(serviceYaml), &k8sservice)
-			Expect(err).NotTo(HaveOccurred(), "unmarshalling service")
-			oldSpec := k8sservice.Spec
-			k8sservice.Spec = corev1.ServiceSpec{
-				Type:         corev1.ServiceTypeExternalName,
-				ExternalName: "invalid.host",
+			var oldSpec corev1.ServiceSpec
+			if framework.ProviderType == adc.BackendModeAPISIXStandalone {
+				By("get yaml from service")
+				serviceYaml, err := s.GetOutputFromString("svc", framework.ProviderType, "-o", "yaml")
+				Expect(err).NotTo(HaveOccurred(), "getting service yaml")
+				By("update service to type ExternalName with invalid host")
+				var k8sservice corev1.Service
+				err = yaml.Unmarshal([]byte(serviceYaml), &k8sservice)
+				Expect(err).NotTo(HaveOccurred(), "unmarshalling service")
+				oldSpec = k8sservice.Spec
+				k8sservice.Spec = corev1.ServiceSpec{
+					Type:         corev1.ServiceTypeExternalName,
+					ExternalName: "invalid.host",
+				}
+				newServiceYaml, err := yaml.Marshal(k8sservice)
+				Expect(err).NotTo(HaveOccurred(), "marshalling service")
+				err = s.CreateResourceFromString(string(newServiceYaml))
+				Expect(err).NotTo(HaveOccurred(), "creating service")
+			} else {
+				By("scale down dataplane")
+				s.Deployer.ScaleDataplane(0)
 			}
-			newServiceYaml, err := yaml.Marshal(k8sservice)
-			Expect(err).NotTo(HaveOccurred(), "marshalling service")
-			err = s.CreateResourceFromString(string(newServiceYaml))
-			Expect(err).NotTo(HaveOccurred(), "creating service")
 
 			By("check ApisixRoute status")
 			s.RetryAssertion(func() string {
@@ -156,16 +162,22 @@ spec:
 					),
 				)
 
-			By("update service to original spec")
-			serviceYaml, err = s.GetOutputFromString("svc", framework.ProviderType, "-o", "yaml")
-			Expect(err).NotTo(HaveOccurred(), "getting service yaml")
-			err = yaml.Unmarshal([]byte(serviceYaml), &k8sservice)
-			Expect(err).NotTo(HaveOccurred(), "unmarshalling service")
-			k8sservice.Spec = oldSpec
-			newServiceYaml, err = yaml.Marshal(k8sservice)
-			Expect(err).NotTo(HaveOccurred(), "marshalling service")
-			err = s.CreateResourceFromString(string(newServiceYaml))
-			Expect(err).NotTo(HaveOccurred(), "creating service")
+			if framework.ProviderType == adc.BackendModeAPISIXStandalone {
+				By("update service to original spec")
+				serviceYaml, err := s.GetOutputFromString("svc", framework.ProviderType, "-o", "yaml")
+				Expect(err).NotTo(HaveOccurred(), "getting service yaml")
+				var k8sservice corev1.Service
+				err = yaml.Unmarshal([]byte(serviceYaml), &k8sservice)
+				Expect(err).NotTo(HaveOccurred(), "unmarshalling service")
+				k8sservice.Spec = oldSpec
+				newServiceYaml, err := yaml.Marshal(k8sservice)
+				Expect(err).NotTo(HaveOccurred(), "marshalling service")
+				err = s.CreateResourceFromString(string(newServiceYaml))
+				Expect(err).NotTo(HaveOccurred(), "creating service")
+			} else {
+				By("scale up dataplane")
+				s.Deployer.ScaleDataplane(1)
+			}
 
 			By("check ApisixRoute status after scaling up")
 			s.RetryAssertion(func() string {
