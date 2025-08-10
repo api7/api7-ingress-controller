@@ -33,6 +33,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	intypes "github.com/apache/apisix-ingress-controller/internal/types"
+	k8sutils "github.com/apache/apisix-ingress-controller/internal/utils"
 	"github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
@@ -737,11 +738,8 @@ func IngressClassParametersRefIndexFunc(rawObj client.Object) []string {
 		ingressClass.Spec.Parameters.APIGroup != nil &&
 		*ingressClass.Spec.Parameters.APIGroup == v1alpha1.GroupVersion.Group &&
 		ingressClass.Spec.Parameters.Kind == intypes.KindGatewayProxy {
-		ns := ingressClass.GetNamespace()
-		if ingressClass.Spec.Parameters.Namespace != nil {
-			ns = *ingressClass.Spec.Parameters.Namespace
-		}
-		return []string{GenIndexKey(ns, ingressClass.Spec.Parameters.Name)}
+		namespace := k8sutils.GetIngressClassParametersNamespace(*ingressClass)
+		return []string{GenIndexKey(namespace, ingressClass.Spec.Parameters.Name)}
 	}
 	return nil
 }
@@ -753,11 +751,8 @@ func IngressClassV1beta1ParametersRefIndexFunc(rawObj client.Object) []string {
 		ingressClass.Spec.Parameters.APIGroup != nil &&
 		*ingressClass.Spec.Parameters.APIGroup == v1alpha1.GroupVersion.Group &&
 		ingressClass.Spec.Parameters.Kind == intypes.KindGatewayProxy {
-		ns := ingressClass.GetNamespace()
-		if ingressClass.Spec.Parameters.Namespace != nil {
-			ns = *ingressClass.Spec.Parameters.Namespace
-		}
-		return []string{GenIndexKey(ns, ingressClass.Spec.Parameters.Name)}
+		namespace := k8sutils.GetIngressClassV1beta1ParametersNamespace(*ingressClass)
+		return []string{GenIndexKey(namespace, ingressClass.Spec.Parameters.Name)}
 	}
 	return nil
 }

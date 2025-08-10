@@ -29,23 +29,6 @@ import (
 var _ = Describe("Test BackendTrafficPolicy base on HTTPRoute", Label("apisix.apache.org", "v1alpha1", "backendtrafficpolicy"), func() {
 	s := scaffold.NewDefaultScaffold()
 
-	var defaultGatewayProxy = `
-apiVersion: apisix.apache.org/v1alpha1
-kind: GatewayProxy
-metadata:
-  name: apisix-proxy-config
-spec:
-  provider:
-    type: ControlPlane
-    controlPlane:
-      endpoints:
-      - %s
-      auth:
-        type: AdminKey
-        adminKey:
-          value: "%s"
-`
-
 	var defaultGatewayClass = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
@@ -125,7 +108,7 @@ spec:
 `
 
 		BeforeEach(func() {
-			s.ApplyDefaultGatewayResource(defaultGatewayProxy, defaultGatewayClass, defaultGateway, defaultHTTPRoute)
+			s.ApplyDefaultGatewayResource(s.GetGatewayProxySpec(), defaultGatewayClass, defaultGateway, defaultHTTPRoute)
 		})
 		It("should rewrite upstream host", func() {
 			s.ResourceApplied("BackendTrafficPolicy", "httpbin", createUpstreamHost, 1)

@@ -25,6 +25,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
 
@@ -44,14 +45,27 @@ var _ = Describe("Test apisix.apache.org/v2 Status", Label("apisix.apache.org", 
 	Context("Test ApisixRoute Sync Status", func() {
 		BeforeEach(func() {
 			By("create GatewayProxy")
-			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
-			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
+			err := s.CreateResourceFromString(s.GetGatewayProxySpec())
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
 
 			By("create IngressClass")
-			ingressClass := fmt.Sprintf(ingressClassYaml, framework.IngressVersion)
-			err = s.CreateResourceFromStringWithNamespace(ingressClass, "")
+			const ingressClassYaml = `
+apiVersion: networking.k8s.io/%s
+kind: IngressClass
+metadata:
+  name: apisix
+  annotations:
+    apisix.apache.org/parameters-namespace: %s
+spec:
+  controller: "apisix.apache.org/apisix-ingress-controller"
+  parameters:
+    apiGroup: "apisix.apache.org"
+    kind: "GatewayProxy"
+    name: "apisix-proxy-config"
+`
+			ingressClass := fmt.Sprintf(ingressClassYaml, framework.IngressVersion, s.Namespace())
+			err = s.CreateResourceFromString(ingressClass)
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
 			time.Sleep(5 * time.Second)
 		})
@@ -156,7 +170,22 @@ spec:
 				Check:   scaffold.WithExpectedStatus(200),
 			})
 
-			s.Deployer.ScaleDataplane(0)
+			By("get yaml from service")
+			serviceYaml, err := s.GetOutputFromString("svc", framework.ProviderType, "-o", "yaml")
+			Expect(err).NotTo(HaveOccurred(), "getting service yaml")
+			By("update service to type ExternalName with invalid host")
+			var k8sservice corev1.Service
+			err = yaml.Unmarshal([]byte(serviceYaml), &k8sservice)
+			Expect(err).NotTo(HaveOccurred(), "unmarshalling service")
+			oldSpec := k8sservice.Spec
+			k8sservice.Spec = corev1.ServiceSpec{
+				Type:         corev1.ServiceTypeExternalName,
+				ExternalName: "invalid.host",
+			}
+			newServiceYaml, err := yaml.Marshal(k8sservice)
+			Expect(err).NotTo(HaveOccurred(), "marshalling service")
+			err = s.CreateResourceFromString(string(newServiceYaml))
+			Expect(err).NotTo(HaveOccurred(), "creating service")
 
 			By("check ApisixRoute status")
 			s.RetryAssertion(func() string {
@@ -170,7 +199,16 @@ spec:
 					),
 				)
 
-			s.Deployer.ScaleDataplane(1)
+			By("update service to original spec")
+			serviceYaml, err = s.GetOutputFromString("svc", framework.ProviderType, "-o", "yaml")
+			Expect(err).NotTo(HaveOccurred(), "getting service yaml")
+			err = yaml.Unmarshal([]byte(serviceYaml), &k8sservice)
+			Expect(err).NotTo(HaveOccurred(), "unmarshalling service")
+			k8sservice.Spec = oldSpec
+			newServiceYaml, err = yaml.Marshal(k8sservice)
+			Expect(err).NotTo(HaveOccurred(), "marshalling service")
+			err = s.CreateResourceFromString(string(newServiceYaml))
+			Expect(err).NotTo(HaveOccurred(), "creating service")
 
 			By("check ApisixRoute status after scaling up")
 			s.RetryAssertion(func() string {

@@ -1203,7 +1203,7 @@ func ListMatchingRequests(
 	matchFunc func(obj client.Object) bool,
 	opts ...client.ListOption,
 ) []reconcile.Request {
-	if err := c.List(ctx, listObj); err != nil {
+	if err := c.List(ctx, listObj, opts...); err != nil {
 		logger.Error(err, "failed to list resource")
 		return nil
 	}
@@ -1323,13 +1323,7 @@ func ProcessIngressClassParameters(tctx *provider.TranslateContext, c client.Cli
 	parameters := ingressClass.Spec.Parameters
 	// check if the parameters reference GatewayProxy
 	if parameters.APIGroup != nil && *parameters.APIGroup == v1alpha1.GroupVersion.Group && parameters.Kind == KindGatewayProxy {
-		ns := "default"
-		if parameters.Namespace != nil {
-			ns = *parameters.Namespace
-		}
-		if annotationNamespace, exists := ingressClass.Annotations[parametersNamespaceAnnotation]; exists && annotationNamespace != "" {
-			ns = annotationNamespace
-		}
+		ns := utils.GetIngressClassParametersNamespace(*ingressClass)
 
 		gatewayProxy := &v1alpha1.GatewayProxy{}
 		if err := c.Get(tctx, client.ObjectKey{
