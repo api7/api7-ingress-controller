@@ -18,44 +18,39 @@
 package common
 
 import (
-	"maps"
 	"sync"
-
-	"go.uber.org/zap"
-
-	"github.com/apache/apisix-ingress-controller/internal/types"
 )
 
-type ConfigManager[T any] struct {
+type ConfigManager[K comparable, T any] struct {
 	mu         sync.Mutex
-	parentRefs map[types.NamespacedNameKind][]types.NamespacedNameKind
-	configs    map[types.NamespacedNameKind]T
+	parentRefs map[K][]K
+	configs    map[K]T
 }
 
-func NewConfigManager[T any]() *ConfigManager[T] {
-	return &ConfigManager[T]{
-		parentRefs: make(map[types.NamespacedNameKind][]types.NamespacedNameKind),
-		configs:    make(map[types.NamespacedNameKind]T),
+func NewConfigManager[K comparable, T any]() *ConfigManager[K, T] {
+	return &ConfigManager[K, T]{
+		parentRefs: make(map[K][]K),
+		configs:    make(map[K]T),
 	}
 }
 
-func (s *ConfigManager[T]) GetParentRefs(rk types.NamespacedNameKind) []types.NamespacedNameKind {
+func (s *ConfigManager[K, T]) GetParentRefs(key K) []K {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.parentRefs[rk]
+	return s.parentRefs[key]
 }
 
-func (s *ConfigManager[T]) SetParentRefs(rk types.NamespacedNameKind, refs []types.NamespacedNameKind) {
+func (s *ConfigManager[K, T]) SetParentRefs(key K, refs []K) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.parentRefs[rk] = refs
+	s.parentRefs[key] = refs
 }
 
-func (s *ConfigManager[T]) Get(rk types.NamespacedNameKind) []T {
+func (s *ConfigManager[K, T]) Get(key K) []T {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	parentRefs := s.parentRefs[rk]
+	parentRefs := s.parentRefs[key]
 	configs := make([]T, 0, len(parentRefs))
 	for _, parent := range parentRefs {
 		if cfg, ok := s.configs[parent]; ok {
@@ -65,16 +60,18 @@ func (s *ConfigManager[T]) Get(rk types.NamespacedNameKind) []T {
 	return configs
 }
 
-func (s *ConfigManager[T]) List() map[types.NamespacedNameKind]T {
+func (s *ConfigManager[K, T]) List() map[K]T {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	configs := make(map[types.NamespacedNameKind]T, len(s.configs))
-	maps.Copy(configs, s.configs)
+	configs := make(map[K]T, len(s.configs))
+	for k, v := range s.configs {
+		configs[k] = v
+	}
 	return configs
 }
 
-func (s *ConfigManager[T]) UpdateConfig(cfg T, parents ...types.NamespacedNameKind) {
+func (s *ConfigManager[K, T]) UpdateConfig(cfg T, parents ...K) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, parent := range parents {
@@ -82,37 +79,28 @@ func (s *ConfigManager[T]) UpdateConfig(cfg T, parents ...types.NamespacedNameKi
 	}
 }
 
-// buildConfig is a function that builds config of type T given a NamespacedNameKind.
-func (s *ConfigManager[T]) Update(
-	rk types.NamespacedNameKind,
-	refs []types.NamespacedNameKind,
-	buildConfig func(rk types.NamespacedNameKind) (*T, error),
-) (discard []T, err error) {
+func (s *ConfigManager[K, T]) Update(
+	key K,
+	mapRefs map[K]T,
+) (discard map[K]T, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	oldParentRefs := s.parentRefs[rk]
-	s.parentRefs[rk] = refs
+	parentRefSet := make(map[K]struct{})
+	oldParentRefs := s.parentRefs[key]
+	newRefs := make([]K, 0, len(mapRefs))
 
-	parentRefSet := make(map[types.NamespacedNameKind]struct{})
-
-	for _, ref := range refs {
-		config, err := buildConfig(ref)
-		if err != nil {
-			return nil, err
-		}
-		if config == nil {
-			zap.L().Debug("no config found for gateway proxy", zap.Any("parentRef", ref))
-			continue
-		}
-		s.configs[ref] = *config
-		parentRefSet[ref] = struct{}{}
+	for k, v := range mapRefs {
+		newRefs = append(newRefs, k)
+		s.configs[k] = v
+		parentRefSet[k] = struct{}{}
 	}
-
+	s.parentRefs[key] = newRefs
+	discard = make(map[K]T)
 	for _, old := range oldParentRefs {
 		if _, stillUsed := parentRefSet[old]; !stillUsed {
 			if cfg, ok := s.configs[old]; ok {
-				discard = append(discard, cfg)
+				discard[old] = cfg
 			}
 		}
 	}
@@ -120,23 +108,23 @@ func (s *ConfigManager[T]) Update(
 	return discard, nil
 }
 
-func (s *ConfigManager[T]) Set(parent types.NamespacedNameKind, cfg T) {
+func (s *ConfigManager[K, T]) Set(key K, cfg T) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.configs[parent] = cfg
+	s.configs[key] = cfg
 }
 
-func (s *ConfigManager[T]) Delete(rk types.NamespacedNameKind) {
+func (s *ConfigManager[K, T]) Delete(key K) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.parentRefs, rk)
-	delete(s.configs, rk)
+	delete(s.parentRefs, key)
+	delete(s.configs, key)
 }
 
-func (s *ConfigManager[T]) DeleteConfig(rks ...types.NamespacedNameKind) {
+func (s *ConfigManager[K, T]) DeleteConfig(keys ...K) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, rk := range rks {
-		delete(s.configs, rk)
+	for _, key := range keys {
+		delete(s.configs, key)
 	}
 }

@@ -37,7 +37,6 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
-	"github.com/apache/apisix-ingress-controller/internal/provider/common"
 	"github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
 	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
@@ -53,11 +52,7 @@ type api7eeProvider struct {
 
 	readier readiness.ReadinessManager
 
-	syncCh chan struct{}
-
 	provider.Options
-
-	configManager *common.ConfigManager[adctypes.Config]
 
 	client *adcclient.Client
 }
@@ -75,13 +70,11 @@ func New(updater status.Updater, readier readiness.ReadinessManager, opts ...pro
 	}
 
 	return &api7eeProvider{
-		client:        cli,
-		Options:       o,
-		translator:    &translator.Translator{},
-		configManager: common.NewConfigManager[adctypes.Config](),
-		updater:       updater,
-		readier:       readier,
-		syncCh:        make(chan struct{}, 1),
+		client:     cli,
+		Options:    o,
+		translator: &translator.Translator{},
+		updater:    updater,
+		readier:    readier,
 	}, nil
 }
 
@@ -137,31 +130,20 @@ func (d *api7eeProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 		return nil
 	}
 
-	deleteConfigs, err := d.configManager.Update(rk, tctx.ResourceParentRefs[rk], func(rk types.NamespacedNameKind) (*adctypes.Config, error) {
-		gatewayProxy, ok := tctx.GatewayProxies[rk]
-		if !ok {
-			log.Debugw("no gateway proxy found for parent ref", zap.Any("parentRef", rk))
-			return nil, nil
-		}
-		config, err := d.translator.TranslateGatewayProxyToConfig(tctx, &gatewayProxy)
-		if err != nil {
-			return nil, err
-		}
-		return config, nil
-	})
+	configs, err := d.buildConfig(tctx, rk)
 	if err != nil {
 		return err
 	}
-	configs := d.configManager.Get(rk)
 
-	d.client.Remove(ctx, adcclient.Task{
-		Name:    obj.GetName(),
-		Labels:  label.GenLabel(obj),
-		Configs: deleteConfigs,
-	})
+	if len(configs) == 0 {
+		return nil
+	}
+
+	nnk := utils.NamespacedNameKind(obj)
 
 	task := adcclient.Task{
-		Name:          obj.GetName(),
+		Key:           nnk,
+		Name:          nnk.String(),
 		Labels:        label.GenLabel(obj),
 		Configs:       configs,
 		ResourceTypes: resourceTypes,
@@ -174,7 +156,6 @@ func (d *api7eeProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 		},
 	}
 
-	d.client.Insert(ctx, task)
 	return d.client.Update(ctx, task)
 }
 
@@ -208,24 +189,12 @@ func (d *api7eeProvider) Delete(ctx context.Context, obj client.Object) error {
 		labels = label.GenLabel(obj)
 	}
 
-	rk := utils.NamespacedNameKind(obj)
-
-	configs := d.configManager.Get(rk)
-	defer d.configManager.Delete(rk)
-
-	d.client.Remove(ctx, adcclient.Task{
-		Name:          obj.GetName(),
-		Labels:        labels,
-		Configs:       configs,
-		ResourceTypes: resourceTypes,
-	})
-
-	log.Debugw("successfully deleted resources from store", zap.Any("object", obj))
-	return d.client.Update(ctx, adcclient.Task{
-		Name:          obj.GetName(),
+	nnk := utils.NamespacedNameKind(obj)
+	return d.client.Delete(ctx, adcclient.Task{
+		Key:           nnk,
+		Name:          nnk.String(),
 		Labels:        labels,
 		ResourceTypes: resourceTypes,
-		Configs:       configs,
 	})
 }
 
@@ -235,7 +204,7 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 	initalSyncDelay := d.InitSyncDelay
 	if initalSyncDelay > 0 {
 		time.AfterFunc(initalSyncDelay, func() {
-			if err := d.Sync(ctx); err != nil {
+			if err := d.sync(ctx); err != nil {
 				log.Error(err)
 				return
 			}
@@ -250,42 +219,28 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 	for {
 		synced := false
 		select {
-		case <-d.syncCh:
-			synced = true
 		case <-ticker.C:
 			synced = true
 		case <-ctx.Done():
 			return nil
 		}
 		if synced {
-			if err := d.Sync(ctx); err != nil {
+			if err := d.sync(ctx); err != nil {
 				log.Error(err)
 			}
 		}
 	}
 }
 
-func (d *api7eeProvider) Sync(ctx context.Context) error {
-	configs := d.configManager.List()
-	if len(configs) == 0 {
-		return nil
-
+func (d *api7eeProvider) sync(ctx context.Context) error {
+	statusesMap, err := d.client.Sync(ctx)
+	if err != nil {
+		return err
 	}
-
-	cfg := map[string]adctypes.Config{}
-	for _, config := range configs {
-		cfg[config.Name] = config
+	if statusesMap != nil {
+		d.handleADCExecutionErrors(statusesMap)
 	}
-	statusesMap, _ := d.client.Sync(ctx, cfg)
-	d.handleADCExecutionErrors(statusesMap)
 	return nil
-}
-
-func (d *api7eeProvider) syncNotify() {
-	select {
-	case d.syncCh <- struct{}{}:
-	default:
-	}
 }
 
 func (d *api7eeProvider) handleADCExecutionErrors(statusesMap map[string]types.ADCExecutionErrors) {
@@ -307,11 +262,22 @@ func (d *api7eeProvider) updateConfigForGatewayProxy(tctx *provider.TranslateCon
 	referrers := tctx.GatewayProxyReferrers[utils.NamespacedName(gp)]
 
 	if config == nil {
-		d.configManager.DeleteConfig(referrers...)
+		d.client.ConfigManager.DeleteConfig(referrers...)
 		return nil
 	}
 
-	d.configManager.UpdateConfig(*config, referrers...)
-	d.syncNotify()
+	d.client.ConfigManager.UpdateConfig(*config, referrers...)
 	return nil
+}
+
+func (d *api7eeProvider) buildConfig(tctx *provider.TranslateContext, nnk types.NamespacedNameKind) (map[types.NamespacedNameKind]adctypes.Config, error) {
+	configs := make(map[types.NamespacedNameKind]adctypes.Config, len(tctx.ResourceParentRefs[nnk]))
+	for _, gp := range tctx.GatewayProxies {
+		config, err := d.translator.TranslateGatewayProxyToConfig(tctx, &gp)
+		if err != nil {
+			return nil, err
+		}
+		configs[utils.NamespacedNameKind(&gp)] = *config
+	}
+	return configs, nil
 }

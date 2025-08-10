@@ -110,7 +110,7 @@ func (d *apisixProvider) updateStatus(nnk types.NamespacedNameKind, condition me
 			}),
 		})
 	case types.KindHTTPRoute:
-		parentRefs := d.configManager.GetParentRefs(nnk)
+		parentRefs := d.client.ConfigManager.GetParentRefs(nnk)
 		gatewayRefs := map[types.NamespacedNameKind]struct{}{}
 		for _, parentRef := range parentRefs {
 			if parentRef.Kind == types.KindGateway {

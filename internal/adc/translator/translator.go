@@ -18,6 +18,8 @@
 package translator
 
 import (
+	"reflect"
+
 	"github.com/go-logr/logr"
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
@@ -25,7 +27,17 @@ import (
 
 type Translator struct {
 	Log logr.Logger
+
+	register map[reflect.Type]ResourceHandler
 }
+
+func NewTranslator(log logr.Logger) *Translator {
+	return &Translator{
+		Log:      log,
+		register: make(map[reflect.Type]ResourceHandler),
+	}
+}
+
 type TranslateResult struct {
 	Routes         []*adctypes.Route
 	Services       []*adctypes.Service
@@ -33,4 +45,5 @@ type TranslateResult struct {
 	GlobalRules    adctypes.GlobalRule
 	PluginMetadata adctypes.PluginMetadata
 	Consumers      []*adctypes.Consumer
+	ResourceTypes  []string
 }

@@ -38,7 +38,6 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
-	"github.com/apache/apisix-ingress-controller/internal/provider/common"
 	"github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
 	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
@@ -59,8 +58,6 @@ type apisixProvider struct {
 
 	syncCh chan struct{}
 
-	configManager *common.ConfigManager[adctypes.Config]
-
 	client *adcclient.Client
 }
 
@@ -77,13 +74,12 @@ func New(updater status.Updater, readier readiness.ReadinessManager, opts ...pro
 	}
 
 	return &apisixProvider{
-		client:        cli,
-		Options:       o,
-		translator:    &translator.Translator{},
-		updater:       updater,
-		configManager: common.NewConfigManager[adctypes.Config](),
-		readier:       readier,
-		syncCh:        make(chan struct{}, 1),
+		client:     cli,
+		Options:    o,
+		translator: &translator.Translator{},
+		updater:    updater,
+		readier:    readier,
+		syncCh:     make(chan struct{}, 1),
 	}, nil
 }
 
@@ -139,31 +135,20 @@ func (d *apisixProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 		return nil
 	}
 
-	deleteConfigs, err := d.configManager.Update(rk, tctx.ResourceParentRefs[rk], func(rk types.NamespacedNameKind) (*adctypes.Config, error) {
-		gatewayProxy, ok := tctx.GatewayProxies[rk]
-		if !ok {
-			log.Debugw("no gateway proxy found for parent ref", zap.Any("parentRef", rk))
-			return nil, nil
-		}
-		config, err := d.translator.TranslateGatewayProxyToConfig(tctx, &gatewayProxy)
-		if err != nil {
-			return nil, err
-		}
-		return config, nil
-	})
+	configs, err := d.buildConfig(tctx, rk)
 	if err != nil {
 		return err
 	}
-	configs := d.configManager.Get(rk)
 
-	d.client.Remove(ctx, adcclient.Task{
-		Name:    obj.GetName(),
-		Labels:  label.GenLabel(obj),
-		Configs: deleteConfigs,
-	})
+	if len(configs) == 0 {
+		return nil
+	}
 
-	d.client.Insert(ctx, adcclient.Task{
-		Name:          obj.GetName(),
+	defer d.syncNotify()
+
+	return d.client.UpdateConfig(ctx, adcclient.Task{
+		Key:           rk,
+		Name:          rk.String(),
 		Labels:        label.GenLabel(obj),
 		Configs:       configs,
 		ResourceTypes: resourceTypes,
@@ -175,8 +160,6 @@ func (d *apisixProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 			Consumers:      result.Consumers,
 		},
 	})
-	d.syncNotify()
-	return nil
 }
 
 func (d *apisixProvider) Delete(ctx context.Context, obj client.Object) error {
@@ -208,32 +191,38 @@ func (d *apisixProvider) Delete(ctx context.Context, obj client.Object) error {
 		resourceTypes = append(resourceTypes, "consumer")
 		labels = label.GenLabel(obj)
 	}
-
-	rk := utils.NamespacedNameKind(obj)
-
-	configs := d.configManager.Get(rk)
-	defer d.configManager.Delete(rk)
-
-	d.client.Remove(ctx, adcclient.Task{
-		Name:          obj.GetName(),
-		Labels:        labels,
-		Configs:       configs,
-		ResourceTypes: resourceTypes,
-	})
+	nnk := utils.NamespacedNameKind(obj)
 
 	log.Debugw("successfully deleted resources from store", zap.Any("object", obj))
 	// Full synchronization is performed on a gateway by gateway basis
 	// and it is not possible to perform scheduled synchronization
 	// on deleted gateway level resources
 	if len(resourceTypes) == 0 {
-		return d.client.Update(ctx, adcclient.Task{
-			Name:    obj.GetName(),
-			Configs: configs,
+		return d.client.Delete(ctx, adcclient.Task{
+			Key:    nnk,
+			Name:   nnk.String(),
+			Labels: labels,
 		})
-	} else {
-		d.syncNotify()
 	}
-	return nil
+	defer d.syncNotify()
+	return d.client.DeleteConfig(ctx, adcclient.Task{
+		Key:           nnk,
+		Name:          nnk.String(),
+		Labels:        labels,
+		ResourceTypes: resourceTypes,
+	})
+}
+
+func (d *apisixProvider) buildConfig(tctx *provider.TranslateContext, nnk types.NamespacedNameKind) (map[types.NamespacedNameKind]adctypes.Config, error) {
+	configs := make(map[types.NamespacedNameKind]adctypes.Config, len(tctx.ResourceParentRefs[nnk]))
+	for _, gp := range tctx.GatewayProxies {
+		config, err := d.translator.TranslateGatewayProxyToConfig(tctx, &gp)
+		if err != nil {
+			return nil, err
+		}
+		configs[utils.NamespacedNameKind(&gp)] = *config
+	}
+	return configs, nil
 }
 
 func (d *apisixProvider) Start(ctx context.Context) error {
@@ -242,7 +231,7 @@ func (d *apisixProvider) Start(ctx context.Context) error {
 	initalSyncDelay := d.InitSyncDelay
 	if initalSyncDelay > 0 {
 		time.AfterFunc(initalSyncDelay, func() {
-			if err := d.Sync(ctx); err != nil {
+			if err := d.sync(ctx); err != nil {
 				log.Error(err)
 				return
 			}
@@ -265,26 +254,21 @@ func (d *apisixProvider) Start(ctx context.Context) error {
 			return nil
 		}
 		if synced {
-			if err := d.Sync(ctx); err != nil {
+			if err := d.sync(ctx); err != nil {
 				log.Error(err)
 			}
 		}
 	}
 }
 
-func (d *apisixProvider) Sync(ctx context.Context) error {
-	configs := d.configManager.List()
-	if len(configs) == 0 {
-		return nil
-
+func (d *apisixProvider) sync(ctx context.Context) error {
+	statusesMap, err := d.client.Sync(ctx)
+	if err != nil {
+		return err
 	}
-
-	cfg := map[string]adctypes.Config{}
-	for _, config := range configs {
-		cfg[config.Name] = config
+	if statusesMap != nil {
+		d.handleADCExecutionErrors(statusesMap)
 	}
-	statusesMap, _ := d.client.Sync(ctx, cfg)
-	d.handleADCExecutionErrors(statusesMap)
 	return nil
 }
 
@@ -314,11 +298,11 @@ func (d *apisixProvider) updateConfigForGatewayProxy(tctx *provider.TranslateCon
 	referrers := tctx.GatewayProxyReferrers[utils.NamespacedName(gp)]
 
 	if config == nil {
-		d.configManager.DeleteConfig(referrers...)
+		d.client.ConfigManager.DeleteConfig(referrers...)
 		return nil
 	}
 
-	d.configManager.UpdateConfig(*config, referrers...)
+	d.client.ConfigManager.UpdateConfig(*config, referrers...)
 	d.syncNotify()
 	return nil
 }

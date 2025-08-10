@@ -33,6 +33,7 @@ import (
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/internal/adc/cache"
+	"github.com/apache/apisix-ingress-controller/internal/provider/common"
 	"github.com/apache/apisix-ingress-controller/internal/types"
 	pkgmetrics "github.com/apache/apisix-ingress-controller/pkg/metrics"
 )
@@ -43,20 +44,24 @@ type Client struct {
 
 	executor    ADCExecutor
 	BackendMode string
+
+	ConfigManager *common.ConfigManager[types.NamespacedNameKind, adctypes.Config]
 }
 
 func New(mode string) (*Client, error) {
 	return &Client{
-		Store:       cache.NewStore(),
-		executor:    &DefaultADCExecutor{},
-		BackendMode: mode,
+		Store:         cache.NewStore(),
+		executor:      &DefaultADCExecutor{},
+		BackendMode:   mode,
+		ConfigManager: common.NewConfigManager[types.NamespacedNameKind, adctypes.Config](),
 	}, nil
 }
 
 type Task struct {
+	Key           types.NamespacedNameKind
 	Name          string
 	Labels        map[string]string
-	Configs       []adctypes.Config
+	Configs       map[types.NamespacedNameKind]adctypes.Config
 	ResourceTypes []string
 	Resources     *adctypes.Resources
 }
@@ -80,7 +85,7 @@ func (d *Client) Remove(ctx context.Context, args Task) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	for _, config := range args.Configs {
-		if err := d.Delete(config.Name, args.ResourceTypes, args.Labels); err != nil {
+		if err := d.Store.Delete(config.Name, args.ResourceTypes, args.Labels); err != nil {
 			log.Errorw("failed to delete resources from store",
 				zap.String("name", config.Name),
 				zap.Error(err),
@@ -94,13 +99,133 @@ func (d *Client) Remove(ctx context.Context, args Task) error {
 func (d *Client) Update(ctx context.Context, args Task) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	deleteConfigs, err := d.ConfigManager.Update(args.Key, args.Configs)
+	if err != nil {
+		log.Errorw("failed to update configs", zap.Error(err))
+		return err
+	}
+
+	for _, config := range deleteConfigs {
+		if err := d.Store.Delete(config.Name, args.ResourceTypes, args.Labels); err != nil {
+			log.Errorw("failed to delete resources from store",
+				zap.String("name", config.Name),
+				zap.Error(err),
+			)
+			return err
+		}
+	}
+
+	for _, config := range args.Configs {
+		if err := d.Store.Insert(config.Name, args.ResourceTypes, args.Resources, args.Labels); err != nil {
+			log.Errorw("failed to insert resources into store",
+				zap.String("name", config.Name),
+				zap.Error(err),
+			)
+			return err
+		}
+	}
+
+	if len(deleteConfigs) > 0 {
+		err := d.sync(ctx, Task{
+			Name:          args.Name,
+			Labels:        args.Labels,
+			ResourceTypes: args.ResourceTypes,
+			Configs:       deleteConfigs,
+		})
+		if err != nil {
+			log.Warnw("failed to sync deleted configs", zap.Error(err))
+		}
+	}
 	return d.sync(ctx, args)
 }
 
-func (c *Client) Sync(ctx context.Context, cfg map[string]adctypes.Config) (map[string]types.ADCExecutionErrors, error) {
+func (d *Client) UpdateConfig(ctx context.Context, args Task) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	deleteConfigs, err := d.ConfigManager.Update(args.Key, args.Configs)
+	if err != nil {
+		log.Errorw("failed to update configs", zap.Error(err))
+
+		return err
+	}
+
+	for _, config := range deleteConfigs {
+		if err := d.Store.Delete(config.Name, args.ResourceTypes, args.Labels); err != nil {
+			log.Errorw("failed to delete resources from store",
+				zap.String("name", config.Name),
+				zap.Error(err),
+			)
+			return err
+		}
+	}
+
+	for _, config := range args.Configs {
+		if err := d.Store.Insert(config.Name, args.ResourceTypes, args.Resources, args.Labels); err != nil {
+			log.Errorw("failed to insert resources into store",
+				zap.String("name", config.Name),
+				zap.Error(err),
+			)
+			return err
+		}
+	}
+	return nil
+}
+
+func (d *Client) Delete(ctx context.Context, args Task) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	configs := d.ConfigManager.Get(args.Key)
+
+	for _, config := range configs {
+		if err := d.Store.Delete(config.Name, args.ResourceTypes, args.Labels); err != nil {
+			log.Errorw("failed to delete resources from store",
+				zap.String("name", config.Name),
+				zap.Error(err),
+			)
+			return err
+		}
+	}
+
+	return d.sync(ctx, Task{
+		Labels:        args.Labels,
+		ResourceTypes: args.ResourceTypes,
+	})
+}
+
+func (d *Client) DeleteConfig(ctx context.Context, args Task) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	for _, config := range args.Configs {
+		if err := d.Store.Delete(config.Name, args.ResourceTypes, args.Labels); err != nil {
+			log.Errorw("failed to delete resources from store",
+				zap.String("name", config.Name),
+				zap.Error(err),
+			)
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *Client) Sync(ctx context.Context) (map[string]types.ADCExecutionErrors, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	log.Debug("syncing all resources")
+
+	configs := c.ConfigManager.List()
+
+	if len(configs) == 0 {
+		log.Warn("no GatewayProxy configs provided")
+		return nil, nil
+	}
+
+	cfg := map[string]adctypes.Config{}
+	for _, config := range configs {
+		cfg[config.Name] = config
+	}
 
 	if len(cfg) == 0 {
 		log.Warn("no adc configs provided")
@@ -123,8 +248,10 @@ func (c *Client) Sync(ctx context.Context, cfg map[string]adctypes.Config) (map[
 		}
 
 		if err := c.sync(ctx, Task{
-			Name:      name + "-sync",
-			Configs:   []adctypes.Config{config},
+			Name: name + "-sync",
+			Configs: map[types.NamespacedNameKind]adctypes.Config{
+				{}: config,
+			},
 			Resources: resources,
 		}); err != nil {
 			log.Errorw("failed to sync resources", zap.String("name", name), zap.Error(err))
@@ -157,7 +284,7 @@ func (c *Client) sync(ctx context.Context, task Task) error {
 	// for global rules, we need to list all global rules and set it to the task resources
 	if slices.Contains(task.ResourceTypes, "global_rule") {
 		for _, config := range task.Configs {
-			globalRules, err := c.Store.ListGlobalRules(config.Name)
+			globalRules, err := c.ListGlobalRules(config.Name)
 			if err != nil {
 				return err
 			}
@@ -170,6 +297,9 @@ func (c *Client) sync(ctx context.Context, task Task) error {
 					}
 				}
 				globalrule = adctypes.GlobalRule(merged)
+			}
+			if task.Resources == nil {
+				task.Resources = &adctypes.Resources{}
 			}
 
 			task.Resources.GlobalRules = globalrule
