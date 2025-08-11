@@ -70,6 +70,7 @@ func (d *Client) Update(ctx context.Context, args Task) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	deleteConfigs := d.ConfigManager.Update(args.Key, args.Configs)
+	d.ConfigManager.Delete(args.Key)
 
 	for _, config := range deleteConfigs {
 		if err := d.Store.Delete(config.Name, args.ResourceTypes, args.Labels); err != nil {
@@ -109,7 +110,6 @@ func (d *Client) UpdateConfig(ctx context.Context, args Task) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	deleteConfigs := d.ConfigManager.Update(args.Key, args.Configs)
-	d.ConfigManager.Delete(args.Key)
 
 	for _, config := range deleteConfigs {
 		if err := d.Store.Delete(config.Name, args.ResourceTypes, args.Labels); err != nil {
@@ -138,6 +138,7 @@ func (d *Client) Delete(ctx context.Context, args Task) error {
 	defer d.mu.Unlock()
 
 	configs := d.ConfigManager.Get(args.Key)
+	d.ConfigManager.Delete(args.Key)
 
 	for _, config := range configs {
 		if err := d.Store.Delete(config.Name, args.ResourceTypes, args.Labels); err != nil {
@@ -160,7 +161,10 @@ func (d *Client) DeleteConfig(ctx context.Context, args Task) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	for _, config := range args.Configs {
+	configs := d.ConfigManager.Get(args.Key)
+	d.ConfigManager.Delete(args.Key)
+
+	for _, config := range configs {
 		if err := d.Store.Delete(config.Name, args.ResourceTypes, args.Labels); err != nil {
 			log.Errorw("failed to delete resources from store",
 				zap.String("name", config.Name),

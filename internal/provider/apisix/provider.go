@@ -193,7 +193,6 @@ func (d *apisixProvider) Delete(ctx context.Context, obj client.Object) error {
 	}
 	nnk := utils.NamespacedNameKind(obj)
 
-	log.Debugw("successfully deleted resources from store", zap.Any("object", obj))
 	// Full synchronization is performed on a gateway by gateway basis
 	// and it is not possible to perform scheduled synchronization
 	// on deleted gateway level resources
