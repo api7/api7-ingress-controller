@@ -107,6 +107,9 @@ spec:
 			Expect(gwyaml).To(ContainSubstring(`status: "True"`), "checking Gateway condition status")
 			Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the apisix-ingress-controller"), "checking Gateway condition message")
 		})
+		AfterEach(func() {
+			_ = s.DeleteResource("Gateway", "apisix")
+		})
 
 		FIt("dataplane unavailable", func() {
 			if os.Getenv("PROVIDER_TYPE") == adc.BackendModeAPI7EE {
