@@ -49,9 +49,11 @@ type Client struct {
 }
 
 func New(mode string) (*Client, error) {
+	log.Infow("using HTTP ADC Executor", zap.String("server_url", defaultHTTPADCExecutorAddr))
+
 	return &Client{
 		Store:         cache.NewStore(),
-		executor:      &DefaultADCExecutor{},
+		executor:      NewHTTPADCExecutor(defaultHTTPADCExecutorAddr),
 		BackendMode:   mode,
 		ConfigManager: common.NewConfigManager[types.NamespacedNameKind, adctypes.Config](),
 	}, nil

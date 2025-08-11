@@ -200,6 +200,10 @@ kind-load-dashboard-images:
 	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
 	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
 
+.PHONY: kind-load-adc-image
+kind-load-adc-image:
+	@kind load docker-image ghcr.io/api7/adc:dev --name $(KIND_NAME)
+
 .PHONY: kind-load-ingress-image
 kind-load-ingress-image:
 	@kind load docker-image $(IMG) --name $(KIND_NAME)
