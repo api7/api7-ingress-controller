@@ -69,11 +69,7 @@ type Task struct {
 func (d *Client) Update(ctx context.Context, args Task) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	deleteConfigs, err := d.ConfigManager.Update(args.Key, args.Configs)
-	if err != nil {
-		log.Errorw("failed to update configs", zap.Error(err))
-		return err
-	}
+	deleteConfigs := d.ConfigManager.Update(args.Key, args.Configs)
 
 	for _, config := range deleteConfigs {
 		if err := d.Store.Delete(config.Name, args.ResourceTypes, args.Labels); err != nil {
@@ -112,12 +108,8 @@ func (d *Client) Update(ctx context.Context, args Task) error {
 func (d *Client) UpdateConfig(ctx context.Context, args Task) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	deleteConfigs, err := d.ConfigManager.Update(args.Key, args.Configs)
-	if err != nil {
-		log.Errorw("failed to update configs", zap.Error(err))
-
-		return err
-	}
+	deleteConfigs := d.ConfigManager.Update(args.Key, args.Configs)
+	d.ConfigManager.Delete(args.Key)
 
 	for _, config := range deleteConfigs {
 		if err := d.Store.Delete(config.Name, args.ResourceTypes, args.Labels); err != nil {

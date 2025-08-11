@@ -82,7 +82,7 @@ func (s *ConfigManager[K, T]) UpdateConfig(cfg T, parents ...K) {
 func (s *ConfigManager[K, T]) Update(
 	key K,
 	mapRefs map[K]T,
-) (discard map[K]T, err error) {
+) (discard map[K]T) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -105,7 +105,7 @@ func (s *ConfigManager[K, T]) Update(
 		}
 	}
 
-	return discard, nil
+	return discard
 }
 
 func (s *ConfigManager[K, T]) Set(key K, cfg T) {
