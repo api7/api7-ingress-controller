@@ -383,6 +383,8 @@ func (e *HTTPADCExecutor) buildHTTPRequest(ctx context.Context, serverAddr, mode
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
+	log.Debugw("request body", zap.String("body", string(jsonData)))
+
 	log.Debugw("sending HTTP request to ADC Server",
 		zap.String("url", e.serverURL+"/sync"),
 		zap.String("server", serverAddr),
