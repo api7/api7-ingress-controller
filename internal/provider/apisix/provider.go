@@ -263,10 +263,7 @@ func (d *apisixProvider) Start(ctx context.Context) error {
 func (d *apisixProvider) sync(ctx context.Context) error {
 	statusesMap, err := d.client.Sync(ctx)
 	d.handleADCExecutionErrors(statusesMap)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (d *apisixProvider) syncNotify() {
@@ -277,8 +274,12 @@ func (d *apisixProvider) syncNotify() {
 }
 
 func (d *apisixProvider) handleADCExecutionErrors(statusesMap map[string]types.ADCExecutionErrors) {
+	if len(statusesMap) == 0 {
+		return
+	}
 	statusUpdateMap := d.resolveADCExecutionErrors(statusesMap)
 	d.handleStatusUpdate(statusUpdateMap)
+	log.Debugw("handled ADC execution errors", zap.Any("status_record", statusesMap), zap.Any("status_update", statusUpdateMap))
 }
 
 func (d *apisixProvider) NeedLeaderElection() bool {
@@ -297,7 +298,8 @@ func (d *apisixProvider) updateConfigForGatewayProxy(tctx *provider.TranslateCon
 		d.client.ConfigManager.DeleteConfig(nnk)
 		return nil
 	}
-
+	referrers := tctx.GatewayProxyReferrers[utils.NamespacedName(gp)]
+	d.client.ConfigManager.SetConfigRefs(nnk, referrers)
 	d.client.ConfigManager.UpdateConfig(nnk, *config)
 	d.syncNotify()
 	return nil

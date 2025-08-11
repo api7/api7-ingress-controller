@@ -191,13 +191,12 @@ spec:
 			s.RetryAssertion(func() string {
 				output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
 				return output
-			}).WithTimeout(80 * time.Second).
-				Should(
-					And(
-						ContainSubstring(`status: "False"`),
-						ContainSubstring(`reason: SyncFailed`),
-					),
-				)
+			}).Should(
+				And(
+					ContainSubstring(`status: "False"`),
+					ContainSubstring(`reason: SyncFailed`),
+				),
+			)
 
 			By("update service to original spec")
 			serviceYaml, err = s.GetOutputFromString("svc", framework.ProviderType, "-o", "yaml")
@@ -214,13 +213,12 @@ spec:
 			s.RetryAssertion(func() string {
 				output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
 				return output
-			}).WithTimeout(80 * time.Second).
-				Should(
-					And(
-						ContainSubstring(`status: "True"`),
-						ContainSubstring(`reason: Accepted`),
-					),
-				)
+			}).Should(
+				And(
+					ContainSubstring(`status: "True"`),
+					ContainSubstring(`reason: Accepted`),
+				),
+			)
 
 			By("check route in APISIX")
 			s.RequestAssert(&scaffold.RequestAssert{

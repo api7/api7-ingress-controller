@@ -22,37 +22,55 @@ import (
 )
 
 type ConfigManager[K comparable, T any] struct {
-	mu         sync.Mutex
-	parentRefs map[K][]K
-	configs    map[K]T
+	mu                 sync.Mutex
+	resourceConfigKeys map[K][]K
+	configs            map[K]T
+	configRefs         map[K][]K
 }
 
 func NewConfigManager[K comparable, T any]() *ConfigManager[K, T] {
 	return &ConfigManager[K, T]{
-		parentRefs: make(map[K][]K),
-		configs:    make(map[K]T),
+		resourceConfigKeys: make(map[K][]K),
+		configs:            make(map[K]T),
+		configRefs:         make(map[K][]K),
 	}
 }
 
-func (s *ConfigManager[K, T]) GetParentRefs(key K) []K {
+func (s *ConfigManager[K, T]) GetConfigRefs(key K) []K {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.parentRefs[key]
+	return s.configRefs[key]
 }
 
-func (s *ConfigManager[K, T]) SetParentRefs(key K, refs []K) {
+func (s *ConfigManager[K, T]) GetConfigRefsByResourceKey(key K) []K {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.parentRefs[key] = refs
+	configKeys, ok := s.resourceConfigKeys[key]
+	if !ok {
+		return nil
+	}
+	refs := make([]K, 0, len(configKeys))
+	for _, k := range configKeys {
+		if ref, ok := s.configRefs[k]; ok {
+			refs = append(refs, ref...)
+		}
+	}
+	return refs
+}
+
+func (s *ConfigManager[K, T]) SetConfigRefs(key K, refs []K) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.configRefs[key] = refs
 }
 
 func (s *ConfigManager[K, T]) Get(key K) map[K]T {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	parentRefs := s.parentRefs[key]
-	configs := make(map[K]T, len(parentRefs))
-	for _, parent := range parentRefs {
+	resourceConfigKeys := s.resourceConfigKeys[key]
+	configs := make(map[K]T, len(resourceConfigKeys))
+	for _, parent := range resourceConfigKeys {
 		if cfg, ok := s.configs[parent]; ok {
 			configs[parent] = cfg
 		}
@@ -85,7 +103,7 @@ func (s *ConfigManager[K, T]) Update(
 	defer s.mu.Unlock()
 
 	parentRefSet := make(map[K]struct{})
-	oldParentRefs := s.parentRefs[key]
+	oldParentRefs := s.resourceConfigKeys[key]
 	newRefs := make([]K, 0, len(mapRefs))
 
 	for k, v := range mapRefs {
@@ -93,7 +111,7 @@ func (s *ConfigManager[K, T]) Update(
 		s.configs[k] = v
 		parentRefSet[k] = struct{}{}
 	}
-	s.parentRefs[key] = newRefs
+	s.resourceConfigKeys[key] = newRefs
 	discard = make(map[K]T)
 	for _, old := range oldParentRefs {
 		if _, stillUsed := parentRefSet[old]; !stillUsed {
@@ -115,12 +133,14 @@ func (s *ConfigManager[K, T]) Set(key K, cfg T) {
 func (s *ConfigManager[K, T]) Delete(key K) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.parentRefs, key)
+	delete(s.resourceConfigKeys, key)
 	delete(s.configs, key)
+	delete(s.configRefs, key)
 }
 
 func (s *ConfigManager[K, T]) DeleteConfig(key K) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.parentRefs, key)
+	delete(s.configs, key)
+	delete(s.configRefs, key)
 }

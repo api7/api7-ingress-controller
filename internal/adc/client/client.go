@@ -195,11 +195,6 @@ func (c *Client) Sync(ctx context.Context) (map[string]types.ADCExecutionErrors,
 		cfg[config.Name] = config
 	}
 
-	if len(cfg) == 0 {
-		log.Warn("no adc configs provided")
-		return nil, nil
-	}
-
 	log.Debugw("syncing resources with multiple configs", zap.Any("configs", cfg))
 
 	failedMap := map[string]types.ADCExecutionErrors{}

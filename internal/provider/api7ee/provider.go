@@ -54,6 +54,8 @@ type api7eeProvider struct {
 
 	provider.Options
 
+	syncCh chan struct{}
+
 	client *adcclient.Client
 }
 
@@ -75,6 +77,7 @@ func New(updater status.Updater, readier readiness.ReadinessManager, opts ...pro
 		translator: &translator.Translator{},
 		updater:    updater,
 		readier:    readier,
+		syncCh:     make(chan struct{}, 1),
 	}, nil
 }
 
@@ -219,6 +222,8 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 	for {
 		synced := false
 		select {
+		case <-d.syncCh:
+			synced = true
 		case <-ticker.C:
 			synced = true
 		case <-ctx.Done():
@@ -232,6 +237,13 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 	}
 }
 
+func (d *api7eeProvider) syncNotify() {
+	select {
+	case d.syncCh <- struct{}{}:
+	default:
+	}
+}
+
 func (d *api7eeProvider) sync(ctx context.Context) error {
 	statusesMap, err := d.client.Sync(ctx)
 	d.handleADCExecutionErrors(statusesMap)
@@ -239,8 +251,12 @@ func (d *api7eeProvider) sync(ctx context.Context) error {
 }
 
 func (d *api7eeProvider) handleADCExecutionErrors(statusesMap map[string]types.ADCExecutionErrors) {
+	if len(statusesMap) == 0 {
+		return
+	}
 	statusUpdateMap := d.resolveADCExecutionErrors(statusesMap)
 	d.handleStatusUpdate(statusUpdateMap)
+	log.Debugw("handled ADC execution errors", zap.Any("status_record", statusesMap), zap.Any("status_update", statusUpdateMap))
 }
 
 func (d *api7eeProvider) NeedLeaderElection() bool {
@@ -259,8 +275,10 @@ func (d *api7eeProvider) updateConfigForGatewayProxy(tctx *provider.TranslateCon
 		d.client.ConfigManager.DeleteConfig(nnk)
 		return nil
 	}
-
+	referrers := tctx.GatewayProxyReferrers[utils.NamespacedName(gp)]
+	d.client.ConfigManager.SetConfigRefs(nnk, referrers)
 	d.client.ConfigManager.UpdateConfig(nnk, *config)
+	d.syncNotify()
 	return nil
 }
 

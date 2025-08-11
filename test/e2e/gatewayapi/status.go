@@ -96,7 +96,7 @@ spec:
 			time.Sleep(5 * time.Second)
 
 			By("create Gateway")
-			err = s.CreateResourceFromString(fmt.Sprintf(defaultGateway, gatewayClassName))
+			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defaultGateway, gatewayClassName), s.Namespace())
 			Expect(err).NotTo(HaveOccurred(), "creating Gateway")
 			time.Sleep(5 * time.Second)
 
@@ -105,9 +105,6 @@ spec:
 			Expect(err).NotTo(HaveOccurred(), "getting Gateway yaml")
 			Expect(gwyaml).To(ContainSubstring(`status: "True"`), "checking Gateway condition status")
 			Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the apisix-ingress-controller"), "checking Gateway condition message")
-		})
-		AfterEach(func() {
-			_ = s.DeleteResource("Gateway", "apisix")
 		})
 
 		It("dataplane unavailable", func() {
@@ -147,13 +144,12 @@ spec:
 			s.RetryAssertion(func() string {
 				output, _ := s.GetOutputFromString("httproute", "httpbin", "-o", "yaml")
 				return output
-			}).WithTimeout(80 * time.Second).
-				Should(
-					And(
-						ContainSubstring(`status: "False"`),
-						ContainSubstring(`reason: SyncFailed`),
-					),
-				)
+			}).Should(
+				And(
+					ContainSubstring(`status: "False"`),
+					ContainSubstring(`reason: SyncFailed`),
+				),
+			)
 
 			By("update service to original spec")
 			serviceYaml, err = s.GetOutputFromString("svc", framework.ProviderType, "-o", "yaml")
@@ -170,13 +166,12 @@ spec:
 			s.RetryAssertion(func() string {
 				output, _ := s.GetOutputFromString("httproute", "httpbin", "-o", "yaml")
 				return output
-			}).WithTimeout(80 * time.Second).
-				Should(
-					And(
-						ContainSubstring(`status: "True"`),
-						ContainSubstring(`reason: Accepted`),
-					),
-				)
+			}).Should(
+				And(
+					ContainSubstring(`status: "True"`),
+					ContainSubstring(`reason: Accepted`),
+				),
+			)
 
 			By("check route in APISIX")
 			s.RequestAssert(&scaffold.RequestAssert{
