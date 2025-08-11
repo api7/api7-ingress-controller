@@ -70,7 +70,6 @@ func (d *Client) Update(ctx context.Context, args Task) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	deleteConfigs := d.ConfigManager.Update(args.Key, args.Configs)
-	d.ConfigManager.Delete(args.Key)
 
 	for _, config := range deleteConfigs {
 		if err := d.Store.Delete(config.Name, args.ResourceTypes, args.Labels); err != nil {
