@@ -156,6 +156,8 @@ spec:
 					),
 				)
 
+			time.Sleep(5 * time.Second)
+
 			By("update service to original spec")
 			serviceYaml, err = s.GetOutputFromString("svc", framework.ProviderType, "-o", "yaml")
 			Expect(err).NotTo(HaveOccurred(), "getting service yaml")
