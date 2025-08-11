@@ -135,9 +135,8 @@ spec:
 			err = yaml.Unmarshal([]byte(serviceYaml), &k8sservice)
 			Expect(err).NotTo(HaveOccurred(), "unmarshalling service")
 			oldSpec := k8sservice.Spec
-			k8sservice.Spec = corev1.ServiceSpec{
-				Type:         corev1.ServiceTypeExternalName,
-				ExternalName: "invalid.host",
+			k8sservice.Spec.Selector = map[string]string{
+				"app.kubernetes.io/name": "nonexistent",
 			}
 			newServiceYaml, err := yaml.Marshal(k8sservice)
 			Expect(err).NotTo(HaveOccurred(), "marshalling service")
@@ -155,8 +154,6 @@ spec:
 						ContainSubstring(`reason: SyncFailed`),
 					),
 				)
-
-			time.Sleep(5 * time.Second)
 
 			By("update service to original spec")
 			serviceYaml, err = s.GetOutputFromString("svc", framework.ProviderType, "-o", "yaml")
