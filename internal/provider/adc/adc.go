@@ -115,13 +115,16 @@ func New(updater status.Updater, readier readiness.ReadinessManager, opts ...Opt
 	o := Options{}
 	o.ApplyOptions(opts)
 
+	executor := NewHTTPADCExecutor("http://127.0.0.1:3000")
+	log.Infow("using HTTP ADC Executor", zap.String("server_url", "http://127.0.0.1:3000"))
+
 	return &adcClient{
 		Options:    o,
 		translator: &translator.Translator{},
 		configs:    make(map[types.NamespacedNameKind]adcConfig),
 		parentRefs: make(map[types.NamespacedNameKind][]types.NamespacedNameKind),
 		store:      NewStore(),
-		executor:   &DefaultADCExecutor{},
+		executor:   executor,
 		updater:    updater,
 		readier:    readier,
 		syncCh:     make(chan struct{}, 1),
@@ -410,6 +413,10 @@ func (d *adcClient) Sync(ctx context.Context) error {
 
 func (d *adcClient) sync(ctx context.Context, task Task) error {
 	log.Debugw("syncing resources", zap.Any("task", task))
+	if len(task.Labels) > 0 {
+		// only keep the id label for filtering resources
+		task.Labels = map[string]string{label.LabelResourceKey: task.Labels[label.LabelResourceKey]}
+	}
 
 	if len(task.configs) == 0 {
 		log.Warnw("no adc configs provided", zap.Any("task", task))
