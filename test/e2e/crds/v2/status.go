@@ -156,9 +156,9 @@ spec:
 			})
 		})
 
-		It("dataplane unavailable", func() {
-			if os.Getenv("PROVIDER_TYPE") != adc.BackendModeAPISIXStandalone {
-				Skip("only for apisix standalone mode")
+		FIt("dataplane unavailable", func() {
+			if os.Getenv("PROVIDER_TYPE") == adc.BackendModeAPI7EE {
+				Skip("skip for api7ee mode because it use dashboard admin api")
 			}
 			By("apply ApisixRoute")
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apiv2.ApisixRoute{}, ar)
