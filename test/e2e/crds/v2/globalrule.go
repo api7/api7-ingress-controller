@@ -82,7 +82,7 @@ spec:
 				Should(Equal(http.StatusOK))
 		})
 
-		FIt("Test GlobalRule with response-rewrite plugin", func() {
+		It("Test GlobalRule with response-rewrite plugin", func() {
 			globalRuleYaml := `
 apiVersion: apisix.apache.org/v2
 kind: ApisixGlobalRule
