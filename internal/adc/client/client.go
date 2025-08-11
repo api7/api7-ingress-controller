@@ -66,36 +66,6 @@ type Task struct {
 	Resources     *adctypes.Resources
 }
 
-func (d *Client) Insert(ctx context.Context, args Task) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	for _, config := range args.Configs {
-		if err := d.Store.Insert(config.Name, args.ResourceTypes, args.Resources, args.Labels); err != nil {
-			log.Errorw("failed to insert resources into store",
-				zap.String("name", config.Name),
-				zap.Error(err),
-			)
-			return err
-		}
-	}
-	return nil
-}
-
-func (d *Client) Remove(ctx context.Context, args Task) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	for _, config := range args.Configs {
-		if err := d.Store.Delete(config.Name, args.ResourceTypes, args.Labels); err != nil {
-			log.Errorw("failed to delete resources from store",
-				zap.String("name", config.Name),
-				zap.Error(err),
-			)
-			return err
-		}
-	}
-	return nil
-}
-
 func (d *Client) Update(ctx context.Context, args Task) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -190,6 +160,7 @@ func (d *Client) Delete(ctx context.Context, args Task) error {
 	return d.sync(ctx, Task{
 		Labels:        args.Labels,
 		ResourceTypes: args.ResourceTypes,
+		Configs:       configs,
 	})
 }
 

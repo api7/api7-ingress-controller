@@ -111,7 +111,7 @@ spec:
 		})
 
 		It("dataplane unavailable", func() {
-			if os.Getenv("PROVIDER_TYPE") == "api7ee" {
+			if os.Getenv("PROVIDER_TYPE") == framework.BackendModeAPI7EE {
 				Skip("skip for api7ee mode because it use dashboard admin api")
 			}
 			By("Create HTTPRoute")

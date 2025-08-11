@@ -35,3 +35,8 @@ const (
 	DashboardTLSEndpoint = "https://api7ee3-dashboard.api7-ee-e2e:7443"
 	DPManagerTLSEndpoint = "https://api7ee3-dp-manager.api7-ee-e2e:7943"
 )
+
+const (
+	ProviderAPISIX    = "apisix"
+	BackendModeAPI7EE = "api7ee"
+)

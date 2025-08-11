@@ -239,7 +239,7 @@ spec:
 		})
 
 		It("Test ApisixRoute filterFunc", func() {
-			if s.Deployer.Name() == "api7ee" {
+			if s.Deployer.Name() == framework.BackendModeAPI7EE {
 				Skip("filterFunc is not supported in api7ee")
 			}
 			const apisixRouteSpec = `
@@ -726,7 +726,7 @@ spec:
       servicePort: 80
 `
 		It("Should sync ApisixRoute during startup", func() {
-			if s.Deployer.Name() == "api7ee" {
+			if s.Deployer.Name() == framework.BackendModeAPI7EE {
 				Skip("skipping test in API7EE mode")
 			}
 			By("apply ApisixRoute")

@@ -46,15 +46,15 @@ func (s *ConfigManager[K, T]) SetParentRefs(key K, refs []K) {
 	s.parentRefs[key] = refs
 }
 
-func (s *ConfigManager[K, T]) Get(key K) []T {
+func (s *ConfigManager[K, T]) Get(key K) map[K]T {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	parentRefs := s.parentRefs[key]
-	configs := make([]T, 0, len(parentRefs))
+	configs := make(map[K]T, len(parentRefs))
 	for _, parent := range parentRefs {
 		if cfg, ok := s.configs[parent]; ok {
-			configs = append(configs, cfg)
+			configs[parent] = cfg
 		}
 	}
 	return configs
