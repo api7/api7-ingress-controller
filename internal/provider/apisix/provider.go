@@ -263,7 +263,10 @@ func (d *apisixProvider) Start(ctx context.Context) error {
 func (d *apisixProvider) sync(ctx context.Context) error {
 	statusesMap, err := d.client.Sync(ctx)
 	d.handleADCExecutionErrors(statusesMap)
-	return err
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (d *apisixProvider) syncNotify() {
@@ -289,14 +292,13 @@ func (d *apisixProvider) updateConfigForGatewayProxy(tctx *provider.TranslateCon
 		return err
 	}
 
-	referrers := tctx.GatewayProxyReferrers[utils.NamespacedName(gp)]
-
+	nnk := utils.NamespacedNameKind(gp)
 	if config == nil {
-		d.client.ConfigManager.DeleteConfig(referrers...)
+		d.client.ConfigManager.DeleteConfig(nnk)
 		return nil
 	}
 
-	d.client.ConfigManager.UpdateConfig(*config, referrers...)
+	d.client.ConfigManager.UpdateConfig(nnk, *config)
 	d.syncNotify()
 	return nil
 }

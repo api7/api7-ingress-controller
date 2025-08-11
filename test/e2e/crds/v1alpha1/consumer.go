@@ -19,6 +19,7 @@ package v1alpha1
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -600,7 +601,7 @@ spec:
 		})
 
 		It("Should sync Consumer during startup", func() {
-			if s.Deployer.Name() == framework.ProviderTypeAPI7EE {
+			if os.Getenv("PROVIDER_TYPE") == framework.ProviderTypeAPI7EE {
 				Skip("skipping test in API7EE mode")
 			}
 			Expect(s.CreateResourceFromString(consumer2)).NotTo(HaveOccurred(), "creating unused consumer")

@@ -71,12 +71,10 @@ func (s *ConfigManager[K, T]) List() map[K]T {
 	return configs
 }
 
-func (s *ConfigManager[K, T]) UpdateConfig(cfg T, parents ...K) {
+func (s *ConfigManager[K, T]) UpdateConfig(key K, cfg T) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, parent := range parents {
-		s.configs[parent] = cfg
-	}
+	s.configs[key] = cfg
 }
 
 func (s *ConfigManager[K, T]) Update(
@@ -121,10 +119,8 @@ func (s *ConfigManager[K, T]) Delete(key K) {
 	delete(s.configs, key)
 }
 
-func (s *ConfigManager[K, T]) DeleteConfig(keys ...K) {
+func (s *ConfigManager[K, T]) DeleteConfig(key K) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, key := range keys {
-		delete(s.configs, key)
-	}
+	delete(s.parentRefs, key)
 }

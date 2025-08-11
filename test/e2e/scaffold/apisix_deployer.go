@@ -109,6 +109,8 @@ func (s *APISIXDeployer) BeforeEach() {
 	e.Wait()
 }
 
+var skip = true
+
 func (s *APISIXDeployer) AfterEach() {
 	if CurrentSpecReport().Failed() {
 		if os.Getenv("TEST_ENV") == "CI" {
@@ -121,6 +123,9 @@ func (s *APISIXDeployer) AfterEach() {
 		if output != "" {
 			_, _ = fmt.Fprintln(GinkgoWriter, output)
 		}
+	}
+	if skip {
+		return
 	}
 
 	// Delete all additional gateways

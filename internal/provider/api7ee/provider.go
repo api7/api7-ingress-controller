@@ -254,14 +254,13 @@ func (d *api7eeProvider) updateConfigForGatewayProxy(tctx *provider.TranslateCon
 		return err
 	}
 
-	referrers := tctx.GatewayProxyReferrers[utils.NamespacedName(gp)]
-
+	nnk := utils.NamespacedNameKind(gp)
 	if config == nil {
-		d.client.ConfigManager.DeleteConfig(referrers...)
+		d.client.ConfigManager.DeleteConfig(nnk)
 		return nil
 	}
 
-	d.client.ConfigManager.UpdateConfig(*config, referrers...)
+	d.client.ConfigManager.UpdateConfig(nnk, *config)
 	return nil
 }
 

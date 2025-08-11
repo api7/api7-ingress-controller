@@ -160,7 +160,7 @@ spec:
 	})
 
 	Context("Test GatewayProxy update configs", func() {
-		FIt("scaling apisix pods to test that the controller watches endpoints", func() {
+		It("scaling apisix pods to test that the controller watches endpoints", func() {
 			if s.Deployer.Name() == framework.ProviderTypeAPI7EE {
 				Skip("this case only for apisix/apisix-standalone mode")
 			}
