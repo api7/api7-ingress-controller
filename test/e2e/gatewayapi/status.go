@@ -107,9 +107,6 @@ spec:
 			Expect(gwyaml).To(ContainSubstring(`status: "True"`), "checking Gateway condition status")
 			Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the apisix-ingress-controller"), "checking Gateway condition message")
 		})
-		AfterEach(func() {
-			_ = s.DeleteResource("Gateway", "apisix")
-		})
 
 		FIt("dataplane unavailable", func() {
 			if os.Getenv("PROVIDER_TYPE") == adc.BackendModeAPI7EE {
@@ -135,8 +132,13 @@ spec:
 			err = yaml.Unmarshal([]byte(serviceYaml), &k8sservice)
 			Expect(err).NotTo(HaveOccurred(), "unmarshalling service")
 			oldSpec := k8sservice.Spec
-			k8sservice.Spec.Selector = map[string]string{
-				"app.kubernetes.io/name": "nonexistent",
+			if os.Getenv("PROVIDER_TYPE") == adc.BackendModeAPISIX {
+				k8sservice.Spec.Selector = map[string]string{
+					"app.kubernetes.io/name": "nonexistent",
+				}
+			} else {
+				k8sservice.Spec.Type = corev1.ServiceTypeExternalName
+				k8sservice.Spec.ExternalName = "invalid.host"
 			}
 			newServiceYaml, err := yaml.Marshal(k8sservice)
 			Expect(err).NotTo(HaveOccurred(), "marshalling service")

@@ -179,8 +179,13 @@ spec:
 			err = yaml.Unmarshal([]byte(serviceYaml), &k8sservice)
 			Expect(err).NotTo(HaveOccurred(), "unmarshalling service")
 			oldSpec := k8sservice.Spec
-			k8sservice.Spec.Selector = map[string]string{
-				"app.kubernetes.io/name": "nonexistent",
+			if os.Getenv("PROVIDER_TYPE") == adc.BackendModeAPISIX {
+				k8sservice.Spec.Selector = map[string]string{
+					"app.kubernetes.io/name": "nonexistent",
+				}
+			} else {
+				k8sservice.Spec.Type = corev1.ServiceTypeExternalName
+				k8sservice.Spec.ExternalName = "invalid.host"
 			}
 			newServiceYaml, err := yaml.Marshal(k8sservice)
 			Expect(err).NotTo(HaveOccurred(), "marshalling service")
