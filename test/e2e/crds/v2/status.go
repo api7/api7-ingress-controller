@@ -155,8 +155,8 @@ spec:
 			})
 		})
 
-		It("dataplane unavailable", func() {
-			if os.Getenv("PROVIDER_TYPE") == framework.BackendModeAPI7EE {
+		FIt("dataplane unavailable", func() {
+			if os.Getenv("PROVIDER_TYPE") != framework.ProviderTypeAPISIXStandalone {
 				Skip("skip for api7ee mode because it use dashboard admin api")
 			}
 			By("apply ApisixRoute")

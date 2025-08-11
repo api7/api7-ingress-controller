@@ -37,6 +37,5 @@ const (
 )
 
 const (
-	ProviderAPISIX    = "apisix"
-	BackendModeAPI7EE = "api7ee"
+	ProviderTypeAPI7EE = "api7ee"
 )

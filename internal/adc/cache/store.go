@@ -194,7 +194,6 @@ func (s *Store) Delete(name string, resourceTypes []string, Labels map[string]st
 			if err != nil {
 				log.Errorw("failed to list global rules", zap.Error(err))
 			}
-			log.Infow("deleting global rules", zap.Any("globalRules", globalRules))
 			for _, globalRule := range globalRules {
 				if err := targetCache.DeleteGlobalRule(globalRule); err != nil {
 					log.Errorw("failed to delete global rule", zap.Error(err), zap.String("global rule", globalRule.ID))

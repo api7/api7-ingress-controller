@@ -309,7 +309,7 @@ spec:
           value: "%s"
 `
 
-	if s.Deployer.Name() == framework.BackendModeAPI7EE {
+	if s.Deployer.Name() == framework.ProviderTypeAPI7EE {
 		return fmt.Sprintf(gatewayProxyYamlAPI7, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 	}
 	return fmt.Sprintf(gatewayProxyYaml, framework.ProviderType, s.AdminKey())

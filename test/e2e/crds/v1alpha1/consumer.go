@@ -600,7 +600,7 @@ spec:
 		})
 
 		It("Should sync Consumer during startup", func() {
-			if s.Deployer.Name() == framework.BackendModeAPI7EE {
+			if s.Deployer.Name() == framework.ProviderTypeAPI7EE {
 				Skip("skipping test in API7EE mode")
 			}
 			Expect(s.CreateResourceFromString(consumer2)).NotTo(HaveOccurred(), "creating unused consumer")
