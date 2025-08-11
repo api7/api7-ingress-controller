@@ -251,9 +251,6 @@ func (d *api7eeProvider) sync(ctx context.Context) error {
 }
 
 func (d *api7eeProvider) handleADCExecutionErrors(statusesMap map[string]types.ADCExecutionErrors) {
-	if len(statusesMap) == 0 {
-		return
-	}
 	statusUpdateMap := d.resolveADCExecutionErrors(statusesMap)
 	d.handleStatusUpdate(statusUpdateMap)
 	log.Debugw("handled ADC execution errors", zap.Any("status_record", statusesMap), zap.Any("status_update", statusUpdateMap))
