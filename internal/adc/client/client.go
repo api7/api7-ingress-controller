@@ -82,7 +82,7 @@ func (d *Client) Update(ctx context.Context, args Task) error {
 	}
 
 	for _, config := range args.Configs {
-		if err := d.Store.Insert(config.Name, args.ResourceTypes, args.Resources, args.Labels); err != nil {
+		if err := d.Insert(config.Name, args.ResourceTypes, args.Resources, args.Labels); err != nil {
 			log.Errorw("failed to insert resources into store",
 				zap.String("name", config.Name),
 				zap.Error(err),
@@ -121,7 +121,7 @@ func (d *Client) UpdateConfig(ctx context.Context, args Task) error {
 	}
 
 	for _, config := range args.Configs {
-		if err := d.Store.Insert(config.Name, args.ResourceTypes, args.Resources, args.Labels); err != nil {
+		if err := d.Insert(config.Name, args.ResourceTypes, args.Resources, args.Labels); err != nil {
 			log.Errorw("failed to insert resources into store",
 				zap.String("name", config.Name),
 				zap.Error(err),

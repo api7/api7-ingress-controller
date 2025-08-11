@@ -262,13 +262,8 @@ func (d *apisixProvider) Start(ctx context.Context) error {
 
 func (d *apisixProvider) sync(ctx context.Context) error {
 	statusesMap, err := d.client.Sync(ctx)
-	if err != nil {
-		return err
-	}
-	if statusesMap != nil {
-		d.handleADCExecutionErrors(statusesMap)
-	}
-	return nil
+	d.handleADCExecutionErrors(statusesMap)
+	return err
 }
 
 func (d *apisixProvider) syncNotify() {

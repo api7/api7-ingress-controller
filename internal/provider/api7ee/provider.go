@@ -234,13 +234,8 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 
 func (d *api7eeProvider) sync(ctx context.Context) error {
 	statusesMap, err := d.client.Sync(ctx)
-	if err != nil {
-		return err
-	}
-	if statusesMap != nil {
-		d.handleADCExecutionErrors(statusesMap)
-	}
-	return nil
+	d.handleADCExecutionErrors(statusesMap)
+	return err
 }
 
 func (d *api7eeProvider) handleADCExecutionErrors(statusesMap map[string]types.ADCExecutionErrors) {
