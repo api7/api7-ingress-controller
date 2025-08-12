@@ -88,6 +88,15 @@ jobs:
         run: |
           echo "building images..."
           make build-image
+        
+      - name: Extract adc binary
+        run: |
+          echo "Extracting adc binary..."
+          docker create --name adc-temp api7/api7-ingress-controller:dev
+          docker cp adc-temp:/bin/adc /usr/local/bin/adc
+          docker rm adc-temp
+          chmod +x /usr/local/bin/adc
+          echo "ADC binary extracted to /usr/local/bin/adc"
 
       - name: Install v2 CRDs
         run: |
