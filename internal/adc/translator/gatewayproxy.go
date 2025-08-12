@@ -36,7 +36,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
-func (t *Translator) TranslateGatewayProxyToConfig(tctx *provider.TranslateContext, gatewayProxy *v1alpha1.GatewayProxy) (*types.Config, error) {
+func (t *Translator) TranslateGatewayProxyToConfig(tctx *provider.TranslateContext, gatewayProxy *v1alpha1.GatewayProxy, mode string) (*types.Config, error) {
 	if gatewayProxy == nil || gatewayProxy.Spec.Provider == nil {
 		return nil, nil
 	}
@@ -94,28 +94,34 @@ func (t *Translator) TranslateGatewayProxyToConfig(tctx *provider.TranslateConte
 
 		// APISIXStandalone, configurations need to be sent to each data plane instance;
 		// In other cases, the service is directly accessed as the adc backend server address.
-		endpoint := tctx.EndpointSlices[namespacedName]
-		if endpoint == nil {
-			return nil, nil
-		}
-		upstreamNodes, err := t.TranslateBackendRefWithFilter(tctx, gatewayv1.BackendRef{
-			BackendObjectReference: gatewayv1.BackendObjectReference{
-				Name:      gatewayv1.ObjectName(provider.ControlPlane.Service.Name),
-				Namespace: (*gatewayv1.Namespace)(&gatewayProxy.Namespace),
-				Port:      ptr.To(gatewayv1.PortNumber(provider.ControlPlane.Service.Port)),
-			},
-		}, func(endpoint *discoveryv1.Endpoint) bool {
-			if endpoint.Conditions.Terminating != nil && *endpoint.Conditions.Terminating {
-				log.Debugw("skip terminating endpoint", zap.Any("endpoint", endpoint))
-				return false
+		if mode == "endpoints" {
+			endpoint := tctx.EndpointSlices[namespacedName]
+			if endpoint == nil {
+				return nil, nil
 			}
-			return true
-		})
-		if err != nil {
-			return nil, err
-		}
-		for _, node := range upstreamNodes {
-			config.ServerAddrs = append(config.ServerAddrs, "http://"+net.JoinHostPort(node.Host, strconv.Itoa(node.Port)))
+			upstreamNodes, err := t.TranslateBackendRefWithFilter(tctx, gatewayv1.BackendRef{
+				BackendObjectReference: gatewayv1.BackendObjectReference{
+					Name:      gatewayv1.ObjectName(provider.ControlPlane.Service.Name),
+					Namespace: (*gatewayv1.Namespace)(&gatewayProxy.Namespace),
+					Port:      ptr.To(gatewayv1.PortNumber(provider.ControlPlane.Service.Port)),
+				},
+			}, func(endpoint *discoveryv1.Endpoint) bool {
+				if endpoint.Conditions.Terminating != nil && *endpoint.Conditions.Terminating {
+					log.Debugw("skip terminating endpoint", zap.Any("endpoint", endpoint))
+					return false
+				}
+				return true
+			})
+			if err != nil {
+				return nil, err
+			}
+			for _, node := range upstreamNodes {
+				config.ServerAddrs = append(config.ServerAddrs, "http://"+net.JoinHostPort(node.Host, strconv.Itoa(node.Port)))
+			}
+		} else {
+			config.ServerAddrs = []string{
+				fmt.Sprintf("http://%s.%s:%d", provider.ControlPlane.Service.Name, gatewayProxy.Namespace, provider.ControlPlane.Service.Port),
+			}
 		}
 
 		log.Debugw("add server address to config.ServiceAddrs", zap.Strings("config.ServerAddrs", config.ServerAddrs))
