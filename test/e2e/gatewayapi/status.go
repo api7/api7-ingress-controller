@@ -127,6 +127,7 @@ spec:
 				Check:  scaffold.WithExpectedStatus(200),
 			})
 
+			time.Sleep(60 * time.Second)
 			By("get yaml from service")
 			serviceYaml, err := s.GetOutputFromString("svc", framework.ProviderType, "-o", "yaml")
 			Expect(err).NotTo(HaveOccurred(), "getting service yaml")
@@ -162,6 +163,7 @@ spec:
 					),
 				)
 
+			time.Sleep(60 * time.Second)
 			By("update service to original spec")
 			serviceYaml, err = s.GetOutputFromString("svc", framework.ProviderType, "-o", "yaml")
 			Expect(err).NotTo(HaveOccurred(), "getting service yaml")
