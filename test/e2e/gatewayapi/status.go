@@ -36,6 +36,8 @@ var _ = Describe("Test Gateway API Status", Label("networking.k8s.io", "httprout
 	var (
 		s = scaffold.NewScaffold(&scaffold.Options{
 			ControllerName: "apisix.apache.org/apisix-ingress-controller",
+			// for triggering the sync
+			SyncPeriod: 3 * time.Second,
 		})
 	)
 	Context("Test HTTPRoute Sync Status", func() {
@@ -155,8 +157,6 @@ spec:
 						ContainSubstring(`reason: SyncFailed`),
 					),
 				)
-
-			time.Sleep(60 * time.Second)
 
 			By("update service to original spec")
 			serviceYaml, err = s.GetOutputFromString("svc", framework.ProviderType, "-o", "yaml")
