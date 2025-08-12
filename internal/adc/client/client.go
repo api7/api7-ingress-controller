@@ -48,12 +48,16 @@ type Client struct {
 	ConfigManager *common.ConfigManager[types.NamespacedNameKind, adctypes.Config]
 }
 
-func New(mode string) (*Client, error) {
-	log.Infow("using HTTP ADC Executor", zap.String("server_url", defaultHTTPADCExecutorAddr))
+func New(mode string, timeout time.Duration) (*Client, error) {
+	serverURL := os.Getenv("ADC_SERVER_URL")
+	if serverURL == "" {
+		serverURL = defaultHTTPADCExecutorAddr
+	}
 
+	log.Infow("using HTTP ADC Executor", zap.String("server_url", serverURL))
 	return &Client{
 		Store:         cache.NewStore(),
-		executor:      NewHTTPADCExecutor(defaultHTTPADCExecutorAddr),
+		executor:      NewHTTPADCExecutor(serverURL, timeout),
 		BackendMode:   mode,
 		ConfigManager: common.NewConfigManager[types.NamespacedNameKind, adctypes.Config](),
 	}, nil

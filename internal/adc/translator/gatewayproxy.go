@@ -120,11 +120,12 @@ func (t *Translator) TranslateGatewayProxyToConfig(tctx *provider.TranslateConte
 				config.ServerAddrs = append(config.ServerAddrs, "http://"+net.JoinHostPort(node.Host, strconv.Itoa(node.Port)))
 			}
 		} else {
+			refPort := provider.ControlPlane.Service.Port
 			var serverAddr string
 			if svc.Spec.Type == corev1.ServiceTypeExternalName {
-				serverAddr = fmt.Sprintf("http://%s:%d", svc.Spec.ExternalName, provider.ControlPlane.Service.Port)
+				serverAddr = fmt.Sprintf("http://%s:%d", svc.Spec.ExternalName, refPort)
 			} else {
-				serverAddr = fmt.Sprintf("http://%s.%s.svc:%d", provider.ControlPlane.Service.Name, gatewayProxy.Namespace, provider.ControlPlane.Service.Port)
+				serverAddr = fmt.Sprintf("http://%s.%s.svc:%d", provider.ControlPlane.Service.Name, gatewayProxy.Namespace, refPort)
 			}
 			config.ServerAddrs = []string{serverAddr}
 		}

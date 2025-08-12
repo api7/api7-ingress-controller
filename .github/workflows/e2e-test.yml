@@ -124,5 +124,6 @@ jobs:
         env:
           API7_EE_LICENSE: ${{ secrets.API7_EE_LICENSE }}
           PROVIDER_TYPE: api7ee
+          TEST_ENV: CI
         run: |
           make e2e-test

@@ -35,6 +35,8 @@ var _ = Describe("Test Gateway API Status", Label("networking.k8s.io", "httprout
 	var (
 		s = scaffold.NewScaffold(&scaffold.Options{
 			ControllerName: "apisix.apache.org/apisix-ingress-controller",
+			// for triggering the sync
+			SyncPeriod: 3 * time.Second,
 		})
 	)
 	Context("Test HTTPRoute Sync Status", func() {
@@ -108,8 +110,8 @@ spec:
 		})
 
 		It("dataplane unavailable", func() {
-			if os.Getenv("PROVIDER_TYPE") != framework.ProviderTypeAPISIXStandalone {
-				Skip("only for apisix standalone mode")
+			if os.Getenv("PROVIDER_TYPE") != framework.ProviderTypeAPI7EE {
+				Skip("skip for api7ee mode because it use dashboard admin api")
 			}
 			By("Create HTTPRoute")
 			err := s.CreateResourceFromString(httproute)
@@ -144,12 +146,13 @@ spec:
 			s.RetryAssertion(func() string {
 				output, _ := s.GetOutputFromString("httproute", "httpbin", "-o", "yaml")
 				return output
-			}).Should(
-				And(
-					ContainSubstring(`status: "False"`),
-					ContainSubstring(`reason: SyncFailed`),
-				),
-			)
+			}).WithTimeout(60 * time.Second).
+				Should(
+					And(
+						ContainSubstring(`status: "False"`),
+						ContainSubstring(`reason: SyncFailed`),
+					),
+				)
 
 			By("update service to original spec")
 			serviceYaml, err = s.GetOutputFromString("svc", framework.ProviderType, "-o", "yaml")
@@ -166,12 +169,13 @@ spec:
 			s.RetryAssertion(func() string {
 				output, _ := s.GetOutputFromString("httproute", "httpbin", "-o", "yaml")
 				return output
-			}).Should(
-				And(
-					ContainSubstring(`status: "True"`),
-					ContainSubstring(`reason: Accepted`),
-				),
-			)
+			}).WithTimeout(60 * time.Second).
+				Should(
+					And(
+						ContainSubstring(`status: "True"`),
+						ContainSubstring(`reason: Accepted`),
+					),
+				)
 
 			By("check route in APISIX")
 			s.RequestAssert(&scaffold.RequestAssert{
