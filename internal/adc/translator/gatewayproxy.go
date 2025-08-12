@@ -25,6 +25,7 @@ import (
 	"github.com/api7/gopkg/pkg/log"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
@@ -36,7 +37,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
-func (t *Translator) TranslateGatewayProxyToConfig(tctx *provider.TranslateContext, gatewayProxy *v1alpha1.GatewayProxy, mode string) (*types.Config, error) {
+func (t *Translator) TranslateGatewayProxyToConfig(tctx *provider.TranslateContext, gatewayProxy *v1alpha1.GatewayProxy, resolveEndpoints bool) (*types.Config, error) {
 	if gatewayProxy == nil || gatewayProxy.Spec.Provider == nil {
 		return nil, nil
 	}
@@ -87,14 +88,14 @@ func (t *Translator) TranslateGatewayProxyToConfig(tctx *provider.TranslateConte
 			Namespace: gatewayProxy.Namespace,
 			Name:      provider.ControlPlane.Service.Name,
 		}
-		_, ok := tctx.Services[namespacedName]
+		svc, ok := tctx.Services[namespacedName]
 		if !ok {
 			return nil, fmt.Errorf("no service found for service reference: %s", namespacedName)
 		}
 
 		// APISIXStandalone, configurations need to be sent to each data plane instance;
 		// In other cases, the service is directly accessed as the adc backend server address.
-		if mode == "endpoints" {
+		if resolveEndpoints {
 			endpoint := tctx.EndpointSlices[namespacedName]
 			if endpoint == nil {
 				return nil, nil
@@ -119,9 +120,13 @@ func (t *Translator) TranslateGatewayProxyToConfig(tctx *provider.TranslateConte
 				config.ServerAddrs = append(config.ServerAddrs, "http://"+net.JoinHostPort(node.Host, strconv.Itoa(node.Port)))
 			}
 		} else {
-			config.ServerAddrs = []string{
-				fmt.Sprintf("http://%s.%s:%d", provider.ControlPlane.Service.Name, gatewayProxy.Namespace, provider.ControlPlane.Service.Port),
+			var serverAddr string
+			if svc.Spec.Type == corev1.ServiceTypeExternalName {
+				serverAddr = fmt.Sprintf("http://%s:%d", svc.Spec.ExternalName, provider.ControlPlane.Service.Port)
+			} else {
+				serverAddr = fmt.Sprintf("http://%s.%s.svc:%d", provider.ControlPlane.Service.Name, gatewayProxy.Namespace, provider.ControlPlane.Service.Port)
 			}
+			config.ServerAddrs = []string{serverAddr}
 		}
 
 		log.Debugw("add server address to config.ServiceAddrs", zap.Strings("config.ServerAddrs", config.ServerAddrs))
