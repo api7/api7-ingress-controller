@@ -262,7 +262,7 @@ func (d *api7eeProvider) NeedLeaderElection() bool {
 
 // updateConfigForGatewayProxy update config for all referrers of the GatewayProxy
 func (d *api7eeProvider) updateConfigForGatewayProxy(tctx *provider.TranslateContext, gp *v1alpha1.GatewayProxy) error {
-	config, err := d.translator.TranslateGatewayProxyToConfig(tctx, gp, "")
+	config, err := d.translator.TranslateGatewayProxyToConfig(tctx, gp, d.ResolveEndpoints)
 	if err != nil {
 		return err
 	}
@@ -282,7 +282,7 @@ func (d *api7eeProvider) updateConfigForGatewayProxy(tctx *provider.TranslateCon
 func (d *api7eeProvider) buildConfig(tctx *provider.TranslateContext, nnk types.NamespacedNameKind) (map[types.NamespacedNameKind]adctypes.Config, error) {
 	configs := make(map[types.NamespacedNameKind]adctypes.Config, len(tctx.ResourceParentRefs[nnk]))
 	for _, gp := range tctx.GatewayProxies {
-		config, err := d.translator.TranslateGatewayProxyToConfig(tctx, &gp, "")
+		config, err := d.translator.TranslateGatewayProxyToConfig(tctx, &gp, d.ResolveEndpoints)
 		if err != nil {
 			return nil, err
 		}

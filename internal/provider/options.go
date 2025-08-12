@@ -24,10 +24,11 @@ type Option interface {
 }
 
 type Options struct {
-	SyncTimeout   time.Duration
-	SyncPeriod    time.Duration
-	InitSyncDelay time.Duration
-	BackendMode   string
+	SyncTimeout      time.Duration
+	SyncPeriod       time.Duration
+	InitSyncDelay    time.Duration
+	BackendMode      string
+	ResolveEndpoints bool
 }
 
 func (o *Options) ApplyToList(lo *Options) {
@@ -42,6 +43,9 @@ func (o *Options) ApplyToList(lo *Options) {
 	}
 	if o.BackendMode != "" {
 		lo.BackendMode = o.BackendMode
+	}
+	if o.ResolveEndpoints {
+		lo.ResolveEndpoints = o.ResolveEndpoints
 	}
 }
 
@@ -60,4 +64,14 @@ func (b backendModeOption) ApplyToList(o *Options) {
 
 func WithBackendMode(mode string) Option {
 	return backendModeOption(mode)
+}
+
+type resolveEndpointsOption bool
+
+func (r resolveEndpointsOption) ApplyToList(o *Options) {
+	o.ResolveEndpoints = bool(r)
+}
+
+func WithResolveEndpoints() Option {
+	return resolveEndpointsOption(true)
 }

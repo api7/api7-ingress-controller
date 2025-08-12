@@ -29,6 +29,7 @@ func init() {
 	provider.Register("apisix", apisix.New)
 	provider.Register("apisix-standalone", func(statusUpdater status.Updater, readinessManager readiness.ReadinessManager, opts ...provider.Option) (provider.Provider, error) {
 		opts = append(opts, provider.WithBackendMode("apisix-standalone"))
+		opts = append(opts, provider.WithResolveEndpoints())
 		return apisix.New(statusUpdater, readinessManager, opts...)
 	})
 	provider.Register("api7ee", api7ee.New)

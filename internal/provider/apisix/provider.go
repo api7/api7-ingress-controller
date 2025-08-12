@@ -43,8 +43,7 @@ import (
 	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
-const ProviderType = "apisix"
-const ProviderTypeAPISIXStandalone = "apisix-standalone"
+const ProviderTypeAPISIX = "apisix"
 
 type apisixProvider struct {
 	provider.Options
@@ -66,7 +65,7 @@ func New(updater status.Updater, readier readiness.ReadinessManager, opts ...pro
 	o := provider.Options{}
 	o.ApplyOptions(opts)
 	if o.BackendMode == "" {
-		o.BackendMode = ProviderType
+		o.BackendMode = ProviderTypeAPISIX
 	}
 
 	cli, err := adcclient.New(o.BackendMode)
@@ -215,12 +214,8 @@ func (d *apisixProvider) Delete(ctx context.Context, obj client.Object) error {
 
 func (d *apisixProvider) buildConfig(tctx *provider.TranslateContext, nnk types.NamespacedNameKind) (map[types.NamespacedNameKind]adctypes.Config, error) {
 	configs := make(map[types.NamespacedNameKind]adctypes.Config, len(tctx.ResourceParentRefs[nnk]))
-	var mode string
-	if d.BackendMode == ProviderTypeAPISIXStandalone {
-		mode = "endpoints"
-	}
 	for _, gp := range tctx.GatewayProxies {
-		config, err := d.translator.TranslateGatewayProxyToConfig(tctx, &gp, mode)
+		config, err := d.translator.TranslateGatewayProxyToConfig(tctx, &gp, d.ResolveEndpoints)
 		if err != nil {
 			return nil, err
 		}
@@ -290,11 +285,7 @@ func (d *apisixProvider) NeedLeaderElection() bool {
 
 // updateConfigForGatewayProxy update config for all referrers of the GatewayProxy
 func (d *apisixProvider) updateConfigForGatewayProxy(tctx *provider.TranslateContext, gp *v1alpha1.GatewayProxy) error {
-	var mode string
-	if d.BackendMode == ProviderTypeAPISIXStandalone {
-		mode = "endpoints"
-	}
-	config, err := d.translator.TranslateGatewayProxyToConfig(tctx, gp, mode)
+	config, err := d.translator.TranslateGatewayProxyToConfig(tctx, gp, d.ResolveEndpoints)
 	if err != nil {
 		return err
 	}
