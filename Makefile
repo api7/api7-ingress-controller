@@ -492,3 +492,7 @@ release-src:
 	mv $(RELEASE_SRC).tgz release/$(RELEASE_SRC).tgz
 	mv $(RELEASE_SRC).tgz.asc release/$(RELEASE_SRC).tgz.asc
 	mv $(RELEASE_SRC).tgz.sha512 release/$(RELEASE_SRC).tgz.sha512
+
+.PHONY: load-test
+load-test:
+	go test -v ./test/e2e/load-test -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v

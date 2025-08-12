@@ -37,7 +37,7 @@ import (
 	pkgmetrics "github.com/apache/apisix-ingress-controller/pkg/metrics"
 )
 
-const UpdateChannelBufferSize = 1000
+const UpdateChannelBufferSize = 5000
 
 type Update struct {
 	NamespacedName k8stypes.NamespacedName

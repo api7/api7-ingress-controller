@@ -356,9 +356,13 @@ func (d *adcClient) Start(ctx context.Context) error {
 			return nil
 		}
 		if synced {
+			start := time.Now()
+			log.Infof("adcClient start sync, %v", start)
 			if err := d.Sync(ctx); err != nil {
 				log.Error(err)
 			}
+			duration := time.Since(start)
+			log.Infof("adcClient sync duration: %v, now: %v", duration, time.Now())
 		}
 	}
 }

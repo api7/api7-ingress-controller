@@ -20,6 +20,7 @@ package scaffold
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -28,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gavv/httpexpect/v2"
+	"github.com/go-errors/errors"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/testing"
 	. "github.com/onsi/ginkgo/v2" //nolint:staticcheck
@@ -457,4 +459,35 @@ func (s *Scaffold) GetMetricsEndpoint() string {
 	}
 	s.addFinalizers(tunnel.Close)
 	return fmt.Sprintf("http://%s/metrics", tunnel.Endpoint())
+}
+
+func (s *Scaffold) ControlAPIClient() (ControlAPIClient, error) {
+	tunnel := k8s.NewTunnel(s.kubectlOptions, k8s.ResourceTypeService, "apisix-control-api", 9090, 9090)
+	if err := tunnel.ForwardPortE(s.t); err != nil {
+		return nil, err
+	}
+	s.addFinalizers(tunnel.Close)
+
+	return &controlAPI{
+		client: NewClient("http", tunnel.Endpoint()),
+	}, nil
+}
+
+type ControlAPIClient interface {
+	ListServices() ([]any, int64, error)
+}
+
+type controlAPI struct {
+	client *httpexpect.Expect
+}
+
+func (c *controlAPI) ListServices() (result []any, total int64, err error) {
+	resp := c.client.Request(http.MethodGet, "/v1/services").Expect()
+	if resp.Raw().StatusCode != http.StatusOK {
+		return nil, 0, fmt.Errorf("unexpected status code: %v, message: %s", resp.Raw().StatusCode, resp.Body().Raw())
+	}
+	if err = json.Unmarshal([]byte(resp.Body().Raw()), &result); err != nil {
+		return nil, 0, errors.Wrap(err, "failed to unmarshal response body")
+	}
+	return result, int64(len(result)), err
 }
