@@ -1567,9 +1567,6 @@ func resolveServiceEndpoints(
 			return fmt.Errorf("failed to list endpoint slices: %v", err)
 		}
 
-		for _, ep := range endpoints.Items {
-			log.Debugw("gatewayproxy endpoint", zap.String("service", serviceNN.String()), zap.Any("endpoint", ep.Endpoints))
-		}
 		if len(subsetLabels) == 0 {
 			tctx.EndpointSlices[serviceNN] = endpoints.Items
 		} else {

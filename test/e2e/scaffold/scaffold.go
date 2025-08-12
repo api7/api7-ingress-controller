@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gavv/httpexpect/v2"
 	"github.com/gruntwork-io/terratest/modules/k8s"
@@ -46,6 +47,7 @@ type Options struct {
 	Kubeconfig        string
 	APISIXAdminAPIKey string
 	ControllerName    string
+	SyncPeriod        time.Duration
 
 	NamespaceSelectorLabel map[string][]string
 	DisableNamespaceLabel  bool
