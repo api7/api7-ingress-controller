@@ -226,12 +226,13 @@ func (c *Client) Sync(ctx context.Context) (map[string]types.ADCExecutionErrors,
 		}
 	}
 
+	var err error
 	if len(failedConfigs) > 0 {
-		return failedMap, fmt.Errorf("failed to sync %d configs: %s",
+		err = fmt.Errorf("failed to sync %d configs: %s",
 			len(failedConfigs),
 			strings.Join(failedConfigs, ", "))
 	}
-	return failedMap, nil
+	return failedMap, err
 }
 
 func (c *Client) sync(ctx context.Context, task Task) error {

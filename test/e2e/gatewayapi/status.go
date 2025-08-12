@@ -109,7 +109,7 @@ spec:
 
 		It("dataplane unavailable", func() {
 			if os.Getenv("PROVIDER_TYPE") != framework.ProviderTypeAPISIXStandalone {
-				Skip("skip for api7ee mode because it use dashboard admin api")
+				Skip("only for apisix standalone mode")
 			}
 			By("Create HTTPRoute")
 			err := s.CreateResourceFromString(httproute)

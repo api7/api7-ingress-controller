@@ -42,7 +42,7 @@ import (
 	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
-const ProviderType = "api7ee"
+const ProviderTypeAPI7EE = "api7ee"
 
 type api7eeProvider struct {
 	translator *translator.Translator
@@ -63,7 +63,7 @@ func New(updater status.Updater, readier readiness.ReadinessManager, opts ...pro
 	o := provider.Options{}
 	o.ApplyOptions(opts)
 	if o.BackendMode == "" {
-		o.BackendMode = ProviderType
+		o.BackendMode = ProviderTypeAPI7EE
 	}
 
 	cli, err := adcclient.New(o.BackendMode)

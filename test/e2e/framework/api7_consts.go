@@ -18,7 +18,9 @@
 package framework
 
 import (
+	"cmp"
 	_ "embed"
+	"os"
 )
 
 const (
@@ -38,4 +40,8 @@ const (
 
 const (
 	ProviderTypeAPI7EE = "api7ee"
+)
+
+var (
+	IngressVersion = cmp.Or(os.Getenv("INGRESS_VERSION"), "v1")
 )
