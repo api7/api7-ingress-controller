@@ -293,6 +293,7 @@ func (e *HTTPADCExecutor) runHTTPSyncForSingleServer(ctx context.Context, server
 		return fmt.Errorf("failed to build HTTP request: %w", err)
 	}
 
+	time.Sleep(5 * time.Second)
 	// Send HTTP request
 	resp, err := e.httpClient.Do(req)
 	if err != nil {

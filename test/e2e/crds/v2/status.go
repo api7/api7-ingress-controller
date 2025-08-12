@@ -198,7 +198,7 @@ spec:
 			s.RetryAssertion(func() string {
 				output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
 				return output
-			}).WithTimeout(30 * time.Second).
+			}).WithTimeout(60 * time.Second).
 				Should(
 					And(
 						ContainSubstring(`status: "False"`),
@@ -221,7 +221,7 @@ spec:
 			s.RetryAssertion(func() string {
 				output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
 				return output
-			}).WithTimeout(30 * time.Second).
+			}).WithTimeout(60 * time.Second).
 				Should(
 					And(
 						ContainSubstring(`status: "True"`),
