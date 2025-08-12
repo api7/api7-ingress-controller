@@ -158,7 +158,7 @@ spec:
 			})
 		})
 
-		FIt("dataplane unavailable", func() {
+		It("dataplane unavailable", func() {
 			if os.Getenv("PROVIDER_TYPE") == adc.BackendModeAPI7EE {
 				Skip("skip for api7ee mode because it use dashboard admin api")
 			}
