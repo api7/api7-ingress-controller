@@ -68,7 +68,7 @@ func New(updater status.Updater, readier readiness.ReadinessManager, opts ...pro
 		o.BackendMode = ProviderTypeAPISIX
 	}
 
-	cli, err := adcclient.New(o.BackendMode)
+	cli, err := adcclient.New(o.BackendMode, o.SyncTimeout)
 	if err != nil {
 		return nil, err
 	}
