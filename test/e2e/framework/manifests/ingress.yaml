@@ -334,7 +334,7 @@ data:
     log_level: "debug"
     controller_name: {{ .ControllerName | default "apisix.apache.org/apisix-ingress-controller" }}
     leader_election_id: "apisix-ingress-controller-leader"
-    exec_adc_timeout: 20s
+    exec_adc_timeout: 30s
     provider:
       type: {{ .ProviderType | default "apisix-standalone" }}
       sync_period: {{ .ProviderSyncPeriod | default "0s" }}
