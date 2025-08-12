@@ -39,6 +39,8 @@ var _ = Describe("Test apisix.apache.org/v2 Status", Label("apisix.apache.org", 
 	var (
 		s = scaffold.NewScaffold(&scaffold.Options{
 			ControllerName: "apisix.apache.org/apisix-ingress-controller",
+			// for triggering the sync
+			SyncPeriod: 3 * time.Second,
 		})
 		applier = framework.NewApplier(s.GinkgoT, s.K8sClient, s.CreateResourceFromString)
 	)
@@ -66,7 +68,7 @@ spec:
     name: "apisix-proxy-config"
 `
 			ingressClass := fmt.Sprintf(ingressClassYaml, framework.IngressVersion, s.Namespace())
-			err = s.CreateResourceFromString(ingressClass)
+			err = s.CreateResourceFromStringWithNamespace(ingressClass, "")
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
 			time.Sleep(5 * time.Second)
 		})
@@ -157,8 +159,8 @@ spec:
 		})
 
 		It("dataplane unavailable", func() {
-			if os.Getenv("PROVIDER_TYPE") != adc.BackendModeAPISIXStandalone {
-				Skip("only for apisix standalone mode")
+			if os.Getenv("PROVIDER_TYPE") == adc.BackendModeAPI7EE {
+				Skip("skip for api7ee mode because it use dashboard admin api")
 			}
 			By("apply ApisixRoute")
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apiv2.ApisixRoute{}, ar)
@@ -192,7 +194,7 @@ spec:
 			s.RetryAssertion(func() string {
 				output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
 				return output
-			}).WithTimeout(80 * time.Second).
+			}).WithTimeout(60 * time.Second).
 				Should(
 					And(
 						ContainSubstring(`status: "False"`),
@@ -215,7 +217,7 @@ spec:
 			s.RetryAssertion(func() string {
 				output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
 				return output
-			}).WithTimeout(80 * time.Second).
+			}).WithTimeout(60 * time.Second).
 				Should(
 					And(
 						ContainSubstring(`status: "True"`),

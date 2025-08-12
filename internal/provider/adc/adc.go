@@ -115,8 +115,12 @@ func New(updater status.Updater, readier readiness.ReadinessManager, opts ...Opt
 	o := Options{}
 	o.ApplyOptions(opts)
 
-	executor := NewHTTPADCExecutor("http://127.0.0.1:3000")
-	log.Infow("using HTTP ADC Executor", zap.String("server_url", "http://127.0.0.1:3000"))
+	serverURL := os.Getenv("ADC_SERVER_URL")
+	if serverURL == "" {
+		serverURL = "http://127.0.0.1:3000"
+	}
+	executor := NewHTTPADCExecutor(serverURL, o.SyncTimeout)
+	log.Infow("using HTTP ADC Executor", zap.String("server_url", serverURL))
 
 	return &adcClient{
 		Options:    o,

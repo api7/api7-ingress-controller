@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gavv/httpexpect/v2"
 	"github.com/gruntwork-io/terratest/modules/k8s"
@@ -46,6 +47,7 @@ type Options struct {
 	Kubeconfig        string
 	APISIXAdminAPIKey string
 	ControllerName    string
+	SyncPeriod        time.Duration
 
 	NamespaceSelectorLabel map[string][]string
 	DisableNamespaceLabel  bool
@@ -220,16 +222,23 @@ func (s *Scaffold) GetDeploymentLogs(name string) string {
 	var buf strings.Builder
 	for _, pod := range pods.Items {
 		buf.WriteString(fmt.Sprintf("=== pod: %s ===\n", pod.Name))
-		logs, err := cli.CoreV1().RESTClient().Get().
-			Resource("pods").
-			Namespace(s.namespace).
-			Name(pod.Name).SubResource("log").
-			Do(context.TODO()).
-			Raw()
-		if err == nil {
-			buf.Write(logs)
+		for _, c := range pod.Spec.Containers {
+			buf.WriteString(fmt.Sprintf("--- container: %s ---\n", c.Name))
+			logs, err := cli.CoreV1().RESTClient().Get().
+				Resource("pods").
+				Namespace(s.namespace).
+				Name(pod.Name).
+				SubResource("log").
+				Param("container", c.Name).
+				Do(context.TODO()).
+				Raw()
+			if err == nil {
+				buf.Write(logs)
+			} else {
+				buf.WriteString(fmt.Sprintf("Error getting logs: %v\n", err))
+			}
+			buf.WriteByte('\n')
 		}
-		buf.WriteByte('\n')
 	}
 	return buf.String()
 }

@@ -36,6 +36,8 @@ var _ = Describe("Test Gateway API Status", Label("networking.k8s.io", "httprout
 	var (
 		s = scaffold.NewScaffold(&scaffold.Options{
 			ControllerName: "apisix.apache.org/apisix-ingress-controller",
+			// for triggering the sync
+			SyncPeriod: 3 * time.Second,
 		})
 	)
 	Context("Test HTTPRoute Sync Status", func() {
@@ -112,8 +114,8 @@ spec:
 		})
 
 		It("dataplane unavailable", func() {
-			if os.Getenv("PROVIDER_TYPE") != adc.BackendModeAPISIXStandalone {
-				Skip("only for apisix standalone mode")
+			if os.Getenv("PROVIDER_TYPE") == adc.BackendModeAPI7EE {
+				Skip("skip for api7ee mode because it use dashboard admin api")
 			}
 			By("Create HTTPRoute")
 			err := s.CreateResourceFromString(httproute)
@@ -148,7 +150,7 @@ spec:
 			s.RetryAssertion(func() string {
 				output, _ := s.GetOutputFromString("httproute", "httpbin", "-o", "yaml")
 				return output
-			}).WithTimeout(80 * time.Second).
+			}).WithTimeout(60 * time.Second).
 				Should(
 					And(
 						ContainSubstring(`status: "False"`),
@@ -171,7 +173,7 @@ spec:
 			s.RetryAssertion(func() string {
 				output, _ := s.GetOutputFromString("httproute", "httpbin", "-o", "yaml")
 				return output
-			}).WithTimeout(80 * time.Second).
+			}).WithTimeout(60 * time.Second).
 				Should(
 					And(
 						ContainSubstring(`status: "True"`),

@@ -227,10 +227,10 @@ type HTTPADCExecutor struct {
 }
 
 // NewHTTPADCExecutor creates a new HTTPADCExecutor with the specified ADC Server URL
-func NewHTTPADCExecutor(serverURL string) *HTTPADCExecutor {
+func NewHTTPADCExecutor(serverURL string, timeout time.Duration) *HTTPADCExecutor {
 	return &HTTPADCExecutor{
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: timeout,
 		},
 		serverURL: serverURL,
 	}
@@ -272,7 +272,7 @@ func (e *HTTPADCExecutor) runHTTPSync(ctx context.Context, mode string, config a
 
 // runHTTPSyncForSingleServer performs HTTP sync to a single ADC Server
 func (e *HTTPADCExecutor) runHTTPSyncForSingleServer(ctx context.Context, serverAddr, mode string, config adcConfig, args []string) error {
-	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, e.httpClient.Timeout)
 	defer cancel()
 
 	// Parse args to extract labels, types, and file path
@@ -382,6 +382,8 @@ func (e *HTTPADCExecutor) buildHTTPRequest(ctx context.Context, serverAddr, mode
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
+
+	log.Debugw("request body", zap.String("body", string(jsonData)))
 
 	log.Debugw("sending HTTP request to ADC Server",
 		zap.String("url", e.serverURL+"/sync"),

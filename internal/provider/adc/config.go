@@ -26,6 +26,7 @@ import (
 
 	"github.com/api7/gopkg/pkg/log"
 	"go.uber.org/zap"
+	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
@@ -120,8 +121,24 @@ func (d *adcClient) getConfigsForGatewayProxy(tctx *provider.TranslateContext, g
 				config.ServerAddrs = append(config.ServerAddrs, "http://"+net.JoinHostPort(node.Host, strconv.Itoa(node.Port)))
 			}
 		} else {
-			config.ServerAddrs = []string{
-				fmt.Sprintf("http://%s.%s:%d", provider.ControlPlane.Service.Name, gatewayProxy.Namespace, provider.ControlPlane.Service.Port),
+			key := k8stypes.NamespacedName{
+				Namespace: gatewayProxy.Namespace,
+				Name:      provider.ControlPlane.Service.Name,
+			}
+			service, ok := tctx.Services[key]
+			if !ok {
+				return nil, fmt.Errorf("service %s not found", key)
+			}
+			refPort := provider.ControlPlane.Service.Port
+			// if the service is external name, we should use the external name as the server address
+			if service.Spec.Type == corev1.ServiceTypeExternalName {
+				config.ServerAddrs = []string{
+					fmt.Sprintf("http://%s:%d", service.Spec.ExternalName, refPort),
+				}
+			} else {
+				config.ServerAddrs = []string{
+					fmt.Sprintf("http://%s.%s:%d", key.Name, key.Namespace, refPort),
+				}
 			}
 		}
 
