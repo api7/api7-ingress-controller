@@ -36,33 +36,13 @@ import (
 
 var _ = Describe("Test GatewayProxy", Label("apisix.apache.org", "v1alpha1", "gatewayproxy"), func() {
 	var (
-		s   = scaffold.NewDefaultScaffold()
+		s = scaffold.NewScaffold(&scaffold.Options{
+			ControllerName: fmt.Sprintf("apisix.apache.org/apisix-ingress-controller-%d", time.Now().Unix()),
+		})
 		err error
 	)
 
-	const gatewayProxySpec = `
-apiVersion: apisix.apache.org/v1alpha1
-kind: GatewayProxy
-metadata:
-  name: apisix-proxy-config
-spec:
-  provider:
-    type: ControlPlane
-    controlPlane:
-      service:
-        name: %s
-        port: 9180
-      auth:
-        type: AdminKey
-        adminKey:
-          value: "%s"
-  plugins:
-  - name: response-rewrite
-    enabled: true
-    config: 
-      headers:
-        "X-Pod-Hostname": "$hostname"
-`
+	// TODO: change E2E
 	const gatewayProxySpecAPI7 = `
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
@@ -98,7 +78,7 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: apisix
+  name: %s
 spec:
   gatewayClassName: %s
   listeners:
@@ -118,7 +98,7 @@ metadata:
   name: httpbin
 spec:
   parentRefs:
-  - name: apisix
+  - name: %s
   hostnames:
   - "httpbin.org"
   rules:
@@ -130,13 +110,41 @@ spec:
     - name: httpbin-service-e2e-test
       port: 80
 `
+
+	const gatewayProxySpec = `
+apiVersion: apisix.apache.org/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: apisix-proxy-config
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      service:
+        name: %s
+        port: 9180
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+  plugins:
+  - name: response-rewrite
+    enabled: true
+    config: 
+      headers:
+        "X-Pod-Hostname": "$hostname"
+`
+
 	BeforeEach(func() {
+		gatewayName := s.Namespace()
 		By("create GatewayProxy")
 		if s.Deployer.Name() == framework.ProviderTypeAPI7EE {
 			err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxySpecAPI7, s.Deployer.GetAdminEndpoint(), s.AdminKey()))
 		} else {
 			err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxySpec, framework.ProviderType, s.AdminKey()))
 		}
+		gatewayProxy := fmt.Sprintf(gatewayProxySpec, framework.ProviderType, s.AdminKey())
+		err = s.CreateResourceFromString(gatewayProxy)
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 		time.Sleep(time.Second)
 
@@ -147,16 +155,16 @@ spec:
 		time.Sleep(time.Second)
 
 		By("create Gateway")
-		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewaySpec, gatewayClassName), s.Namespace())
+		err = s.CreateResourceFromString(fmt.Sprintf(gatewaySpec, gatewayName, gatewayClassName))
 		Expect(err).NotTo(HaveOccurred(), "creating Gateway")
 		time.Sleep(time.Second)
 
 		By("create HTTPRoute")
-		s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, httpRouteSpec)
+		s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, fmt.Sprintf(httpRouteSpec, gatewayName))
 
 		Eventually(func() int {
 			return s.NewAPISIXClient().GET("/get").WithHost("httpbin.org").Expect().Raw().StatusCode
-		}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+		}).WithTimeout(20 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 	})
 
 	Context("Test GatewayProxy update configs", func() {

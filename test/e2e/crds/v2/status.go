@@ -37,7 +37,7 @@ import (
 var _ = Describe("Test apisix.apache.org/v2 Status", Label("apisix.apache.org", "v2", "apisixroute"), func() {
 	var (
 		s = scaffold.NewScaffold(&scaffold.Options{
-			ControllerName: "apisix.apache.org/apisix-ingress-controller",
+			ControllerName: fmt.Sprintf("apisix.apache.org/apisix-ingress-controller-%d", time.Now().Unix()),
 			// for triggering the sync
 			SyncPeriod: 3 * time.Second,
 		})
@@ -47,11 +47,13 @@ var _ = Describe("Test apisix.apache.org/v2 Status", Label("apisix.apache.org", 
 	Context("Test ApisixRoute Sync Status", func() {
 		BeforeEach(func() {
 			By("create GatewayProxy")
-			err := s.CreateResourceFromString(s.GetGatewayProxySpec())
+			gatewayProxy := s.GetGatewayProxyYaml()
+			err := s.CreateResourceFromString(gatewayProxy)
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
 
 			By("create IngressClass")
+			err = s.CreateResourceFromString(s.GetIngressClassYaml())
 			const ingressClassYaml = `
 apiVersion: networking.k8s.io/%s
 kind: IngressClass
@@ -76,8 +78,9 @@ apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
 metadata:
   name: default
+  namespace: %s
 spec:
-  ingressClassName: apisix
+  ingressClassName: %s
   http:
   - name: rule0
     match:
@@ -94,8 +97,9 @@ apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
 metadata:
   name: default
+  namespace: %s
 spec:
-  ingressClassName: apisix
+  ingressClassName: %s
   http:
   - name: rule0
     match:
@@ -134,13 +138,13 @@ spec:
 				Skip("apisix standalone does not validate unknown plugins")
 			}
 			By("apply ApisixRoute with valid plugin")
-			err := s.CreateResourceFromString(arWithInvalidPlugin)
+			err := s.CreateResourceFromString(fmt.Sprintf(arWithInvalidPlugin, s.Namespace(), s.Namespace()))
 			Expect(err).NotTo(HaveOccurred(), "creating ApisixRoute with valid plugin")
 
 			By("check ApisixRoute status")
 			if os.Getenv("PROVIDER_TYPE") == "apisix" {
 				s.RetryAssertion(func() string {
-					output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
+					output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml", "-n", s.Namespace())
 					log.Printf("output: %s", output)
 					return output
 				}).Should(
@@ -152,7 +156,7 @@ spec:
 				)
 			} else {
 				s.RetryAssertion(func() string {
-					output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
+					output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml", "-n", s.Namespace())
 					log.Printf("output: %s", output)
 					return output
 				}).Should(
@@ -165,7 +169,7 @@ spec:
 			}
 
 			By("Update ApisixRoute")
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apiv2.ApisixRoute{}, ar)
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apiv2.ApisixRoute{}, fmt.Sprintf(ar, s.Namespace(), s.Namespace()))
 
 			By("check route in APISIX")
 			s.RequestAssert(&scaffold.RequestAssert{
@@ -181,7 +185,7 @@ spec:
 				Skip("skip for api7ee mode because it use dashboard admin api")
 			}
 			By("apply ApisixRoute")
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apiv2.ApisixRoute{}, ar)
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apiv2.ApisixRoute{}, fmt.Sprintf(ar, s.Namespace(), s.Namespace()))
 
 			By("check route in APISIX")
 			s.RequestAssert(&scaffold.RequestAssert{
@@ -210,7 +214,7 @@ spec:
 
 			By("check ApisixRoute status")
 			s.RetryAssertion(func() string {
-				output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
+				output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml", "-n", s.Namespace())
 				return output
 			}).WithTimeout(60 * time.Second).
 				Should(
@@ -233,7 +237,7 @@ spec:
 
 			By("check ApisixRoute status after scaling up")
 			s.RetryAssertion(func() string {
-				output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
+				output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml", "-n", s.Namespace())
 				return output
 			}).WithTimeout(60 * time.Second).
 				Should(
@@ -254,9 +258,9 @@ spec:
 
 		It("update the same status only once", func() {
 			By("apply ApisixRoute")
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apiv2.ApisixRoute{}, ar)
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apiv2.ApisixRoute{}, fmt.Sprintf(ar, s.Namespace(), s.Namespace()))
 
-			output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
+			output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml", "-n", s.Namespace())
 
 			var route apiv2.ApisixRoute
 			err := yaml.Unmarshal([]byte(output), &route)
@@ -267,7 +271,7 @@ spec:
 			s.Deployer.ScaleIngress(0)
 			s.Deployer.ScaleIngress(1)
 
-			output, _ = s.GetOutputFromString("ar", "default", "-o", "yaml")
+			output, _ = s.GetOutputFromString("ar", "default", "-o", "yaml", "-n", s.Namespace())
 
 			var route2 apiv2.ApisixRoute
 			err = yaml.Unmarshal([]byte(output), &route2)
@@ -293,6 +297,133 @@ spec:
 				)
 				time.Sleep(1 * time.Second)
 			}
+		})
+	})
+
+	Context("Test HTTPRoute Sync Status", func() {
+		const httproute = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+  namespace: %s
+spec:
+  parentRefs:
+  - name: %s
+  hostnames:
+  - "httpbin"
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /get
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
+		const gatewayClass = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: %s
+spec:
+  controllerName: %s
+`
+
+		const defaultGateway = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  gatewayClassName: %s
+  listeners:
+    - name: http1
+      protocol: HTTP
+      port: 80
+  infrastructure:
+    parametersRef:
+      group: apisix.apache.org
+      kind: GatewayProxy
+      name: %s
+`
+		BeforeEach(func() {
+			By("create GatewayProxy")
+			gatewayProxy := s.GetGatewayProxyYaml()
+			err := s.CreateResourceFromString(gatewayProxy)
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+			time.Sleep(5 * time.Second)
+
+			By("create GatewayClass")
+			gatewayClassName := fmt.Sprintf("apisix-%d", time.Now().Unix())
+			err = s.CreateResourceFromString(fmt.Sprintf(gatewayClass, gatewayClassName, s.GetControllerName()))
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
+			time.Sleep(5 * time.Second)
+
+			By("create Gateway")
+			err = s.CreateResourceFromString(fmt.Sprintf(defaultGateway, s.Namespace(), s.Namespace(), gatewayClassName, s.Namespace()))
+			Expect(err).NotTo(HaveOccurred(), "creating Gateway")
+			time.Sleep(5 * time.Second)
+
+			By("check Gateway condition")
+			gwyaml, err := s.GetResourceYaml("Gateway", s.Namespace())
+			Expect(err).NotTo(HaveOccurred(), "getting Gateway yaml")
+			Expect(gwyaml).To(ContainSubstring(`status: "True"`), "checking Gateway condition status")
+			Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the apisix-ingress-controller"), "checking Gateway condition message")
+		})
+		AfterEach(func() {
+			_ = s.DeleteResource("Gateway", s.Namespace())
+		})
+
+		It("dataplane unavailable", func() {
+			By("Create HTTPRoute")
+			err := s.CreateResourceFromString(fmt.Sprintf(httproute, s.Namespace(), s.Namespace()))
+			Expect(err).NotTo(HaveOccurred(), "creating HTTPRoute")
+
+			By("check route in APISIX")
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/get",
+				Host:   "httpbin",
+				Check:  scaffold.WithExpectedStatus(200),
+			})
+			time.Sleep(8 * time.Second)
+			s.Deployer.ScaleDataplane(0)
+
+			By("check ApisixRoute status")
+			s.RetryAssertion(func() string {
+				output, _ := s.GetOutputFromString("httproute", "httpbin", "-o", "yaml", "-n", s.Namespace())
+				return output
+			}).WithTimeout(80 * time.Second).
+				Should(
+					And(
+						ContainSubstring(`status: "False"`),
+						ContainSubstring(`reason: SyncFailed`),
+					),
+				)
+			time.Sleep(8 * time.Second)
+			s.Deployer.ScaleDataplane(1)
+
+			By("check ApisixRoute status after scaling up")
+			s.RetryAssertion(func() string {
+				output, _ := s.GetOutputFromString("httproute", "httpbin", "-o", "yaml", "-n", s.Namespace())
+				return output
+			}).WithTimeout(80 * time.Second).
+				Should(
+					And(
+						ContainSubstring(`status: "True"`),
+						ContainSubstring(`reason: Accepted`),
+					),
+				)
+
+			By("check route in APISIX")
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/get",
+				Host:   "httpbin",
+				Check:  scaffold.WithExpectedStatus(200),
+			})
 		})
 	})
 })
