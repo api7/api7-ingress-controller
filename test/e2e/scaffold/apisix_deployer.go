@@ -111,36 +111,36 @@ func (s *APISIXDeployer) BeforeEach() {
 }
 
 func (s *APISIXDeployer) AfterEach() {
-	if CurrentSpecReport().Failed() {
-		if os.Getenv("TEST_ENV") == "CI" {
-			_, _ = fmt.Fprintln(GinkgoWriter, "Dumping namespace contents")
-			_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "get", "deploy,sts,svc,pods,gatewayproxy")
-			_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "describe", "pods")
-		}
-
-		output := s.GetDeploymentLogs("apisix-ingress-controller")
-		if output != "" {
-			_, _ = fmt.Fprintln(GinkgoWriter, output)
-		}
+	// if CurrentSpecReport().Failed() {
+	if os.Getenv("TEST_ENV") == "CI" {
+		_, _ = fmt.Fprintln(GinkgoWriter, "Dumping namespace contents")
+		_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "get", "deploy,sts,svc,pods,gatewayproxy")
+		_, _ = k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, "describe", "pods")
 	}
 
-	// Delete all additional gateways
-	for identifier := range s.additionalGateways {
-		err := s.CleanupAdditionalGateway(identifier)
-		Expect(err).NotTo(HaveOccurred(), "cleaning up additional gateway")
+	output := s.GetDeploymentLogs("apisix-ingress-controller")
+	if output != "" {
+		_, _ = fmt.Fprintln(GinkgoWriter, output)
 	}
+	// }
 
-	for i := len(s.finalizers) - 1; i >= 0; i-- {
-		runWithRecover(s.finalizers[i])
-	}
+	// // Delete all additional gateways
+	// for identifier := range s.additionalGateways {
+	// 	err := s.CleanupAdditionalGateway(identifier)
+	// 	Expect(err).NotTo(HaveOccurred(), "cleaning up additional gateway")
+	// }
 
-	// if the test case is successful, just delete namespace
-	err := k8s.DeleteNamespaceE(s.t, s.kubectlOptions, s.namespace)
-	Expect(err).NotTo(HaveOccurred(), "deleting namespace "+s.namespace)
+	// for i := len(s.finalizers) - 1; i >= 0; i-- {
+	// 	runWithRecover(s.finalizers[i])
+	// }
 
-	// Wait for a while to prevent the worker node being overwhelming
-	// (new cases will be run).
-	time.Sleep(3 * time.Second)
+	// // if the test case is successful, just delete namespace
+	// err := k8s.DeleteNamespaceE(s.t, s.kubectlOptions, s.namespace)
+	// Expect(err).NotTo(HaveOccurred(), "deleting namespace "+s.namespace)
+
+	// // Wait for a while to prevent the worker node being overwhelming
+	// // (new cases will be run).
+	// time.Sleep(3 * time.Second)
 }
 
 func (s *APISIXDeployer) DeployDataplane(deployOpts DeployDataplaneOptions) {
@@ -260,7 +260,7 @@ func (s *APISIXDeployer) DeployIngress() {
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
 		ControllerName:     s.opts.ControllerName,
 		ProviderType:       framework.ProviderType,
-		ProviderSyncPeriod: 1 * time.Hour,
+		ProviderSyncPeriod: getProviderSyncPeriod(),
 		Namespace:          s.namespace,
 		Replicas:           1,
 	})
@@ -270,7 +270,7 @@ func (s *APISIXDeployer) ScaleIngress(replicas int) {
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
 		ControllerName:     s.opts.ControllerName,
 		ProviderType:       framework.ProviderType,
-		ProviderSyncPeriod: 1 * time.Hour,
+		ProviderSyncPeriod: getProviderSyncPeriod(),
 		Namespace:          s.namespace,
 		Replicas:           replicas,
 	})
@@ -420,4 +420,12 @@ func (s *APISIXDeployer) DefaultDataplaneResource() DataplaneResource {
 
 func (s *APISIXDeployer) Name() string {
 	return "apisix"
+}
+
+func getProviderSyncPeriod() time.Duration {
+	providerSyncPeriod, err := time.ParseDuration(framework.ProviderSyncPeriod)
+	if err != nil {
+		providerSyncPeriod = 5 * time.Second
+	}
+	return providerSyncPeriod
 }
