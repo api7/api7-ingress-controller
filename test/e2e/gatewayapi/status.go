@@ -27,7 +27,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/yaml"
 
-	"github.com/apache/apisix-ingress-controller/internal/provider/adc"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
@@ -99,7 +98,7 @@ spec:
 			time.Sleep(5 * time.Second)
 
 			By("create Gateway")
-			err = s.CreateResourceFromString(fmt.Sprintf(defaultGateway, gatewayClassName))
+			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defaultGateway, gatewayClassName), s.Namespace())
 			Expect(err).NotTo(HaveOccurred(), "creating Gateway")
 			time.Sleep(5 * time.Second)
 
@@ -109,12 +108,9 @@ spec:
 			Expect(gwyaml).To(ContainSubstring(`status: "True"`), "checking Gateway condition status")
 			Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the apisix-ingress-controller"), "checking Gateway condition message")
 		})
-		AfterEach(func() {
-			_ = s.DeleteResource("Gateway", "apisix")
-		})
 
 		It("dataplane unavailable", func() {
-			if os.Getenv("PROVIDER_TYPE") == adc.BackendModeAPI7EE {
+			if os.Getenv("PROVIDER_TYPE") == framework.ProviderTypeAPI7EE {
 				Skip("skip for api7ee mode because it use dashboard admin api")
 			}
 			By("Create HTTPRoute")

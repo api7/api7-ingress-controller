@@ -30,7 +30,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
-	"github.com/apache/apisix-ingress-controller/internal/provider/adc"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
@@ -159,7 +158,7 @@ spec:
 		})
 
 		It("dataplane unavailable", func() {
-			if os.Getenv("PROVIDER_TYPE") == adc.BackendModeAPI7EE {
+			if os.Getenv("PROVIDER_TYPE") == framework.ProviderTypeAPI7EE {
 				Skip("skip for api7ee mode because it use dashboard admin api")
 			}
 			By("apply ApisixRoute")
