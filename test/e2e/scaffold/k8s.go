@@ -39,7 +39,6 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	"github.com/apache/apisix-ingress-controller/internal/provider/adc"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 )
 
@@ -310,7 +309,7 @@ spec:
           value: "%s"
 `
 
-	if s.Deployer.Name() == adc.BackendModeAPI7EE {
+	if s.Deployer.Name() == framework.ProviderTypeAPI7EE {
 		return fmt.Sprintf(gatewayProxyYamlAPI7, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 	}
 	return fmt.Sprintf(gatewayProxyYaml, framework.ProviderType, s.AdminKey())

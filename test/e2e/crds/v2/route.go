@@ -31,7 +31,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
-	"github.com/apache/apisix-ingress-controller/internal/provider/adc"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
@@ -240,7 +239,7 @@ spec:
 		})
 
 		It("Test ApisixRoute filterFunc", func() {
-			if s.Deployer.Name() == adc.BackendModeAPI7EE {
+			if s.Deployer.Name() == framework.ProviderTypeAPI7EE {
 				Skip("filterFunc is not supported in api7ee")
 			}
 			const apisixRouteSpec = `
@@ -727,7 +726,7 @@ spec:
       servicePort: 80
 `
 		It("Should sync ApisixRoute during startup", func() {
-			if s.Deployer.Name() == adc.BackendModeAPI7EE {
+			if s.Deployer.Name() == framework.ProviderTypeAPI7EE {
 				Skip("skipping test in API7EE mode")
 			}
 			By("apply ApisixRoute")
