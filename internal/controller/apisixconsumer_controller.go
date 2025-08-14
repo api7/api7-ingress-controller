@@ -96,7 +96,7 @@ func (r *ApisixConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			"error", err.Error())
 		return ctrl.Result{}, nil
 	}
-	defer r.updateStatus(ac, err)
+	defer func() { r.updateStatus(ac, err) }()
 
 	if err = ProcessIngressClassParameters(tctx, r.Client, r.Log, ac, ingressClass); err != nil {
 		r.Log.Error(err, "failed to process IngressClass parameters", "ingressClass", ingressClass.Name)

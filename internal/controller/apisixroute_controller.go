@@ -157,13 +157,13 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			"error", err.Error())
 		return ctrl.Result{}, nil
 	}
-	defer r.updateStatus(&ar, err)
+	defer func() { r.updateStatus(&ar, err) }()
 
 	if err = ProcessIngressClassParameters(tctx, r.Client, r.Log, &ar, ic); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err = r.processApisixRoute(ctx, tctx, &ar); err != nil {
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, err
 	}
 	if err = r.Provider.Update(ctx, tctx, &ar); err != nil {
 		err = types.ReasonError{
