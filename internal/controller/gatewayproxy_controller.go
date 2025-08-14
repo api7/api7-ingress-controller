@@ -37,6 +37,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
+	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
@@ -154,9 +155,24 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 			r.Log.Error(err, "failed to list GatewayList")
 			return ctrl.Result{}, nil
 		}
+		var gatewayclassList gatewayv1.GatewayClassList
+		if err := r.List(ctx, &gatewayclassList, client.MatchingFields{indexer.ControllerName: config.GetControllerName()}); err != nil {
+			r.Log.Error(err, "failed to list GatewayClassList")
+			return ctrl.Result{}, nil
+		}
+		gcMatched := make(map[string]*gatewayv1.GatewayClass)
+		for _, item := range gatewayclassList.Items {
+			gcMatched[item.Name] = &item
+		}
 		// append referrers to translate context
 		for _, item := range gatewayList.Items {
-			tctx.GatewayProxyReferrers[req.NamespacedName] = append(tctx.GatewayProxyReferrers[req.NamespacedName], utils.NamespacedNameKind(&item))
+			gcName := string(item.Spec.GatewayClassName)
+			if gcName == "" {
+				continue
+			}
+			if _, ok := gcMatched[gcName]; ok {
+				tctx.GatewayProxyReferrers[req.NamespacedName] = append(tctx.GatewayProxyReferrers[req.NamespacedName], utils.NamespacedNameKind(&item))
+			}
 		}
 	}
 
@@ -170,6 +186,9 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 		}
 
 		for _, item := range ingressClassList.Items {
+			if item.Spec.Controller != config.GetControllerName() {
+				continue
+			}
 			tctx.GatewayProxyReferrers[req.NamespacedName] = append(tctx.GatewayProxyReferrers[req.NamespacedName], utils.NamespacedNameKind(&item))
 		}
 	default:
@@ -181,8 +200,14 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 		}
 
 		for _, item := range ingressClassList.Items {
+			if item.Spec.Controller != config.GetControllerName() {
+				continue
+			}
 			tctx.GatewayProxyReferrers[req.NamespacedName] = append(tctx.GatewayProxyReferrers[req.NamespacedName], utils.NamespacedNameKind(&item))
 		}
+	}
+	if len(tctx.GatewayProxyReferrers[req.NamespacedName]) == 0 {
+		return ctrl.Result{}, nil
 	}
 
 	if err := r.Provider.Update(ctx, tctx, &gp); err != nil {
