@@ -67,6 +67,7 @@ type ReadinessManager interface {
 	IsReady() bool
 	WaitReady(ctx context.Context, timeout time.Duration) bool
 	Done(obj client.Object, namespacedName k8stypes.NamespacedName)
+	GetResourceReady(obj client.Object, namespacedName k8stypes.NamespacedName) bool
 }
 
 type readinessManager struct {
@@ -146,6 +147,22 @@ func (r *readinessManager) registerState(gvk schema.GroupVersionKind, list []k8s
 	for _, name := range list {
 		r.state[gvk][name] = struct{}{}
 	}
+}
+
+func (r *readinessManager) GetResourceReady(obj client.Object, nn k8stypes.NamespacedName) bool {
+	if r.IsReady() {
+		return true
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	gvk := types.GvkOf(obj)
+	if _, ok := r.state[gvk]; !ok {
+		return true
+	}
+	if _, ok := r.state[gvk][nn]; !ok {
+		return true
+	}
+	return false
 }
 
 // Done marks the resource as ready by removing it from the pending state.

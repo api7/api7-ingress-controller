@@ -159,6 +159,11 @@ func (d *api7eeProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 		},
 	}
 
+	if !d.readier.GetResourceReady(obj, utils.NamespacedName(obj)) {
+		log.Debugw("resource not ready, skip sync", zap.Any("object", obj))
+		return d.client.UpdateConfig(ctx, task)
+	}
+
 	return d.client.Update(ctx, task)
 }
 
@@ -203,6 +208,12 @@ func (d *api7eeProvider) Delete(ctx context.Context, obj client.Object) error {
 
 func (d *api7eeProvider) Start(ctx context.Context) error {
 	d.readier.WaitReady(ctx, 5*time.Minute)
+
+	// sync once
+	log.Info("for startup sync")
+	if err := d.sync(ctx); err != nil {
+		log.Warnw("failed to sync for startup", zap.Error(err))
+	}
 
 	initalSyncDelay := d.InitSyncDelay
 	if initalSyncDelay > 0 {

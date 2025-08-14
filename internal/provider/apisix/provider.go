@@ -227,6 +227,12 @@ func (d *apisixProvider) buildConfig(tctx *provider.TranslateContext, nnk types.
 func (d *apisixProvider) Start(ctx context.Context) error {
 	d.readier.WaitReady(ctx, 5*time.Minute)
 
+	// sync once
+	log.Info("for startup sync")
+	if err := d.sync(ctx); err != nil {
+		log.Warnw("failed to sync for startup", zap.Error(err))
+	}
+
 	initalSyncDelay := d.InitSyncDelay
 	if initalSyncDelay > 0 {
 		time.AfterFunc(initalSyncDelay, func() {
