@@ -609,10 +609,11 @@ spec:
 			})
 
 			s.RequestAssert(&scaffold.RequestAssert{
-				Method: "GET",
-				Path:   "/get",
-				Host:   "httpbin2.example",
-				Check:  scaffold.WithExpectedStatus(http.StatusNotFound),
+				Method:  "GET",
+				Path:    "/get",
+				Host:    "httpbin2.example",
+				Timeout: 1 * time.Minute,
+				Check:   scaffold.WithExpectedStatus(http.StatusNotFound),
 			})
 		})
 	})

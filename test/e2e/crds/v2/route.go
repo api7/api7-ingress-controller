@@ -518,7 +518,6 @@ spec:
 
 			By("scale ingress to 0")
 			s.Deployer.ScaleIngress(0)
-			time.Sleep(10 * time.Second)
 
 			By("delete first ApisixRoute")
 			err := s.DeleteResource("ApisixRoute", "route1")
@@ -530,7 +529,6 @@ spec:
 
 			By("scale ingress back to 1")
 			s.Deployer.ScaleIngress(1)
-			time.Sleep(10 * time.Second)
 
 			By("verify first route is gone and second route still accessible after scale-up")
 			Eventually(request).WithArguments("/get").WithTimeout(30 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))

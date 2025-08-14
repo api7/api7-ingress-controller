@@ -56,6 +56,8 @@ type api7eeProvider struct {
 
 	syncCh chan struct{}
 
+	startUpSync bool
+
 	client *adcclient.Client
 }
 
@@ -159,7 +161,7 @@ func (d *api7eeProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 		},
 	}
 
-	if !d.readier.GetResourceReady(obj, utils.NamespacedName(obj)) {
+	if !d.startUpSync {
 		log.Debugw("resource not ready, skip sync", zap.Any("object", obj))
 		return d.client.UpdateConfig(ctx, task)
 	}
@@ -214,6 +216,8 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 	if err := d.sync(ctx); err != nil {
 		log.Warnw("failed to sync for startup", zap.Error(err))
 	}
+	// set startUpSync to true
+	d.startUpSync = true
 
 	initalSyncDelay := d.InitSyncDelay
 	if initalSyncDelay > 0 {
