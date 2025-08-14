@@ -52,9 +52,6 @@ type DefaultADCExecutor struct {
 }
 
 func (e *DefaultADCExecutor) Execute(ctx context.Context, mode string, config adctypes.Config, args []string) error {
-	e.Lock()
-	defer e.Unlock()
-
 	return e.runADC(ctx, mode, config, args)
 }
 
@@ -225,7 +222,6 @@ type ADCServerOpts struct {
 
 // HTTPADCExecutor implements ADCExecutor interface using HTTP calls to ADC Server
 type HTTPADCExecutor struct {
-	sync.Mutex
 	httpClient *http.Client
 	serverURL  string
 }
@@ -242,9 +238,6 @@ func NewHTTPADCExecutor(serverURL string, timeout time.Duration) *HTTPADCExecuto
 
 // Execute implements the ADCExecutor interface using HTTP calls
 func (e *HTTPADCExecutor) Execute(ctx context.Context, mode string, config adctypes.Config, args []string) error {
-	e.Lock()
-	defer e.Unlock()
-
 	return e.runHTTPSync(ctx, mode, config, args)
 }
 
