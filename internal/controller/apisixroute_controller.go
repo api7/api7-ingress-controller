@@ -150,18 +150,20 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		ic   *networkingv1.IngressClass
 		err  error
 	)
-	defer func() {
-		r.updateStatus(&ar, err)
-	}()
 
 	if ic, err = GetIngressClass(tctx, r.Client, r.Log, ar.Spec.IngressClassName, r.ICGV.String()); err != nil {
-		return ctrl.Result{}, err
+		r.Log.V(1).Info("no matching IngressClass available",
+			"ingressClassName", ar.Spec.IngressClassName,
+			"error", err.Error())
+		return ctrl.Result{}, nil
 	}
+	defer r.updateStatus(&ar, err)
+
 	if err = ProcessIngressClassParameters(tctx, r.Client, r.Log, &ar, ic); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err = r.processApisixRoute(ctx, tctx, &ar); err != nil {
-		return ctrl.Result{}, err
+		return ctrl.Result{}, nil
 	}
 	if err = r.Provider.Update(ctx, tctx, &ar); err != nil {
 		err = types.ReasonError{
