@@ -110,6 +110,25 @@ spec:
     - name: non-existent-plugin
       enable: true
 `
+		const arWithInvalidIngressClass = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: ar-with-invalid-ingressclass
+spec:
+  ingressClassName: ar-with-invalid-ingressclass
+  http:
+  - name: rule0
+    match:
+      hosts:
+      - httpbin
+      paths:
+      - /*
+    backends:
+    - serviceName: httpbin-service-e2e-test
+      servicePort: 80
+`
+
 		It("unknown plugin", func() {
 			if os.Getenv("PROVIDER_TYPE") == "apisix-standalone" {
 				Skip("apisix standalone does not validate unknown plugins")
@@ -257,6 +276,23 @@ spec:
 			Expect(route2.Status.Conditions).Should(HaveLen(1), "should have one condition")
 			Expect(route2.Status.Conditions[0].LastTransitionTime).To(Equal(route.Status.Conditions[0].LastTransitionTime),
 				"should not update the same status condition again")
+		})
+
+		It("IngressClass not found", func() {
+			err := s.CreateResourceFromString(arWithInvalidIngressClass)
+			Expect(err).NotTo(HaveOccurred(), "creating ApisixRoute with invalid IngressClass")
+
+			for range 10 {
+				output, err := s.GetOutputFromString("ar", "ar-with-invalid-ingressclass", "-o", "yaml")
+				Expect(err).NotTo(HaveOccurred(), "getting ApisixRoute output")
+				Expect(output).ShouldNot(
+					Or(
+						ContainSubstring(`status: "True"`),
+						ContainSubstring(`status: "False"`),
+					),
+				)
+				time.Sleep(1 * time.Second)
+			}
 		})
 	})
 })

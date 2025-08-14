@@ -92,10 +92,14 @@ func (s *API7Deployer) BeforeEach() {
 	e := utils.ParallelExecutor{}
 
 	e.Add(func() {
+		defer GinkgoRecover()
 		s.DeployDataplane(DeployDataplaneOptions{})
 		s.DeployIngress()
 	})
-	e.Add(s.DeployTestService)
+	e.Add(func() {
+		defer GinkgoRecover()
+		s.DeployTestService()
+	})
 	e.Wait()
 }
 

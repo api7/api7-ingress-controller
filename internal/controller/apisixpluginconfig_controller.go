@@ -30,6 +30,7 @@ import (
 
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
+	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
@@ -56,6 +57,15 @@ func (r *ApisixPluginConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 	var pc apiv2.ApisixPluginConfig
 	if err := r.Get(ctx, req.NamespacedName, &pc); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+	tctx := provider.NewDefaultTranslateContext(ctx)
+
+	_, err := GetIngressClass(tctx, r.Client, r.Log, pc.Spec.IngressClassName, r.ICGV.String())
+	if err != nil {
+		r.Log.V(1).Info("no matching IngressClass available",
+			"ingressClassName", pc.Spec.IngressClassName,
+			"error", err.Error())
+		return ctrl.Result{}, nil
 	}
 
 	// Only update status
