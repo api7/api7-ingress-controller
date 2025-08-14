@@ -19,6 +19,7 @@ package api7ee
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"github.com/api7/gopkg/pkg/log"
@@ -55,6 +56,8 @@ type api7eeProvider struct {
 	provider.Options
 
 	syncCh chan struct{}
+
+	startUpSync atomic.Bool
 
 	client *adcclient.Client
 }
@@ -159,6 +162,11 @@ func (d *api7eeProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 		},
 	}
 
+	if !d.startUpSync.Load() {
+		log.Debugw("startup synchronization not completed, skip sync", zap.Any("object", obj))
+		return d.client.UpdateConfig(ctx, task)
+	}
+
 	return d.client.Update(ctx, task)
 }
 
@@ -203,6 +211,12 @@ func (d *api7eeProvider) Delete(ctx context.Context, obj client.Object) error {
 
 func (d *api7eeProvider) Start(ctx context.Context) error {
 	d.readier.WaitReady(ctx, 5*time.Minute)
+
+	d.startUpSync.Store(true)
+	log.Info("Performing startup synchronization")
+	if err := d.sync(ctx); err != nil {
+		log.Warnw("failed to sync for startup", zap.Error(err))
+	}
 
 	initalSyncDelay := d.InitSyncDelay
 	if initalSyncDelay > 0 {

@@ -265,7 +265,7 @@ func (s *APISIXDeployer) DeployIngress() {
 		ProviderType:       framework.ProviderType,
 		ProviderSyncPeriod: syncPeriod,
 		Namespace:          s.namespace,
-		Replicas:           1,
+		Replicas:           ptr.To(1),
 	})
 }
 
@@ -279,7 +279,7 @@ func (s *APISIXDeployer) ScaleIngress(replicas int) {
 		ProviderType:       framework.ProviderType,
 		ProviderSyncPeriod: syncPeriod,
 		Namespace:          s.namespace,
-		Replicas:           replicas,
+		Replicas:           &replicas,
 	})
 }
 

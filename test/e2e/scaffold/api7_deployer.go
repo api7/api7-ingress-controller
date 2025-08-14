@@ -207,7 +207,7 @@ func (s *API7Deployer) DeployIngress() {
 		ProviderType:   "api7ee",
 		ControllerName: s.opts.ControllerName,
 		Namespace:      s.namespace,
-		Replicas:       1,
+		Replicas:       ptr.To(1),
 	})
 }
 
@@ -216,7 +216,7 @@ func (s *API7Deployer) ScaleIngress(replicas int) {
 		ProviderType:   "api7ee",
 		ControllerName: s.opts.ControllerName,
 		Namespace:      s.namespace,
-		Replicas:       replicas,
+		Replicas:       ptr.To(replicas),
 	})
 }
 

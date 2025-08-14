@@ -460,6 +460,86 @@ spec:
 		})
 	})
 
+	Context("Ingress Scale and Route Management", func() {
+		It("should handle ApisixRoute management during ingress scaling", func() {
+			const apisixRouteSpec1 = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: route1
+spec:
+  ingressClassName: apisix
+  http:
+  - name: rule1
+    match:
+      hosts:
+      - httpbin
+      paths:
+      - /get
+    backends:
+    - serviceName: httpbin-service-e2e-test
+      servicePort: 80
+`
+
+			const apisixRouteSpec2 = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: route2
+spec:
+  ingressClassName: apisix
+  http:
+  - name: rule2
+    match:
+      hosts:
+      - httpbin
+      paths:
+      - /anything
+    backends:
+    - serviceName: httpbin-service-e2e-test
+      servicePort: 80
+`
+
+			request := func(path string) int {
+				return s.NewAPISIXClient().GET(path).WithHost("httpbin").Expect().Raw().StatusCode
+			}
+
+			By("apply first ApisixRoute")
+			var apisixRoute1 apiv2.ApisixRoute
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "route1"}, &apisixRoute1, apisixRouteSpec1)
+
+			By("apply second ApisixRoute")
+			var apisixRoute2 apiv2.ApisixRoute
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "route2"}, &apisixRoute2, apisixRouteSpec2)
+
+			By("verify both ApisixRoutes work")
+			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+			Eventually(request).WithArguments("/anything").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+
+			By("scale ingress to 0")
+			s.Deployer.ScaleIngress(0)
+
+			By("delete first ApisixRoute")
+			err := s.DeleteResource("ApisixRoute", "route1")
+			Expect(err).ShouldNot(HaveOccurred(), "deleting ApisixRoute route1")
+
+			By("verify both routes still accessible during scale-down")
+			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+			Eventually(request).WithArguments("/anything").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+
+			By("scale ingress back to 1")
+			s.Deployer.ScaleIngress(1)
+
+			By("verify first route is gone and second route still accessible after scale-up")
+			Eventually(request).WithArguments("/get").WithTimeout(30 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
+			Eventually(request).WithArguments("/anything").WithTimeout(30 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+
+			routes, err := s.DefaultDataplaneResource().Route().List(context.Background())
+			Expect(err).NotTo(HaveOccurred(), "list routes error")
+			Expect(routes).To(HaveLen(1), "routes number not expect")
+		})
+	})
+
 	Context("Test ApisixRoute reference ApisixUpstream", func() {
 		It("Test reference ApisixUpstream", func() {
 			const apisixRouteSpec = `

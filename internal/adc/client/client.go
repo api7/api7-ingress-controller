@@ -39,7 +39,7 @@ import (
 )
 
 type Client struct {
-	syncMu sync.Mutex
+	syncMu sync.RWMutex
 	mu     sync.Mutex
 	*cache.Store
 
@@ -97,6 +97,9 @@ func (d *Client) Update(ctx context.Context, args Task) error {
 	}
 	d.mu.Unlock()
 
+	d.syncMu.RLock()
+	defer d.syncMu.RUnlock()
+
 	if len(deleteConfigs) > 0 {
 		err := d.sync(ctx, Task{
 			Name:          args.Name,
@@ -108,6 +111,7 @@ func (d *Client) Update(ctx context.Context, args Task) error {
 			log.Warnw("failed to sync deleted configs", zap.Error(err))
 		}
 	}
+
 	return d.sync(ctx, args)
 }
 
@@ -153,6 +157,9 @@ func (d *Client) Delete(ctx context.Context, args Task) error {
 		}
 	}
 	d.mu.Unlock()
+
+	d.syncMu.RLock()
+	defer d.syncMu.RUnlock()
 
 	return d.sync(ctx, Task{
 		Labels:        args.Labels,
