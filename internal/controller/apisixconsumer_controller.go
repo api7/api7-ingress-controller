@@ -104,7 +104,7 @@ func (r *ApisixConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	if err = r.processSpec(ctx, tctx, ac); err != nil {
-		r.Log.Error(err, "failed to process ApisixConsumer spec", "ApisixConsumer", ac)
+		r.Log.Error(err, "failed to process ApisixConsumer spec", "object", ac)
 		return ctrl.Result{}, err
 	}
 

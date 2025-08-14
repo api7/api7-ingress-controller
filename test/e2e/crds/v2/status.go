@@ -283,13 +283,15 @@ spec:
 			Expect(err).NotTo(HaveOccurred(), "creating ApisixRoute with invalid IngressClass")
 
 			for range 10 {
-				output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
+				output, err := s.GetOutputFromString("ar", "ar-with-invalid-ingressclass", "-o", "yaml")
+				Expect(err).NotTo(HaveOccurred(), "getting ApisixRoute output")
 				Expect(output).ShouldNot(
 					Or(
 						ContainSubstring(`status: "True"`),
 						ContainSubstring(`status: "False"`),
 					),
 				)
+				time.Sleep(1 * time.Second)
 			}
 		})
 	})
