@@ -212,11 +212,11 @@ func (d *api7eeProvider) Delete(ctx context.Context, obj client.Object) error {
 func (d *api7eeProvider) Start(ctx context.Context) error {
 	d.readier.WaitReady(ctx, 5*time.Minute)
 
+	d.startUpSync.Store(true)
 	log.Info("Performing startup synchronization")
 	if err := d.sync(ctx); err != nil {
 		log.Warnw("failed to sync for startup", zap.Error(err))
 	}
-	d.startUpSync.Store(true)
 
 	initalSyncDelay := d.InitSyncDelay
 	if initalSyncDelay > 0 {
