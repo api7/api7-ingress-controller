@@ -218,6 +218,7 @@ type ADCServerOpts struct {
 	LabelSelector       map[string]string `json:"labelSelector,omitempty"`
 	IncludeResourceType []string          `json:"includeResourceType,omitempty"`
 	TlsSkipVerify       *bool             `json:"tlsSkipVerify,omitempty"`
+	CacheKey            string            `json:"cacheKey"`
 }
 
 // HTTPADCExecutor implements ADCExecutor interface using HTTP calls to ADC Server
@@ -247,7 +248,15 @@ func (e *HTTPADCExecutor) runHTTPSync(ctx context.Context, mode string, config a
 		Name: config.Name,
 	}
 
-	for _, addr := range config.ServerAddrs {
+	serverAddrs := func() []string {
+		if mode == "apisix-standalone" {
+			return []string{strings.Join(config.ServerAddrs, ",")}
+		}
+		return config.ServerAddrs
+	}()
+	log.Debugw("running http sync", zap.Strings("serverAddrs", serverAddrs), zap.String("mode", mode))
+
+	for _, addr := range serverAddrs {
 		if err := e.runHTTPSyncForSingleServer(ctx, addr, mode, config, args); err != nil {
 			log.Errorw("failed to run http sync for server", zap.String("server", addr), zap.Error(err))
 			var execErr types.ADCExecutionServerAddrError
@@ -370,6 +379,7 @@ func (e *HTTPADCExecutor) buildHTTPRequest(ctx context.Context, serverAddr, mode
 				LabelSelector:       labels,
 				IncludeResourceType: types,
 				TlsSkipVerify:       ptr.To(!tlsVerify),
+				CacheKey:            config.Name,
 			},
 			Config: *resources,
 		},
