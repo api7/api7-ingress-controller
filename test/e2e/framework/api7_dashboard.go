@@ -395,7 +395,7 @@ func (f *Framework) CreateNewGatewayGroupWithIngressE() (string, error) {
 }
 
 func (f *Framework) setDpManagerEndpoints() {
-	payload := []byte(fmt.Sprintf(`{"control_plane_address":["%s"]}`, DPManagerTLSEndpoint))
+	payload := []byte(fmt.Sprintf(`{"dp_manager_address":["%s"]}`, DPManagerTLSEndpoint))
 
 	respExp := f.DashboardHTTPClient().
 		PUT("/api/system_settings").
@@ -408,7 +408,7 @@ func (f *Framework) setDpManagerEndpoints() {
 	f.Logf("set dp manager endpoints response: %s", respExp.Body().Raw())
 
 	respExp.Status(200).
-		Body().Contains("control_plane_address")
+		Body().Contains("dp_manager_address")
 }
 
 func (f *Framework) GetDashboardEndpoint() string {
