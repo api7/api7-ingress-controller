@@ -145,7 +145,7 @@ func (r *ApisixTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			Reason:             string(apiv2.ConditionReasonInvalidSpec),
 			Message:            err.Error(),
 		})
-		return ctrl.Result{}, err
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	// process ApisixTls validation
@@ -159,7 +159,7 @@ func (r *ApisixTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			Reason:             string(apiv2.ConditionReasonInvalidSpec),
 			Message:            err.Error(),
 		})
-		return ctrl.Result{}, err
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	if err := r.Provider.Update(ctx, tctx, &tls); err != nil {

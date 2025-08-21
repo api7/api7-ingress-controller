@@ -33,7 +33,7 @@ import (
 
 var _ = Describe("Test Gateway API Status", Label("networking.k8s.io", "httproute"), func() {
 	var (
-		s = scaffold.NewScaffold(&scaffold.Options{
+		s = scaffold.NewScaffold(scaffold.Options{
 			// for triggering the sync
 			SyncPeriod: 3 * time.Second,
 		})

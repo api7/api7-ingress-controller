@@ -46,22 +46,23 @@ func NewAPI7Deployer(s *Scaffold) Deployer {
 }
 
 func (s *API7Deployer) BeforeEach() {
+	s.runtimeOpts = s.opts
 	var err error
 	s.UploadLicense()
-	s.namespace = fmt.Sprintf("ingress-apisix-e2e-tests-%s-%d", s.opts.Name, time.Now().Nanosecond())
+	s.namespace = fmt.Sprintf("ingress-apisix-e2e-tests-%s-%d", s.runtimeOpts.Name, time.Now().Nanosecond())
 	s.kubectlOptions = &k8s.KubectlOptions{
-		ConfigPath: s.opts.Kubeconfig,
+		ConfigPath: s.runtimeOpts.Kubeconfig,
 		Namespace:  s.namespace,
 	}
-	if s.opts.ControllerName == "" {
-		s.opts.ControllerName = fmt.Sprintf("%s/%s", DefaultControllerName, s.namespace)
+	if s.runtimeOpts.ControllerName == "" {
+		s.runtimeOpts.ControllerName = fmt.Sprintf("%s/%s", DefaultControllerName, s.namespace)
 	}
 	s.finalizers = nil
 	if s.label == nil {
 		s.label = make(map[string]string)
 	}
-	if s.opts.NamespaceSelectorLabel != nil {
-		for k, v := range s.opts.NamespaceSelectorLabel {
+	if s.runtimeOpts.NamespaceSelectorLabel != nil {
+		for k, v := range s.runtimeOpts.NamespaceSelectorLabel {
 			if len(v) > 0 {
 				s.label[k] = v[0]
 			}
@@ -74,7 +75,7 @@ func (s *API7Deployer) BeforeEach() {
 	s.additionalGateways = make(map[string]*GatewayResources)
 
 	var nsLabel map[string]string
-	if !s.opts.DisableNamespaceLabel {
+	if !s.runtimeOpts.DisableNamespaceLabel {
 		nsLabel = s.label
 	}
 	k8s.CreateNamespaceWithMetadata(s.t, s.kubectlOptions, metav1.ObjectMeta{Name: s.namespace, Labels: nsLabel})
@@ -85,9 +86,9 @@ func (s *API7Deployer) BeforeEach() {
 	s.gatewayGroupID = s.CreateNewGatewayGroupWithIngress()
 	s.Logf("gateway group id: %s", s.gatewayGroupID)
 
-	s.opts.APISIXAdminAPIKey = s.GetAdminKey(s.gatewayGroupID)
+	s.runtimeOpts.APISIXAdminAPIKey = s.GetAdminKey(s.gatewayGroupID)
 
-	s.Logf("apisix admin api key: %s", s.opts.APISIXAdminAPIKey)
+	s.Logf("apisix admin api key: %s", s.runtimeOpts.APISIXAdminAPIKey)
 
 	e := utils.ParallelExecutor{}
 
@@ -209,7 +210,7 @@ func (s *API7Deployer) newAPISIXTunnels(serviceName string) error {
 func (s *API7Deployer) DeployIngress() {
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
 		ProviderType:   "api7ee",
-		ControllerName: s.opts.ControllerName,
+		ControllerName: s.runtimeOpts.ControllerName,
 		Namespace:      s.namespace,
 		Replicas:       ptr.To(1),
 	})
@@ -218,7 +219,7 @@ func (s *API7Deployer) DeployIngress() {
 func (s *API7Deployer) ScaleIngress(replicas int) {
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
 		ProviderType:   "api7ee",
-		ControllerName: s.opts.ControllerName,
+		ControllerName: s.runtimeOpts.ControllerName,
 		Namespace:      s.namespace,
 		Replicas:       ptr.To(replicas),
 	})
@@ -232,14 +233,14 @@ func (s *API7Deployer) CreateAdditionalGateway(namePrefix string) (string, *core
 
 	// Create namespace with the same labels
 	var nsLabel map[string]string
-	if !s.opts.DisableNamespaceLabel {
+	if !s.runtimeOpts.DisableNamespaceLabel {
 		nsLabel = s.label
 	}
 	k8s.CreateNamespaceWithMetadata(s.t, s.kubectlOptions, metav1.ObjectMeta{Name: additionalNS, Labels: nsLabel})
 
 	// Create new kubectl options for the new namespace
 	kubectlOpts := &k8s.KubectlOptions{
-		ConfigPath: s.opts.Kubeconfig,
+		ConfigPath: s.runtimeOpts.Kubeconfig,
 		Namespace:  additionalNS,
 	}
 
@@ -304,7 +305,7 @@ func (s *API7Deployer) CleanupAdditionalGateway(gatewayGroupID string) error {
 
 	// Delete the namespace
 	err := k8s.DeleteNamespaceE(s.t, &k8s.KubectlOptions{
-		ConfigPath: s.opts.Kubeconfig,
+		ConfigPath: s.runtimeOpts.Kubeconfig,
 		Namespace:  resources.Namespace,
 	}, resources.Namespace)
 

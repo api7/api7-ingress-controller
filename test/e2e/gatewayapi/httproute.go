@@ -115,7 +115,7 @@ spec:
 		Expect(s.CreateResourceFromStringWithNamespace(getGatewayProxySpec(), s.Namespace())).
 			NotTo(HaveOccurred(), "creating GatewayProxy")
 
-		gatewayClassName := fmt.Sprintf("apisix-%d", time.Now().Nanosecond())
+		gatewayClassName := s.Namespace()
 		Expect(s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewayClassYaml, gatewayClassName, s.GetControllerName()), "")).
 			NotTo(HaveOccurred(), "creating GatewayClass")
 
@@ -154,7 +154,7 @@ spec:
 		createSecret(s, secretName)
 
 		By("create GatewayClass")
-		gatewayClassName := fmt.Sprintf("apisix-%d", time.Now().Nanosecond())
+		gatewayClassName := s.Namespace()
 		Expect(s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewayClassYaml, gatewayClassName, s.GetControllerName()), "")).
 			NotTo(HaveOccurred(), "creating GatewayClass")
 
@@ -319,7 +319,7 @@ spec:
 			Expect(exists).To(BeTrue(), "additional gateway group should exist")
 
 			By("Create additional GatewayClass")
-			additionalGatewayClassName = fmt.Sprintf("apisix-%d", time.Now().Unix())
+			additionalGatewayClassName = fmt.Sprintf("additional-gatewayclass-%d", time.Now().Nanosecond())
 			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewayClassYaml, additionalGatewayClassName, s.GetControllerName()), "")
 			Expect(err).NotTo(HaveOccurred(), "creating additional GatewayClass")
 

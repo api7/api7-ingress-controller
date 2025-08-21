@@ -53,7 +53,7 @@ var _ = Describe("Test ApisixPluginConfig", Label("apisix.apache.org", "v2", "ap
 	Context("Test ApisixPluginConfig", func() {
 		BeforeEach(func() {
 			By("create GatewayProxy")
-			gatewayProxy := s.GetGatewayProxyYaml()
+			gatewayProxy := s.GetGatewayProxySpec()
 			err := s.CreateResourceFromString(gatewayProxy)
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)

@@ -36,7 +36,7 @@ import (
 
 var _ = Describe("Test apisix.apache.org/v2 Status", Label("apisix.apache.org", "v2", "apisixroute"), func() {
 	var (
-		s = scaffold.NewScaffold(&scaffold.Options{
+		s = scaffold.NewScaffold(scaffold.Options{
 			// for triggering the sync
 			SyncPeriod: 3 * time.Second,
 		})
@@ -46,7 +46,7 @@ var _ = Describe("Test apisix.apache.org/v2 Status", Label("apisix.apache.org", 
 	Context("Test ApisixRoute Sync Status", func() {
 		BeforeEach(func() {
 			By("create GatewayProxy")
-			gatewayProxy := s.GetGatewayProxyYaml()
+			gatewayProxy := s.GetGatewayProxySpec()
 			err := s.CreateResourceFromString(gatewayProxy)
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
@@ -349,7 +349,7 @@ spec:
 `
 		BeforeEach(func() {
 			By("create GatewayProxy")
-			gatewayProxy := s.GetGatewayProxyYaml()
+			gatewayProxy := s.GetGatewayProxySpec()
 			err := s.CreateResourceFromString(gatewayProxy)
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)

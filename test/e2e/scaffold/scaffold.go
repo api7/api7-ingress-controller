@@ -57,7 +57,10 @@ type Options struct {
 type Scaffold struct {
 	*framework.Framework
 
-	opts             *Options
+	// opts holds the original, user-provided options.
+	// It is treated as read-only and must not be modified after initialization.
+	opts Options
+
 	kubectlOptions   *k8s.KubectlOptions
 	namespace        string
 	t                testing.TestingT
@@ -73,7 +76,8 @@ type Scaffold struct {
 
 	additionalGateways map[string]*GatewayResources
 
-	Deployer Deployer
+	runtimeOpts Options
+	Deployer    Deployer
 }
 
 // GatewayResources contains resources associated with a specific Gateway group
@@ -90,11 +94,11 @@ func (g *GatewayResources) GetAdminEndpoint() string {
 }
 
 func (s *Scaffold) AdminKey() string {
-	return s.opts.APISIXAdminAPIKey
+	return s.runtimeOpts.APISIXAdminAPIKey
 }
 
 // NewScaffold creates an e2e test scaffold.
-func NewScaffold(o *Options) *Scaffold {
+func NewScaffold(o Options) *Scaffold {
 	if o.Name == "" {
 		o.Name = "default"
 	}
@@ -112,7 +116,7 @@ func NewScaffold(o *Options) *Scaffold {
 
 	s.Deployer = NewDeployer(s)
 
-	if !s.opts.SkipHooks {
+	if !o.SkipHooks {
 		BeforeEach(s.Deployer.BeforeEach)
 		AfterEach(s.Deployer.AfterEach)
 	}
@@ -123,7 +127,7 @@ func NewScaffold(o *Options) *Scaffold {
 // NewDefaultScaffold creates a scaffold with some default options.
 // apisix-version default v2
 func NewDefaultScaffold() *Scaffold {
-	return NewScaffold(&Options{})
+	return NewScaffold(Options{})
 }
 
 // KillPod kill the pod which name is podName.
@@ -272,7 +276,7 @@ func (s *Scaffold) labelSelector(label string) metav1.ListOptions {
 }
 
 func (s *Scaffold) GetControllerName() string {
-	return s.opts.ControllerName
+	return s.runtimeOpts.ControllerName
 }
 
 // createDataplaneTunnels creates HTTP and HTTPS tunnels for a dataplane service.
@@ -444,24 +448,6 @@ func (s *Scaffold) GetMetricsEndpoint() string {
 	return fmt.Sprintf("http://%s/metrics", tunnel.Endpoint())
 }
 
-const gatewayProxyYaml = `
-apiVersion: apisix.apache.org/v1alpha1
-kind: GatewayProxy
-metadata:
-  name: %s
-  namespace: %s
-spec:
-  provider:
-    type: ControlPlane
-    controlPlane:
-      endpoints:
-      - %s
-      auth:
-        type: AdminKey
-        adminKey:
-          value: "%s"
-`
-
 const ingressClassYaml = `
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
@@ -476,10 +462,6 @@ spec:
     namespace: "%s"
     scope: "Namespace"
 `
-
-func (s *Scaffold) GetGatewayProxyYaml() string {
-	return fmt.Sprintf(gatewayProxyYaml, s.namespace, s.namespace, s.Deployer.GetAdminEndpoint(), s.AdminKey())
-}
 
 func (s *Scaffold) GetIngressClassYaml() string {
 	return fmt.Sprintf(ingressClassYaml, s.namespace, s.GetControllerName(), s.namespace, s.namespace)

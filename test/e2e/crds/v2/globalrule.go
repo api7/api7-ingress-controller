@@ -55,7 +55,7 @@ spec:
 	Context("ApisixGlobalRule Basic Operations", func() {
 		BeforeEach(func() {
 			By("create GatewayProxy")
-			gatewayProxy := s.GetGatewayProxyYaml()
+			gatewayProxy := s.GetGatewayProxySpec()
 			err := s.CreateResourceFromString(gatewayProxy)
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
