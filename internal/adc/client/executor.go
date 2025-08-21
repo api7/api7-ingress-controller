@@ -213,7 +213,7 @@ type ADCServerTask struct {
 // ADCServerOpts represents the options in ADC Server task
 type ADCServerOpts struct {
 	Backend             string            `json:"backend"`
-	Server              string            `json:"server"`
+	Server              []string          `json:"server"`
 	Token               string            `json:"token"`
 	LabelSelector       map[string]string `json:"labelSelector,omitempty"`
 	IncludeResourceType []string          `json:"includeResourceType,omitempty"`
@@ -374,7 +374,7 @@ func (e *HTTPADCExecutor) buildHTTPRequest(ctx context.Context, serverAddr, mode
 		Task: ADCServerTask{
 			Opts: ADCServerOpts{
 				Backend:             mode,
-				Server:              serverAddr,
+				Server:              strings.Split(serverAddr, ","),
 				Token:               config.Token,
 				LabelSelector:       labels,
 				IncludeResourceType: types,
