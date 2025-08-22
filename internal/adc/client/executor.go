@@ -368,9 +368,6 @@ func (e *HTTPADCExecutor) loadResourcesFromFile(filePath string) (*adctypes.Reso
 
 // buildHTTPRequest builds the HTTP request for ADC Server
 func (e *HTTPADCExecutor) buildHTTPRequest(ctx context.Context, serverAddr, mode string, config adctypes.Config, labels map[string]string, types []string, resources *adctypes.Resources) (*http.Request, error) {
-	if mode == "apisix-standalone" {
-		time.Sleep(1 * time.Second)
-	}
 	// Prepare request body
 	tlsVerify := config.TlsVerify
 	reqBody := ADCServerRequest{
