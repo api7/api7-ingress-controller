@@ -205,6 +205,11 @@ func (d *apisixProvider) handleDetailedFailedStatuses(
 	statusUpdateMap map[types.NamespacedNameKind][]string,
 ) {
 	for _, status := range failedStatus.FailedStatuses {
+		if status.Event.ResourceType == "" {
+			d.handleEmptyFailedStatuses(configName, failedStatus, statusUpdateMap)
+			return
+		}
+
 		id := status.Event.ResourceID
 		labels, err := d.client.GetResourceLabel(configName, status.Event.ResourceType, id)
 		if err != nil {
