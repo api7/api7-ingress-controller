@@ -205,6 +205,7 @@ func (d *apisixProvider) handleDetailedFailedStatuses(
 	statusUpdateMap map[types.NamespacedNameKind][]string,
 ) {
 	for _, status := range failedStatus.FailedStatuses {
+		// in the APISIX standalone mode, the related values in the sync failure event are empty.
 		if status.Event.ResourceType == "" {
 			d.handleEmptyFailedStatuses(configName, failedStatus, statusUpdateMap)
 			return
