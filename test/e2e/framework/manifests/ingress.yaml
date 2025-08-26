@@ -437,6 +437,8 @@ spec:
           value: ingress
         - name: ADC_EXPERIMENTAL_FEATURE_FLAGS 
           value: remote-state-file,parallel-backend-request
+        - name: ADC_INGRESS_LOG_LEVEL
+          value: "debug"
         name: adc-server
         args:
         - "server"

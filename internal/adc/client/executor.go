@@ -213,11 +213,12 @@ type ADCServerTask struct {
 // ADCServerOpts represents the options in ADC Server task
 type ADCServerOpts struct {
 	Backend             string            `json:"backend"`
-	Server              string            `json:"server"`
+	Server              []string          `json:"server"`
 	Token               string            `json:"token"`
 	LabelSelector       map[string]string `json:"labelSelector,omitempty"`
 	IncludeResourceType []string          `json:"includeResourceType,omitempty"`
 	TlsSkipVerify       *bool             `json:"tlsSkipVerify,omitempty"`
+	CacheKey            string            `json:"cacheKey"`
 }
 
 // HTTPADCExecutor implements ADCExecutor interface using HTTP calls to ADC Server
@@ -247,7 +248,15 @@ func (e *HTTPADCExecutor) runHTTPSync(ctx context.Context, mode string, config a
 		Name: config.Name,
 	}
 
-	for _, addr := range config.ServerAddrs {
+	serverAddrs := func() []string {
+		if mode == "apisix-standalone" {
+			return []string{strings.Join(config.ServerAddrs, ",")}
+		}
+		return config.ServerAddrs
+	}()
+	log.Debugw("running http sync", zap.Strings("serverAddrs", serverAddrs), zap.String("mode", mode))
+
+	for _, addr := range serverAddrs {
 		if err := e.runHTTPSyncForSingleServer(ctx, addr, mode, config, args); err != nil {
 			log.Errorw("failed to run http sync for server", zap.String("server", addr), zap.Error(err))
 			var execErr types.ADCExecutionServerAddrError
@@ -365,11 +374,12 @@ func (e *HTTPADCExecutor) buildHTTPRequest(ctx context.Context, serverAddr, mode
 		Task: ADCServerTask{
 			Opts: ADCServerOpts{
 				Backend:             mode,
-				Server:              serverAddr,
+				Server:              strings.Split(serverAddr, ","),
 				Token:               config.Token,
 				LabelSelector:       labels,
 				IncludeResourceType: types,
 				TlsSkipVerify:       ptr.To(!tlsVerify),
+				CacheKey:            config.Name,
 			},
 			Config: *resources,
 		},
@@ -386,6 +396,7 @@ func (e *HTTPADCExecutor) buildHTTPRequest(ctx context.Context, serverAddr, mode
 		zap.String("url", e.serverURL+"/sync"),
 		zap.String("server", serverAddr),
 		zap.String("mode", mode),
+		zap.String("cacheKey", config.Name),
 		zap.Any("labelSelector", labels),
 		zap.Strings("includeResourceType", types),
 		zap.Bool("tlsSkipVerify", !tlsVerify),
