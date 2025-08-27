@@ -23,6 +23,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/api7/gopkg/pkg/log"
@@ -32,6 +33,20 @@ import (
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/internal/adc/translator"
 )
+
+var (
+	adcExec = "./bin/adc"
+	adcArgs []string
+)
+
+func init() {
+	adc := os.Getenv("ADC_BIN")
+	if adc != "" && strings.Contains(adc, "node") {
+		parts := strings.Fields(adc)
+		adcExec = parts[0]
+		adcArgs = parts[1:]
+	}
+}
 
 // DataplaneResource defines the interface for accessing dataplane resources
 type DataplaneResource interface {
@@ -125,7 +140,7 @@ func (a *adcDataplaneResource) dumpResources(ctx context.Context) (*translator.T
 		_ = os.Remove(tempFile.Name())
 	}()
 
-	args := []string{"dump", "-o", tempFile.Name()}
+	args := append(adcArgs, []string{"dump", "-o", tempFile.Name()}...)
 	if !a.tlsVerify {
 		args = append(args, "--tls-skip-verify")
 	}
@@ -138,7 +153,7 @@ func (a *adcDataplaneResource) dumpResources(ctx context.Context) (*translator.T
 	}
 
 	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctxWithTimeout, "adc", args...)
+	cmd := exec.CommandContext(ctxWithTimeout, adcExec, args...)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	cmd.Env = append(cmd.Env, os.Environ()...)

@@ -40,6 +40,8 @@ jobs:
         provider_type:
         - apisix-standalone
         - apisix
+    env:
+      ADC_VERSION: "dev"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -88,6 +90,7 @@ jobs:
 
       - name: Loading Docker Image to Kind Cluster
         run: |
+          make kind-load-adc-image
           make kind-load-ingress-image
 
       - name: Run Conformance Test
