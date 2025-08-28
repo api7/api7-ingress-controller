@@ -31,7 +31,7 @@ KIND_NODE_IMAGE ?= kindest/node:v1.30.0@sha256:047357ac0cfea04663786a612ba1eaba9
 
 GATEAY_API_VERSION ?= v1.2.0
 DASHBOARD_VERSION ?= dev
-ADC_VERSION ?= 0.20.0
+ADC_VERSION ?= 0.21.0
 
 GINKGO_VERSION ?= 2.20.0
 TEST_TIMEOUT ?= 80m
@@ -345,6 +345,9 @@ KUSTOMIZE_VERSION ?= v5.4.2
 CONTROLLER_TOOLS_VERSION ?= v0.17.2
 ENVTEST_VERSION ?= release-0.18
 GOLANGCI_LINT_VERSION ?= v2.1.5
+
+## export PATH so that the tools are found
+export PATH := $(LOCALBIN):$(PATH)
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
