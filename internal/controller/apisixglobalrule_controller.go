@@ -87,11 +87,15 @@ func (r *ApisixGlobalRuleReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	tctx := provider.NewDefaultTranslateContext(ctx)
 
 	// get the ingress class
-	ingressClass, err := GetIngressClass(tctx, r.Client, r.Log, globalRule.Spec.IngressClassName, r.ICGV.String())
+	ingressClass, err := FindMatchingIngressClass(tctx, r.Client, r.Log, &globalRule)
 	if err != nil {
 		r.Log.V(1).Info("no matching IngressClass available",
 			"ingressClassName", globalRule.Spec.IngressClassName,
 			"error", err.Error())
+		if err := r.Provider.Delete(ctx, &globalRule); err != nil {
+			r.Log.Error(err, "failed to delete global rule from provider")
+			return ctrl.Result{}, err
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -140,7 +144,7 @@ func (r *ApisixGlobalRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiv2.ApisixGlobalRule{},
 			builder.WithPredicates(
-				predicate.NewPredicateFuncs(r.checkIngressClass),
+				MatchesIngressClassPredicate(r.Client, r.Log),
 			),
 		).
 		WithEventFilter(
@@ -161,16 +165,6 @@ func (r *ApisixGlobalRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Named("apisixglobalrule").
 		Complete(r)
-}
-
-// checkIngressClass checks if the ApisixGlobalRule uses the ingress class that we control
-func (r *ApisixGlobalRuleReconciler) checkIngressClass(obj client.Object) bool {
-	globalRule, ok := obj.(*apiv2.ApisixGlobalRule)
-	if !ok {
-		return false
-	}
-
-	return matchesIngressClass(context.Background(), r.Client, r.Log, globalRule.Spec.IngressClassName, r.ICGV.String())
 }
 
 // listGlobalRulesForIngressClass list all global rules that use a specific ingress class

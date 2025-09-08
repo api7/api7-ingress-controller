@@ -70,7 +70,7 @@ func (r *ApisixTlsReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiv2.ApisixTls{},
 			builder.WithPredicates(
-				predicate.NewPredicateFuncs(r.checkIngressClass),
+				MatchesIngressClassPredicate(r.Client, r.Log),
 			),
 		).
 		WithEventFilter(
@@ -126,7 +126,7 @@ func (r *ApisixTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	tctx := provider.NewDefaultTranslateContext(ctx)
 
 	// get the ingress class
-	ingressClass, err := GetIngressClass(tctx, r.Client, r.Log, tls.Spec.IngressClassName, r.ICGV.String())
+	ingressClass, err := FindMatchingIngressClass(tctx, r.Client, r.Log, &tls)
 	if err != nil {
 		r.Log.V(1).Info("no matching IngressClass available, skip processing",
 			"ingressClassName", tls.Spec.IngressClassName,
@@ -236,16 +236,6 @@ func (r *ApisixTlsReconciler) updateStatus(tls *apiv2.ApisixTls, condition metav
 			return tlsResult
 		}),
 	})
-}
-
-// checkIngressClass checks if the ApisixTls uses the ingress class that we control
-func (r *ApisixTlsReconciler) checkIngressClass(obj client.Object) bool {
-	tls, ok := obj.(*apiv2.ApisixTls)
-	if !ok {
-		return false
-	}
-
-	return matchesIngressClass(context.Background(), r.Client, r.Log, tls.Spec.IngressClassName, r.ICGV.String())
 }
 
 func (r *ApisixTlsReconciler) listApisixTlsForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
