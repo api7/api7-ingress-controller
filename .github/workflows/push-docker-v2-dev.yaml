@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: push v2-dev on dockerhub
+name: release dev image on dockerhub
 on:
   release:
     types: [ published ]
   push:
     branches:
-    - release-v2-dev
+    - master
   workflow_dispatch:
 jobs:
   docker:

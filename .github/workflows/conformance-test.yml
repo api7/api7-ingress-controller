@@ -21,11 +21,9 @@ on:
   push:
     branches:
       - master
-      - release-v2-dev
   pull_request:
     branches:
       - master
-      - release-v2-dev
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
