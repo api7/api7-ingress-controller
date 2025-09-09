@@ -1656,7 +1656,7 @@ spec:
 					hitNginxCnt   = 0
 					hitHttpbinCnt = 0
 				)
-				for i := 0; i < 20; i++ {
+				for range 20 {
 					resp := s.NewAPISIXClient().GET("/get").
 						WithHeader("Host", "httpbin.example").
 						Expect()
@@ -1682,7 +1682,7 @@ spec:
 					hitNginxCnt   = 0
 					hitHttpbinCnt = 0
 				)
-				for i := 0; i < 20; i++ {
+				for range 20 {
 					resp := s.NewAPISIXClient().GET("/get").
 						WithHeader("Host", "httpbin.example").
 						Expect()
@@ -1859,7 +1859,7 @@ spec:
 			upstreamHosts := make(map[string]int)
 			totalRequests := 20
 
-			for i := 0; i < totalRequests; i++ {
+			for range totalRequests {
 				statusCode := s.NewAPISIXClient().GET("/headers").Expect().Raw().StatusCode
 				Expect(statusCode).To(Or(Equal(http.StatusOK), Equal(http.StatusMovedPermanently)))
 
