@@ -24,7 +24,6 @@ on:
   pull_request:
     branches:
       - master
-      - release-v2-dev
       - 1.8.0
   schedule:
     - cron: '25 5 * * 5'
