@@ -25,6 +25,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -755,6 +756,12 @@ spec:
 	})
 
 	Context("Test ApisixRoute Traffic Split", func() {
+		BeforeEach(func() {
+			s.DeployNginx(framework.NginxOptions{
+				Namespace: s.Namespace(),
+			})
+		})
+
 		It("2:1 traffic split test", func() {
 			const apisixRouteSpec = `
 apiVersion: apisix.apache.org/v2
@@ -774,20 +781,16 @@ spec:
    - serviceName: httpbin-service-e2e-test
      servicePort: 80
      weight: 10
-   - serviceName: %s
-     servicePort: 9180
+   - serviceName: nginx
+     servicePort: 80
      weight: 5
 `
 			By("apply ApisixRoute with traffic split")
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, new(apiv2.ApisixRoute),
-				fmt.Sprintf(apisixRouteSpec, s.Deployer.GetAdminServiceName()))
-			verifyRequest := func() int {
-				return s.NewAPISIXClient().GET("/get").WithHost("httpbin.org").Expect().Raw().StatusCode
-			}
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, new(apiv2.ApisixRoute), apisixRouteSpec)
 			By("send requests to verify traffic split")
 			var (
-				successCount int
-				failCount    int
+				hitHttpbinCnt = 0
+				hitNginxCnt   = 0
 			)
 
 			s.RequestAssert(&scaffold.RequestAssert{
@@ -798,16 +801,18 @@ spec:
 				Timeout: 10 * time.Second,
 			})
 			for range 90 {
-				code := verifyRequest()
-				if code == http.StatusOK {
-					successCount++
+				resp := s.NewAPISIXClient().GET("/get").WithHost("httpbin.org").Expect()
+				body := resp.Body().Raw()
+
+				if strings.Contains(body, "Hello") {
+					hitNginxCnt++
 				} else {
-					failCount++
+					hitHttpbinCnt++
 				}
 			}
 
 			By("verify traffic distribution ratio")
-			ratio := float64(successCount) / float64(failCount)
+			ratio := float64(hitHttpbinCnt) / float64(hitNginxCnt)
 			expectedRatio := 10.0 / 5.0 // 2:1 ratio
 			deviation := math.Abs(ratio - expectedRatio)
 			Expect(deviation).Should(BeNumerically("<", 0.5),
@@ -838,8 +843,7 @@ spec:
      weight: 0
 `
 			By("apply ApisixRoute with zero-weight backend")
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, new(apiv2.ApisixRoute),
-				fmt.Sprintf(apisixRouteSpec, s.Deployer.GetAdminServiceName()))
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, new(apiv2.ApisixRoute), apisixRouteSpec)
 			verifyRequest := func() int {
 				return s.NewAPISIXClient().GET("/get").WithHost("httpbin.org").Expect().Raw().StatusCode
 			}
