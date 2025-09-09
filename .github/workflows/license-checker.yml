@@ -22,12 +22,9 @@ on:
   push:
     branches:
       - master
-      - release-v2-dev
   pull_request:
     branches:
       - master
-      - release-v2-dev
-
 jobs:
   check-license:
     runs-on: buildjet-2vcpu-ubuntu-2204

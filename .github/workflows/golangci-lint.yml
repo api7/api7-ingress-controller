@@ -21,12 +21,9 @@ on:
   push:
     branches:
       - master
-      - release-v2-dev
   pull_request:
     branches:
       - master
-      - release-v2-dev
-
 jobs:
   golangci:
     name: lint
