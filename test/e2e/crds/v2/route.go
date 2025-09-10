@@ -838,16 +838,12 @@ spec:
    - serviceName: httpbin-service-e2e-test
      servicePort: 80
      weight: 10
-   - serviceName: %s
-     servicePort: 9180
+   - serviceName: nginx
+     servicePort: 80
      weight: 0
 `
 			By("apply ApisixRoute with zero-weight backend")
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, new(apiv2.ApisixRoute), apisixRouteSpec)
-			verifyRequest := func() int {
-				return s.NewAPISIXClient().GET("/get").WithHost("httpbin.org").Expect().Raw().StatusCode
-			}
-
 			By("wait for route to be ready")
 			s.RequestAssert(&scaffold.RequestAssert{
 				Method:  "GET",
@@ -858,8 +854,10 @@ spec:
 			})
 			By("send requests to verify zero-weight behavior")
 			for range 30 {
-				code := verifyRequest()
-				Expect(code).Should(Equal(200))
+				resp := s.NewAPISIXClient().GET("/get").WithHost("httpbin.org").Expect()
+				body := resp.Body().Raw()
+				// should not hit nginx
+				Expect(body).ShouldNot(ContainSubstring("Hello"))
 			}
 		})
 		It("valid backend is set even if other backend is invalid", func() {
@@ -1181,6 +1179,7 @@ kind: ApisixUpstream
 metadata:
   name: %s
 spec:
+  ingressClassName: apisix
   externalNodes:
   - type: %s
     name: %s
@@ -1304,6 +1303,7 @@ kind: ApisixUpstream
 metadata:
   name: httpbin-upstream
 spec:
+  ingressClassName: apisix
   externalNodes:
   - type: Domain
     name: httpbin.org
@@ -1348,6 +1348,7 @@ kind: ApisixUpstream
 metadata:
   name: httpbin-upstream
 spec:
+  ingressClassName: apisix
   externalNodes:
   - type: Domain
     name: postman-echo.com
