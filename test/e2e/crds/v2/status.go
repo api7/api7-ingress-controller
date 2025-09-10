@@ -37,7 +37,6 @@ import (
 var _ = Describe("Test apisix.apache.org/v2 Status", Label("apisix.apache.org", "v2", "apisixroute"), func() {
 	var (
 		s = scaffold.NewScaffold(&scaffold.Options{
-			ControllerName: fmt.Sprintf("apisix.apache.org/apisix-ingress-controller-%d", time.Now().Unix()),
 			// for triggering the sync
 			SyncPeriod: 3 * time.Second,
 		})
@@ -356,7 +355,7 @@ spec:
 			time.Sleep(5 * time.Second)
 
 			By("create GatewayClass")
-			gatewayClassName := fmt.Sprintf("apisix-%d", time.Now().Unix())
+			gatewayClassName := s.Namespace()
 			err = s.CreateResourceFromString(fmt.Sprintf(gatewayClass, gatewayClassName, s.GetControllerName()))
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 			time.Sleep(5 * time.Second)

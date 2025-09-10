@@ -42,9 +42,7 @@ import (
 
 var _ = Describe("Test ApisixRoute", Label("apisix.apache.org", "v2", "apisixroute"), func() {
 	var (
-		s = scaffold.NewScaffold(&scaffold.Options{
-			ControllerName: fmt.Sprintf("apisix.apache.org/apisix-ingress-controller-%d", time.Now().Unix()),
-		})
+		s       = scaffold.NewDefaultScaffold()
 		applier = framework.NewApplier(s.GinkgoT, s.K8sClient, s.CreateResourceFromString)
 	)
 
@@ -1224,11 +1222,11 @@ metadata:
   name: %s
   namespace: %s
 spec:
-  ingressClassName: apisix
+  ingressClassName: %s
   externalNodes:
   - type: %s
     name: %s
-`, upstreamName, s.Namespace(), externalType, name)
+`, upstreamName, s.Namespace(), s.Namespace(), externalType, name)
 			var upstream apiv2.ApisixUpstream
 			applier.MustApplyAPIv2(
 				types.NamespacedName{Namespace: s.Namespace(), Name: upstreamName},
@@ -1363,7 +1361,7 @@ metadata:
   name: %s
   namespace: %s
 spec:
-  ingressClassName: apisix
+  ingressClassName: %s
   externalNodes:
   - type: Domain
     name: httpbin.org
@@ -1374,7 +1372,7 @@ spec:
 				applier.MustApplyAPIv2(
 					types.NamespacedName{Namespace: s.Namespace(), Name: upstreamName},
 					&upstream,
-					fmt.Sprintf(upstreamSpec, upstreamName, s.Namespace()),
+					fmt.Sprintf(upstreamSpec, upstreamName, s.Namespace(), s.Namespace()),
 				)
 
 				createApisixRoute(routeName, upstreamName)
@@ -1411,7 +1409,7 @@ kind: ApisixUpstream
 metadata:
   name: %s
 spec:
-  ingressClassName: apisix
+  ingressClassName: %s
   externalNodes:
   - type: Domain
     name: postman-echo.com
@@ -1420,7 +1418,7 @@ spec:
 				applier.MustApplyAPIv2(
 					types.NamespacedName{Namespace: s.Namespace(), Name: upstreamName},
 					&upstream,
-					fmt.Sprintf(upstreamSpec, upstreamName),
+					fmt.Sprintf(upstreamSpec, upstreamName, s.Namespace()),
 				)
 				By("create ApisixRoute with both backends and upstreams")
 				routeSpec := fmt.Sprintf(`

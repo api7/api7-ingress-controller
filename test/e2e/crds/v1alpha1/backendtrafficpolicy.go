@@ -30,28 +30,9 @@ import (
 
 var _ = Describe("Test BackendTrafficPolicy base on HTTPRoute", Label("apisix.apache.org", "v1alpha1", "backendtrafficpolicy"), func() {
 	var (
-		s = scaffold.NewScaffold(&scaffold.Options{
-			ControllerName: fmt.Sprintf("apisix.apache.org/apisix-ingress-controller-%d", time.Now().Unix()),
-		})
+		s   = scaffold.NewDefaultScaffold()
 		err error
 	)
-
-	var defaultGatewayProxy = `
-apiVersion: apisix.apache.org/v1alpha1
-kind: GatewayProxy
-metadata:
-  name: %s
-spec:
-  provider:
-    type: ControlPlane
-    controlPlane:
-      endpoints:
-      - %s
-      auth:
-        type: AdminKey
-        adminKey:
-          value: "%s"
-`
 
 	var defaultGatewayClass = `
 apiVersion: gateway.networking.k8s.io/v1
@@ -142,7 +123,7 @@ spec:
 			time.Sleep(time.Second)
 
 			By("create GatewayClass")
-			gatewayClassName := fmt.Sprintf("apisix-%d", time.Now().Unix())
+			gatewayClassName := s.Namespace()
 			err = s.CreateResourceFromString(fmt.Sprintf(defaultGatewayClass, gatewayClassName, s.GetControllerName()))
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 			time.Sleep(time.Second)
@@ -211,9 +192,7 @@ spec:
 })
 
 var _ = Describe("Test BackendTrafficPolicy base on Ingress", Label("apisix.apache.org", "v1alpha1", "backendtrafficpolicy"), func() {
-	s := scaffold.NewScaffold(&scaffold.Options{
-		ControllerName: fmt.Sprintf("apisix.apache.org/apisix-ingress-controller-%d", time.Now().Unix()),
-	})
+	s := scaffold.NewDefaultScaffold()
 
 	var defaultGatewayProxy = `
 apiVersion: apisix.apache.org/v1alpha1

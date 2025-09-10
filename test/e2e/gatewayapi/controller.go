@@ -105,7 +105,7 @@ spec:
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 		time.Sleep(5 * time.Second)
 
-		gatewayClassName := fmt.Sprintf("apisix-%d", time.Now().Unix())
+		gatewayClassName := s.Namespace()
 		err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defautlGatewayClass, gatewayClassName, gatewayName, s.GetControllerName()), gatewayName)
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 		time.Sleep(10 * time.Second)
@@ -129,9 +129,7 @@ spec:
 	}
 
 	Context("Create resource with first controller", func() {
-		s1 := scaffold.NewScaffold(&scaffold.Options{
-			ControllerName: fmt.Sprintf("apisix.apache.org/apisix-ingress-controller-%d", time.Now().Unix()),
-		})
+		s1 := scaffold.NewDefaultScaffold()
 		var route1 = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -174,9 +172,7 @@ spec:
 		})
 	})
 	Context("Create resource with second controller", func() {
-		s2 := scaffold.NewScaffold(&scaffold.Options{
-			ControllerName: fmt.Sprintf("apisix.apache.org/apisix-ingress-controller-%d", time.Now().Unix()),
-		})
+		s2 := scaffold.NewDefaultScaffold()
 		var route2 = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

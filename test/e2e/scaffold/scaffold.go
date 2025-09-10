@@ -265,25 +265,6 @@ func (s *Scaffold) DeleteResource(resourceType, name string) error {
 	return k8s.RunKubectlE(s.t, s.kubectlOptions, "delete", resourceType, name)
 }
 
-func (s *Scaffold) NamespaceSelectorLabelStrings() []string {
-	var labels []string
-	if s.opts.NamespaceSelectorLabel != nil {
-		for k, v := range s.opts.NamespaceSelectorLabel {
-			for _, v0 := range v {
-				labels = append(labels, fmt.Sprintf("%s=%s", k, v0))
-			}
-		}
-	} else {
-		for k, v := range s.label {
-			labels = append(labels, fmt.Sprintf("%s=%s", k, v))
-		}
-	}
-	return labels
-}
-
-func (s *Scaffold) NamespaceSelectorLabel() map[string][]string {
-	return s.opts.NamespaceSelectorLabel
-}
 func (s *Scaffold) labelSelector(label string) metav1.ListOptions {
 	return metav1.ListOptions{
 		LabelSelector: label,
