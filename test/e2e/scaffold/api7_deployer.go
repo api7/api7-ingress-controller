@@ -26,7 +26,6 @@ import (
 	. "github.com/onsi/ginkgo/v2" //nolint:staticcheck
 	. "github.com/onsi/gomega"    //nolint:staticcheck
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
 	"github.com/apache/apisix-ingress-controller/pkg/utils"
@@ -58,27 +57,11 @@ func (s *API7Deployer) BeforeEach() {
 		s.runtimeOpts.ControllerName = fmt.Sprintf("%s/%s", DefaultControllerName, s.namespace)
 	}
 	s.finalizers = nil
-	if s.label == nil {
-		s.label = make(map[string]string)
-	}
-	if s.runtimeOpts.NamespaceSelectorLabel != nil {
-		for k, v := range s.runtimeOpts.NamespaceSelectorLabel {
-			if len(v) > 0 {
-				s.label[k] = v[0]
-			}
-		}
-	} else {
-		s.label["apisix.ingress.watch"] = s.namespace
-	}
 
 	// Initialize additionalGatewayGroups map
 	s.additionalGateways = make(map[string]*GatewayResources)
 
-	var nsLabel map[string]string
-	if !s.runtimeOpts.DisableNamespaceLabel {
-		nsLabel = s.label
-	}
-	k8s.CreateNamespaceWithMetadata(s.t, s.kubectlOptions, metav1.ObjectMeta{Name: s.namespace, Labels: nsLabel})
+	k8s.CreateNamespace(s.t, s.kubectlOptions, s.namespace)
 
 	s.nodes, err = k8s.GetReadyNodesE(s.t, s.kubectlOptions)
 	Expect(err).NotTo(HaveOccurred(), "getting ready nodes")
@@ -174,13 +157,6 @@ func (s *API7Deployer) DeployDataplane(deployOpts DeployDataplaneOptions) {
 		deployOpts.SkipCreateTunnels = true
 	}
 
-	for _, close := range []func(){
-		s.closeApisixHttpTunnel,
-		s.closeApisixHttpsTunnel,
-	} {
-		close()
-	}
-
 	svc := s.DeployGateway(&opts)
 	s.dataplaneService = svc
 
@@ -197,13 +173,12 @@ func (s *API7Deployer) ScaleDataplane(replicas int) {
 }
 
 func (s *API7Deployer) newAPISIXTunnels(serviceName string) error {
-	httpTunnel, httpsTunnel, err := s.createDataplaneTunnels(s.dataplaneService, s.kubectlOptions, serviceName)
+	apisixTunnels, err := s.createDataplaneTunnels(s.dataplaneService, s.kubectlOptions, serviceName)
 	if err != nil {
 		return err
 	}
 
-	s.apisixHttpTunnel = httpTunnel
-	s.apisixHttpsTunnel = httpsTunnel
+	s.apisixTunnels = apisixTunnels
 	return nil
 }
 
@@ -231,12 +206,7 @@ func (s *API7Deployer) CreateAdditionalGateway(namePrefix string) (string, *core
 	// Create a new namespace for this gateway group
 	additionalNS := fmt.Sprintf("%s-%d", namePrefix, time.Now().Unix())
 
-	// Create namespace with the same labels
-	var nsLabel map[string]string
-	if !s.runtimeOpts.DisableNamespaceLabel {
-		nsLabel = s.label
-	}
-	k8s.CreateNamespaceWithMetadata(s.t, s.kubectlOptions, metav1.ObjectMeta{Name: additionalNS, Labels: nsLabel})
+	k8s.CreateNamespace(s.t, s.kubectlOptions, additionalNS)
 
 	// Create new kubectl options for the new namespace
 	kubectlOpts := &k8s.KubectlOptions{
@@ -279,13 +249,12 @@ func (s *API7Deployer) CreateAdditionalGateway(namePrefix string) (string, *core
 	resources.DataplaneService = svc
 
 	// Create tunnels for the dataplane
-	httpTunnel, httpsTunnel, err := s.createDataplaneTunnels(svc, kubectlOpts, serviceName)
+	tunnels, err := s.createDataplaneTunnels(svc, kubectlOpts, serviceName)
 	if err != nil {
 		return "", nil, err
 	}
 
-	resources.HttpTunnel = httpTunnel
-	resources.HttpsTunnel = httpsTunnel
+	resources.Tunnels = tunnels
 
 	// Store in the map
 	s.additionalGateways[gatewayGroupID] = resources

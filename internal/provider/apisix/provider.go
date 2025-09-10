@@ -154,7 +154,7 @@ func (d *apisixProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 
 	defer d.syncNotify()
 
-	return d.client.UpdateConfig(ctx, adcclient.Task{
+	task := adcclient.Task{
 		Key:           rk,
 		Name:          rk.String(),
 		Labels:        label.GenLabel(obj),
@@ -167,7 +167,10 @@ func (d *apisixProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 			SSLs:           result.SSL,
 			Consumers:      result.Consumers,
 		},
-	})
+	}
+	log.Debugw("updating config", zap.Any("task", task))
+
+	return d.client.UpdateConfig(ctx, task)
 }
 
 func (d *apisixProvider) Delete(ctx context.Context, obj client.Object) error {

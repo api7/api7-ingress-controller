@@ -24,9 +24,7 @@ data:
     deployment:
       role: traditional
       role_traditional:
-          # on backend mode apisix-standalone, config_provider is "yaml"
-          # on backend mode apisix, config_provider is "etcd"
-        config_provider: {{ .ConfigProvider | default "yaml" }}
+          config_provider: yaml
       admin:
         allow_admin:
         - 0.0.0.0/0
@@ -34,11 +32,6 @@ data:
         - key: {{ .AdminKey }}
           name: admin
           role: admin
-      {{- if eq .ConfigProvider "etcd" }}
-      etcd:
-        host:
-        - "http://etcd:2379"
-      {{- end }}
     nginx_config:
       worker_processes: 2
       error_log_level: info
@@ -57,7 +50,7 @@ metadata:
   labels:
     app.kubernetes.io/name: apisix
 spec:
-  replicas: {{ default 1 .Replicas }}
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: apisix
@@ -97,9 +90,6 @@ spec:
             - name: admin
               containerPort: 9180
               protocol: TCP
-            - name: control
-              containerPort: 9090
-              protocol: TCP
             - name: tcp
               containerPort: 9100
               protocol: TCP
@@ -109,13 +99,6 @@ spec:
           volumeMounts:
             - name: config-writable
               mountPath: /usr/local/apisix/conf
-          readinessProbe:
-            failureThreshold: 6
-            initialDelaySeconds: 10
-            periodSeconds: 10
-            successThreshold: 1
-            tcpSocket:
-              port: 9080
       volumes:
         - name: config-source
           configMap:
