@@ -481,7 +481,7 @@ kind: ApisixRoute
 metadata:
   name: route1
 spec:
-  ingressClassName: apisix
+  ingressClassName: %s
   http:
   - name: rule1
     match:
@@ -500,7 +500,7 @@ kind: ApisixRoute
 metadata:
   name: route2
 spec:
-  ingressClassName: apisix
+  ingressClassName: %s
   http:
   - name: rule2
     match:
@@ -519,11 +519,11 @@ spec:
 
 			By("apply first ApisixRoute")
 			var apisixRoute1 apiv2.ApisixRoute
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "route1"}, &apisixRoute1, apisixRouteSpec1)
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "route1"}, &apisixRoute1, fmt.Sprintf(apisixRouteSpec1, s.Namespace()))
 
 			By("apply second ApisixRoute")
 			var apisixRoute2 apiv2.ApisixRoute
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "route2"}, &apisixRoute2, apisixRouteSpec2)
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "route2"}, &apisixRoute2, fmt.Sprintf(apisixRouteSpec2, s.Namespace()))
 
 			By("verify both ApisixRoutes work")
 			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
