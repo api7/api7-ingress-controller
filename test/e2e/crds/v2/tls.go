@@ -34,39 +34,6 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-const gatewayProxyYamlTls = `
-apiVersion: apisix.apache.org/v1alpha1
-kind: GatewayProxy
-metadata:
-  name: apisix-proxy-tls
-spec:
-  provider:
-    type: ControlPlane
-    controlPlane:
-      endpoints:
-      - %s
-      auth:
-        type: AdminKey
-        adminKey:
-          value: "%s"
-`
-
-// TODO: change ingressClassName
-const ingressClassYamlTls = `
-apiVersion: networking.k8s.io/%s
-kind: IngressClass
-metadata:
-  name: %s
-spec:
-  controller: %s
-  parameters:
-    apiGroup: "apisix.apache.org"
-    kind: "GatewayProxy"
-    name: "apisix-proxy-tls"
-    namespace: "%s"
-    scope: "Namespace"
-`
-
 const apisixRouteYamlTls = `
 apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
@@ -99,33 +66,19 @@ var _ = Describe("Test ApisixTls", Label("apisix.apache.org", "v2", "apisixtls")
 	Context("Test ApisixTls", func() {
 		BeforeEach(func() {
 			By("create GatewayProxy")
-			gatewayProxy := fmt.Sprintf(gatewayProxyYamlTls, s.Deployer.GetAdminEndpoint(), s.AdminKey())
+			gatewayProxy := s.GetGatewayProxySpec()
 			err := s.CreateResourceFromString(gatewayProxy)
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
 
 			By("create IngressClass")
-			// TODO: change ingressClassName
-			err = s.CreateResourceFromString(fmt.Sprintf(ingressClassYamlTls, s.Namespace(), s.GetControllerName(), s.Namespace()))
-			ingressClass := fmt.Sprintf(ingressClassYamlTls, framework.IngressVersion)
-			err = s.CreateResourceFromStringWithNamespace(ingressClass, "")
+			err = s.CreateResourceFromStringWithNamespace(s.GetIngressClassYaml(), "")
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
 			time.Sleep(5 * time.Second)
 
 			By("create ApisixRoute for TLS testing")
 			var apisixRoute apiv2.ApisixRoute
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "test-route-tls"}, &apisixRoute, fmt.Sprintf(apisixRouteYamlTls, s.Namespace()))
-		})
-
-		AfterEach(func() {
-			By("delete GatewayProxy")
-			gatewayProxy := fmt.Sprintf(gatewayProxyYamlTls, s.Deployer.GetAdminEndpoint(), s.AdminKey())
-			err := s.DeleteResourceFromStringWithNamespace(gatewayProxy, s.Namespace())
-			Expect(err).ShouldNot(HaveOccurred(), "deleting GatewayProxy")
-
-			By("delete IngressClass")
-			err = s.DeleteResourceFromStringWithNamespace(fmt.Sprintf(ingressClassYamlTls, s.Namespace(), s.GetControllerName(), s.Namespace()), "")
-			Expect(err).ShouldNot(HaveOccurred(), "deleting IngressClass")
 		})
 
 		normalizePEM := func(s string) string {

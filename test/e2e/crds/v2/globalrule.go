@@ -25,7 +25,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
@@ -61,10 +60,7 @@ spec:
 			time.Sleep(5 * time.Second)
 
 			By("create IngressClass")
-			ingressClass := fmt.Sprintf(ingressClassYaml, framework.IngressVersion)
-			err = s.CreateResourceFromStringWithNamespace(ingressClass, "")
-			// TODO: change ingress
-			err = s.CreateResourceFromString(s.GetIngressClassYaml())
+			err = s.CreateResourceFromStringWithNamespace(s.GetIngressClassYaml(), "")
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
 			time.Sleep(5 * time.Second)
 

@@ -52,23 +52,7 @@ var _ = Describe("Test apisix.apache.org/v2 Status", Label("apisix.apache.org", 
 			time.Sleep(5 * time.Second)
 
 			By("create IngressClass")
-			err = s.CreateResourceFromString(s.GetIngressClassYaml())
-			const ingressClassYaml = `
-apiVersion: networking.k8s.io/%s
-kind: IngressClass
-metadata:
-  name: apisix
-  annotations:
-    apisix.apache.org/parameters-namespace: %s
-spec:
-  controller: "apisix.apache.org/apisix-ingress-controller"
-  parameters:
-    apiGroup: "apisix.apache.org"
-    kind: "GatewayProxy"
-    name: "apisix-proxy-config"
-`
-			ingressClass := fmt.Sprintf(ingressClassYaml, framework.IngressVersion, s.Namespace())
-			err = s.CreateResourceFromStringWithNamespace(ingressClass, "")
+			err = s.CreateResourceFromStringWithNamespace(s.GetIngressClassYaml(), "")
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
 			time.Sleep(5 * time.Second)
 		})

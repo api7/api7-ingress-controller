@@ -447,22 +447,3 @@ func (s *Scaffold) GetMetricsEndpoint() string {
 	s.addFinalizers(tunnel.Close)
 	return fmt.Sprintf("http://%s/metrics", tunnel.Endpoint())
 }
-
-const ingressClassYaml = `
-apiVersion: networking.k8s.io/v1
-kind: IngressClass
-metadata:
-  name: %s
-spec:
-  controller: %s
-  parameters:
-    apiGroup: "apisix.apache.org"
-    kind: "GatewayProxy"
-    name: "%s"
-    namespace: "%s"
-    scope: "Namespace"
-`
-
-func (s *Scaffold) GetIngressClassYaml() string {
-	return fmt.Sprintf(ingressClassYaml, s.namespace, s.GetControllerName(), s.namespace, s.namespace)
-}

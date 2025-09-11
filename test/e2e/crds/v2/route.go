@@ -46,20 +46,6 @@ var _ = Describe("Test ApisixRoute", Label("apisix.apache.org", "v2", "apisixrou
 		applier = framework.NewApplier(s.GinkgoT, s.K8sClient, s.CreateResourceFromString)
 	)
 
-	const ingressClassYaml = `
-apiVersion: networking.k8s.io/%s
-kind: IngressClass
-metadata:
-  name: apisix
-  annotations:
-    apisix.apache.org/parameters-namespace: %s
-spec:
-  controller: "apisix.apache.org/apisix-ingress-controller"
-  parameters:
-    apiGroup: "apisix.apache.org"
-    kind: "GatewayProxy"
-    name: "apisix-proxy-config"
-`
 	BeforeEach(func() {
 		By("create GatewayProxy")
 		gatewayProxy := s.GetGatewayProxySpec()
@@ -68,10 +54,7 @@ spec:
 		time.Sleep(5 * time.Second)
 
 		By("create IngressClass")
-		// TODO: change ingress
-		err = s.CreateResourceFromString(s.GetIngressClassYaml())
-		ingressClass := fmt.Sprintf(ingressClassYaml, framework.IngressVersion, s.Namespace())
-		err = s.CreateResourceFromStringWithNamespace(ingressClass, "")
+		err = s.CreateResourceFromStringWithNamespace(s.GetIngressClassYaml(), "")
 		Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
 		time.Sleep(5 * time.Second)
 	})

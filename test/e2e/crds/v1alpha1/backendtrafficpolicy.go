@@ -117,9 +117,7 @@ spec:
 			gatewayName := s.Namespace()
 			By("create GatewayProxy")
 			gatewayProxyName := gatewayName
-			// TODO: change to gateway proxy spec
 			err = s.CreateResourceFromString(s.GetGatewayProxySpec())
-			s.GetGatewayProxySpec()
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(time.Second)
 

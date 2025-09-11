@@ -68,16 +68,6 @@ func (r *ApisixPluginConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, nil
 	}
 
-	tctx := provider.NewDefaultTranslateContext(ctx)
-
-	_, err := GetIngressClass(tctx, r.Client, r.Log, pc.Spec.IngressClassName)
-	if err != nil {
-		r.Log.V(1).Info("no matching IngressClass available",
-			"ingressClassName", pc.Spec.IngressClassName,
-			"error", err.Error())
-		return ctrl.Result{}, nil
-	}
-
 	// Only update status
 	r.updateStatus(&pc, nil)
 	return ctrl.Result{}, nil

@@ -314,3 +314,22 @@ spec:
 	}
 	return fmt.Sprintf(gatewayProxyYaml, framework.ProviderType, s.AdminKey())
 }
+
+const ingressClassYaml = `
+apiVersion: networking.k8s.io/%s
+kind: IngressClass
+metadata:
+  name: %s
+  annotations:
+    apisix.apache.org/parameters-namespace: %s
+spec:
+  controller: %s
+  parameters:
+    apiGroup: "apisix.apache.org"
+    kind: "GatewayProxy"
+    name: "apisix-proxy-config"
+`
+
+func (s *Scaffold) GetIngressClassYaml() string {
+	return fmt.Sprintf(ingressClassYaml, framework.IngressVersion, s.Namespace(), s.Namespace(), s.GetControllerName())
+}
