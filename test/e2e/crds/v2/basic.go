@@ -98,13 +98,15 @@ spec:
 
 			By("apply ApisixRoute")
 			var apisixRoute apiv2.ApisixRoute
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisixRoute, fmt.Sprintf(apisixRouteSpec, s.Namespace(), "/get"))
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisixRoute,
+				fmt.Sprintf(apisixRouteSpec, s.Namespace(), "/get"))
 
 			By("verify ApisixRoute works")
 			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 
 			By("update ApisixRoute")
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisixRoute, fmt.Sprintf(apisixRouteSpec, s.Namespace(), "/headers"))
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisixRoute,
+				fmt.Sprintf(apisixRouteSpec, s.Namespace(), "/headers"))
 			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 			s.RequestAssert(&scaffold.RequestAssert{
 				Method: "GET",

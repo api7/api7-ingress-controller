@@ -34,33 +34,6 @@ var _ = Describe("Test BackendTrafficPolicy base on HTTPRoute", Label("apisix.ap
 		err error
 	)
 
-	var defaultGatewayClass = `
-apiVersion: gateway.networking.k8s.io/v1
-kind: GatewayClass
-metadata:
-  name: %s
-spec:
-  controllerName: %s
-`
-
-	var defaultGateway = `
-apiVersion: gateway.networking.k8s.io/v1
-kind: Gateway
-metadata:
-  name: %s
-spec:
-  gatewayClassName: %s
-  listeners:
-    - name: http1
-      protocol: HTTP
-      port: 80
-  infrastructure:
-    parametersRef:
-      group: apisix.apache.org
-      kind: GatewayProxy
-      name: %s
-`
-
 	var defaultHTTPRoute = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -114,27 +87,25 @@ spec:
 `
 
 		BeforeEach(func() {
-			gatewayName := s.Namespace()
 			By("create GatewayProxy")
-			gatewayProxyName := gatewayName
 			err = s.CreateResourceFromString(s.GetGatewayProxySpec())
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
-			time.Sleep(time.Second)
+			time.Sleep(5 * time.Second)
 
 			By("create GatewayClass")
-			gatewayClassName := s.Namespace()
-			err = s.CreateResourceFromString(fmt.Sprintf(defaultGatewayClass, gatewayClassName, s.GetControllerName()))
+			err = s.CreateResourceFromString(s.GetGatewayClassYaml())
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
-			time.Sleep(time.Second)
+			time.Sleep(5 * time.Second)
 
 			By("create Gateway")
-			err = s.CreateResourceFromString(fmt.Sprintf(defaultGateway, gatewayName, gatewayClassName, gatewayProxyName))
+			err = s.CreateResourceFromString(s.GetGatewayYaml())
 			Expect(err).NotTo(HaveOccurred(), "creating Gateway")
-			time.Sleep(time.Second)
+			time.Sleep(5 * time.Second)
 
 			By("create HTTPRoute")
-			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, fmt.Sprintf(defaultHTTPRoute, gatewayName, s.Namespace()))
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, fmt.Sprintf(defaultHTTPRoute, s.Namespace(), s.Namespace()))
 		})
+
 		It("should rewrite upstream host", func() {
 			s.ResourceApplied("BackendTrafficPolicy", "httpbin", createUpstreamHost, 1)
 			s.RequestAssert(&scaffold.RequestAssert{
@@ -193,22 +164,6 @@ spec:
 var _ = Describe("Test BackendTrafficPolicy base on Ingress", Label("apisix.apache.org", "v1alpha1", "backendtrafficpolicy"), func() {
 	s := scaffold.NewDefaultScaffold()
 
-	var defaultGatewayProxy = `
-apiVersion: apisix.apache.org/v1alpha1
-kind: GatewayProxy
-metadata:
-  name: %s
-spec:
-  provider:
-    type: ControlPlane
-    controlPlane:
-      endpoints:
-      - %s
-      auth:
-        type: AdminKey
-        adminKey:
-          value: "%s"
-`
 	var defaultIngressClass = `
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
@@ -217,12 +172,12 @@ metadata:
   annotations:
     ingressclass.kubernetes.io/is-default-class: "true"
 spec:
-  controller: "%s"
+  controller: %s
   parameters:
     apiGroup: "apisix.apache.org"
     kind: "GatewayProxy"
-    name: "%s"
-    namespace: "%s"
+    name: "apisix-proxy-config"
+    namespace: %s
     scope: "Namespace"
 `
 
@@ -246,13 +201,12 @@ spec:
 `
 	var beforeEach = func() {
 		By("create GatewayProxy")
-		gatewayProxyName := s.Namespace()
-		gatewayProxy := fmt.Sprintf(defaultGatewayProxy, gatewayProxyName, s.Deployer.GetAdminEndpoint(), s.AdminKey())
-		err := s.CreateResourceFromString(gatewayProxy)
+		err := s.CreateResourceFromString(s.GetGatewayProxySpec())
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+		time.Sleep(5 * time.Second)
 
 		By("create IngressClass with GatewayProxy reference")
-		err = s.CreateResourceFromString(fmt.Sprintf(defaultIngressClass, s.GetControllerName(), gatewayProxyName, s.Namespace()))
+		err = s.CreateResourceFromString(fmt.Sprintf(defaultIngressClass, s.GetControllerName(), s.Namespace()))
 		Expect(err).NotTo(HaveOccurred(), "creating IngressClass with GatewayProxy")
 
 		By("create Ingress with GatewayProxy IngressClass")
