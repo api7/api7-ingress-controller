@@ -31,19 +31,6 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-const ingressClassYamlPluginConfig = `
-apiVersion: networking.k8s.io/%s
-kind: IngressClass
-metadata:
-  name: apisix
-spec:
-  controller: "apisix.apache.org/apisix-ingress-controller"
-  parameters:
-    apiGroup: "apisix.apache.org"
-    kind: "GatewayProxy"
-    name: "apisix-proxy-config"
-`
-
 var _ = Describe("Test ApisixPluginConfig", Label("apisix.apache.org", "v2", "apisixpluginconfig"), func() {
 	var (
 		s       = scaffold.NewDefaultScaffold()
@@ -53,8 +40,7 @@ var _ = Describe("Test ApisixPluginConfig", Label("apisix.apache.org", "v2", "ap
 	Context("Test ApisixPluginConfig", func() {
 		BeforeEach(func() {
 			By("create GatewayProxy")
-			gatewayProxy := s.GetGatewayProxySpec()
-			err := s.CreateResourceFromString(gatewayProxy)
+			err := s.CreateResourceFromString(s.GetGatewayProxySpec())
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
 

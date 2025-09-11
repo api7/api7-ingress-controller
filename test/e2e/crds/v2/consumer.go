@@ -41,8 +41,7 @@ var _ = Describe("Test ApisixConsumer", Label("apisix.apache.org", "v2", "apisix
 
 	BeforeEach(func() {
 		By("create GatewayProxy")
-		gatewayProxy := s.GetGatewayProxySpec()
-		err := s.CreateResourceFromString(gatewayProxy)
+		err := s.CreateResourceFromString(s.GetGatewayProxySpec())
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 		time.Sleep(5 * time.Second)
 

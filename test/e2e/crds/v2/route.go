@@ -48,8 +48,7 @@ var _ = Describe("Test ApisixRoute", Label("apisix.apache.org", "v2", "apisixrou
 
 	BeforeEach(func() {
 		By("create GatewayProxy")
-		gatewayProxy := s.GetGatewayProxySpec()
-		err := s.CreateResourceFromString(gatewayProxy)
+		err := s.CreateResourceFromString(s.GetGatewayProxySpec())
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 		time.Sleep(5 * time.Second)
 
@@ -809,7 +808,8 @@ spec:
      weight: 5
 `
 			By("apply ApisixRoute with traffic split")
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, new(apiv2.ApisixRoute), apisixRouteSpec)
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, new(apiv2.ApisixRoute),
+				fmt.Sprintf(apisixRouteSpec, s.Namespace(), s.Namespace()))
 			By("send requests to verify traffic split")
 			var (
 				hitHttpbinCnt = 0
@@ -867,7 +867,8 @@ spec:
      weight: 0
 `
 			By("apply ApisixRoute with zero-weight backend")
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, new(apiv2.ApisixRoute), apisixRouteSpec)
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, new(apiv2.ApisixRoute),
+				fmt.Sprintf(apisixRouteSpec, s.Namespace(), s.Namespace()))
 			By("wait for route to be ready")
 			s.RequestAssert(&scaffold.RequestAssert{
 				Method:  "GET",

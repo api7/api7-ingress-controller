@@ -46,8 +46,7 @@ var _ = Describe("Test apisix.apache.org/v2 Status", Label("apisix.apache.org", 
 	Context("Test ApisixRoute Sync Status", func() {
 		BeforeEach(func() {
 			By("create GatewayProxy")
-			gatewayProxy := s.GetGatewayProxySpec()
-			err := s.CreateResourceFromString(gatewayProxy)
+			err := s.CreateResourceFromString(s.GetGatewayProxySpec())
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
 
@@ -333,8 +332,7 @@ spec:
 `
 		BeforeEach(func() {
 			By("create GatewayProxy")
-			gatewayProxy := s.GetGatewayProxySpec()
-			err := s.CreateResourceFromString(gatewayProxy)
+			err := s.CreateResourceFromString(s.GetGatewayProxySpec())
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
 
