@@ -2129,8 +2129,11 @@ spec:
     - name: httpbin-service-e2e-test
       port: 80
 `
-		It("Should sync ApisixRoute during startup", func() {
-			By("apply ApisixRoute")
+		It("Should sync HTTPRoute during startup", func() {
+			if s.Deployer.Name() == framework.ProviderTypeAPI7EE {
+				Skip("skipping test in API7EE mode")
+			}
+			By("apply HTTPRoute")
 			Expect(s.CreateResourceFromString(route2)).ShouldNot(HaveOccurred(), "applying HTTPRoute with non-existent parent")
 			s.ResourceApplied("HTTPRoute", "httpbin", fmt.Sprintf(route, s.Namespace()), 1)
 
