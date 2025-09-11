@@ -36,8 +36,7 @@ import (
 
 var _ = Describe("Test apisix.apache.org/v2 Status", Label("apisix.apache.org", "v2", "apisixroute"), func() {
 	var (
-		s = scaffold.NewScaffold(&scaffold.Options{
-			ControllerName: "apisix.apache.org/apisix-ingress-controller",
+		s = scaffold.NewScaffold(scaffold.Options{
 			// for triggering the sync
 			SyncPeriod: 3 * time.Second,
 		})
@@ -52,22 +51,7 @@ var _ = Describe("Test apisix.apache.org/v2 Status", Label("apisix.apache.org", 
 			time.Sleep(5 * time.Second)
 
 			By("create IngressClass")
-			const ingressClassYaml = `
-apiVersion: networking.k8s.io/%s
-kind: IngressClass
-metadata:
-  name: apisix
-  annotations:
-    apisix.apache.org/parameters-namespace: %s
-spec:
-  controller: "apisix.apache.org/apisix-ingress-controller"
-  parameters:
-    apiGroup: "apisix.apache.org"
-    kind: "GatewayProxy"
-    name: "apisix-proxy-config"
-`
-			ingressClass := fmt.Sprintf(ingressClassYaml, framework.IngressVersion, s.Namespace())
-			err = s.CreateResourceFromStringWithNamespace(ingressClass, "")
+			err = s.CreateResourceFromStringWithNamespace(s.GetIngressClassYaml(), "")
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
 			time.Sleep(5 * time.Second)
 		})
@@ -76,8 +60,9 @@ apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
 metadata:
   name: default
+  namespace: %s
 spec:
-  ingressClassName: apisix
+  ingressClassName: %s
   http:
   - name: rule0
     match:
@@ -94,8 +79,9 @@ apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
 metadata:
   name: default
+  namespace: %s
 spec:
-  ingressClassName: apisix
+  ingressClassName: %s
   http:
   - name: rule0
     match:
@@ -134,13 +120,13 @@ spec:
 				Skip("apisix standalone does not validate unknown plugins")
 			}
 			By("apply ApisixRoute with valid plugin")
-			err := s.CreateResourceFromString(arWithInvalidPlugin)
+			err := s.CreateResourceFromString(fmt.Sprintf(arWithInvalidPlugin, s.Namespace(), s.Namespace()))
 			Expect(err).NotTo(HaveOccurred(), "creating ApisixRoute with valid plugin")
 
 			By("check ApisixRoute status")
 			if os.Getenv("PROVIDER_TYPE") == "apisix" {
 				s.RetryAssertion(func() string {
-					output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
+					output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml", "-n", s.Namespace())
 					log.Printf("output: %s", output)
 					return output
 				}).Should(
@@ -152,7 +138,7 @@ spec:
 				)
 			} else {
 				s.RetryAssertion(func() string {
-					output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
+					output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml", "-n", s.Namespace())
 					log.Printf("output: %s", output)
 					return output
 				}).Should(
@@ -165,7 +151,7 @@ spec:
 			}
 
 			By("Update ApisixRoute")
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apiv2.ApisixRoute{}, ar)
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apiv2.ApisixRoute{}, fmt.Sprintf(ar, s.Namespace(), s.Namespace()))
 
 			By("check route in APISIX")
 			s.RequestAssert(&scaffold.RequestAssert{
@@ -181,7 +167,7 @@ spec:
 				Skip("skip for api7ee mode because it use dashboard admin api")
 			}
 			By("apply ApisixRoute")
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apiv2.ApisixRoute{}, ar)
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apiv2.ApisixRoute{}, fmt.Sprintf(ar, s.Namespace(), s.Namespace()))
 
 			By("check route in APISIX")
 			s.RequestAssert(&scaffold.RequestAssert{
@@ -210,7 +196,7 @@ spec:
 
 			By("check ApisixRoute status")
 			s.RetryAssertion(func() string {
-				output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
+				output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml", "-n", s.Namespace())
 				return output
 			}).WithTimeout(60 * time.Second).
 				Should(
@@ -233,7 +219,7 @@ spec:
 
 			By("check ApisixRoute status after scaling up")
 			s.RetryAssertion(func() string {
-				output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
+				output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml", "-n", s.Namespace())
 				return output
 			}).WithTimeout(60 * time.Second).
 				Should(
@@ -254,9 +240,9 @@ spec:
 
 		It("update the same status only once", func() {
 			By("apply ApisixRoute")
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apiv2.ApisixRoute{}, ar)
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apiv2.ApisixRoute{}, fmt.Sprintf(ar, s.Namespace(), s.Namespace()))
 
-			output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml")
+			output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml", "-n", s.Namespace())
 
 			var route apiv2.ApisixRoute
 			err := yaml.Unmarshal([]byte(output), &route)
@@ -267,7 +253,7 @@ spec:
 			s.Deployer.ScaleIngress(0)
 			s.Deployer.ScaleIngress(1)
 
-			output, _ = s.GetOutputFromString("ar", "default", "-o", "yaml")
+			output, _ = s.GetOutputFromString("ar", "default", "-o", "yaml", "-n", s.Namespace())
 
 			var route2 apiv2.ApisixRoute
 			err = yaml.Unmarshal([]byte(output), &route2)

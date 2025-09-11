@@ -31,42 +31,9 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-const gatewayProxyYaml = `
-apiVersion: apisix.apache.org/v1alpha1
-kind: GatewayProxy
-metadata:
-  name: apisix-proxy-config
-  namespace: default
-spec:
-  provider:
-    type: ControlPlane
-    controlPlane:
-      endpoints:
-      - %s
-      auth:
-        type: AdminKey
-        adminKey:
-          value: "%s"
-`
-
-const ingressClassYaml = `
-apiVersion: networking.k8s.io/%s
-kind: IngressClass
-metadata:
-  name: apisix
-spec:
-  controller: "apisix.apache.org/apisix-ingress-controller"
-  parameters:
-    apiGroup: "apisix.apache.org"
-    kind: "GatewayProxy"
-    name: "apisix-proxy-config"
-`
-
 var _ = Describe("APISIX Standalone Basic Tests", Label("apisix.apache.org", "v2", "basic"), func() {
 	var (
-		s = scaffold.NewScaffold(&scaffold.Options{
-			ControllerName: "apisix.apache.org/apisix-ingress-controller",
-		})
+		s       = scaffold.NewDefaultScaffold()
 		applier = framework.NewApplier(s.GinkgoT, s.K8sClient, s.CreateResourceFromString)
 	)
 
@@ -97,47 +64,13 @@ var _ = Describe("APISIX Standalone Basic Tests", Label("apisix.apache.org", "v2
 
 	Context("IngressClass Annotations", func() {
 		It("Basic tests", func() {
-			const gatewayProxyYaml = `
-apiVersion: apisix.apache.org/v1alpha1
-kind: GatewayProxy
-metadata:
-  name: apisix-proxy-config
-spec:
-  provider:
-    type: ControlPlane
-    controlPlane:
-      endpoints:
-      - %s
-      auth:
-        type: AdminKey
-        adminKey:
-          value: "%s"
-`
-
-			const ingressClassYaml = `
-apiVersion: networking.k8s.io/%s
-kind: IngressClass
-metadata:
-  name: apisix
-  annotations:
-    apisix.apache.org/parameters-namespace: %s
-spec:
-  controller: apisix.apache.org/apisix-ingress-controller
-  parameters:
-    apiGroup: apisix.apache.org
-    kind: GatewayProxy
-    name: apisix-proxy-config
-`
-
 			By("create GatewayProxy")
-			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
-			err := s.CreateResourceFromString(gatewayProxy)
+			err := s.CreateResourceFromString(s.GetGatewayProxySpec())
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
 
 			By("create IngressClass")
-			ingressClass := fmt.Sprintf(ingressClassYaml, framework.IngressVersion, s.Namespace())
-			err = s.CreateResourceFromStringWithNamespace(ingressClass, "")
+			err = s.CreateResourceFromStringWithNamespace(s.GetIngressClassYaml(), "")
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
 			time.Sleep(5 * time.Second)
 
@@ -147,7 +80,7 @@ kind: ApisixRoute
 metadata:
   name: default
 spec:
-  ingressClassName: apisix
+  ingressClassName: %s
   http:
   - name: rule0
     match:
@@ -165,13 +98,15 @@ spec:
 
 			By("apply ApisixRoute")
 			var apisixRoute apiv2.ApisixRoute
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisixRoute, fmt.Sprintf(apisixRouteSpec, "/get"))
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisixRoute,
+				fmt.Sprintf(apisixRouteSpec, s.Namespace(), "/get"))
 
 			By("verify ApisixRoute works")
 			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
 
 			By("update ApisixRoute")
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisixRoute, fmt.Sprintf(apisixRouteSpec, "/headers"))
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisixRoute,
+				fmt.Sprintf(apisixRouteSpec, s.Namespace(), "/headers"))
 			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 			s.RequestAssert(&scaffold.RequestAssert{
 				Method: "GET",

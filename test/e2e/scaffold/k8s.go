@@ -208,7 +208,7 @@ func (s *Scaffold) ApplyDefaultGatewayResource(
 	time.Sleep(5 * time.Second)
 
 	By("create GatewayClass")
-	gatewayClassName := fmt.Sprintf("apisix-%d", time.Now().Unix())
+	gatewayClassName := s.Namespace()
 	gatewayString := fmt.Sprintf(defaultGatewayClass, gatewayClassName, s.GetControllerName())
 	err = s.CreateResourceFromStringWithNamespace(gatewayString, "")
 	Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
@@ -252,7 +252,7 @@ func (s *Scaffold) ApplyHTTPRoute(hrNN types.NamespacedName, spec string, until 
 		},
 	)
 	for i, f := range until {
-		err := wait.PollUntilContextTimeout(context.Background(), time.Second, 10*time.Second, true, f)
+		err := wait.PollUntilContextTimeout(context.Background(), time.Second, 20*time.Second, true, f)
 		require.NoError(s.GinkgoT, err, "wait for ConditionWithContextFunc[%d] OK", i)
 	}
 }
@@ -313,4 +313,58 @@ spec:
 		return fmt.Sprintf(gatewayProxyYamlAPI7, s.Deployer.GetAdminEndpoint(), s.AdminKey())
 	}
 	return fmt.Sprintf(gatewayProxyYaml, framework.ProviderType, s.AdminKey())
+}
+
+const ingressClassYaml = `
+apiVersion: networking.k8s.io/%s
+kind: IngressClass
+metadata:
+  name: %s
+  annotations:
+    apisix.apache.org/parameters-namespace: %s
+spec:
+  controller: %s
+  parameters:
+    apiGroup: "apisix.apache.org"
+    kind: "GatewayProxy"
+    name: "apisix-proxy-config"
+`
+
+func (s *Scaffold) GetIngressClassYaml() string {
+	return fmt.Sprintf(ingressClassYaml, framework.IngressVersion, s.Namespace(), s.Namespace(), s.GetControllerName())
+}
+
+const gatewayClassYaml = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: %s
+spec:
+  controllerName: %s
+`
+
+func (s *Scaffold) GetGatewayClassYaml() string {
+	return fmt.Sprintf(gatewayClassYaml, s.Namespace(), s.GetControllerName())
+}
+
+const gatewayYaml = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: %s
+spec:
+  gatewayClassName: %s
+  listeners:
+    - name: http1
+      protocol: HTTP
+      port: 80
+  infrastructure:
+    parametersRef:
+      group: apisix.apache.org
+      kind: GatewayProxy
+      name: apisix-proxy-config
+`
+
+func (s *Scaffold) GetGatewayYaml() string {
+	return fmt.Sprintf(gatewayYaml, s.Namespace(), s.Namespace())
 }

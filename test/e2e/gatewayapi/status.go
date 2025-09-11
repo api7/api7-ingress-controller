@@ -33,8 +33,7 @@ import (
 
 var _ = Describe("Test Gateway API Status", Label("networking.k8s.io", "httproute"), func() {
 	var (
-		s = scaffold.NewScaffold(&scaffold.Options{
-			ControllerName: "apisix.apache.org/apisix-ingress-controller",
+		s = scaffold.NewScaffold(scaffold.Options{
 			// for triggering the sync
 			SyncPeriod: 3 * time.Second,
 		})
@@ -92,7 +91,7 @@ spec:
 			time.Sleep(5 * time.Second)
 
 			By("create GatewayClass")
-			gatewayClassName := fmt.Sprintf("apisix-%d", time.Now().Unix())
+			gatewayClassName := s.Namespace()
 			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewayClass, gatewayClassName, s.GetControllerName()), "")
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
 			time.Sleep(5 * time.Second)

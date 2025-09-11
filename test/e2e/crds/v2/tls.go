@@ -34,44 +34,13 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-const gatewayProxyYamlTls = `
-apiVersion: apisix.apache.org/v1alpha1
-kind: GatewayProxy
-metadata:
-  name: apisix-proxy-tls
-  namespace: default
-spec:
-  provider:
-    type: ControlPlane
-    controlPlane:
-      endpoints:
-      - %s
-      auth:
-        type: AdminKey
-        adminKey:
-          value: "%s"
-`
-
-const ingressClassYamlTls = `
-apiVersion: networking.k8s.io/%s
-kind: IngressClass
-metadata:
-  name: apisix-tls
-spec:
-  controller: "apisix.apache.org/apisix-ingress-controller"
-  parameters:
-    apiGroup: "apisix.apache.org"
-    kind: "GatewayProxy"
-    name: "apisix-proxy-tls"
-`
-
 const apisixRouteYamlTls = `
 apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
 metadata:
   name: test-route-tls
 spec:
-  ingressClassName: apisix-tls
+  ingressClassName: %s
   http:
   - name: rule0
     match:
@@ -90,29 +59,25 @@ var Key = strings.TrimSpace(framework.TestServerKey)
 
 var _ = Describe("Test ApisixTls", Label("apisix.apache.org", "v2", "apisixtls"), func() {
 	var (
-		s = scaffold.NewScaffold(&scaffold.Options{
-			ControllerName: "apisix.apache.org/apisix-ingress-controller",
-		})
+		s       = scaffold.NewDefaultScaffold()
 		applier = framework.NewApplier(s.GinkgoT, s.K8sClient, s.CreateResourceFromString)
 	)
 
 	Context("Test ApisixTls", func() {
 		BeforeEach(func() {
 			By("create GatewayProxy")
-			gatewayProxy := fmt.Sprintf(gatewayProxyYamlTls, s.Deployer.GetAdminEndpoint(), s.AdminKey())
-			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
+			err := s.CreateResourceFromString(s.GetGatewayProxySpec())
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
 
 			By("create IngressClass")
-			ingressClass := fmt.Sprintf(ingressClassYamlTls, framework.IngressVersion)
-			err = s.CreateResourceFromStringWithNamespace(ingressClass, "")
+			err = s.CreateResourceFromStringWithNamespace(s.GetIngressClassYaml(), "")
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
 			time.Sleep(5 * time.Second)
 
 			By("create ApisixRoute for TLS testing")
 			var apisixRoute apiv2.ApisixRoute
-			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "test-route-tls"}, &apisixRoute, apisixRouteYamlTls)
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "test-route-tls"}, &apisixRoute, fmt.Sprintf(apisixRouteYamlTls, s.Namespace()))
 		})
 
 		normalizePEM := func(s string) string {
@@ -132,7 +97,7 @@ kind: ApisixTls
 metadata:
   name: test-tls
 spec:
-  ingressClassName: apisix-tls
+  ingressClassName: %s
   hosts:
   - api6.com
   secret:
@@ -142,7 +107,7 @@ spec:
 
 			By("apply ApisixTls")
 			var apisixTls apiv2.ApisixTls
-			tlsSpec := fmt.Sprintf(apisixTlsSpec, s.Namespace())
+			tlsSpec := fmt.Sprintf(apisixTlsSpec, s.Namespace(), s.Namespace())
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "test-tls"}, &apisixTls, tlsSpec)
 
 			By("verify TLS configuration in control plane")
@@ -158,7 +123,7 @@ spec:
 					return false
 				}
 				return true
-			}).WithTimeout(30 * time.Second).ProbeEvery(2 * time.Second).Should(BeTrue())
+			}).WithTimeout(30 * time.Second).ProbeEvery(1 * time.Second).Should(BeTrue())
 
 			tls, err := s.DefaultDataplaneResource().SSL().List(context.Background())
 			assert.Nil(GinkgoT(), err, "list tls error")
@@ -174,7 +139,7 @@ spec:
 					WithHost("api6.com").
 					Expect().
 					Raw().StatusCode
-			}).WithTimeout(30 * time.Second).ProbeEvery(2 * time.Second).Should(Equal(http.StatusOK))
+			}).WithTimeout(30 * time.Second).ProbeEvery(1 * time.Second).Should(Equal(http.StatusOK))
 
 			s.NewAPISIXHttpsClient("api6.com").
 				GET("/get").
@@ -206,7 +171,7 @@ kind: ApisixTls
 metadata:
   name: test-mtls
 spec:
-  ingressClassName: apisix-tls
+  ingressClassName: %s
   hosts:
   - api6.com
   secret:
@@ -221,7 +186,7 @@ spec:
 
 			By("apply ApisixTls with mTLS")
 			var apisixTls apiv2.ApisixTls
-			tlsSpec := fmt.Sprintf(apisixTlsSpec, s.Namespace(), s.Namespace())
+			tlsSpec := fmt.Sprintf(apisixTlsSpec, s.Namespace(), s.Namespace(), s.Namespace())
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "test-mtls"}, &apisixTls, tlsSpec)
 
 			By("verify mTLS configuration in control plane")
@@ -238,7 +203,7 @@ spec:
 				}
 				// Check if client CA is configured
 				return tls[0].Client != nil && tls[0].Client.CA != ""
-			}).WithTimeout(30 * time.Second).ProbeEvery(2 * time.Second).Should(BeTrue())
+			}).WithTimeout(30 * time.Second).ProbeEvery(1 * time.Second).Should(BeTrue())
 
 			tls, err := s.DefaultDataplaneResource().SSL().List(context.Background())
 			assert.Nil(GinkgoT(), err, "list tls error")

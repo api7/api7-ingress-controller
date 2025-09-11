@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: E2E Test For Kubernetes
+name: API7EE E2E Test For Kubernetes 1.18
 
 on:
   push:
@@ -57,14 +57,14 @@ jobs:
           ./get_helm.sh
 
       - name: Login to Registry
-        uses: docker/login-action@v1
+        uses: docker/login-action@v3
         with:
           registry: ${{ secrets.DOCKER_REGISTRY }}
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Login to Private Registry
-        uses: docker/login-action@v1
+        uses: docker/login-action@v3
         with:
           registry: hkccr.ccs.tencentyun.com
           username: ${{ secrets.PRIVATE_DOCKER_USERNAME }}

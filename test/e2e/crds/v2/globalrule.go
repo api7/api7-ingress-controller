@@ -25,22 +25,19 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
 var _ = Describe("Test GlobalRule", Label("apisix.apache.org", "v2", "apisixglobalrule"), func() {
-	s := scaffold.NewScaffold(&scaffold.Options{
-		ControllerName: "apisix.apache.org/apisix-ingress-controller",
-	})
+	s := scaffold.NewDefaultScaffold()
 
-	var defaultRoute = `
+	var defaultRouteSpec = `
 apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
 metadata:
   name: default
 spec:
-  ingressClassName: apisix
+  ingressClassName: %s
   http:
   - name: rule0
     match:
@@ -56,19 +53,17 @@ spec:
 	Context("ApisixGlobalRule Basic Operations", func() {
 		BeforeEach(func() {
 			By("create GatewayProxy")
-			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, s.Deployer.GetAdminEndpoint(), s.AdminKey())
-			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, "default")
+			err := s.CreateResourceFromString(s.GetGatewayProxySpec())
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
 
 			By("create IngressClass")
-			ingressClass := fmt.Sprintf(ingressClassYaml, framework.IngressVersion)
-			err = s.CreateResourceFromStringWithNamespace(ingressClass, "")
+			err = s.CreateResourceFromStringWithNamespace(s.GetIngressClassYaml(), "")
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
 			time.Sleep(5 * time.Second)
 
 			By("create ApisixRoute")
-			err = s.CreateResourceFromString(defaultRoute)
+			err = s.CreateResourceFromString(fmt.Sprintf(defaultRouteSpec, s.Namespace()))
 			Expect(err).NotTo(HaveOccurred(), "creating ApisixRoute")
 			time.Sleep(5 * time.Second)
 
@@ -78,7 +73,7 @@ spec:
 					GET("/get").
 					WithHost("globalrule.example.com").
 					Expect().Raw().StatusCode
-			}).WithTimeout(8 * time.Second).ProbeEvery(time.Second).
+			}).WithTimeout(20 * time.Second).ProbeEvery(time.Second).
 				Should(Equal(http.StatusOK))
 		})
 
@@ -89,7 +84,7 @@ kind: ApisixGlobalRule
 metadata:
   name: test-global-rule-response-rewrite
 spec:
-  ingressClassName: apisix
+  ingressClassName: %s
   plugins:
   - name: response-rewrite
     enable: true
@@ -100,7 +95,7 @@ spec:
 `
 
 			By("create ApisixGlobalRule with response-rewrite plugin")
-			err := s.CreateResourceFromString(globalRuleYaml)
+			err := s.CreateResourceFromString(fmt.Sprintf(globalRuleYaml, s.Namespace()))
 			Expect(err).NotTo(HaveOccurred(), "creating ApisixGlobalRule")
 
 			By("verify ApisixGlobalRule status condition")
@@ -141,7 +136,7 @@ kind: ApisixGlobalRule
 metadata:
   name: test-global-rule-update
 spec:
-  ingressClassName: apisix
+  ingressClassName: %s
   plugins:
   - name: response-rewrite
     enable: true
@@ -156,7 +151,7 @@ kind: ApisixGlobalRule
 metadata:
   name: test-global-rule-update
 spec:
-  ingressClassName: apisix
+  ingressClassName: %s
   plugins:
   - name: response-rewrite
     enable: true
@@ -167,7 +162,7 @@ spec:
 `
 
 			By("create initial ApisixGlobalRule")
-			err := s.CreateResourceFromString(globalRuleYaml)
+			err := s.CreateResourceFromString(fmt.Sprintf(globalRuleYaml, s.Namespace()))
 			Expect(err).NotTo(HaveOccurred(), "creating ApisixGlobalRule")
 
 			By("verify initial ApisixGlobalRule status condition")
@@ -187,7 +182,7 @@ spec:
 			resp.Header("X-New-Header").IsEmpty()
 
 			By("update ApisixGlobalRule")
-			err = s.CreateResourceFromString(updatedGlobalRuleYaml)
+			err = s.CreateResourceFromString(fmt.Sprintf(updatedGlobalRuleYaml, s.Namespace()))
 			Expect(err).NotTo(HaveOccurred(), "updating ApisixGlobalRule")
 
 			By("verify updated ApisixGlobalRule status condition")
@@ -219,7 +214,7 @@ kind: ApisixGlobalRule
 metadata:
   name: test-global-rule-proxy-rewrite
 spec:
-  ingressClassName: apisix
+  ingressClassName: %s
   plugins:
   - name: proxy-rewrite
     enable: true
@@ -235,7 +230,7 @@ kind: ApisixGlobalRule
 metadata:
   name: test-global-rule-response-rewrite-multi
 spec:
-  ingressClassName: apisix
+  ingressClassName: %s
   plugins:
   - name: response-rewrite
     enable: true
@@ -246,11 +241,11 @@ spec:
 `
 
 			By("create ApisixGlobalRule with proxy-rewrite plugin")
-			err := s.CreateResourceFromString(proxyRewriteGlobalRuleYaml)
+			err := s.CreateResourceFromString(fmt.Sprintf(proxyRewriteGlobalRuleYaml, s.Namespace()))
 			Expect(err).NotTo(HaveOccurred(), "creating ApisixGlobalRule with proxy-rewrite")
 
 			By("create ApisixGlobalRule with response-rewrite plugin")
-			err = s.CreateResourceFromString(responseRewriteGlobalRuleYaml)
+			err = s.CreateResourceFromString(fmt.Sprintf(responseRewriteGlobalRuleYaml, s.Namespace()))
 			Expect(err).NotTo(HaveOccurred(), "creating ApisixGlobalRule with response-rewrite")
 
 			By("verify both ApisixGlobalRule status conditions")
