@@ -1386,7 +1386,6 @@ spec:
 			It("should be able to use backends and upstreams together", func() {
 				upstreamName := s.Namespace()
 				routeName := s.Namespace()
-				// TODO: change ingressClassName
 				upstreamSpec := `
 apiVersion: apisix.apache.org/v2
 kind: ApisixUpstream

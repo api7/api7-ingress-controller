@@ -40,75 +40,6 @@ var _ = Describe("Test GatewayProxy", Label("apisix.apache.org", "v1alpha1", "ga
 		err error
 	)
 
-	// TODO: change E2E
-	const gatewayProxySpecAPI7 = `
-apiVersion: apisix.apache.org/v1alpha1
-kind: GatewayProxy
-metadata:
-  name: apisix-proxy-config
-spec:
-  provider:
-    type: ControlPlane
-    controlPlane:
-      endpoints:
-      - %s
-      auth:
-        type: AdminKey
-        adminKey:
-          value: "%s"
-  plugins:
-  - name: response-rewrite
-    enabled: true
-    config: 
-      headers:
-        "X-Pod-Hostname": "$hostname"
-`
-
-	const gatewayClassSpec = `
-apiVersion: gateway.networking.k8s.io/v1
-kind: GatewayClass
-metadata:
-  name: %s
-spec:
-  controllerName: %s
-`
-	const gatewaySpec = `
-apiVersion: gateway.networking.k8s.io/v1
-kind: Gateway
-metadata:
-  name: %s
-spec:
-  gatewayClassName: %s
-  listeners:
-    - name: http1
-      protocol: HTTP
-      port: 80
-  infrastructure:
-    parametersRef:
-      group: apisix.apache.org
-      kind: GatewayProxy
-      name: apisix-proxy-config
-`
-	const httpRouteSpec = `
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: httpbin
-spec:
-  parentRefs:
-  - name: %s
-  hostnames:
-  - "httpbin.org"
-  rules:
-  - matches: 
-    - path:
-        type: Exact
-        value: /get
-    backendRefs:
-    - name: httpbin-service-e2e-test
-      port: 80
-`
-
 	const gatewayProxySpec = `
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
@@ -133,6 +64,49 @@ spec:
         "X-Pod-Hostname": "$hostname"
 `
 
+	const gatewayProxySpecAPI7 = `
+apiVersion: apisix.apache.org/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: apisix-proxy-config
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+      - %s
+      auth:
+        type: AdminKey
+        adminKey:
+          value: "%s"
+  plugins:
+  - name: response-rewrite
+    enabled: true
+    config: 
+      headers:
+        "X-Pod-Hostname": "$hostname"
+`
+
+	const httpRouteSpec = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: %s
+  hostnames:
+  - "httpbin.org"
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /get
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
+
 	BeforeEach(func() {
 		gatewayName := s.Namespace()
 		By("create GatewayProxy")
@@ -141,21 +115,18 @@ spec:
 		} else {
 			err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxySpec, framework.ProviderType, s.AdminKey()))
 		}
-		gatewayProxy := fmt.Sprintf(gatewayProxySpec, framework.ProviderType, s.AdminKey())
-		err = s.CreateResourceFromString(gatewayProxy)
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
-		time.Sleep(time.Second)
+		time.Sleep(5 * time.Second)
 
 		By("create GatewayClass")
-		gatewayClassName := s.Namespace()
-		err = s.CreateResourceFromString(fmt.Sprintf(gatewayClassSpec, gatewayClassName, s.GetControllerName()))
+		err = s.CreateResourceFromString(s.GetGatewayClassYaml())
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
-		time.Sleep(time.Second)
+		time.Sleep(5 * time.Second)
 
 		By("create Gateway")
-		err = s.CreateResourceFromString(fmt.Sprintf(gatewaySpec, gatewayName, gatewayClassName))
+		err = s.CreateResourceFromString(s.GetGatewayYaml())
 		Expect(err).NotTo(HaveOccurred(), "creating Gateway")
-		time.Sleep(time.Second)
+		time.Sleep(5 * time.Second)
 
 		By("create HTTPRoute")
 		s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, fmt.Sprintf(httpRouteSpec, gatewayName))
@@ -213,10 +184,10 @@ spec:
 				keyword string
 			)
 
-			if framework.ProviderType == framework.ProviderTypeAPISIX {
-				keyword = fmt.Sprintf(`{"config.ServerAddrs": ["%s"]}`, s.Deployer.GetAdminEndpoint())
-			} else {
+			if framework.ProviderType == framework.ProviderTypeAPISIXStandalone {
 				keyword = fmt.Sprintf(`{"config.ServerAddrs": ["http://%s:9180"]}`, s.GetPodIP(s.Namespace(), "app.kubernetes.io/name=apisix"))
+			} else {
+				keyword = fmt.Sprintf(`{"config.ServerAddrs": ["%s"]}`, s.Deployer.GetAdminEndpoint())
 			}
 
 			By(fmt.Sprintf("wait for keyword: %s", keyword))

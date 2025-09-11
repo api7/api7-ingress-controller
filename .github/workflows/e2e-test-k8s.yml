@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: E2E Test For Kubernetes
+name: API7EE E2E Test For Kubernetes 1.18
 
 on:
   push:

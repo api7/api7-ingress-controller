@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: E2E Test
+name: API7EE E2E Test
 
 on:
   push:
@@ -29,32 +29,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  prepare:
-    name: Prepare
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go Env
-        id: go
-        uses: actions/setup-go@v4
-        with:
-          go-version: "1.23"
-
-      - name: Install kind
-        run: |
-          go install sigs.k8s.io/kind@v0.23.0
-
-      - name: Install Helm
-        run: |
-          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-          chmod 700 get_helm.sh
-          ./get_helm.sh
-
   e2e-test:
-    needs: 
-      - prepare
     strategy:
       matrix:
         cases_subset:
@@ -73,6 +48,15 @@ jobs:
         with:
           go-version: "1.23"
 
+      - name: Install kind
+        run: |
+          go install sigs.k8s.io/kind@v0.23.0
+
+      - name: Install Helm
+        run: |
+          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+          chmod 700 get_helm.sh
+          ./get_helm.sh
       - name: Login to Registry
         uses: docker/login-action@v3
         with:
