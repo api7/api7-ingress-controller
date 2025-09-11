@@ -31,24 +31,23 @@ import (
 var _ = Describe("Test GlobalRule", Label("apisix.apache.org", "v2", "apisixglobalrule"), func() {
 	s := scaffold.NewDefaultScaffold()
 
-	var ingressYaml = `
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+	var defaultRouteSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
 metadata:
-  name: test-ingress
+  name: default
 spec:
   ingressClassName: %s
-  rules:
-  - host: globalrule.example.com
-    http:
+  http:
+  - name: rule0
+    match:
+      hosts:
+      - globalrule.example.com
       paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: httpbin-service-e2e-test
-            port:
-              number: 80
+      - /*
+    backends:
+    - serviceName: httpbin-service-e2e-test
+      servicePort: 80
 `
 
 	Context("ApisixGlobalRule Basic Operations", func() {
@@ -63,9 +62,9 @@ spec:
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
 			time.Sleep(5 * time.Second)
 
-			By("create Ingress")
-			err = s.CreateResourceFromString(fmt.Sprintf(ingressYaml, s.Namespace()))
-			Expect(err).NotTo(HaveOccurred(), "creating Ingress")
+			By("create ApisixRoute")
+			err = s.CreateResourceFromString(fmt.Sprintf(defaultRouteSpec, s.Namespace()))
+			Expect(err).NotTo(HaveOccurred(), "creating ApisixRoute")
 			time.Sleep(5 * time.Second)
 
 			By("verify Ingress works")
