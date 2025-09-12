@@ -52,16 +52,21 @@ jobs:
         with:
           go-version: "1.23"
 
-      - name: Install kind
-        run: |
-          go install sigs.k8s.io/kind@v0.23.0
-
       - name: Login to Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ secrets.DOCKER_REGISTRY }}
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "*"
+
+      - name: Install kind
+        run: |
+          go install sigs.k8s.io/kind@v0.23.0
 
       - name: Install ginkgo
         run: |
@@ -73,19 +78,9 @@ jobs:
           ARCH: amd64
           ENABLE_PROXY: "false"
           BASE_IMAGE_TAG: "debug"
-          ADC_VERSION: "dev"
         run: |
           echo "building images..."
           make build-image
-
-      - name: Extract adc binary
-        run: |
-          echo "Extracting adc binary..."
-          docker create --name adc-temp api7/api7-ingress-controller:dev
-          docker cp adc-temp:/bin/adc /usr/local/bin/adc
-          docker rm adc-temp
-          chmod +x /usr/local/bin/adc
-          echo "ADC binary extracted to /usr/local/bin/adc"
 
       - name: Launch Kind Cluster
         run: |
@@ -93,11 +88,21 @@ jobs:
 
       - name: Loading Docker Image to Kind Cluster
         run: |
+          make kind-load-adc-image
           make kind-load-ingress-image
 
       - name: Install Gateway API And CRDs
         run: |
           make install
+
+      - name: Extract adc binary
+        if: ${{ env.ADC_VERSION == 'dev' }}
+        run: |
+          docker create --name adc-temp ghcr.io/api7/adc:dev
+          docker cp adc-temp:main.js adc.js
+          docker rm adc-temp
+          node $(pwd)/adc.js -v
+          echo "ADC_BIN=node $(pwd)/adc.js" >> $GITHUB_ENV
 
       - name: Run E2E test suite
         shell: bash

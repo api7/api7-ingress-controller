@@ -31,7 +31,7 @@ KIND_NODE_IMAGE ?= kindest/node:v1.30.0@sha256:047357ac0cfea04663786a612ba1eaba9
 
 GATEAY_API_VERSION ?= v1.2.0
 DASHBOARD_VERSION ?= dev
-ADC_VERSION ?= 0.20.0
+ADC_VERSION ?= 0.21.0
 
 GINKGO_VERSION ?= 2.20.0
 TEST_TIMEOUT ?= 80m
@@ -133,7 +133,7 @@ kind-e2e-test: kind-up build-image kind-load-images e2e-test
 
 # Utilize Kind or modify the e2e tests to load the image locally, enabling compatibility with other vendors.
 .PHONY: e2e-test
-e2e-test:
+e2e-test: adc
 	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
 	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test $(TEST_DIR) -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)" -ginkgo.label-filter="$(TEST_LABEL)"
 
@@ -145,7 +145,7 @@ download-api7ee3-chart:
 	@echo "Downloaded API7EE3 chart"
 
 .PHONY: ginkgo-e2e-test
-ginkgo-e2e-test:
+ginkgo-e2e-test: adc
 	@ginkgo -cover -coverprofile=coverage.txt -r --randomize-all --randomize-suites --trace --focus=$(E2E_FOCUS) --nodes=$(E2E_NODES) --label-filter="$(TEST_LABEL)" $(TEST_DIR)
 
 .PHONY: install-ginkgo
@@ -184,13 +184,12 @@ kind-down:
 		|| echo "kind cluster does not exist"
 
 .PHONY: kind-load-images
-kind-load-images: pull-infra-images kind-load-ingress-image
+kind-load-images: pull-infra-images kind-load-ingress-image kind-load-adc-image
 	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev --name $(KIND_NAME)
 	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
 	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
 	@kind load docker-image kennethreitz/httpbin:latest --name $(KIND_NAME)
 	@kind load docker-image jmalloc/echo-server:latest --name $(KIND_NAME)
-	@kind load docker-image ghcr.io/api7/adc:dev --name $(KIND_NAME)
 	@kind load docker-image apache/apisix:dev --name $(KIND_NAME)
 
 .PHONY: kind-load-gateway-image
@@ -202,13 +201,15 @@ kind-load-dashboard-images:
 	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
 	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
 
-.PHONY: kind-load-adc-image
-kind-load-adc-image:
-	@kind load docker-image ghcr.io/api7/adc:dev --name $(KIND_NAME)
-
 .PHONY: kind-load-ingress-image
 kind-load-ingress-image:
 	@kind load docker-image $(IMG) --name $(KIND_NAME)
+
+.PHONY: kind-load-adc-image
+kind-load-adc-image:
+	@docker pull ghcr.io/api7/adc:$(ADC_VERSION)
+	@docker tag ghcr.io/api7/adc:$(ADC_VERSION) ghcr.io/api7/adc:dev
+	@kind load docker-image ghcr.io/api7/adc:dev --name $(KIND_NAME)
 
 .PHONY: pull-infra-images
 pull-infra-images:
@@ -244,11 +245,11 @@ build-multi-arch:
 .PHONY: build-multi-arch-image
 build-multi-arch-image: build-multi-arch
     # daemon.json: "features":{"containerd-snapshotter": true}
-	@docker buildx build --load --platform linux/amd64,linux/arm64 --build-arg ADC_VERSION=$(ADC_VERSION) -t $(IMG) .
+	@docker buildx build --load --platform linux/amd64,linux/arm64 -t $(IMG) .
 
 .PHONY: build-push-multi-arch-image
 build-push-multi-arch-image: build-multi-arch
-	@docker buildx build --push --platform linux/amd64,linux/arm64 --build-arg ADC_VERSION=$(ADC_VERSION) -t $(IMG) .
+	@docker buildx build --push --platform linux/amd64,linux/arm64 -t $(IMG) .
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
@@ -259,12 +260,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
 docker-build: set-e2e-goos build ## Build docker image with the manager.
-	@echo "Building with ADC_VERSION=$(ADC_VERSION)"
-	@if [ "$(strip $(ADC_VERSION))" = "dev" ]; then \
-		$(CONTAINER_TOOL) build -t ${IMG} -f Dockerfile.dev . ; \
-	else \
-		$(CONTAINER_TOOL) build --build-arg ADC_VERSION=${ADC_VERSION} -t ${IMG} -f Dockerfile . ; \
-	fi
+	$(CONTAINER_TOOL) build -t ${IMG} -f Dockerfile .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
@@ -341,12 +337,16 @@ KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
+ADC_BIN ?= $(LOCALBIN)/adc
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.4.2
 CONTROLLER_TOOLS_VERSION ?= v0.17.2
 ENVTEST_VERSION ?= release-0.18
 GOLANGCI_LINT_VERSION ?= v2.1.5
+
+## export PATH so that the tools are found
+export PATH := $(LOCALBIN):$(PATH)
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
@@ -367,6 +367,16 @@ $(ENVTEST): $(LOCALBIN)
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(LOCALBIN) $(GOLANGCI_LINT_VERSION)
+
+.PHONY: adc
+adc: $(ADC_BIN) ## Download adc locally if necessary.
+$(ADC_BIN):
+ifeq ($(ADC_VERSION),dev)
+	@echo "ADC_VERSION=dev, skip download"
+else
+	curl -sSfL https://github.com/api7/adc/releases/download/v${ADC_VERSION}/adc_${ADC_VERSION}_${GOOS}_${GOARCH}.tar.gz \
+		| tar -xz -C $(LOCALBIN)
+endif
 
 gofmt: ## Apply go fmt
 	@gofmt -w -r 'interface{} -> any' .
