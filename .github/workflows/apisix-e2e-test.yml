@@ -88,7 +88,8 @@ jobs:
 
       - name: Loading Docker Image to Kind Cluster
         run: |
-          make kind-load-images
+          make kind-load-adc-image
+          make kind-load-ingress-image
 
       - name: Install Gateway API And CRDs
         run: |

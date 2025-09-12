@@ -86,15 +86,6 @@ jobs:
           echo "building images..."
           make build-image
 
-      - name: Extract adc binary
-        run: |
-          echo "Extracting adc binary..."
-          docker create --name adc-temp api7/api7-ingress-controller:dev
-          docker cp adc-temp:/bin/adc /usr/local/bin/adc
-          docker rm adc-temp
-          chmod +x /usr/local/bin/adc
-          echo "ADC binary extracted to /usr/local/bin/adc"
-
       - name: Install v2 CRDs
         run: |
           make install-crds-nocel
@@ -106,6 +97,15 @@ jobs:
       - name: Loading Docker Image to Kind Cluster
         run: |
           make kind-load-images
+
+      - name: Extract adc binary
+        if: ${{ env.ADC_VERSION == 'dev' }}
+        run: |
+          docker create --name adc-temp ghcr.io/api7/adc:dev
+          docker cp adc-temp:main.js adc.js
+          docker rm adc-temp
+          node $(pwd)/adc.js -v
+          echo "ADC_BIN=node $(pwd)/adc.js" >> $GITHUB_ENV
 
       - name: Run E2E test suite
         shell: bash
