@@ -1455,4 +1455,311 @@ spec:
 			})
 		})
 	})
+
+	Context("Test ApisixRoute with ApisixUpstream: retries", func() {
+		const apisixRouteSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: default
+  namespace: %s
+spec:
+  ingressClassName: %s
+  http:
+  - name: rule0
+    match:
+      hosts:
+      - httpbin
+      paths:
+      - /*
+    backends:
+    - serviceName: httpbin-service-e2e-test
+      servicePort: 80
+
+`
+		const apisixUpstreamSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: httpbin-service-e2e-test
+  namespace: %s
+spec:
+  ingressClassName: %s
+  retries: 3
+`
+		It("create ApisixRoute and upstream with retries", func() {
+			By("apply apisixupstream")
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin-service-e2e-test"},
+				new(apiv2.ApisixUpstream), fmt.Sprintf(apisixUpstreamSpec, s.Namespace(), s.Namespace()))
+			By("apply apisixroute")
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"},
+				new(apiv2.ApisixRoute), fmt.Sprintf(apisixRouteSpec, s.Namespace(), s.Namespace()))
+			Eventually(func() bool {
+				services, err := s.DefaultDataplaneResource().Service().List(context.Background())
+				if err != nil {
+					return false
+				}
+				if len(services) != 1 {
+					return false
+				}
+				if services[0].Upstream == nil {
+					return false
+				}
+				return *services[0].Upstream.Retries == 3
+			}).WithTimeout(30 * time.Second).ProbeEvery(5 * time.Second).Should(BeTrue())
+		})
+	})
+
+	Context("Test ApisixRoute with ApisixUpstream: timeout", func() {
+		const apisixRouteSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: default
+  namespace: %s
+spec:
+  ingressClassName: %s
+  http:
+  - name: rule0
+    match:
+      hosts:
+      - httpbin
+      paths:
+      - /*
+    backends:
+    - serviceName: httpbin-service-e2e-test
+      servicePort: 80
+
+`
+		const apisixUpstreamSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: httpbin-service-e2e-test
+  namespace: %s
+spec:
+  ingressClassName: %s
+  timeout:
+    read: 10s
+    send: 10s
+`
+		It("create ApisixRoute and upstream with retries", func() {
+			By("apply apisixupstream")
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin-service-e2e-test"},
+				new(apiv2.ApisixUpstream), fmt.Sprintf(apisixUpstreamSpec, s.Namespace(), s.Namespace()))
+			By("apply apisixroute")
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"},
+				new(apiv2.ApisixRoute), fmt.Sprintf(apisixRouteSpec, s.Namespace(), s.Namespace()))
+			Eventually(func() bool {
+				services, err := s.DefaultDataplaneResource().Service().List(context.Background())
+				if err != nil {
+					return false
+				}
+				if len(services) != 1 {
+					return false
+				}
+				if services[0].Upstream == nil {
+					return false
+				}
+				return services[0].Upstream.Timeout.Read == 10 && services[0].Upstream.Timeout.Send == 10
+			}).WithTimeout(30 * time.Second).ProbeEvery(5 * time.Second).Should(BeTrue())
+		})
+	})
+
+	Context("Test tls secret processed from ApisixUpstream", func() {
+		var Cert = strings.TrimSpace(framework.TestServerCert)
+		var Key = strings.TrimSpace(framework.TestServerKey)
+		createSecret := func(s *scaffold.Scaffold, secretName string) {
+			err := s.NewKubeTlsSecret(secretName, Cert, Key)
+			assert.Nil(GinkgoT(), err, "create secret error")
+		}
+		const apisixRouteSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: default
+  namespace: %s
+spec:
+  ingressClassName: %s
+  http:
+  - name: rule0
+    match:
+      hosts:
+      - httpbin
+      paths:
+      - /*
+    backends:
+    - serviceName: httpbin-service-e2e-test
+      servicePort: 80
+
+`
+		const apisixUpstreamSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: httpbin-service-e2e-test
+  namespace: %s
+spec:
+  ingressClassName: %s
+  tlsSecret:
+    name: %s
+    namespace: %s
+`
+
+		It("with matching backend", func() {
+			secretName := fmt.Sprintf("test-tls-secret-%s", s.Namespace())
+			createSecret(s, secretName)
+			By("apply apisixupstream")
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin-service-e2e-test"},
+				new(apiv2.ApisixUpstream), fmt.Sprintf(apisixUpstreamSpec, s.Namespace(), s.Namespace(), secretName, s.Namespace()))
+			By("apply apisixroute")
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"},
+				new(apiv2.ApisixRoute), fmt.Sprintf(apisixRouteSpec, s.Namespace(), s.Namespace()))
+			time.Sleep(6 * time.Second)
+			services, err := s.DefaultDataplaneResource().Service().List(context.Background())
+			Expect(err).ShouldNot(HaveOccurred(), "list services")
+			assert.Len(GinkgoT(), services, 1, "there should be one service")
+			service := services[0]
+			Expect(service.Upstream.TLS).ShouldNot(BeNil(), "check tls in service")
+		})
+	})
+
+	Context("Test ApisixRoute Redirect plugin", func() {
+		const (
+			redirectRouteTemplate = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: redirect-route
+spec:
+  ingressClassName: %s
+  http:
+  - name: rule1
+    match:
+      hosts:
+      - httpbin.org
+      paths:
+        - /ip
+    backends:
+    - serviceName: httpbin-service-e2e-test
+      servicePort: 80
+    plugins:
+    - name: redirect
+      enable: %t
+      config:
+        %s
+`
+		)
+
+		It("http_to_https redirect", func() {
+			config := `http_to_https: true`
+			route := fmt.Sprintf(redirectRouteTemplate, s.Namespace(), true, config)
+
+			By("apply ApisixRoute with http_to_https redirect")
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "redirect-route"},
+				&apiv2.ApisixRoute{}, route)
+
+			By("verify redirect works")
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/ip",
+				Host:   "httpbin.org",
+				Check:  scaffold.WithExpectedStatus(http.StatusMovedPermanently),
+				Headers: map[string]string{
+					"Location": "https://httpbin.org:9443/ip",
+				},
+			})
+		})
+
+		It("redirect to specific uri", func() {
+			config := `uri: "$uri/ipip"
+        ret_code: 308`
+			route := fmt.Sprintf(redirectRouteTemplate, s.Namespace(), true, config)
+
+			By("apply ApisixRoute with uri redirect")
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "redirect-route"},
+				&apiv2.ApisixRoute{}, route)
+
+			By("verify redirect works")
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/ip",
+				Host:   "httpbin.org",
+				Check:  scaffold.WithExpectedStatus(http.StatusPermanentRedirect),
+				Headers: map[string]string{
+					"Location": "/ip/ipip",
+				},
+			})
+		})
+
+		It("disable plugin", func() {
+			config := `http_to_https: true
+        uri: "$uri/ipip"
+        ret_code: 308`
+			route := fmt.Sprintf(redirectRouteTemplate, s.Namespace(), false, config)
+
+			By("apply ApisixRoute with disabled redirect plugin")
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "redirect-route"},
+				&apiv2.ApisixRoute{}, route)
+
+			By("verify redirect is disabled")
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/ip",
+				Host:   "httpbin.org",
+				Check:  scaffold.WithExpectedStatus(http.StatusOK),
+			})
+		})
+
+		It("enable plugin and then delete it", func() {
+			config := `uri: "$uri/ipip"
+        ret_code: 308`
+			route := fmt.Sprintf(redirectRouteTemplate, s.Namespace(), true, config)
+
+			By("apply ApisixRoute with redirect plugin")
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "redirect-route"},
+				&apiv2.ApisixRoute{}, route)
+
+			By("verify redirect works")
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/ip",
+				Host:   "httpbin.org",
+				Check:  scaffold.WithExpectedStatus(http.StatusPermanentRedirect),
+				Headers: map[string]string{
+					"Location": "/ip/ipip",
+				},
+			})
+
+			By("update ApisixRoute to remove redirect plugin")
+			noPluginRoute := `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: redirect-route
+spec:
+  ingressClassName: %s
+  http:
+  - name: rule1
+    match:
+      hosts:
+      - httpbin.org
+      paths:
+        - /ip
+    backends:
+    - serviceName: httpbin-service-e2e-test
+      servicePort: 80
+`
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "redirect-route"},
+				&apiv2.ApisixRoute{}, fmt.Sprintf(noPluginRoute, s.Namespace()))
+
+			By("verify redirect is removed")
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/ip",
+				Host:   "httpbin.org",
+				Check:  scaffold.WithExpectedStatus(http.StatusOK),
+			})
+		})
+	})
 })

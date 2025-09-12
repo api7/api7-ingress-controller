@@ -37,6 +37,14 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
+// helper to apply an HTTPRoute and run a list of request assertions
+func applyHTTPRouteAndAssert(s *scaffold.Scaffold, route string, asserts []scaffold.RequestAssert) {
+	s.ResourceApplied("HTTPRoute", "httpbin", route, 1)
+	for i := range asserts {
+		s.RequestAssert(&asserts[i])
+	}
+}
+
 var _ = Describe("Test HTTPRoute", Label("networking.k8s.io", "httproute"), func() {
 	s := scaffold.NewDefaultScaffold()
 
@@ -624,6 +632,112 @@ spec:
 				Interval: time.Second * 2,
 			})
 		})
+		It("HTTPRoute with multiple hostnames", func() {
+			route := fmt.Sprintf(`
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: %s
+  hostnames:
+  - httpbin.example
+  - httpbin2.example
+  rules:
+  - matches:
+    - path:
+        type: Exact
+        value: /get
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`, s.Namespace())
+
+			asserts := []scaffold.RequestAssert{
+				{
+					Method:   "GET",
+					Path:     "/get",
+					Host:     "httpbin.example",
+					Check:    scaffold.WithExpectedStatus(http.StatusOK),
+					Timeout:  30 * time.Second,
+					Interval: 2 * time.Second,
+				},
+				{
+					Method:   "GET",
+					Path:     "/get",
+					Host:     "httpbin2.example",
+					Check:    scaffold.WithExpectedStatus(http.StatusOK),
+					Timeout:  30 * time.Second,
+					Interval: 2 * time.Second,
+				},
+				{
+					Method:   "GET",
+					Path:     "/get",
+					Host:     "httpbin3.example",
+					Check:    scaffold.WithExpectedStatus(http.StatusNotFound),
+					Timeout:  30 * time.Second,
+					Interval: 2 * time.Second,
+				},
+			}
+
+			applyHTTPRouteAndAssert(s, route, asserts)
+		})
+
+		It("HTTPRoute with multiple matches in one rule", func() {
+			route := fmt.Sprintf(`
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+spec:
+  parentRefs:
+  - name: %s
+  hostnames:
+  - httpbin.example
+  rules:
+  - matches:
+    - path:
+        type: Exact
+        value: /get
+    - path:
+        type: Exact
+        value: /ip
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`, s.Namespace())
+
+			asserts := []scaffold.RequestAssert{
+				{
+					Method:   "GET",
+					Path:     "/get",
+					Host:     "httpbin.example",
+					Check:    scaffold.WithExpectedStatus(http.StatusOK),
+					Timeout:  30 * time.Second,
+					Interval: 2 * time.Second,
+				},
+				{
+					Method:   "GET",
+					Path:     "/ip",
+					Host:     "httpbin.example",
+					Check:    scaffold.WithExpectedStatus(http.StatusOK),
+					Timeout:  30 * time.Second,
+					Interval: 2 * time.Second,
+				},
+				{
+					Method:   "GET",
+					Path:     "/status",
+					Host:     "httpbin.example",
+					Check:    scaffold.WithExpectedStatus(http.StatusNotFound),
+					Timeout:  30 * time.Second,
+					Interval: 2 * time.Second,
+				},
+			}
+
+			applyHTTPRouteAndAssert(s, route, asserts)
+		})
+
 	})
 
 	Context("HTTPRoute Rule Match", func() {
@@ -2015,8 +2129,11 @@ spec:
     - name: httpbin-service-e2e-test
       port: 80
 `
-		It("Should sync ApisixRoute during startup", func() {
-			By("apply ApisixRoute")
+		It("Should sync HTTPRoute during startup", func() {
+			if s.Deployer.Name() == framework.ProviderTypeAPI7EE {
+				Skip("skipping test in API7EE mode")
+			}
+			By("apply HTTPRoute")
 			Expect(s.CreateResourceFromString(route2)).ShouldNot(HaveOccurred(), "applying HTTPRoute with non-existent parent")
 			s.ResourceApplied("HTTPRoute", "httpbin", fmt.Sprintf(route, s.Namespace()), 1)
 

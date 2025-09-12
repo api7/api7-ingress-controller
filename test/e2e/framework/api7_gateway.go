@@ -86,16 +86,18 @@ func (f *Framework) DeployGateway(opts *API7DeployOptions) *corev1.Service {
 
 	buf := bytes.NewBuffer(nil)
 
-	_ = DPSpecTpl.Execute(buf, opts)
+	err := DPSpecTpl.Execute(buf, opts)
+	Expect(err).ToNot(HaveOccurred(), "executing template")
 
 	kubectlOpts := k8s.NewKubectlOptions("", "", opts.Namespace)
-
 	k8s.KubectlApplyFromString(f.GinkgoT, kubectlOpts, buf.String())
 
-	err := WaitPodsAvailable(f.GinkgoT, kubectlOpts, metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/name=apisix",
-	})
-	Expect(err).ToNot(HaveOccurred(), "waiting for gateway pod ready")
+	if opts.Replicas == nil || *opts.Replicas > 0 {
+		err = WaitPodsAvailable(f.GinkgoT, kubectlOpts, metav1.ListOptions{
+			LabelSelector: "app.kubernetes.io/name=apisix",
+		})
+		Expect(err).ToNot(HaveOccurred(), "waiting for gateway pod ready")
+	}
 
 	Eventually(func() bool {
 		svc, err := k8s.GetServiceE(f.GinkgoT, kubectlOpts, opts.ServiceName)
