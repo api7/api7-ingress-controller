@@ -30,6 +30,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
@@ -738,6 +739,40 @@ spec:
 			applyHTTPRouteAndAssert(s, route, asserts)
 		})
 
+		It("Service Endpoints changed", func() {
+			gatewayName := s.Namespace()
+			By("create HTTPRoute")
+			s.ResourceApplied("HTTPRoute", "httpbin", fmt.Sprintf(exactRouteByGet, gatewayName), 1)
+
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/get",
+				Host:   "httpbin.example",
+				Check:  scaffold.WithExpectedStatus(http.StatusOK),
+			})
+
+			By("scale httpbin deployment to 0")
+			err := s.ScaleHTTPBIN(0)
+			Expect(err).NotTo(HaveOccurred(), "scaling httpbin deployment to 0")
+
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/get",
+				Host:   "httpbin.example",
+				Check:  scaffold.WithExpectedStatus(http.StatusServiceUnavailable),
+			})
+
+			By("scale httpbin deployment to 1")
+			err = s.ScaleHTTPBIN(1)
+			Expect(err).NotTo(HaveOccurred(), "scaling httpbin deployment to 1")
+
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/get",
+				Host:   "httpbin.example",
+				Check:  scaffold.WithExpectedStatus(http.StatusOK),
+			})
+		})
 	})
 
 	Context("HTTPRoute Rule Match", func() {
@@ -1366,6 +1401,82 @@ spec:
       port: 80
 `
 
+		var respHeaderModifyWithAdd = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: add
+spec:
+  parentRefs:
+  - name: %s
+  hostnames:
+  - httpbin.example.resp-header-modify.add
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /headers
+    filters:
+    - type: ResponseHeaderModifier
+      responseHeaderModifier:
+        add:
+        - name: X-Resp-Add
+          value: "resp-add"
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
+
+		var respHeaderModifyWithSet = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: set
+spec:
+  parentRefs:
+  - name: %s
+  hostnames:
+  - httpbin.example.resp-header-modify.set
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /headers
+    filters:
+    - type: ResponseHeaderModifier
+      responseHeaderModifier:
+        set:
+        - name: X-Resp-Set
+          value: "resp-set"
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
+
+		var respHeaderModifyWithRemove = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: remove
+spec:
+  parentRefs:
+  - name: %s
+  hostnames:
+  - httpbin.example.resp-header-modify.remove
+  rules:
+  - matches: 
+    - path:
+        type: Exact
+        value: /headers
+    filters:
+    - type: ResponseHeaderModifier
+      responseHeaderModifier:
+        remove:
+        - Server
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 80
+`
 		var respHeaderModifyByHeaders = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -1577,6 +1688,9 @@ spec:
 		It("HTTPRoute ResponseHeaderModifier", func() {
 			By("create HTTPRoute")
 			s.ResourceApplied("HTTPRoute", "httpbin", fmt.Sprintf(respHeaderModifyByHeaders, s.Namespace(), s.Namespace()), 1)
+			s.ResourceApplied("HTTPRoute", "add", fmt.Sprintf(respHeaderModifyWithAdd, s.Namespace()), 1)
+			s.ResourceApplied("HTTPRoute", "set", fmt.Sprintf(respHeaderModifyWithSet, s.Namespace()), 1)
+			s.ResourceApplied("HTTPRoute", "remove", fmt.Sprintf(respHeaderModifyWithRemove, s.Namespace()), 1)
 
 			By("access daataplane to check the HTTPRoute")
 			s.RequestAssert(&scaffold.RequestAssert{
@@ -1588,12 +1702,40 @@ spec:
 					scaffold.WithExpectedHeaders(map[string]string{
 						"X-Resp-Add": "add",
 						"X-Resp-Set": "set",
-						"Server":     "",
 					}),
+					scaffold.WithExpectedNotHeader("Server"),
 					scaffold.WithExpectedBodyNotContains(`"X-Resp-Add": "add"`, `"X-Resp-Set": "set"`, `"Server"`),
 				},
-				Timeout:  time.Second * 30,
-				Interval: time.Second * 2,
+			})
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/headers",
+				Host:   "httpbin.example.resp-header-modify.add",
+				Checks: []scaffold.ResponseCheckFunc{
+					scaffold.WithExpectedStatus(http.StatusOK),
+					scaffold.WithExpectedHeader("X-Resp-Add", "resp-add"),
+					scaffold.WithExpectedBodyNotContains(`"X-Resp-Add": "resp-add"`),
+				},
+			})
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/headers",
+				Host:   "httpbin.example.resp-header-modify.set",
+				Checks: []scaffold.ResponseCheckFunc{
+					scaffold.WithExpectedStatus(http.StatusOK),
+					scaffold.WithExpectedHeader("X-Resp-Set", "resp-set"),
+					scaffold.WithExpectedBodyNotContains(`"Server"`),
+				},
+			})
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/headers",
+				Host:   "httpbin.example.resp-header-modify.remove",
+				Checks: []scaffold.ResponseCheckFunc{
+					scaffold.WithExpectedStatus(http.StatusOK),
+					scaffold.WithExpectedNotHeader("Server"),
+					scaffold.WithExpectedBodyNotContains(`"Server"`),
+				},
 			})
 		})
 
@@ -1839,6 +1981,7 @@ spec:
 			beforeEachHTTP()
 			s.DeployNginx(framework.NginxOptions{
 				Namespace: s.Namespace(),
+				Replicas:  ptr.To(int32(2)),
 			})
 		})
 		It("HTTPRoute Canary", func() {

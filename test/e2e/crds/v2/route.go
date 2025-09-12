@@ -25,6 +25,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -469,6 +470,61 @@ spec:
 					return s.NewAPISIXClient().GET("/get").WithHost(host).Expect().Raw().StatusCode
 				}).WithTimeout(30 * time.Second).ProbeEvery(1 * time.Second).Should(Equal(http.StatusOK))
 			}
+		})
+
+		It("Service Endpoints Changed", func() {
+			const apisixRouteSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: default
+spec:
+  ingressClassName: %s
+  http:
+  - name: rule0
+    match:
+      hosts:
+      - httpbin
+      paths:
+      - /*
+    backends:
+    - serviceName: httpbin-service-e2e-test
+      servicePort: 80
+`
+
+			By("apply ApisixRoute")
+			var apisixRoute apiv2.ApisixRoute
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"},
+				&apisixRoute, fmt.Sprintf(apisixRouteSpec, s.Namespace()))
+
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/get",
+				Host:   "httpbin",
+				Check:  scaffold.WithExpectedStatus(http.StatusOK),
+			})
+
+			By("scale httpbin deployment to 0")
+			err := s.ScaleHTTPBIN(0)
+			Expect(err).NotTo(HaveOccurred(), "scaling httpbin deployment to 0")
+
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/get",
+				Host:   "httpbin",
+				Check:  scaffold.WithExpectedStatus(http.StatusServiceUnavailable),
+			})
+
+			By("scale httpbin deployment to 1")
+			err = s.ScaleHTTPBIN(1)
+			Expect(err).NotTo(HaveOccurred(), "scaling httpbin deployment to 1")
+
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/get",
+				Host:   "httpbin",
+				Check:  scaffold.WithExpectedStatus(http.StatusOK),
+			})
 		})
 	})
 
@@ -1759,6 +1815,64 @@ spec:
 				Path:   "/ip",
 				Host:   "httpbin.org",
 				Check:  scaffold.WithExpectedStatus(http.StatusOK),
+			})
+		})
+	})
+
+	Context("Exception Test", func() {
+		const apisixRouteSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: default
+spec:
+  ingressClassName: %s
+  http:
+  - name: rule0
+    match:
+      hosts:
+      - httpbin
+      paths:
+      - /*
+    backends:
+    - serviceName: httpbin-service-e2e-test
+      servicePort: 80
+`
+		It("try again when sync failed", func() {
+			if os.Getenv("PROVIDER_TYPE") == framework.ProviderTypeAPI7EE {
+				Skip("skipping test in API7EE mode")
+			}
+			s.Deployer.ScaleDataplane(0)
+
+			err := s.CreateResourceFromString(fmt.Sprintf(apisixRouteSpec, s.Namespace()))
+			Expect(err).NotTo(HaveOccurred(), "creating ApisixRoute")
+
+			By("check ApisixRoute status")
+			s.RetryAssertion(func() string {
+				output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml", "-n", s.Namespace())
+				return output
+			}).WithTimeout(30 * time.Second).
+				Should(
+					And(
+						ContainSubstring(`status: "False"`),
+						ContainSubstring(`reason: SyncFailed`),
+					),
+				)
+
+			s.Deployer.ScaleDataplane(1)
+
+			s.RetryAssertion(func() string {
+				output, _ := s.GetOutputFromString("ar", "default", "-o", "yaml", "-n", s.Namespace())
+				return output
+			}).WithTimeout(60 * time.Second).
+				Should(ContainSubstring(`status: "True"`))
+
+			By("check route in APISIX")
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/get",
+				Host:   "httpbin",
+				Check:  scaffold.WithExpectedStatus(200),
 			})
 		})
 	})
