@@ -144,7 +144,7 @@ func (r *ApisixGlobalRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiv2.ApisixGlobalRule{},
 			builder.WithPredicates(
-				MatchesIngressClassPredicateByAPIVersion(r.Client, r.Log, r.ICGV.String()),
+				MatchesIngressClassPredicate(r.Client, r.Log, r.ICGV.String()),
 			),
 		).
 		WithEventFilter(

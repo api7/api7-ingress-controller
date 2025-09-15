@@ -70,7 +70,7 @@ func (r *ApisixTlsReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiv2.ApisixTls{},
 			builder.WithPredicates(
-				MatchesIngressClassPredicateByAPIVersion(r.Client, r.Log, r.ICGV.String()),
+				MatchesIngressClassPredicate(r.Client, r.Log, r.ICGV.String()),
 			),
 		).
 		WithEventFilter(

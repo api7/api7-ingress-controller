@@ -128,7 +128,7 @@ func (r *ApisixConsumerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiv2.ApisixConsumer{},
 			builder.WithPredicates(
-				MatchesIngressClassPredicateByAPIVersion(r.Client, r.Log, r.ICGV.String()),
+				MatchesIngressClassPredicate(r.Client, r.Log, r.ICGV.String()),
 			)).
 		WithEventFilter(
 			predicate.Or(

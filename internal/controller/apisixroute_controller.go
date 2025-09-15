@@ -93,7 +93,7 @@ func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	bdr := ctrl.NewControllerManagedBy(mgr).
 		For(&apiv2.ApisixRoute{},
 			builder.WithPredicates(
-				MatchesIngressClassPredicateByAPIVersion(r.Client, r.Log, r.ICGV.String()),
+				MatchesIngressClassPredicate(r.Client, r.Log, r.ICGV.String()),
 			),
 		).
 		WithEventFilter(predicate.Or(eventFilters...)).

@@ -1644,17 +1644,17 @@ func filterEndpointSliceByTargetPod(ctx context.Context, c client.Client, item d
 	return item
 }
 
-func MatchesIngressClassPredicateByAPIVersion(c client.Client, log logr.Logger, apiVersion string) predicate.Funcs {
+func MatchesIngressClassPredicate(c client.Client, log logr.Logger, apiVersion string) predicate.Funcs {
 	predicateFuncs := predicate.NewPredicateFuncs(func(obj client.Object) bool {
-		return MatchesIngressClassByAPIVersion(c, log, obj, apiVersion)
+		return MatchesIngressClass(c, log, obj, apiVersion)
 	})
 	predicateFuncs.UpdateFunc = func(e event.UpdateEvent) bool {
-		return MatchesIngressClassByAPIVersion(c, log, e.ObjectOld, apiVersion) || MatchesIngressClassByAPIVersion(c, log, e.ObjectNew, apiVersion)
+		return MatchesIngressClass(c, log, e.ObjectOld, apiVersion) || MatchesIngressClass(c, log, e.ObjectNew, apiVersion)
 	}
 	return predicateFuncs
 }
 
-func MatchesIngressClassByAPIVersion(c client.Client, log logr.Logger, obj client.Object, apiVersion string) bool {
+func MatchesIngressClass(c client.Client, log logr.Logger, obj client.Object, apiVersion string) bool {
 	_, err := FindMatchingIngressClassByObject(context.Background(), c, log, obj, apiVersion)
 	return err == nil
 }
