@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -88,6 +89,9 @@ func (r *GatewayProxyController) SetupWithManager(mrg ctrl.Manager) error {
 		Watches(
 			icWatch,
 			handler.EnqueueRequestsFromMapFunc(r.listGatewayProxiesForIngressClass),
+			builder.WithPredicates(
+				predicate.NewPredicateFuncs(matchesIngressController),
+			),
 		)
 
 	// Conditionally watch EndpointSlice or Endpoints based on cluster API support
