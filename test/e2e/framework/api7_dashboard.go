@@ -30,8 +30,6 @@ import (
 	"github.com/gavv/httpexpect/v2"
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
-
-	v1 "github.com/apache/apisix-ingress-controller/api/dashboard/v1"
 )
 
 var (
@@ -302,7 +300,24 @@ type responseCreateGatewayValue struct {
 	Key            string `json:"key"`
 }
 
-func (f *Framework) GetDataplaneCertificates(gatewayGroupID string) *v1.DataplaneCertificate {
+type BaseCertificate struct {
+	ID          string `json:"id" gorm:"primaryKey; column:id; size:255;"`
+	Certificate string `json:"certificate" gorm:"column:certificate; type:text;"`
+	PrivateKey  string `json:"private_key" gorm:"column:private_key; type:text;" mask:"fixed"`
+}
+
+type DataplaneCertificate struct {
+	*BaseCertificate
+
+	GatewayGroupID string `json:"gateway_group_id" gorm:"column:gateway_group_id;size:255;"`
+	CACertificate  string `json:"ca_certificate" gorm:"column:ca_certificate;type:text;"`
+}
+
+func (DataplaneCertificate) TableName() string {
+	return "dataplane_certificate"
+}
+
+func (f *Framework) GetDataplaneCertificates(gatewayGroupID string) *DataplaneCertificate {
 	respExp := f.DashboardHTTPClient().
 		POST("/api/gateway_groups/"+gatewayGroupID+"/dp_client_certificates").
 		WithBasicAuth("admin", "admin").
@@ -316,7 +331,7 @@ func (f *Framework) GetDataplaneCertificates(gatewayGroupID string) *v1.Dataplan
 	body := respExp.Body().Raw()
 
 	var dpCertResp struct {
-		Value v1.DataplaneCertificate `json:"value"`
+		Value DataplaneCertificate `json:"value"`
 	}
 	err := json.Unmarshal([]byte(body), &dpCertResp)
 	Expect(err).ToNot(HaveOccurred())
