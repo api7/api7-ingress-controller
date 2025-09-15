@@ -93,7 +93,7 @@ func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	bdr := ctrl.NewControllerManagedBy(mgr).
 		For(&apiv2.ApisixRoute{},
 			builder.WithPredicates(
-				MatchesIngressClassPredicate(r.Client, r.Log),
+				MatchesIngressClassPredicateByAPIVersion(r.Client, r.Log, r.ICGV.String()),
 			),
 		).
 		WithEventFilter(predicate.Or(eventFilters...)).
@@ -155,7 +155,7 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		err  error
 	)
 
-	if ic, err = FindMatchingIngressClass(tctx, r.Client, r.Log, &ar); err != nil {
+	if ic, err = FindMatchingIngressClassByObject(tctx, r.Client, r.Log, &ar, r.ICGV.String()); err != nil {
 		r.Log.V(1).Info("no matching IngressClass available",
 			"ingressClassName", ar.Spec.IngressClassName,
 			"error", err.Error())

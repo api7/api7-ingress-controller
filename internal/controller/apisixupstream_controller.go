@@ -60,7 +60,7 @@ func (r *ApisixUpstreamReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	tctx := provider.NewDefaultTranslateContext(ctx)
 
-	_, err := FindMatchingIngressClass(tctx, r.Client, r.Log, &au)
+	_, err := FindMatchingIngressClassByObject(tctx, r.Client, r.Log, &au, r.ICGV.String())
 	if err != nil {
 		r.Log.V(1).Info("no matching IngressClass available, skip processing",
 			"ingressClassName", au.Spec.IngressClassName,

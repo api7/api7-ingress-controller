@@ -1396,6 +1396,7 @@ func GetIngressClassV1Beta1(ctx context.Context, c client.Client, log logr.Logge
 				return &ic, nil
 			}
 		}
+		log.V(1).Info("no default ingress class(v1beta1) found")
 		return nil, errors.New("no default ingress class found")
 	}
 
@@ -1412,12 +1413,7 @@ func GetIngressClassV1Beta1(ctx context.Context, c client.Client, log logr.Logge
 	return nil, errors.New("ingress class is not controlled by us")
 }
 
-func FindMatchingIngressClass(ctx context.Context, c client.Client, log logr.Logger, obj client.Object) (*networkingv1.IngressClass, error) {
-	ingressClassName := ExtractIngressClass(obj)
-	return FindMatchingIngressClassByName(ctx, c, log, ingressClassName)
-}
-
-func FindMatchingIngressClassByName(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string) (*networkingv1.IngressClass, error) {
+func GetIngressClassV1(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string) (*networkingv1.IngressClass, error) {
 	if ingressClassName == "" {
 		// Check for default ingress class
 		ingressClassList := &networkingv1.IngressClassList{}
@@ -1451,7 +1447,8 @@ func FindMatchingIngressClassByName(ctx context.Context, c client.Client, log lo
 	return nil, errors.New("ingress class is not controlled by us")
 }
 
-func GetIngressClass(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string, apiVersion string) (*networkingv1.IngressClass, error) {
+func FindMatchingIngressClassByObject(ctx context.Context, c client.Client, log logr.Logger, obj client.Object, apiVersion string) (*networkingv1.IngressClass, error) {
+	ingressClassName := ExtractIngressClass(obj)
 	switch apiVersion {
 	case networkingv1beta1.SchemeGroupVersion.String():
 		icBeta, err := GetIngressClassV1Beta1(ctx, c, log, ingressClassName)
@@ -1460,7 +1457,20 @@ func GetIngressClass(ctx context.Context, c client.Client, log logr.Logger, ingr
 		}
 		return pkgutils.ConvertToIngressClassV1(icBeta), nil
 	default:
-		return GetIngressClassv1(ctx, c, log, ingressClassName)
+		return GetIngressClassV1(ctx, c, log, ingressClassName)
+	}
+}
+
+func FindMatchingIngressClassByName(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string, apiVersion string) (*networkingv1.IngressClass, error) {
+	switch apiVersion {
+	case networkingv1beta1.SchemeGroupVersion.String():
+		icBeta, err := GetIngressClassV1Beta1(ctx, c, log, ingressClassName)
+		if err != nil {
+			return nil, err
+		}
+		return pkgutils.ConvertToIngressClassV1(icBeta), nil
+	default:
+		return GetIngressClassV1(ctx, c, log, ingressClassName)
 	}
 }
 
@@ -1634,18 +1644,18 @@ func filterEndpointSliceByTargetPod(ctx context.Context, c client.Client, item d
 	return item
 }
 
-func MatchesIngressClassPredicate(c client.Client, log logr.Logger) predicate.Funcs {
+func MatchesIngressClassPredicateByAPIVersion(c client.Client, log logr.Logger, apiVersion string) predicate.Funcs {
 	predicateFuncs := predicate.NewPredicateFuncs(func(obj client.Object) bool {
-		return MatchesIngressClass(c, log, obj)
+		return MatchesIngressClassByAPIVersion(c, log, obj, apiVersion)
 	})
 	predicateFuncs.UpdateFunc = func(e event.UpdateEvent) bool {
-		return MatchesIngressClass(c, log, e.ObjectOld) || MatchesIngressClass(c, log, e.ObjectNew)
+		return MatchesIngressClassByAPIVersion(c, log, e.ObjectOld, apiVersion) || MatchesIngressClassByAPIVersion(c, log, e.ObjectNew, apiVersion)
 	}
 	return predicateFuncs
 }
 
-func MatchesIngressClass(c client.Client, log logr.Logger, obj client.Object) bool {
-	_, err := FindMatchingIngressClass(context.Background(), c, log, obj)
+func MatchesIngressClassByAPIVersion(c client.Client, log logr.Logger, obj client.Object, apiVersion string) bool {
+	_, err := FindMatchingIngressClassByObject(context.Background(), c, log, obj, apiVersion)
 	return err == nil
 }
 

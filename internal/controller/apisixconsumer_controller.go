@@ -90,7 +90,7 @@ func (r *ApisixConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		err          error
 	)
 
-	if ingressClass, err = FindMatchingIngressClass(tctx, r.Client, r.Log, ac); err != nil {
+	if ingressClass, err = FindMatchingIngressClassByObject(tctx, r.Client, r.Log, ac, r.ICGV.String()); err != nil {
 		r.Log.V(1).Info("no matching IngressClass available",
 			"ingressClassName", ac.Spec.IngressClassName,
 			"error", err.Error())
@@ -128,7 +128,7 @@ func (r *ApisixConsumerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiv2.ApisixConsumer{},
 			builder.WithPredicates(
-				MatchesIngressClassPredicate(r.Client, r.Log),
+				MatchesIngressClassPredicateByAPIVersion(r.Client, r.Log, r.ICGV.String()),
 			)).
 		WithEventFilter(
 			predicate.Or(

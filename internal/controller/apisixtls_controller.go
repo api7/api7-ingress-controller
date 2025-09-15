@@ -70,7 +70,7 @@ func (r *ApisixTlsReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiv2.ApisixTls{},
 			builder.WithPredicates(
-				MatchesIngressClassPredicate(r.Client, r.Log),
+				MatchesIngressClassPredicateByAPIVersion(r.Client, r.Log, r.ICGV.String()),
 			),
 		).
 		WithEventFilter(
@@ -126,7 +126,7 @@ func (r *ApisixTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	tctx := provider.NewDefaultTranslateContext(ctx)
 
 	// get the ingress class
-	ingressClass, err := FindMatchingIngressClass(tctx, r.Client, r.Log, &tls)
+	ingressClass, err := FindMatchingIngressClassByObject(tctx, r.Client, r.Log, &tls, r.ICGV.String())
 	if err != nil {
 		r.Log.V(1).Info("no matching IngressClass available, skip processing",
 			"ingressClassName", tls.Spec.IngressClassName,

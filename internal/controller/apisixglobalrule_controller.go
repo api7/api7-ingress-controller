@@ -87,7 +87,7 @@ func (r *ApisixGlobalRuleReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	tctx := provider.NewDefaultTranslateContext(ctx)
 
 	// get the ingress class
-	ingressClass, err := FindMatchingIngressClass(tctx, r.Client, r.Log, &globalRule)
+	ingressClass, err := FindMatchingIngressClassByObject(tctx, r.Client, r.Log, &globalRule, r.ICGV.String())
 	if err != nil {
 		r.Log.V(1).Info("no matching IngressClass available",
 			"ingressClassName", globalRule.Spec.IngressClassName,
@@ -144,7 +144,7 @@ func (r *ApisixGlobalRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiv2.ApisixGlobalRule{},
 			builder.WithPredicates(
-				MatchesIngressClassPredicate(r.Client, r.Log),
+				MatchesIngressClassPredicateByAPIVersion(r.Client, r.Log, r.ICGV.String()),
 			),
 		).
 		WithEventFilter(

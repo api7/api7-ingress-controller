@@ -87,7 +87,7 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	bdr := ctrl.NewControllerManagedBy(mgr).
 		For(&networkingv1.Ingress{},
 			builder.WithPredicates(
-				MatchesIngressClassPredicate(r.Client, r.Log),
+				MatchesIngressClassPredicateByAPIVersion(r.Client, r.Log, ""),
 			),
 		).
 		WithEventFilter(predicate.Or(eventFilters...)).
@@ -166,7 +166,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// create a translate context
 	tctx := provider.NewDefaultTranslateContext(ctx)
 
-	ingressClass, err := FindMatchingIngressClass(tctx, r.Client, r.Log, ingress)
+	ingressClass, err := FindMatchingIngressClassByObject(tctx, r.Client, r.Log, ingress, "")
 	if err != nil {
 		if err := r.Provider.Delete(ctx, ingress); err != nil {
 			r.Log.Error(err, "failed to delete ingress resources", "ingress", ingress.Name)
@@ -309,7 +309,7 @@ func (r *IngressReconciler) listIngressesByService(ctx context.Context, obj clie
 
 	requests := make([]reconcile.Request, 0, len(ingressList.Items))
 	for _, ingress := range ingressList.Items {
-		if MatchesIngressClass(r.Client, r.Log, &ingress) {
+		if MatchesIngressClassByAPIVersion(r.Client, r.Log, &ingress, "") {
 			requests = append(requests, reconcile.Request{
 				NamespacedName: client.ObjectKey{
 					Namespace: ingress.Namespace,
@@ -343,7 +343,7 @@ func (r *IngressReconciler) listIngressesByEndpoints(ctx context.Context, obj cl
 
 	requests := make([]reconcile.Request, 0, len(ingressList.Items))
 	for _, ingress := range ingressList.Items {
-		if r.checkIngressClass(&ingress) {
+		if MatchesIngressClassByAPIVersion(r.Client, r.Log, &ingress, "") {
 			requests = append(requests, reconcile.Request{
 				NamespacedName: client.ObjectKey{
 					Namespace: ingress.Namespace,
@@ -376,7 +376,7 @@ func (r *IngressReconciler) listIngressesBySecret(ctx context.Context, obj clien
 
 	requests := make([]reconcile.Request, 0, len(ingressList.Items))
 	for _, ingress := range ingressList.Items {
-		if MatchesIngressClass(r.Client, r.Log, &ingress) {
+		if MatchesIngressClassByAPIVersion(r.Client, r.Log, &ingress, "") {
 			requests = append(requests, reconcile.Request{
 				NamespacedName: client.ObjectKey{
 					Namespace: ingress.Namespace,
