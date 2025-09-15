@@ -31,6 +31,8 @@ concurrency:
 
 jobs:
   conformance-test:
+    env:
+      CONFORMANCE_TEST_REPORT_OUTPUT: /tmp/api7-ingress-controller-conformance-report.yaml
     timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
@@ -105,8 +107,13 @@ jobs:
           API7_EE_LICENSE: ${{ secrets.API7_EE_LICENSE }}
         continue-on-error: true
         run: |
-          make conformance-test
+          make conformance-test-api7ee
       
+      - name: Show Conformance Report
+        shell: bash
+        run: |
+          cat ${CONFORMANCE_TEST_REPORT_OUTPUT}
+
       - name: Get Logs from api7-ingress-controller
         shell: bash
         run: |
@@ -117,20 +124,20 @@ jobs:
         if: ${{ github.event_name == 'push' }}
         uses: actions/upload-artifact@v4
         with:
-          name: apisix-ingress-controller-conformance-report.yaml
-          path: apisix-ingress-controller-conformance-report.yaml
+          name: api7-ingress-controller-conformance-report.yaml
+          path: ${{ env.CONFORMANCE_TEST_REPORT_OUTPUT }}
 
       - name: Format Conformance Test Report
         if: ${{ github.event_name == 'pull_request' }}
         run: |
           echo '# conformance test report' > report.md
           echo '```yaml' >> report.md
-          cat apisix-ingress-controller-conformance-report.yaml >> report.md
+          cat ${CONFORMANCE_TEST_REPORT_OUTPUT} >> report.md
           echo '```' >> report.md
 
       - name: Report Conformance Test Result to PR Comment
         if: ${{ github.event_name == 'pull_request' }}
-        uses: mshick/add-pr-comment@v2
+        uses: ./.github/actions/add-pr-comment
         with:
           message-id: 'conformance-test-report'
           message-path: |

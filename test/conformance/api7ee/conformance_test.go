@@ -15,13 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//go:build conformance
-// +build conformance
-
-package conformance
+package api7ee
 
 import (
-	"flag"
 	"os"
 	"testing"
 
@@ -30,8 +26,8 @@ import (
 	"sigs.k8s.io/gateway-api/conformance"
 	conformancev1 "sigs.k8s.io/gateway-api/conformance/apis/v1"
 	"sigs.k8s.io/gateway-api/conformance/tests"
+	"sigs.k8s.io/gateway-api/conformance/utils/flags"
 	"sigs.k8s.io/gateway-api/conformance/utils/suite"
-	"sigs.k8s.io/gateway-api/pkg/features"
 	"sigs.k8s.io/yaml"
 )
 
@@ -43,24 +39,11 @@ var skippedTestsForSSL = []string{
 
 // TODO: HTTPRoute hostname intersection and listener hostname matching
 
-var gatewaySupportedFeatures = []features.FeatureName{
-	features.SupportGateway,
-	features.SupportHTTPRoute,
-	// features.SupportHTTPRouteMethodMatching,
-	// features.SupportHTTPRouteResponseHeaderModification,
-	// features.SupportHTTPRouteRequestMirror,
-	// features.SupportHTTPRouteBackendRequestHeaderModification,
-	// features.SupportHTTPRouteHostRewrite,
-}
-
 func TestGatewayAPIConformance(t *testing.T) {
-	flag.Parse()
-
 	opts := conformance.DefaultOptions(t)
 	opts.Debug = true
 	opts.CleanupBaseResources = true
 	opts.GatewayClassName = gatewayClassName
-	opts.SupportedFeatures = sets.New(gatewaySupportedFeatures...)
 	opts.SkipTests = skippedTestsForSSL
 	opts.Implementation = conformancev1.Implementation{
 		Organization: "APISIX",
@@ -80,7 +63,6 @@ func TestGatewayAPIConformance(t *testing.T) {
 		t.Fatalf("failed to run the gateway conformance test suite: %v", err)
 	}
 
-	const reportFileName = "apisix-ingress-controller-conformance-report.yaml"
 	report, err := cSuite.Report()
 	if err != nil {
 		t.Fatalf("failed to get the gateway conformance test report: %v", err)
@@ -90,6 +72,10 @@ func TestGatewayAPIConformance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to marshal the gateway conformance test report: %v", err)
 	}
-	// Save report in the root of the repository, file name is in .gitignore.
-	require.NoError(t, os.WriteFile("../../../"+reportFileName, rawReport, 0o600))
+	f, err := os.Create(*flags.ReportOutput)
+	require.NoError(t, err)
+	defer func() { _ = f.Close() }()
+
+	_, err = f.Write(rawReport)
+	require.NoError(t, err)
 }
