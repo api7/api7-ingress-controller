@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -62,6 +63,13 @@ func (r *GatewayProxyController) SetupWithManager(mrg ctrl.Manager) error {
 	// Check and store EndpointSlice API support
 	r.supportsEndpointSlice = pkgutils.HasAPIResource(mrg, &discoveryv1.EndpointSlice{})
 	r.supportsGateway = pkgutils.HasAPIResource(mrg, &gatewayv1.Gateway{})
+	var icWatch client.Object
+	switch r.ICGV.String() {
+	case networkingv1beta1.SchemeGroupVersion.String():
+		icWatch = &networkingv1beta1.IngressClass{}
+	default:
+		icWatch = &networkingv1.IngressClass{}
+	}
 
 	eventFilters := []predicate.Predicate{
 		predicate.GenerationChangedPredicate{},
@@ -77,6 +85,13 @@ func (r *GatewayProxyController) SetupWithManager(mrg ctrl.Manager) error {
 		WithEventFilter(predicate.Or(eventFilters...)).
 		Watches(&corev1.Service{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewayProxiesForProviderService),
+		).
+		Watches(
+			icWatch,
+			handler.EnqueueRequestsFromMapFunc(r.listGatewayProxiesForIngressClass),
+			builder.WithPredicates(
+				predicate.NewPredicateFuncs(matchesIngressController),
+			),
 		)
 
 	// Conditionally watch EndpointSlice or Endpoints based on cluster API support
@@ -84,6 +99,12 @@ func (r *GatewayProxyController) SetupWithManager(mrg ctrl.Manager) error {
 		r.listGatewayProxiesForProviderEndpointSlice,
 		r.listGatewayProxiesForProviderEndpoints,
 		r.Log)
+
+	if r.supportsGateway {
+		bdr = bdr.Watches(&gatewayv1.Gateway{},
+			handler.EnqueueRequestsFromMapFunc(r.listGatewayProxiesByGateway),
+		)
+	}
 
 	return bdr.
 		Watches(&corev1.Secret{},
@@ -264,4 +285,33 @@ func (r *GatewayProxyController) listGatewayProxiesForSecret(ctx context.Context
 	return ListRequests(ctx, r.Client, r.Log, &v1alpha1.GatewayProxyList{}, client.MatchingFields{
 		indexer.SecretIndexRef: indexer.GenIndexKey(secret.GetNamespace(), secret.GetName()),
 	})
+}
+
+func (r *GatewayProxyController) listGatewayProxiesForIngressClass(ctx context.Context, object client.Object) []reconcile.Request {
+	ingressClass := pkgutils.ConvertToIngressClassV1(object)
+
+	reqs := []reconcile.Request{}
+	gp, _ := GetGatewayProxyByIngressClass(ctx, r.Client, ingressClass)
+	if gp != nil {
+		reqs = append(reqs, reconcile.Request{
+			NamespacedName: utils.NamespacedName(gp),
+		})
+	}
+	return reqs
+}
+
+func (r *GatewayProxyController) listGatewayProxiesByGateway(ctx context.Context, object client.Object) []reconcile.Request {
+	gateway, ok := object.(*gatewayv1.Gateway)
+	if !ok {
+		r.Log.Error(errors.New("unexpected object type"), "failed to convert object to IngressClass")
+		return nil
+	}
+	reqs := []reconcile.Request{}
+	gp, _ := GetGatewayProxyByGateway(ctx, r.Client, gateway)
+	if gp != nil {
+		reqs = append(reqs, reconcile.Request{
+			NamespacedName: utils.NamespacedName(gp),
+		})
+	}
+	return reqs
 }

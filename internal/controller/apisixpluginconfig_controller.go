@@ -60,7 +60,7 @@ func (r *ApisixPluginConfigReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 	tctx := provider.NewDefaultTranslateContext(ctx)
 
-	_, err := GetIngressClass(tctx, r.Client, r.Log, pc.Spec.IngressClassName, r.ICGV.String())
+	_, err := FindMatchingIngressClassByObject(tctx, r.Client, r.Log, &pc, r.ICGV.String())
 	if err != nil {
 		r.Log.V(1).Info("no matching IngressClass available",
 			"ingressClassName", pc.Spec.IngressClassName,

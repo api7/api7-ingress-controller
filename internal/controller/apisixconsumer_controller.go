@@ -90,7 +90,7 @@ func (r *ApisixConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		err          error
 	)
 
-	if ingressClass, err = GetIngressClass(tctx, r.Client, r.Log, ac.Spec.IngressClassName, r.ICGV.String()); err != nil {
+	if ingressClass, err = FindMatchingIngressClassByObject(tctx, r.Client, r.Log, ac, r.ICGV.String()); err != nil {
 		r.Log.V(1).Info("no matching IngressClass available",
 			"ingressClassName", ac.Spec.IngressClassName,
 			"error", err.Error())
@@ -100,12 +100,12 @@ func (r *ApisixConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	if err = ProcessIngressClassParameters(tctx, r.Client, r.Log, ac, ingressClass); err != nil {
 		r.Log.Error(err, "failed to process IngressClass parameters", "ingressClass", ingressClass.Name)
-		return ctrl.Result{}, err
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	if err = r.processSpec(ctx, tctx, ac); err != nil {
 		r.Log.Error(err, "failed to process ApisixConsumer spec", "object", ac)
-		return ctrl.Result{}, err
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	if err = r.Provider.Update(ctx, tctx, ac); err != nil {
@@ -128,7 +128,7 @@ func (r *ApisixConsumerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiv2.ApisixConsumer{},
 			builder.WithPredicates(
-				predicate.NewPredicateFuncs(r.checkIngressClass),
+				MatchesIngressClassPredicate(r.Client, r.Log, r.ICGV.String()),
 			)).
 		WithEventFilter(
 			predicate.Or(
@@ -152,15 +152,6 @@ func (r *ApisixConsumerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Named("apisixconsumer").
 		Complete(r)
-}
-
-func (r *ApisixConsumerReconciler) checkIngressClass(obj client.Object) bool {
-	ac, ok := obj.(*apiv2.ApisixConsumer)
-	if !ok {
-		return false
-	}
-
-	return matchesIngressClass(context.Background(), r.Client, r.Log, ac.Spec.IngressClassName, r.ICGV.String())
 }
 
 func (r *ApisixConsumerReconciler) listApisixConsumerForGatewayProxy(ctx context.Context, obj client.Object) []reconcile.Request {

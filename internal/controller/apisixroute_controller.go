@@ -91,7 +91,11 @@ func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	bdr := ctrl.NewControllerManagedBy(mgr).
-		For(&apiv2.ApisixRoute{}).
+		For(&apiv2.ApisixRoute{},
+			builder.WithPredicates(
+				MatchesIngressClassPredicate(r.Client, r.Log, r.ICGV.String()),
+			),
+		).
 		WithEventFilter(predicate.Or(eventFilters...)).
 		Watches(
 			icWatch,
@@ -151,16 +155,21 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		err  error
 	)
 
-	if ic, err = GetIngressClass(tctx, r.Client, r.Log, ar.Spec.IngressClassName, r.ICGV.String()); err != nil {
+	if ic, err = FindMatchingIngressClassByObject(tctx, r.Client, r.Log, &ar, r.ICGV.String()); err != nil {
 		r.Log.V(1).Info("no matching IngressClass available",
 			"ingressClassName", ar.Spec.IngressClassName,
 			"error", err.Error())
+		if err := r.Provider.Delete(ctx, &ar); err != nil {
+			r.Log.Error(err, "failed to delete apisixroute", "apisixroute", ar)
+			return ctrl.Result{}, err
+		}
 		return ctrl.Result{}, nil
 	}
 	defer func() { r.updateStatus(&ar, err) }()
 
 	if err = ProcessIngressClassParameters(tctx, r.Client, r.Log, &ar, ic); err != nil {
-		return ctrl.Result{}, err
+		r.Log.Error(err, "failed to process IngressClass parameters", "ingressClass", ic.Name)
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	if err = r.processApisixRoute(ctx, tctx, &ar); err != nil {
 		return ctrl.Result{}, err

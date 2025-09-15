@@ -255,6 +255,7 @@ func registerV2ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessM
 		types.GvkOf(&apiv2.ApisixPluginConfig{}),
 		types.GvkOf(&apiv2.ApisixTls{}),
 		types.GvkOf(&apiv2.ApisixConsumer{}),
+		types.GvkOf(&apiv2.ApisixUpstream{}),
 	}
 	if utils.HasAPIResource(mgr, &netv1.Ingress{}) {
 		gvks = append(gvks, types.GvkOf(&netv1.Ingress{}))
@@ -265,7 +266,7 @@ func registerV2ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessM
 		GVKs: gvks,
 		Filter: readiness.GVKFilter(func(obj *unstructured.Unstructured) bool {
 			icName, _, _ := unstructured.NestedString(obj.Object, "spec", "ingressClassName")
-			ingressClass, _ := controller.GetIngressClass(context.Background(), c, log, icName, icgv.String())
+			ingressClass, _ := controller.FindMatchingIngressClassByName(context.Background(), c, log, icName, icgv.String())
 			return ingressClass != nil
 		}),
 	})

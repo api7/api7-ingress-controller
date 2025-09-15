@@ -41,6 +41,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -1303,15 +1304,6 @@ func matchesIngressController(obj client.Object) bool {
 	return matchesController(ingressClass.Spec.Controller)
 }
 
-func matchesIngressClass(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string, apiVersion string) bool {
-	ic, err := GetIngressClass(ctx, c, log, ingressClassName, apiVersion)
-	if err != nil {
-		log.Error(err, "failed to get IngressClass", "ingressClassName", ingressClassName)
-		return false
-	}
-	return ic != nil
-}
-
 func ProcessIngressClassParameters(tctx *provider.TranslateContext, c client.Client, log logr.Logger, object client.Object, ingressClass *networkingv1.IngressClass) error {
 	if ingressClass == nil || ingressClass.Spec.Parameters == nil {
 		return nil
@@ -1404,6 +1396,7 @@ func GetIngressClassV1Beta1(ctx context.Context, c client.Client, log logr.Logge
 				return &ic, nil
 			}
 		}
+		log.V(1).Info("no default ingress class(v1beta1) found")
 		return nil, errors.New("no default ingress class found")
 	}
 
@@ -1420,7 +1413,7 @@ func GetIngressClassV1Beta1(ctx context.Context, c client.Client, log logr.Logge
 	return nil, errors.New("ingress class is not controlled by us")
 }
 
-func GetIngressClassv1(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string) (*networkingv1.IngressClass, error) {
+func GetIngressClassV1(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string) (*networkingv1.IngressClass, error) {
 	if ingressClassName == "" {
 		// Check for default ingress class
 		ingressClassList := &networkingv1.IngressClassList{}
@@ -1454,7 +1447,8 @@ func GetIngressClassv1(ctx context.Context, c client.Client, log logr.Logger, in
 	return nil, errors.New("ingress class is not controlled by us")
 }
 
-func GetIngressClass(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string, apiVersion string) (*networkingv1.IngressClass, error) {
+func FindMatchingIngressClassByObject(ctx context.Context, c client.Client, log logr.Logger, obj client.Object, apiVersion string) (*networkingv1.IngressClass, error) {
+	ingressClassName := ExtractIngressClass(obj)
 	switch apiVersion {
 	case networkingv1beta1.SchemeGroupVersion.String():
 		icBeta, err := GetIngressClassV1Beta1(ctx, c, log, ingressClassName)
@@ -1463,7 +1457,20 @@ func GetIngressClass(ctx context.Context, c client.Client, log logr.Logger, ingr
 		}
 		return pkgutils.ConvertToIngressClassV1(icBeta), nil
 	default:
-		return GetIngressClassv1(ctx, c, log, ingressClassName)
+		return GetIngressClassV1(ctx, c, log, ingressClassName)
+	}
+}
+
+func FindMatchingIngressClassByName(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string, apiVersion string) (*networkingv1.IngressClass, error) {
+	switch apiVersion {
+	case networkingv1beta1.SchemeGroupVersion.String():
+		icBeta, err := GetIngressClassV1Beta1(ctx, c, log, ingressClassName)
+		if err != nil {
+			return nil, err
+		}
+		return pkgutils.ConvertToIngressClassV1(icBeta), nil
+	default:
+		return GetIngressClassV1(ctx, c, log, ingressClassName)
 	}
 }
 
@@ -1635,4 +1642,90 @@ func filterEndpointSliceByTargetPod(ctx context.Context, c client.Client, item d
 	})
 
 	return item
+}
+
+func GetGatewayProxyByIngressClass(ctx context.Context, r client.Client, ingressClass *networkingv1.IngressClass) (*v1alpha1.GatewayProxy, error) {
+	if ingressClass.Spec.Parameters == nil {
+		return nil, nil
+	}
+
+	if ingressClass.Spec.Parameters.APIGroup == nil ||
+		*ingressClass.Spec.Parameters.APIGroup != v1alpha1.GroupVersion.Group ||
+		ingressClass.Spec.Parameters.Kind != KindGatewayProxy {
+		return nil, nil
+	}
+
+	namespace := ingressClass.Namespace
+	if ingressClass.Spec.Parameters.Namespace != nil {
+		namespace = *ingressClass.Spec.Parameters.Namespace
+	}
+
+	gatewayProxy := new(v1alpha1.GatewayProxy)
+	if err := r.Get(ctx, client.ObjectKey{
+		Namespace: namespace,
+		Name:      ingressClass.Spec.Parameters.Name,
+	}, gatewayProxy); err != nil {
+		return nil, fmt.Errorf("failed to get gateway proxy: %w", err)
+	}
+	return gatewayProxy, nil
+}
+
+func GetGatewayProxyByGateway(ctx context.Context, r client.Client, gateway *gatewayv1.Gateway) (*v1alpha1.GatewayProxy, error) {
+	if gateway == nil {
+		return nil, nil
+	}
+	infra := gateway.Spec.Infrastructure
+	if infra == nil || infra.ParametersRef == nil {
+		return nil, nil
+	}
+
+	ns := gateway.GetNamespace()
+	paramRef := infra.ParametersRef
+	if string(paramRef.Group) != v1alpha1.GroupVersion.Group || string(paramRef.Kind) != KindGatewayProxy {
+		return nil, nil
+	}
+	gatewayProxy := &v1alpha1.GatewayProxy{}
+	if err := r.Get(context.Background(), client.ObjectKey{
+		Namespace: ns,
+		Name:      paramRef.Name,
+	}, gatewayProxy); err != nil {
+		return nil, fmt.Errorf("failed to get GatewayProxy: %w", err)
+	}
+	return gatewayProxy, nil
+}
+
+func MatchesIngressClassPredicate(c client.Client, log logr.Logger, apiVersion string) predicate.Funcs {
+	predicateFuncs := predicate.NewPredicateFuncs(func(obj client.Object) bool {
+		return MatchesIngressClass(c, log, obj, apiVersion)
+	})
+	predicateFuncs.UpdateFunc = func(e event.UpdateEvent) bool {
+		return MatchesIngressClass(c, log, e.ObjectOld, apiVersion) || MatchesIngressClass(c, log, e.ObjectNew, apiVersion)
+	}
+	return predicateFuncs
+}
+
+func MatchesIngressClass(c client.Client, log logr.Logger, obj client.Object, apiVersion string) bool {
+	_, err := FindMatchingIngressClassByObject(context.Background(), c, log, obj, apiVersion)
+	return err == nil
+}
+
+func ExtractIngressClass(obj client.Object) string {
+	switch v := obj.(type) {
+	case *networkingv1.Ingress:
+		return ptr.Deref(v.Spec.IngressClassName, "")
+	case *apiv2.ApisixConsumer:
+		return v.Spec.IngressClassName
+	case *apiv2.ApisixRoute:
+		return v.Spec.IngressClassName
+	case *apiv2.ApisixTls:
+		return v.Spec.IngressClassName
+	case *apiv2.ApisixPluginConfig:
+		return v.Spec.IngressClassName
+	case *apiv2.ApisixUpstream:
+		return v.Spec.IngressClassName
+	case *apiv2.ApisixGlobalRule:
+		return v.Spec.IngressClassName
+	default:
+		panic(fmt.Errorf("unhandled object type %T for extracting ingress class", obj))
+	}
 }
