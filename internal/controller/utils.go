@@ -1644,42 +1644,6 @@ func filterEndpointSliceByTargetPod(ctx context.Context, c client.Client, item d
 	return item
 }
 
-func MatchesIngressClassPredicate(c client.Client, log logr.Logger, apiVersion string) predicate.Funcs {
-	predicateFuncs := predicate.NewPredicateFuncs(func(obj client.Object) bool {
-		return MatchesIngressClass(c, log, obj, apiVersion)
-	})
-	predicateFuncs.UpdateFunc = func(e event.UpdateEvent) bool {
-		return MatchesIngressClass(c, log, e.ObjectOld, apiVersion) || MatchesIngressClass(c, log, e.ObjectNew, apiVersion)
-	}
-	return predicateFuncs
-}
-
-func MatchesIngressClass(c client.Client, log logr.Logger, obj client.Object, apiVersion string) bool {
-	_, err := FindMatchingIngressClassByObject(context.Background(), c, log, obj, apiVersion)
-	return err == nil
-}
-
-func ExtractIngressClass(obj client.Object) string {
-	switch v := obj.(type) {
-	case *networkingv1.Ingress:
-		return ptr.Deref(v.Spec.IngressClassName, "")
-	case *apiv2.ApisixConsumer:
-		return v.Spec.IngressClassName
-	case *apiv2.ApisixRoute:
-		return v.Spec.IngressClassName
-	case *apiv2.ApisixTls:
-		return v.Spec.IngressClassName
-	case *apiv2.ApisixPluginConfig:
-		return v.Spec.IngressClassName
-	case *apiv2.ApisixUpstream:
-		return v.Spec.IngressClassName
-	case *apiv2.ApisixGlobalRule:
-		return v.Spec.IngressClassName
-	default:
-		panic(fmt.Errorf("unhandled object type %T for extracting ingress class", obj))
-	}
-}
-
 func GetGatewayProxyByIngressClass(ctx context.Context, r client.Client, ingressClass *networkingv1.IngressClass) (*v1alpha1.GatewayProxy, error) {
 	if ingressClass.Spec.Parameters == nil {
 		return nil, nil
@@ -1728,4 +1692,40 @@ func GetGatewayProxyByGateway(ctx context.Context, r client.Client, gateway *gat
 		return nil, fmt.Errorf("failed to get GatewayProxy: %w", err)
 	}
 	return gatewayProxy, nil
+}
+
+func MatchesIngressClassPredicate(c client.Client, log logr.Logger, apiVersion string) predicate.Funcs {
+	predicateFuncs := predicate.NewPredicateFuncs(func(obj client.Object) bool {
+		return MatchesIngressClass(c, log, obj, apiVersion)
+	})
+	predicateFuncs.UpdateFunc = func(e event.UpdateEvent) bool {
+		return MatchesIngressClass(c, log, e.ObjectOld, apiVersion) || MatchesIngressClass(c, log, e.ObjectNew, apiVersion)
+	}
+	return predicateFuncs
+}
+
+func MatchesIngressClass(c client.Client, log logr.Logger, obj client.Object, apiVersion string) bool {
+	_, err := FindMatchingIngressClassByObject(context.Background(), c, log, obj, apiVersion)
+	return err == nil
+}
+
+func ExtractIngressClass(obj client.Object) string {
+	switch v := obj.(type) {
+	case *networkingv1.Ingress:
+		return ptr.Deref(v.Spec.IngressClassName, "")
+	case *apiv2.ApisixConsumer:
+		return v.Spec.IngressClassName
+	case *apiv2.ApisixRoute:
+		return v.Spec.IngressClassName
+	case *apiv2.ApisixTls:
+		return v.Spec.IngressClassName
+	case *apiv2.ApisixPluginConfig:
+		return v.Spec.IngressClassName
+	case *apiv2.ApisixUpstream:
+		return v.Spec.IngressClassName
+	case *apiv2.ApisixGlobalRule:
+		return v.Spec.IngressClassName
+	default:
+		panic(fmt.Errorf("unhandled object type %T for extracting ingress class", obj))
+	}
 }
