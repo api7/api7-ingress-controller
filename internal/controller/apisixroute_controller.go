@@ -36,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -417,10 +418,21 @@ func (r *ApisixRouteReconciler) validateBackends(ctx context.Context, tc *provid
 		}
 
 		if !slices.ContainsFunc(service.Spec.Ports, func(port corev1.ServicePort) bool {
-			return port.Port == int32(backend.ServicePort.IntValue())
+			if backend.ServicePort.Type == intstr.Int {
+				return port.Port == int32(backend.ServicePort.IntValue())
+			}
+
+			if backend.ServicePort.Type == intstr.String {
+				return port.Name == backend.ServicePort.StrVal
+			}
+			return false
 		}) {
-			r.Log.Error(errors.New("port not found in service"), "Service", serviceNN, "port", backend.ServicePort.String())
-			continue
+			if backend.ServicePort.Type == intstr.Int {
+				r.Log.Error(errors.New("port not found in service"), "Service", serviceNN, "port", backend.ServicePort.IntValue())
+			} else {
+				r.Log.Error(errors.New("named port not found in service"), "Service", serviceNN, "port", backend.ServicePort.StrVal)
+			}
+			return nil
 		}
 		tc.Services[serviceNN] = &service
 
