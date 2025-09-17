@@ -366,7 +366,7 @@ LoadBalancer describes the load balancing parameters.
 | --- | --- |
 | `type` _string_ | Type specifies the load balancing algorithms to route traffic to the backend. Default is `roundrobin`. Can be `roundrobin`, `chash`, `ewma`, or `least_conn`. |
 | `hashOn` _string_ | HashOn specified the type of field used for hashing, required when type is `chash`. Default is `vars`. Can be `vars`, `header`, `cookie`, `consumer`, or `vars_combinations`. |
-| `key` _string_ | Key is used with HashOn, generally required when type is `chash`. When HashOn is `header` or `cookie`, specifies the name of the header or cookie. When HashOn is `consumer`, key is not required, as the consumer name is used automatically. When HashOn is `vars` or `vars_combinations`, key refers to one or a combination of [APISIX variable](https://apisix.apache.org/docs/apisix/apisix-variable/). |
+| `key` _string_ | Key is used with HashOn, generally required when type is `chash`. When HashOn is `header` or `cookie`, specifies the name of the header or cookie. When HashOn is `consumer`, key is not required, as the consumer name is used automatically. When HashOn is `vars` or `vars_combinations`, key refers to one or a combination of [built-in variables](/enterprise/reference/built-in-variables). |
 
 
 _Appears in:_
@@ -789,7 +789,7 @@ ApisixConsumerJwtAuthValue defines configuration for JWT authentication.
 | `secret` _string_ | Secret is the shared secret used to sign the JWT (for symmetric algorithms). |
 | `public_key` _string_ | PublicKey is the public key used to verify JWT signatures (for asymmetric algorithms). |
 | `private_key` _string_ | PrivateKey is the private key used to sign the JWT (for asymmetric algorithms). |
-| `algorithm` _string_ | Algorithm specifies the signing algorithm. Can be `HS256`, `HS512`, `RS256`, or `ES256`. |
+| `algorithm` _string_ | Algorithm specifies the signing algorithm. Can be `HS256`, `HS384`, `HS512`, `RS256`, `RS384`, `RS512`, `ES256`, `ES384`, `ES512`, `PS256`, `PS384`, `PS512`, or `EdDSA`. Currently APISIX only supports `HS256`, `HS512`, `RS256`, and `ES256`. API7 Enterprise supports all algorithms. |
 | `exp` _integer_ | Exp is the token expiration period in seconds. |
 | `base64_secret` _boolean_ | Base64Secret indicates whether the secret is base64-encoded. |
 | `lifetime_grace_period` _integer_ | LifetimeGracePeriod is the allowed clock skew in seconds for token expiration. |
@@ -1085,7 +1085,7 @@ ApisixRouteHTTPMatch defines the conditions used to match incoming HTTP requests
 | `hosts` _string array_ | Hosts specifies Host header values to match. Supports exact and wildcard domains. Only one level of wildcard is allowed (e.g., `*.example.com` is valid, but `*.*.example.com` is not). |
 | `remoteAddrs` _string array_ | RemoteAddrs is a list of source IP addresses or CIDR ranges to match. Supports both IPv4 and IPv6 formats. |
 | `exprs` _[ApisixRouteHTTPMatchExprs](#apisixroutehttpmatchexprs)_ | NginxVars defines match conditions based on Nginx variables. |
-| `filter_func` _string_ | FilterFunc is a user-defined function for advanced request filtering. The function can use Nginx variables through the `vars` parameter. |
+| `filter_func` _string_ | FilterFunc is a user-defined function for advanced request filtering. The function can use Nginx variables through the `vars` parameter. This field is supported in APISIX but not in API7 Enterprise. |
 
 
 _Appears in:_
@@ -1100,7 +1100,7 @@ ApisixRouteHTTPMatchExpr represents a binary expression used to match requests b
 
 | Field | Description |
 | --- | --- |
-| `subject` _[ApisixRouteHTTPMatchExprSubject](#apisixroutehttpmatchexprsubject)_ | Subject defines the left-hand side of the expression. It can be any [APISIX variable](https://apisix.apache.org/docs/apisix/apisix-variable) or string literal. |
+| `subject` _[ApisixRouteHTTPMatchExprSubject](#apisixroutehttpmatchexprsubject)_ | Subject defines the left-hand side of the expression. It can be any [built-in variable](/apisix/reference/built-in-variables) or string literal. |
 | `op` _string_ | Op specifies the operator used in the expression. Can be `Equal`, `NotEqual`, `GreaterThan`, `GreaterThanEqual`, `LessThan`, `LessThanEqual`, `RegexMatch`, `RegexNotMatch`, `RegexMatchCaseInsensitive`, `RegexNotMatchCaseInsensitive`, `In`, or `NotIn`. |
 | `set` _string array_ | Set provides a list of acceptable values for the expression. This should be used when Op is `In` or `NotIn`. |
 | `value` _string_ | Value defines a single value to compare against the subject. This should be used when Op is not `In` or `NotIn`. Set and Value are mutually exclusive—only one should be set at a time. |
@@ -1134,7 +1134,7 @@ _Base type:_ `[ApisixRouteHTTPMatchExpr](#apisixroutehttpmatchexpr)`
 
 | Field | Description |
 | --- | --- |
-| `subject` _[ApisixRouteHTTPMatchExprSubject](#apisixroutehttpmatchexprsubject)_ | Subject defines the left-hand side of the expression. It can be any [APISIX variable](https://apisix.apache.org/docs/apisix/apisix-variable) or string literal. |
+| `subject` _[ApisixRouteHTTPMatchExprSubject](#apisixroutehttpmatchexprsubject)_ | Subject defines the left-hand side of the expression. It can be any [built-in variable](/apisix/reference/built-in-variables) or string literal. |
 | `op` _string_ | Op specifies the operator used in the expression. Can be `Equal`, `NotEqual`, `GreaterThan`, `GreaterThanEqual`, `LessThan`, `LessThanEqual`, `RegexMatch`, `RegexNotMatch`, `RegexMatchCaseInsensitive`, `RegexNotMatchCaseInsensitive`, `In`, or `NotIn`. |
 | `set` _string array_ | Set provides a list of acceptable values for the expression. This should be used when Op is `In` or `NotIn`. |
 | `value` _string_ | Value defines a single value to compare against the subject. This should be used when Op is not `In` or `NotIn`. Set and Value are mutually exclusive—only one should be set at a time. |
@@ -1178,7 +1178,7 @@ It defines routing rules for both HTTP and stream traffic.
 | --- | --- |
 | `ingressClassName` _string_ | IngressClassName is the name of the IngressClass this route belongs to. It allows multiple controllers to watch and reconcile different routes. |
 | `http` _[ApisixRouteHTTP](#apisixroutehttp) array_ | HTTP defines a list of HTTP route rules. Each rule specifies conditions to match HTTP requests and how to forward them. |
-| `stream` _[ApisixRouteStream](#apisixroutestream) array_ | Stream defines a list of stream route rules. Each rule specifies conditions to match TCP/UDP traffic and how to forward them. |
+| `stream` _[ApisixRouteStream](#apisixroutestream) array_ | Stream defines a list of stream route rules. Each rule specifies conditions to match TCP/UDP traffic and how to forward them. Stream is currently not supported. |
 
 
 _Appears in:_
@@ -1194,7 +1194,7 @@ ApisixRouteStream defines the configuration for a Layer 4 (TCP/UDP) route. Curre
 | Field | Description |
 | --- | --- |
 | `name` _string_ | Name is a unique identifier for the route. This field must not be empty. |
-| `protocol` _string_ | Protocol specifies the L4 protocol to match. Can be `TCP` or `UDP`. |
+| `protocol` _string_ | Protocol specifies the L4 protocol to match. Can be `tcp` or `udp`. |
 | `match` _[ApisixRouteStreamMatch](#apisixroutestreammatch)_ | Match defines the criteria used to match incoming TCP or UDP connections. |
 | `backend` _[ApisixRouteStreamBackend](#apisixroutestreambackend)_ | Backend specifies the destination service to which traffic should be forwarded. |
 | `plugins` _[ApisixRoutePlugin](#apisixrouteplugin) array_ | Plugins defines a list of plugins to apply to this route. |
@@ -1214,7 +1214,7 @@ ApisixRouteStreamBackend represents the backend service for a TCP or UDP stream 
 | --- | --- |
 | `serviceName` _string_ | ServiceName is the name of the Kubernetes Service. Cross-namespace references are not supported—ensure the ApisixRoute and the Service are in the same namespace. |
 | `servicePort` _[IntOrString](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#intorstring-intstr-util)_ | ServicePort is the port of the Kubernetes Service. This can be either the port name or port number. |
-| `resolveGranularity` _string_ | ResolveGranularity determines how the backend service is resolved. Valid values are `endpoint` and `service`. When set to `endpoint`, individual pod IPs will be used; otherwise, the Service's ClusterIP or ExternalIP is used. The default is `endpoint`. |
+| `resolveGranularity` _string_ | ResolveGranularity determines how the backend service is resolved. Valid values are `endpoints` and `service`. When set to `endpoints`, individual pod IPs will be used; otherwise, the Service's ClusterIP or ExternalIP is used. The default is `endpoints`. |
 | `subset` _string_ | Subset specifies a named subset of the target Service. The subset must be pre-defined in the corresponding ApisixUpstream resource. |
 
 
@@ -1472,7 +1472,7 @@ LoadBalancer defines the load balancing strategy for distributing traffic across
 | --- | --- |
 | `type` _string_ | Type specifies the load balancing algorithms to route traffic to the backend. Default is `roundrobin`. Can be `roundrobin`, `chash`, `ewma`, or `least_conn`. |
 | `hashOn` _string_ | HashOn specified the type of field used for hashing, required when type is `chash`. Default is `vars`. Can be `vars`, `header`, `cookie`, `consumer`, or `vars_combinations`. |
-| `key` _string_ | Key is used with HashOn, generally required when type is `chash`. When HashOn is `header` or `cookie`, specifies the name of the header or cookie. When HashOn is `consumer`, key is not required, as the consumer name is used automatically. When HashOn is `vars` or `vars_combinations`, key refers to one or a combination of [APISIX variables](https://apisix.apache.org/docs/apisix/apisix-variable). |
+| `key` _string_ | Key is used with HashOn, generally required when type is `chash`. When HashOn is `header` or `cookie`, specifies the name of the header or cookie. When HashOn is `consumer`, key is not required, as the consumer name is used automatically. When HashOn is `vars` or `vars_combinations`, key refers to one or a combination of [built-in variables](/enterprise/reference/built-in-variables). |
 
 
 _Appears in:_
@@ -1561,8 +1561,6 @@ them if they are set on the port level.
 
 _Appears in:_
 - [ApisixUpstreamSpec](#apisixupstreamspec)
-
-
 
 
 
