@@ -654,6 +654,7 @@ const (
 	PluginRedirect        string = "redirect"
 	PluginResponseRewrite string = "response-rewrite"
 	PluginProxyMirror     string = "proxy-mirror"
+	PluginCORS            string = "cors"
 )
 
 // RewriteConfig is the rule config for proxy-rewrite plugin.
