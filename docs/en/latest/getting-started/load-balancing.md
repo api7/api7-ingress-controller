@@ -98,10 +98,7 @@ values={[
 apiVersion: v1
 kind: Service
 metadata:
-<<<<<<< Updated upstream
-=======
   namespace: ingress-apisix
->>>>>>> Stashed changes
   name: httpbin-external-domain
 spec:
   type: ExternalName
@@ -110,10 +107,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-<<<<<<< Updated upstream
-=======
   namespace: ingress-apisix
->>>>>>> Stashed changes
   name: mockapi7-external-domain
 spec:
   type: ExternalName
@@ -122,10 +116,7 @@ spec:
 apiVersion: apisix.apache.org/v1alpha1
 kind: BackendTrafficPolicy
 metadata:
-<<<<<<< Updated upstream
-=======
   namespace: ingress-apisix
->>>>>>> Stashed changes
   name: passhost-node
 spec:
   targetRefs:
@@ -141,10 +132,7 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-<<<<<<< Updated upstream
-=======
   namespace: ingress-apisix
->>>>>>> Stashed changes
   name: lb-route
 spec:
   parentRefs:
