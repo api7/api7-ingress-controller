@@ -53,6 +53,7 @@ If you are using Gateway API, you should first configure the GatewayClass and Ga
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
+  namespace: ingress-apisix
   name: apisix
 spec:
   controllerName: apisix.apache.org/apisix-ingress-controller
@@ -60,6 +61,7 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
+  namespace: ingress-apisix
   name: apisix
 spec:
   gatewayClassName: apisix
@@ -96,6 +98,10 @@ values={[
 apiVersion: v1
 kind: Service
 metadata:
+<<<<<<< Updated upstream
+=======
+  namespace: ingress-apisix
+>>>>>>> Stashed changes
   name: httpbin-external-domain
 spec:
   type: ExternalName
@@ -104,6 +110,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+<<<<<<< Updated upstream
+=======
+  namespace: ingress-apisix
+>>>>>>> Stashed changes
   name: mockapi7-external-domain
 spec:
   type: ExternalName
@@ -112,6 +122,10 @@ spec:
 apiVersion: apisix.apache.org/v1alpha1
 kind: BackendTrafficPolicy
 metadata:
+<<<<<<< Updated upstream
+=======
+  namespace: ingress-apisix
+>>>>>>> Stashed changes
   name: passhost-node
 spec:
   targetRefs:
@@ -127,6 +141,10 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
+<<<<<<< Updated upstream
+=======
+  namespace: ingress-apisix
+>>>>>>> Stashed changes
   name: lb-route
 spec:
   parentRefs:
@@ -153,6 +171,7 @@ spec:
 apiVersion: apisix.apache.org/v2
 kind: ApisixUpstream
 metadata:
+  namespace: ingress-apisix
   name: httpbin-external-domain
 spec:
   scheme: https
@@ -166,6 +185,7 @@ spec:
 apiVersion: apisix.apache.org/v2
 kind: ApisixUpstream
 metadata:
+  namespace: ingress-apisix
   name: mockapi7-external-domain
 spec:
   scheme: https
@@ -179,6 +199,7 @@ spec:
 apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
 metadata:
+  namespace: ingress-apisix
   name: lb-route
 spec:
   ingressClassName: apisix
