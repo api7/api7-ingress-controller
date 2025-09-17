@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/api7/gopkg/pkg/log"
 	"github.com/gavv/httpexpect/v2"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/testing"
@@ -68,11 +69,8 @@ type Scaffold struct {
 	dataplaneService *corev1.Service
 	httpbinService   *corev1.Service
 
-	finalizers []func()
-	label      map[string]string
-
-	apisixHttpTunnel  *k8s.Tunnel
-	apisixHttpsTunnel *k8s.Tunnel
+	finalizers    []func()
+	apisixTunnels *Tunnels
 
 	additionalGateways map[string]*GatewayResources
 
@@ -80,12 +78,42 @@ type Scaffold struct {
 	Deployer    Deployer
 }
 
+type Tunnels struct {
+	HTTP  *k8s.Tunnel
+	HTTPS *k8s.Tunnel
+	TCP   *k8s.Tunnel
+}
+
+func (t *Tunnels) Close() {
+	if t.HTTP != nil {
+		t.safeClose(t.HTTP.Close)
+		t.HTTP = nil
+	}
+	if t.HTTPS != nil {
+		t.safeClose(t.HTTPS.Close)
+		t.HTTPS = nil
+	}
+	if t.TCP != nil {
+		t.safeClose(t.TCP.Close)
+		t.TCP = nil
+	}
+}
+
+func (t *Tunnels) safeClose(close func()) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("panic when closing tunnel: %v", r)
+		}
+	}()
+
+	close()
+}
+
 // GatewayResources contains resources associated with a specific Gateway group
 type GatewayResources struct {
 	Namespace        string
 	DataplaneService *corev1.Service
-	HttpTunnel       *k8s.Tunnel
-	HttpsTunnel      *k8s.Tunnel
+	Tunnels          *Tunnels
 	AdminAPIKey      string
 }
 
@@ -153,7 +181,7 @@ func (s *Scaffold) DefaultHTTPBackend() (string, []int32) {
 func (s *Scaffold) NewAPISIXClient() *httpexpect.Expect {
 	u := url.URL{
 		Scheme: "http",
-		Host:   s.apisixHttpTunnel.Endpoint(),
+		Host:   s.apisixTunnels.HTTP.Endpoint(),
 	}
 	return httpexpect.WithConfig(httpexpect.Config{
 		BaseURL: u.String(),
@@ -170,12 +198,16 @@ func (s *Scaffold) NewAPISIXClient() *httpexpect.Expect {
 }
 
 func (s *Scaffold) ApisixHTTPEndpoint() string {
-	return s.apisixHttpTunnel.Endpoint()
+	return s.apisixTunnels.HTTP.Endpoint()
 }
 
 // GetAPISIXHTTPSEndpoint get apisix https endpoint from tunnel map
 func (s *Scaffold) GetAPISIXHTTPSEndpoint() string {
-	return s.apisixHttpsTunnel.Endpoint()
+	return s.apisixTunnels.HTTPS.Endpoint()
+}
+
+func (s *Scaffold) GetAPISIXTCPEndpoint() string {
+	return s.apisixTunnels.TCP.Endpoint()
 }
 
 func (s *Scaffold) UpdateNamespace(ns string) {
@@ -186,7 +218,7 @@ func (s *Scaffold) UpdateNamespace(ns string) {
 func (s *Scaffold) NewAPISIXHttpsClient(host string) *httpexpect.Expect {
 	u := url.URL{
 		Scheme: "https",
-		Host:   s.apisixHttpsTunnel.Endpoint(),
+		Host:   s.apisixTunnels.HTTPS.Endpoint(),
 	}
 	return httpexpect.WithConfig(httpexpect.Config{
 		BaseURL: u.String(),
@@ -201,6 +233,26 @@ func (s *Scaffold) NewAPISIXHttpsClient(host string) *httpexpect.Expect {
 		},
 		Reporter: httpexpect.NewAssertReporter(
 			httpexpect.NewAssertReporter(GinkgoT()),
+		),
+	})
+}
+
+// NewAPISIXClientWithTCPProxy creates the HTTP client but with the TCP proxy of APISIX.
+func (s *Scaffold) NewAPISIXClientWithTCPProxy() *httpexpect.Expect {
+	u := url.URL{
+		Scheme: "http",
+		Host:   s.apisixTunnels.TCP.Endpoint(),
+	}
+	return httpexpect.WithConfig(httpexpect.Config{
+		BaseURL: u.String(),
+		Client: &http.Client{
+			Transport: &http.Transport{},
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
+		Reporter: httpexpect.NewAssertReporter(
+			httpexpect.NewAssertReporter(s.GinkgoT),
 		),
 	})
 }
@@ -269,22 +321,6 @@ func (s *Scaffold) DeleteResource(resourceType, name string) error {
 	return k8s.RunKubectlE(s.t, s.kubectlOptions, "delete", resourceType, name)
 }
 
-func (s *Scaffold) NamespaceSelectorLabelStrings() []string {
-	var labels []string
-	if s.opts.NamespaceSelectorLabel != nil {
-		for k, v := range s.opts.NamespaceSelectorLabel {
-			for _, v0 := range v {
-				labels = append(labels, fmt.Sprintf("%s=%s", k, v0))
-			}
-		}
-	} else {
-		for k, v := range s.label {
-			labels = append(labels, fmt.Sprintf("%s=%s", k, v))
-		}
-	}
-	return labels
-}
-
 func (s *Scaffold) NamespaceSelectorLabel() map[string][]string {
 	return s.opts.NamespaceSelectorLabel
 }
@@ -305,10 +341,11 @@ func (s *Scaffold) createDataplaneTunnels(
 	svc *corev1.Service,
 	kubectlOpts *k8s.KubectlOptions,
 	serviceName string,
-) (*k8s.Tunnel, *k8s.Tunnel, error) {
+) (*Tunnels, error) {
 	var (
 		httpPort  int
 		httpsPort int
+		tcpPort   int
 	)
 
 	for _, port := range svc.Spec.Ports {
@@ -317,40 +354,37 @@ func (s *Scaffold) createDataplaneTunnels(
 			httpPort = int(port.Port)
 		case "https":
 			httpsPort = int(port.Port)
+		case "tcp":
+			tcpPort = int(port.Port)
 		}
 	}
+
+	tunnels := &Tunnels{}
+	s.addFinalizers(tunnels.Close)
 
 	httpTunnel := k8s.NewTunnel(kubectlOpts, k8s.ResourceTypeService, serviceName,
 		0, httpPort)
 	httpsTunnel := k8s.NewTunnel(kubectlOpts, k8s.ResourceTypeService, serviceName,
 		0, httpsPort)
+	tcpTunnel := k8s.NewTunnel(kubectlOpts, k8s.ResourceTypeService, serviceName,
+		0, tcpPort)
 
 	if err := httpTunnel.ForwardPortE(s.t); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	s.addFinalizers(s.closeApisixHttpTunnel)
+	tunnels.HTTP = httpTunnel
 
 	if err := httpsTunnel.ForwardPortE(s.t); err != nil {
-		httpTunnel.Close()
-		return nil, nil, err
+		return nil, err
 	}
-	s.addFinalizers(s.closeApisixHttpsTunnel)
+	tunnels.HTTPS = httpsTunnel
 
-	return httpTunnel, httpsTunnel, nil
-}
-
-func (s *Scaffold) closeApisixHttpTunnel() {
-	if s.apisixHttpTunnel != nil {
-		s.apisixHttpTunnel.Close()
-		s.apisixHttpTunnel = nil
+	if err := tcpTunnel.ForwardPortE(s.t); err != nil {
+		return nil, err
 	}
-}
+	tunnels.TCP = tcpTunnel
 
-func (s *Scaffold) closeApisixHttpsTunnel() {
-	if s.apisixHttpsTunnel != nil {
-		s.apisixHttpsTunnel.Close()
-		s.apisixHttpsTunnel = nil
-	}
+	return tunnels, nil
 }
 
 // GetAdditionalGateway returns resources associated with a specific gateway
@@ -368,7 +402,7 @@ func (s *Scaffold) NewAPISIXClientForGateway(identifier string) (*httpexpect.Exp
 
 	u := url.URL{
 		Scheme: "http",
-		Host:   resources.HttpTunnel.Endpoint(),
+		Host:   resources.Tunnels.HTTP.Endpoint(),
 	}
 	return httpexpect.WithConfig(httpexpect.Config{
 		BaseURL: u.String(),
@@ -393,7 +427,7 @@ func (s *Scaffold) NewAPISIXHttpsClientForGateway(identifier string, host string
 
 	u := url.URL{
 		Scheme: "https",
-		Host:   resources.HttpsTunnel.Endpoint(),
+		Host:   resources.Tunnels.HTTPS.Endpoint(),
 	}
 	return httpexpect.WithConfig(httpexpect.Config{
 		BaseURL: u.String(),
@@ -419,7 +453,7 @@ func (s *Scaffold) GetGatewayHTTPEndpoint(identifier string) (string, error) {
 		return "", fmt.Errorf("gateway %s not found", identifier)
 	}
 
-	return resources.HttpTunnel.Endpoint(), nil
+	return resources.Tunnels.HTTP.Endpoint(), nil
 }
 
 // GetGatewayHTTPSEndpoint returns the HTTPS endpoint for a specific gateway
@@ -429,7 +463,7 @@ func (s *Scaffold) GetGatewayHTTPSEndpoint(identifier string) (string, error) {
 		return "", fmt.Errorf("gateway %s not found", identifier)
 	}
 
-	return resources.HttpsTunnel.Endpoint(), nil
+	return resources.Tunnels.HTTPS.Endpoint(), nil
 }
 
 func (s *Scaffold) GetDataplaneService() *corev1.Service {
