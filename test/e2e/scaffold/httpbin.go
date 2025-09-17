@@ -83,7 +83,8 @@ spec:
   selector:
     app: httpbin-deployment-e2e-test
   ports:
-    - port: 80
+    - name: http
+      port: 80
       protocol: TCP
       targetPort: 80
   type: ClusterIP
