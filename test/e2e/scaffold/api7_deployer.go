@@ -157,6 +157,10 @@ func (s *API7Deployer) DeployDataplane(deployOpts DeployDataplaneOptions) {
 		deployOpts.SkipCreateTunnels = true
 	}
 
+	if s.apisixTunnels != nil {
+		s.apisixTunnels.Close()
+	}
+
 	svc := s.DeployGateway(&opts)
 	s.dataplaneService = svc
 
