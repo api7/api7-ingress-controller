@@ -314,7 +314,7 @@ func (r *ApisixRouteReconciler) validatePluginConfig(tctx *provider.TranslateCon
 			Version: r.ICGV.Version,
 			Kind:    types.KindIngressClass,
 		})
-		if err := r.Get(ctx, client.ObjectKey{Name: pc.Spec.IngressClassName}, ic); err != nil {
+		if err := r.Get(tctx, client.ObjectKey{Name: pc.Spec.IngressClassName}, ic); err != nil {
 			return types.ReasonError{
 				Reason:  string(apiv2.ConditionReasonInvalidSpec),
 				Message: fmt.Sprintf("failed to get IngressClass %s for ApisixPluginConfig %s: %v", pc.Spec.IngressClassName, pcNN, err),

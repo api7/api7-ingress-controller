@@ -37,7 +37,7 @@ var _ = Describe("Test ApisixRoute With StreamRoute", Label("apisix.apache.org",
 			Skip("only support APISIX provider")
 		}
 		By("create GatewayProxy")
-		gatewayProxy := s.GetGatewayProxyYaml()
+		gatewayProxy := s.GetGatewayProxySpec()
 		err := s.CreateResourceFromString(gatewayProxy)
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 		time.Sleep(5 * time.Second)

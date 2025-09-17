@@ -319,6 +319,60 @@ func (s *Scaffold) WaitUntilDeploymentAvailable(name string) {
 	k8s.WaitUntilDeploymentAvailable(s.GinkgoT, s.kubectlOptions, name, 10, 10*time.Second)
 }
 
+const ingressClassYaml = `
+apiVersion: networking.k8s.io/%s
+kind: IngressClass
+metadata:
+  name: %s
+  annotations:
+    apisix.apache.org/parameters-namespace: %s
+spec:
+  controller: %s
+  parameters:
+    apiGroup: "apisix.apache.org"
+    kind: "GatewayProxy"
+    name: "apisix-proxy-config"
+`
+
+func (s *Scaffold) GetIngressClassYaml() string {
+	return fmt.Sprintf(ingressClassYaml, framework.IngressVersion, s.Namespace(), s.Namespace(), s.GetControllerName())
+}
+
+const gatewayClassYaml = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: %s
+spec:
+  controllerName: %s
+`
+
+func (s *Scaffold) GetGatewayClassYaml() string {
+	return fmt.Sprintf(gatewayClassYaml, s.Namespace(), s.GetControllerName())
+}
+
+const gatewayYaml = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: %s
+spec:
+  gatewayClassName: %s
+  listeners:
+    - name: http1
+      protocol: HTTP
+      port: 80
+  infrastructure:
+    parametersRef:
+      group: apisix.apache.org
+      kind: GatewayProxy
+      name: apisix-proxy-config
+`
+
+func (s *Scaffold) GetGatewayYaml() string {
+	return fmt.Sprintf(gatewayYaml, s.Namespace(), s.Namespace())
+}
+
 func (s *Scaffold) RunDigDNSClientFromK8s(args ...string) (string, error) {
 	kubectlArgs := []string{
 		"run",
