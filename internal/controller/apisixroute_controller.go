@@ -471,19 +471,6 @@ func (r *ApisixRouteReconciler) validateHTTPBackend(tctx *provider.TranslateCont
 	}
 	tctx.Services[serviceNN] = &service
 
-	var endpoints discoveryv1.EndpointSliceList
-	if err := r.List(tctx, &endpoints,
-		client.InNamespace(service.Namespace),
-		client.MatchingLabels{
-			discoveryv1.LabelServiceName: service.Name,
-		},
-	); err != nil {
-		return types.ReasonError{
-			Reason:  string(apiv2.ConditionReasonInvalidSpec),
-			Message: fmt.Sprintf("failed to list endpoint slices: %v", err),
-		}
-	}
-
 	// backend.subset specifies a subset of upstream nodes.
 	// It specifies that the target pod's label should be a superset of the subset labels of the ApisixUpstream of the serviceName
 	subsetLabels := r.getSubsetLabels(tctx, serviceNN, backend.Subset)
