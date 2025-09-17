@@ -1499,7 +1499,7 @@ func addProviderEndpointsToTranslateContext(tctx *provider.TranslateContext, c c
 	}
 	tctx.Services[serviceNN] = &service
 
-	return resolveServiceEndpoints(tctx, c, tctx, serviceNN, true, nil)
+	return resolveServiceEndpoints(tctx, c, serviceNN, true, nil)
 }
 
 func TypePredicate[T client.Object]() func(obj client.Object) bool {
@@ -1556,16 +1556,15 @@ func watchEndpointSliceOrEndpoints(bdr *ctrl.Builder, supportsEndpointSlice bool
 // resolveServiceEndpoints collects endpoints and adds them to the translate context
 // It handles both EndpointSlice (K8s 1.19+) and Endpoints (K8s 1.18) APIs with automatic fallback
 func resolveServiceEndpoints(
-	ctx context.Context,
-	c client.Client,
 	tctx *provider.TranslateContext,
+	c client.Client,
 	serviceNN k8stypes.NamespacedName,
 	supportsEndpointSlice bool,
 	subsetLabels map[string]string,
 ) error {
 	if supportsEndpointSlice {
 		var endpoints discoveryv1.EndpointSliceList
-		if err := c.List(ctx, &endpoints,
+		if err := c.List(tctx, &endpoints,
 			client.InNamespace(serviceNN.Namespace),
 			client.MatchingLabels{
 				discoveryv1.LabelServiceName: serviceNN.Name,
@@ -1578,12 +1577,12 @@ func resolveServiceEndpoints(
 			tctx.EndpointSlices[serviceNN] = endpoints.Items
 		} else {
 			// Apply subset filtering
-			tctx.EndpointSlices[serviceNN] = filterEndpointSlicesBySubsetLabels(ctx, c, endpoints.Items, subsetLabels)
+			tctx.EndpointSlices[serviceNN] = filterEndpointSlicesBySubsetLabels(tctx, c, endpoints.Items, subsetLabels)
 		}
 	} else {
 		// Fallback to Endpoints API for Kubernetes 1.18 compatibility
 		var ep corev1.Endpoints
-		if err := c.Get(ctx, serviceNN, &ep); err != nil {
+		if err := c.Get(tctx, serviceNN, &ep); err != nil {
 			if client.IgnoreNotFound(err) != nil {
 				return fmt.Errorf("failed to get endpoints: %v", err)
 			}
@@ -1597,7 +1596,7 @@ func resolveServiceEndpoints(
 				tctx.EndpointSlices[serviceNN] = convertedEndpointSlices
 			} else {
 				// Apply subset filtering to converted EndpointSlices
-				tctx.EndpointSlices[serviceNN] = filterEndpointSlicesBySubsetLabels(ctx, c, convertedEndpointSlices, subsetLabels)
+				tctx.EndpointSlices[serviceNN] = filterEndpointSlicesBySubsetLabels(tctx, c, convertedEndpointSlices, subsetLabels)
 			}
 		}
 	}

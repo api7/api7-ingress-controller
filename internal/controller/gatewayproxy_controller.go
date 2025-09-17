@@ -145,7 +145,7 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 			return reconcile.Result{}, err
 		}
 		tctx.Services[serviceNN] = service
-		if err := resolveServiceEndpoints(tctx, r.Client, tctx, serviceNN, r.supportsEndpointSlice, nil); err != nil {
+		if err := resolveServiceEndpoints(tctx, r.Client, serviceNN, r.supportsEndpointSlice, nil); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
