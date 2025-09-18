@@ -36,8 +36,8 @@ log_level: "info"                               # The log level of the APISIX In
 controller_name: apisix.apache.org/apisix-ingress-controller  # The controller name of the APISIX Ingress Controller,
                                                               # which is used to identify the controller in the GatewayClass.
                                                               # The default value is "apisix.apache.org/apisix-ingress-controller".
-leader_election_id: "apisix-ingress-controller-leader"        # The leader election ID for the APISIX Ingress Controller.
-                                                              # The default value is "apisix-ingress-controller-leader".
+leader_election_id: "apisix-ingress-controller-leader"    # The leader election ID for the APISIX Ingress Controller.
+                                                          # The default value is "apisix-ingress-controller-leader".
 leader_election:
   lease_duration: 30s                   # lease_duration is the duration that non-leader candidates will wait
                                         # after observing a leadership renewal until attempting to acquire leadership of a
@@ -64,11 +64,10 @@ exec_adc_timeout: 15s                   # The timeout for the ADC to execute.
                                         # The default value is 15 seconds.
 
 provider:
-  type: "apisix"                        # Provider type.
-                                        # Value can be "apisix" or "apisix-standalone".
+  type: "api7ee"                        # Provider type.
 
-  sync_period: 1h                       # The period between two consecutive syncs.
-                                        # The default value is 1 hour, which means the controller will not sync.
+  sync_period: 0s                       # The period between two consecutive syncs.
+                                        # The default value is 0 seconds, which means the controller will not sync.
                                         # If you want to enable the sync, set it to a positive value.
   init_sync_delay: 20m                  # The initial delay before the first sync, only used when the controller is started.
                                         # The default value is 20 minutes.
