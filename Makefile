@@ -171,7 +171,7 @@ conformance-test:
 
 .PHONY: conformance-test-api7ee
 conformance-test-api7ee:
-	go test -v ./test/conformance/api7ee -tags conformance,experimental -timeout 60m \
+	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test -v ./test/conformance/api7ee -tags conformance,experimental -timeout 60m \
 		--supported-features=$(SUPPORTED_EXTENDED_FEATURES) \
 		--conformance-profiles=$(CONFORMANCE_PROFILES) \
 		--report-output=$(CONFORMANCE_TEST_REPORT_OUTPUT)
