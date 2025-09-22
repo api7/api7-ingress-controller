@@ -55,3 +55,29 @@ jobs:
         run: |
           echo "building multi-arch images with tag: $TAG"
           make build-push-multi-arch-image
+
+  notification:
+    needs: docker
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Send Feishu Message
+        env:
+          ACTIONS_FEISHU_TAG: v1.3.1
+          INPUT_WEBHOOK: ${{ secrets.FEISHU_ROBOT_WEBHOOK_URL }}
+          INPUT_MESSAGE_TYPE: post
+          INPUT_TITLE: Docker Image Release CI ${{ github.ref_name }}
+          INPUT_CONTENT: |
+            The Docker image build and push has completed successfully. Here are the details:
+
+            - **Tag**: ${{ github.ref_name }}
+            - **Commit**: ${{ github.sha }}
+            - **Author**: ${{ github.actor }}
+            - **Run URL**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+        run: |
+          sudo apt update
+          sudo apt install wget -y
+          wget -q https://github.com/xiachufang/actions-feishu/releases/download/${{ env.ACTIONS_FEISHU_TAG }}/linux-amd64-actions-feishu.tar.gz
+          tar zxf linux-amd64-actions-feishu.tar.gz feishu
+          ./feishu
