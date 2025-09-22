@@ -258,12 +258,18 @@ func (s *APISIXDeployer) DeployIngress() {
 	if s.runtimeOpts.SyncPeriod != 0 {
 		syncPeriod = s.runtimeOpts.SyncPeriod
 	}
+	if s.runtimeOpts.EnableWebhook {
+		err := s.SetupWebhookResources()
+		Expect(err).NotTo(HaveOccurred(), "setting up webhook resources")
+	}
+
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
 		ControllerName:     s.runtimeOpts.ControllerName,
 		ProviderType:       framework.ProviderType,
 		ProviderSyncPeriod: syncPeriod,
 		Namespace:          s.namespace,
 		Replicas:           ptr.To(1),
+		WebhookEnable:      s.runtimeOpts.EnableWebhook,
 	})
 }
 

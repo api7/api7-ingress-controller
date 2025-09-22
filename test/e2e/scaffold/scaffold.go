@@ -53,6 +53,8 @@ type Options struct {
 	NamespaceSelectorLabel map[string][]string
 	DisableNamespaceLabel  bool
 	SkipHooks              bool
+
+	EnableWebhook bool
 }
 
 type Scaffold struct {
