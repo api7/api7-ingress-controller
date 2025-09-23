@@ -112,7 +112,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 		controllers = append(controllers, &controller.IngressClassV1beta1Reconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("IngressClass"),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindIngressClass),
 			Provider: pro,
 		})
 	}
@@ -151,7 +151,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 		&netv1.Ingress{}: &controller.IngressReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Ingress"),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindIngress),
 			Provider: pro,
 			Updater:  updater,
 			Readier:  readier,
@@ -191,7 +191,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 		&controller.ApisixGlobalRuleReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixGlobalRule"),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindApisixGlobalRule),
 			Provider: pro,
 			Updater:  updater,
 			Readier:  readier,
