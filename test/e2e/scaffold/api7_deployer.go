@@ -197,6 +197,7 @@ func (s *API7Deployer) DeployIngress() {
 		ControllerName: s.runtimeOpts.ControllerName,
 		Namespace:      s.namespace,
 		Replicas:       ptr.To(1),
+		WebhookEnable:  s.runtimeOpts.EnableWebhook,
 	})
 }
 
