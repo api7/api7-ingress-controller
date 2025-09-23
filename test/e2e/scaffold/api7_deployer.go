@@ -187,6 +187,11 @@ func (s *API7Deployer) newAPISIXTunnels(serviceName string) error {
 }
 
 func (s *API7Deployer) DeployIngress() {
+	if s.runtimeOpts.EnableWebhook {
+		err := s.SetupWebhookResources()
+		Expect(err).NotTo(HaveOccurred(), "setting up webhook resources")
+	}
+
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
 		ProviderType:   "api7ee",
 		ControllerName: s.runtimeOpts.ControllerName,
