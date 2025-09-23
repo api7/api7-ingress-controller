@@ -88,6 +88,13 @@ func SetupIndexer(mgr ctrl.Manager) error {
 
 	// Core Kubernetes and APISIX indexers - always setup these
 	for _, setup := range []func(ctrl.Manager) error{
+		setupGatewayIndexer,
+		setupHTTPRouteIndexer,
+		setupGRPCRouteIndexer,
+		setupIngressIndexer,
+		setupConsumerIndexer,
+		setupBackendTrafficPolicyIndexer,
+		setupIngressClassIndexer,
 		setupGatewayProxyIndexer,
 		setupApisixRouteIndexer,
 		setupApisixPluginConfigIndexer,

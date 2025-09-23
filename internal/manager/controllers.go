@@ -81,15 +81,17 @@ import (
 // GatewayAPI
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses,verbs=get;list;watch;update
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses/status,verbs=get;update
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;update
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes/status,verbs=get;update
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=referencegrants,verbs=list;watch;update
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=referencegrants,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=referencegrants/status,verbs=get;update
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=grpcroutes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=grpcroutes/status,verbs=get;update
 
 // Networking
-// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses/status,verbs=get;update
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingressclasses,verbs=get;list;watch
 
@@ -140,10 +142,10 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Updater:  updater,
 			Readier:  readier,
 		},
-		&v1alpha1.Consumer{}: &controller.ConsumerReconciler{
+		&gatewayv1.GRPCRoute{}: &controller.GRPCRouteReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindConsumer),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindGRPCRoute),
 			Provider: pro,
 			Updater:  updater,
 			Readier:  readier,

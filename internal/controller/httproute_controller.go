@@ -94,7 +94,7 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	// Conditionally watch EndpointSlice or Endpoints based on cluster API support
 	bdr = watchEndpointSliceOrEndpoints(bdr, r.supportsEndpointSlice,
-		r.listHTTPRoutesByServiceBef,
+		r.listHTTPRoutesByServiceRef,
 		r.listHTTPRoutesByServiceForEndpoints,
 		r.Log)
 
@@ -280,7 +280,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return ctrl.Result{}, nil
 }
 
-func (r *HTTPRouteReconciler) listHTTPRoutesByServiceBef(ctx context.Context, obj client.Object) []reconcile.Request {
+func (r *HTTPRouteReconciler) listHTTPRoutesByServiceRef(ctx context.Context, obj client.Object) []reconcile.Request {
 	endpointSlice, ok := obj.(*discoveryv1.EndpointSlice)
 	if !ok {
 		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to EndpointSlice")
@@ -341,7 +341,7 @@ func (r *HTTPRouteReconciler) listHTTPRoutesByServiceForEndpoints(ctx context.Co
 func (r *HTTPRouteReconciler) listHTTPRoutesByExtensionRef(ctx context.Context, obj client.Object) []reconcile.Request {
 	pluginconfig, ok := obj.(*v1alpha1.PluginConfig)
 	if !ok {
-		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to EndpointSlice")
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to PluginConfig")
 		return nil
 	}
 	namespace := pluginconfig.GetNamespace()
