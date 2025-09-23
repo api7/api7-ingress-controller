@@ -19,6 +19,7 @@ package apisix
 
 import (
 	"context"
+	"net/http"
 	"sync"
 	"time"
 
@@ -89,6 +90,10 @@ func New(updater status.Updater, readier readiness.ReadinessManager, opts ...pro
 		readier:    readier,
 		syncCh:     make(chan struct{}, 1),
 	}, nil
+}
+
+func (d *apisixProvider) Register(pathPrefix string, mux *http.ServeMux) {
+	d.client.ADCDebugProvider.SetupHandler(pathPrefix, mux)
 }
 
 func (d *apisixProvider) Update(ctx context.Context, tctx *provider.TranslateContext, obj client.Object) error {
