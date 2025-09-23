@@ -217,6 +217,10 @@ spec:
 			assert.Equal(GinkgoT(), int64(1), *tls[0].Client.Depth, "client depth should be 1")
 		})
 		It("ApisixTls with skip_mtls_uri_regex test", func() {
+			// TODO: Add support for skip_mtls_uri_regex in API7EE control plane
+			if s.Deployer.Name() == framework.ProviderTypeAPI7EE {
+				Skip("skipping test in API7EE mode")
+			}
 			const host = "api6.com"
 			const skipMtlsUriRegex = "/ip.*"
 
