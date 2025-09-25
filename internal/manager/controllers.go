@@ -112,7 +112,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 		controllers = append(controllers, &controller.IngressClassV1beta1Reconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("IngressClass"),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindIngressClass),
 			Provider: pro,
 		})
 	}
@@ -122,20 +122,20 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 		&gatewayv1.GatewayClass{}: &controller.GatewayClassReconciler{
 			Client:  mgr.GetClient(),
 			Scheme:  mgr.GetScheme(),
-			Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName("GatewayClass"),
+			Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindGatewayClass),
 			Updater: updater,
 		},
 		&gatewayv1.Gateway{}: &controller.GatewayReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Gateway"),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindGateway),
 			Provider: pro,
 			Updater:  updater,
 		},
 		&gatewayv1.HTTPRoute{}: &controller.HTTPRouteReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("HTTPRoute"),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindHTTPRoute),
 			Provider: pro,
 			Updater:  updater,
 			Readier:  readier,
@@ -143,7 +143,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 		&v1alpha1.Consumer{}: &controller.ConsumerReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Consumer"),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindConsumer),
 			Provider: pro,
 			Updater:  updater,
 			Readier:  readier,
@@ -151,7 +151,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 		&netv1.Ingress{}: &controller.IngressReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("Ingress"),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindIngress),
 			Provider: pro,
 			Updater:  updater,
 			Readier:  readier,
@@ -159,7 +159,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 		&netv1.IngressClass{}: &controller.IngressClassReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("IngressClass"),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindIngressClass),
 			Provider: pro,
 		},
 	} {
@@ -175,14 +175,14 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 		&controller.GatewayProxyController{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("GatewayProxy"),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindGatewayProxy),
 			Provider: pro,
 			ICGV:     icgv,
 		},
 		&controller.ApisixRouteReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixRoute"),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindApisixRoute),
 			Provider: pro,
 			Updater:  updater,
 			Readier:  readier,
@@ -191,7 +191,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 		&controller.ApisixGlobalRuleReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixGlobalRule"),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindApisixGlobalRule),
 			Provider: pro,
 			Updater:  updater,
 			Readier:  readier,
@@ -200,7 +200,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 		&controller.ApisixConsumerReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixConsumer"),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindApisixConsumer),
 			Provider: pro,
 			Updater:  updater,
 			Readier:  readier,
@@ -209,14 +209,14 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 		&controller.ApisixPluginConfigReconciler{
 			Client:  mgr.GetClient(),
 			Scheme:  mgr.GetScheme(),
-			Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixPluginConfig"),
+			Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindApisixPluginConfig),
 			Updater: updater,
 			ICGV:    icgv,
 		},
 		&controller.ApisixTlsReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixTls"),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindApisixTls),
 			Provider: pro,
 			Updater:  updater,
 			Readier:  readier,
@@ -225,7 +225,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 		&controller.ApisixUpstreamReconciler{
 			Client:  mgr.GetClient(),
 			Scheme:  mgr.GetScheme(),
-			Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName("ApisixUpstream"),
+			Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindApisixUpstream),
 			Updater: updater,
 			ICGV:    icgv,
 		},
