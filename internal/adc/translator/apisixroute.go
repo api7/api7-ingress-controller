@@ -236,7 +236,7 @@ func (t *Translator) buildUpstream(tctx *provider.TranslateContext, service *adc
 			upstream.Labels["meta_weight"] = strconv.FormatInt(int64(*backend.Weight), 10)
 		}
 
-		upstreamName := adc.ComposeUpstreamName(ar.Namespace, ar.Name, backend.ServiceName, fmt.Sprintf("%d", ruleIndex), fmt.Sprintf("%d", backendIndex))
+		upstreamName := adc.ComposeUpstreamName(ar.Namespace, ar.Name, fmt.Sprintf("%d", ruleIndex), fmt.Sprintf("%d", backendIndex))
 		upstream.Name = upstreamName
 		upstream.ID = id.GenID(upstreamName)
 		upstreams = append(upstreams, upstream)

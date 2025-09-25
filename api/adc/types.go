@@ -823,17 +823,15 @@ var (
 // the upstream name.
 // the resolveGranularity is not composited in the upstream name when it is endpoint.
 // ref: https://github.com/apache/apisix-ingress-controller/blob/10059afe3e84b693cc61e6df7a0040890a9d16eb/pkg/types/apisix/v1/types.go#L595-L598
-func ComposeUpstreamName(namespace, name, serviceName, ruleIndex, backendIndex string) string {
+func ComposeUpstreamName(namespace, name, ruleIndex, backendIndex string) string {
 	var p []byte
-	plen := len(namespace) + len(name) + len(serviceName) + len(ruleIndex) + len(backendIndex) + 4
+	plen := len(namespace) + len(name) + len(ruleIndex) + len(backendIndex) + 3
 
 	p = make([]byte, 0, plen)
 	buf := bytes.NewBuffer(p)
 	buf.WriteString(namespace)
 	buf.WriteByte('_')
 	buf.WriteString(name)
-	buf.WriteByte('_')
-	buf.WriteString(serviceName)
 	buf.WriteByte('_')
 	buf.WriteString(ruleIndex)
 	buf.WriteByte('_')
