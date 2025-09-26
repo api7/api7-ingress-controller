@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
@@ -85,6 +86,8 @@ import (
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;update
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes/status,verbs=get;update
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=tcproutes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=tcproutes/status,verbs=get;update
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=referencegrants,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=referencegrants/status,verbs=get;update
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=grpcroutes,verbs=get;list;watch
@@ -142,7 +145,19 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Updater:  updater,
 			Readier:  readier,
 		},
+<<<<<<< HEAD
 		&gatewayv1.GRPCRoute{}: &controller.GRPCRouteReconciler{
+=======
+		&controller.TCPRouteReconciler{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindTCPRoute),
+			Provider: pro,
+			Updater:  updater,
+			Readier:  readier,
+		},
+		&controller.GRPCRouteReconciler{
+>>>>>>> 0fd8e9d7 (feat: add support for TCPRoute (#2564))
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindGRPCRoute),
@@ -237,7 +252,57 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Scheme:  mgr.GetScheme(),
 			Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindApisixUpstream),
 			Updater: updater,
+<<<<<<< HEAD
 			ICGV:    icgv,
+=======
+		},
+		&controller.GatewayProxyController{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindGatewayProxy),
+			Provider: pro,
+		},
+	}, nil
+}
+
+func registerReadinessGVK(c client.Client, readier readiness.ReadinessManager) {
+	log := ctrl.LoggerFrom(context.Background()).WithName("readiness")
+	readier.RegisterGVK([]readiness.GVKConfig{
+		{
+			GVKs: []schema.GroupVersionKind{
+				types.GvkOf(&gatewayv1.HTTPRoute{}),
+				types.GvkOf(&gatewayv1alpha2.TCPRoute{}),
+				types.GvkOf(&gatewayv1.GRPCRoute{}),
+			},
+		},
+		{
+			GVKs: []schema.GroupVersionKind{
+				types.GvkOf(&netv1.Ingress{}),
+				types.GvkOf(&apiv2.ApisixRoute{}),
+				types.GvkOf(&apiv2.ApisixGlobalRule{}),
+				types.GvkOf(&apiv2.ApisixPluginConfig{}),
+				types.GvkOf(&apiv2.ApisixTls{}),
+				types.GvkOf(&apiv2.ApisixConsumer{}),
+				types.GvkOf(&apiv2.ApisixUpstream{}),
+			},
+			Filter: readiness.GVKFilter(func(obj *unstructured.Unstructured) bool {
+				icName, _, _ := unstructured.NestedString(obj.Object, "spec", "ingressClassName")
+				ingressClass, _ := controller.FindMatchingIngressClassByName(context.Background(), c, log, icName)
+				return ingressClass != nil
+			}),
+		},
+		{
+			GVKs: []schema.GroupVersionKind{
+				types.GvkOf(&v1alpha1.Consumer{}),
+			},
+			Filter: readiness.GVKFilter(func(obj *unstructured.Unstructured) bool {
+				consumer := &v1alpha1.Consumer{}
+				if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, consumer); err != nil {
+					return false
+				}
+				return controller.MatchConsumerGatewayRef(context.Background(), c, log, consumer)
+			}),
+>>>>>>> 0fd8e9d7 (feat: add support for TCPRoute (#2564))
 		},
 	}...)
 

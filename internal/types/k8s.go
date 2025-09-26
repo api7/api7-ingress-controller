@@ -25,6 +25,7 @@ import (
 	kschema "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
@@ -36,6 +37,7 @@ const DefaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-cla
 const (
 	KindGateway              = "Gateway"
 	KindHTTPRoute            = "HTTPRoute"
+	KindTCPRoute             = "TCPRoute"
 	KindGRPCRoute            = "GRPCRoute"
 	KindGatewayClass         = "GatewayClass"
 	KindIngress              = "Ingress"
@@ -60,6 +62,8 @@ func KindOf(obj any) string {
 	switch obj.(type) {
 	case *gatewayv1.Gateway:
 		return KindGateway
+	case *gatewayv1alpha2.TCPRoute:
+		return KindTCPRoute
 	case *gatewayv1.HTTPRoute:
 		return KindHTTPRoute
 	case *gatewayv1.GRPCRoute:
@@ -126,6 +130,8 @@ func GvkOf(obj any) schema.GroupVersionKind {
 	switch obj.(type) {
 	case *gatewayv1.Gateway, *gatewayv1.HTTPRoute, *gatewayv1.GatewayClass, *gatewayv1.GRPCRoute:
 		return gatewayv1.SchemeGroupVersion.WithKind(kind)
+	case *gatewayv1alpha2.TCPRoute:
+		return gatewayv1alpha2.SchemeGroupVersion.WithKind(kind)
 	case *gatewayv1beta1.ReferenceGrant:
 		return gatewayv1beta1.SchemeGroupVersion.WithKind(kind)
 	case *netv1.Ingress, *netv1.IngressClass:
