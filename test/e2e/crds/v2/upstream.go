@@ -168,9 +168,12 @@ spec:
 `
 
 		It("should be able to access through service discovery", func() {
+<<<<<<< HEAD
 			if framework.ProviderType == framework.ProviderTypeAPI7EE {
 				Skip("api7ee does not support DNS service discovery")
 			}
+=======
+>>>>>>> be91920e (feat(apisixupstream): support discovery (#2577))
 			svcName := fmt.Sprintf("httpbin-service-e2e-test.%s.svc.cluster.local", s.Namespace())
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin-dns"},
 				&apiv2.ApisixUpstream{}, fmt.Sprintf(au, s.Namespace(), svcName))
