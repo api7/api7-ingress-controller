@@ -29,10 +29,13 @@ import (
 	v1alpha1 "github.com/apache/apisix-ingress-controller/api/v1alpha1"
 )
 
+<<<<<<< HEAD
 const (
 	candidateName = "candidate"
 )
 
+=======
+>>>>>>> 5bb2afd6 (feat: add secret/service resource checker for webhook (#2580))
 func buildGatewayProxyValidator(t *testing.T, objects ...runtime.Object) *GatewayProxyCustomValidator {
 	t.Helper()
 
@@ -58,7 +61,11 @@ func newGatewayProxy() *v1alpha1.GatewayProxy {
 			Provider: &v1alpha1.GatewayProxyProvider{
 				Type: v1alpha1.ProviderTypeControlPlane,
 				ControlPlane: &v1alpha1.ControlPlaneProvider{
+<<<<<<< HEAD
 					Service: &v1alpha1.ProviderService{Name: "control-plane", Port: 9180},
+=======
+					Service: &v1alpha1.ProviderService{Name: "control-plane"},
+>>>>>>> 5bb2afd6 (feat: add secret/service resource checker for webhook (#2580))
 					Auth: v1alpha1.ControlPlaneAuth{
 						Type: v1alpha1.AuthTypeAdminKey,
 						AdminKey: &v1alpha1.AdminKeyAuth{
@@ -76,6 +83,7 @@ func newGatewayProxy() *v1alpha1.GatewayProxy {
 	}
 }
 
+<<<<<<< HEAD
 func newGatewayProxyWithEndpoints(name string, endpoints []string) *v1alpha1.GatewayProxy {
 	gp := newGatewayProxy()
 	gp.Name = name
@@ -111,6 +119,8 @@ func setSecretAdminKey(gp *v1alpha1.GatewayProxy, name, key string) {
 	}
 }
 
+=======
+>>>>>>> 5bb2afd6 (feat: add secret/service resource checker for webhook (#2580))
 func TestGatewayProxyValidator_MissingService(t *testing.T) {
 	gp := newGatewayProxy()
 	gp.Spec.Provider.ControlPlane.Auth.AdminKey = nil
@@ -189,6 +199,7 @@ func TestGatewayProxyValidator_NoWarnings(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, warnings)
 }
+<<<<<<< HEAD
 
 func TestGatewayProxyValidator_DetectsServiceConflict(t *testing.T) {
 	existing := newGatewayProxy()
@@ -365,3 +376,5 @@ func TestGatewayProxyValidator_AllowsEndpointOverlapWithDifferentAdminKey(t *tes
 	require.NoError(t, err)
 	require.Empty(t, warnings)
 }
+=======
+>>>>>>> 5bb2afd6 (feat: add secret/service resource checker for webhook (#2580))

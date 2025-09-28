@@ -18,8 +18,11 @@ package v1
 import (
 	"context"
 	"fmt"
+<<<<<<< HEAD
 	"sort"
 	"strings"
+=======
+>>>>>>> 5bb2afd6 (feat: add secret/service resource checker for webhook (#2580))
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -65,12 +68,16 @@ func (v *GatewayProxyCustomValidator) ValidateCreate(ctx context.Context, obj ru
 	}
 	gatewayProxyLog.Info("Validation for GatewayProxy upon creation", "name", gp.GetName(), "namespace", gp.GetNamespace())
 
+<<<<<<< HEAD
 	warnings := v.collectWarnings(ctx, gp)
 	if err := v.validateGatewayProxyConflict(ctx, gp); err != nil {
 		return nil, err
 	}
 
 	return warnings, nil
+=======
+	return v.collectWarnings(ctx, gp), nil
+>>>>>>> 5bb2afd6 (feat: add secret/service resource checker for webhook (#2580))
 }
 
 func (v *GatewayProxyCustomValidator) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
@@ -80,12 +87,16 @@ func (v *GatewayProxyCustomValidator) ValidateUpdate(ctx context.Context, oldObj
 	}
 	gatewayProxyLog.Info("Validation for GatewayProxy upon update", "name", gp.GetName(), "namespace", gp.GetNamespace())
 
+<<<<<<< HEAD
 	warnings := v.collectWarnings(ctx, gp)
 	if err := v.validateGatewayProxyConflict(ctx, gp); err != nil {
 		return nil, err
 	}
 
 	return warnings, nil
+=======
+	return v.collectWarnings(ctx, gp), nil
+>>>>>>> 5bb2afd6 (feat: add secret/service resource checker for webhook (#2580))
 }
 
 func (v *GatewayProxyCustomValidator) ValidateDelete(context.Context, runtime.Object) (admission.Warnings, error) {
@@ -123,6 +134,7 @@ func (v *GatewayProxyCustomValidator) collectWarnings(ctx context.Context, gp *v
 
 	return warnings
 }
+<<<<<<< HEAD
 
 func (v *GatewayProxyCustomValidator) validateGatewayProxyConflict(ctx context.Context, gp *v1alpha1.GatewayProxy) error {
 	current := buildGatewayProxyConfig(gp)
@@ -246,3 +258,5 @@ func (c gatewayProxyConfig) endpointOverlap(other gatewayProxyConfig) []string {
 	sort.Strings(overlap)
 	return overlap
 }
+=======
+>>>>>>> 5bb2afd6 (feat: add secret/service resource checker for webhook (#2580))
