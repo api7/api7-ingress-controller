@@ -100,7 +100,7 @@ func (d *api7eeProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 		resourceTypes = append(resourceTypes, "service")
 	case *gatewayv1.GRPCRoute:
 		result, err = d.translator.TranslateGRPCRoute(tctx, t.DeepCopy())
-		resourceTypes = append(resourceTypes, adctypes.TypeService)
+		resourceTypes = append(resourceTypes, "service")
 	case *gatewayv1.Gateway:
 		result, err = d.translator.TranslateGateway(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "global_rule", "ssl", "plugin_metadata")
