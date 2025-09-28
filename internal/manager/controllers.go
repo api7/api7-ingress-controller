@@ -288,6 +288,9 @@ func registerGatewayAPIForReadinessGVK(mgr manager.Manager, readier readiness.Re
 	if utils.HasAPIResource(mgr, &gatewayv1.HTTPRoute{}) {
 		gvks = append(gvks, types.GvkOf(&gatewayv1.HTTPRoute{}))
 	}
+	if utils.HasAPIResource(mgr, &gatewayv1.GRPCRoute{}) {
+		gvks = append(gvks, types.GvkOf(&gatewayv1.GRPCRoute{}))
+	}
 	if len(gvks) == 0 {
 		return
 	}
