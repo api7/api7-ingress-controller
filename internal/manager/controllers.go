@@ -150,6 +150,14 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Updater:  updater,
 			Readier:  readier,
 		},
+		&v1alpha1.Consumer{}: &controller.ConsumerReconciler{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindConsumer),
+			Provider: pro,
+			Updater:  updater,
+			Readier:  readier,
+		},
 		&netv1.Ingress{}: &controller.IngressReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
