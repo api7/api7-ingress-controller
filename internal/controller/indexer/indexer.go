@@ -61,6 +61,7 @@ func SetupIndexer(mgr ctrl.Manager) error {
 	for resource, setup := range map[client.Object]func(ctrl.Manager) error{
 		&gatewayv1.Gateway{}:              setupGatewayIndexer,
 		&gatewayv1.HTTPRoute{}:            setupHTTPRouteIndexer,
+		&gatewayv1.GRPCRoute{}:            setupGRPCRouteIndexer,
 		&gatewayv1.GatewayClass{}:         setupGatewayClassIndexer,
 		&v1alpha1.Consumer{}:              setupConsumerIndexer,
 		&networkingv1.Ingress{}:           setupIngressIndexer,
@@ -88,13 +89,6 @@ func SetupIndexer(mgr ctrl.Manager) error {
 
 	// Core Kubernetes and APISIX indexers - always setup these
 	for _, setup := range []func(ctrl.Manager) error{
-		setupGatewayIndexer,
-		setupHTTPRouteIndexer,
-		setupGRPCRouteIndexer,
-		setupIngressIndexer,
-		setupConsumerIndexer,
-		setupBackendTrafficPolicyIndexer,
-		setupIngressClassIndexer,
 		setupGatewayProxyIndexer,
 		setupApisixRouteIndexer,
 		setupApisixPluginConfigIndexer,
