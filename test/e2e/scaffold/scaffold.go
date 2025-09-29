@@ -85,6 +85,7 @@ type Tunnels struct {
 	HTTP  *k8s.Tunnel
 	HTTPS *k8s.Tunnel
 	TCP   *k8s.Tunnel
+	HTTP2 *k8s.Tunnel
 }
 
 func (t *Tunnels) Close() {
@@ -99,6 +100,10 @@ func (t *Tunnels) Close() {
 	if t.TCP != nil {
 		t.safeClose(t.TCP.Close)
 		t.TCP = nil
+	}
+	if t.HTTP2 != nil {
+		t.safeClose(t.HTTP2.Close)
+		t.HTTP2 = nil
 	}
 }
 
@@ -349,6 +354,7 @@ func (s *Scaffold) createDataplaneTunnels(
 		httpPort  int
 		httpsPort int
 		tcpPort   int
+		http2Port int
 	)
 
 	for _, port := range svc.Spec.Ports {
@@ -359,6 +365,8 @@ func (s *Scaffold) createDataplaneTunnels(
 			httpsPort = int(port.Port)
 		case apiv2.SchemeTCP:
 			tcpPort = int(port.Port)
+		case "http2":
+			http2Port = int(port.Port)
 		}
 	}
 
@@ -371,6 +379,8 @@ func (s *Scaffold) createDataplaneTunnels(
 		0, httpsPort)
 	tcpTunnel := k8s.NewTunnel(kubectlOpts, k8s.ResourceTypeService, serviceName,
 		0, tcpPort)
+	http2Tunnel := k8s.NewTunnel(kubectlOpts, k8s.ResourceTypeService, serviceName,
+		0, http2Port)
 
 	if err := httpTunnel.ForwardPortE(s.t); err != nil {
 		return nil, err
@@ -386,6 +396,11 @@ func (s *Scaffold) createDataplaneTunnels(
 		return nil, err
 	}
 	tunnels.TCP = tcpTunnel
+
+	if err := http2Tunnel.ForwardPortE(s.t); err != nil {
+		return nil, err
+	}
+	tunnels.HTTP2 = http2Tunnel
 
 	return tunnels, nil
 }

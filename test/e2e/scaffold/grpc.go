@@ -65,6 +65,9 @@ func (s *Scaffold) DeployGRPCBackend() {
 
 func (s *Scaffold) RequestEchoBackend(exp ExpectedResponse) error {
 	endpoint := s.apisixTunnels.HTTP.Endpoint()
+	if framework.ProviderType == framework.ProviderTypeAPI7EE {
+		endpoint = s.apisixTunnels.HTTP2.Endpoint()
+	}
 
 	endpoint = strings.Replace(endpoint, "localhost", "127.0.0.1", 1)
 

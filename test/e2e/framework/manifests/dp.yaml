@@ -22,8 +22,7 @@ data:
       healthcheck_report_interval: 1
     apisix:
       node_listen:
-        - port: 9080
-          enable_http2: true
+        - 9080
         - enable_http2: true
           port: 9081
       enable_admin: true
