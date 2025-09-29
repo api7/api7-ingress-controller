@@ -18,6 +18,7 @@
 package translator
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -561,6 +562,7 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 			name := string(backend.Name)
 			upstreamName := adctypes.ComposeUpstreamNameForBackendRef(kind, namespace, name, port)
 			upstream.Name = upstreamName
+			upstream.Scheme = cmp.Or(upstream.Scheme, apiv2.SchemeHTTP)
 			upstream.ID = id.GenID(upstreamName)
 			upstreams = append(upstreams, upstream)
 		}
