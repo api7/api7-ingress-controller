@@ -167,6 +167,27 @@ rules:
   - gateways
   - grpcroutes
   - httproutes
+<<<<<<< HEAD
+=======
+  - tcproutes
+  - udproutes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - httproutes/status
+  - tcproutes/status
+  - udproutes/status
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+>>>>>>> 68664908 (feat(gateway-api): add support for UDPRoute (#2578))
   - referencegrants
   verbs:
   - get

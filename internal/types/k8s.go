@@ -36,6 +36,11 @@ const DefaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-cla
 const (
 	KindGateway              = "Gateway"
 	KindHTTPRoute            = "HTTPRoute"
+<<<<<<< HEAD
+=======
+	KindTCPRoute             = "TCPRoute"
+	KindUDPRoute             = "UDPRoute"
+>>>>>>> 68664908 (feat(gateway-api): add support for UDPRoute (#2578))
 	KindGRPCRoute            = "GRPCRoute"
 	KindGatewayClass         = "GatewayClass"
 	KindIngress              = "Ingress"
@@ -60,6 +65,13 @@ func KindOf(obj any) string {
 	switch obj.(type) {
 	case *gatewayv1.Gateway:
 		return KindGateway
+<<<<<<< HEAD
+=======
+	case *gatewayv1alpha2.TCPRoute:
+		return KindTCPRoute
+	case *gatewayv1alpha2.UDPRoute:
+		return KindUDPRoute
+>>>>>>> 68664908 (feat(gateway-api): add support for UDPRoute (#2578))
 	case *gatewayv1.HTTPRoute:
 		return KindHTTPRoute
 	case *gatewayv1.GRPCRoute:
@@ -126,6 +138,13 @@ func GvkOf(obj any) schema.GroupVersionKind {
 	switch obj.(type) {
 	case *gatewayv1.Gateway, *gatewayv1.HTTPRoute, *gatewayv1.GatewayClass, *gatewayv1.GRPCRoute:
 		return gatewayv1.SchemeGroupVersion.WithKind(kind)
+<<<<<<< HEAD
+=======
+	case *gatewayv1alpha2.TCPRoute:
+		return gatewayv1alpha2.SchemeGroupVersion.WithKind(kind)
+	case *gatewayv1alpha2.UDPRoute:
+		return gatewayv1alpha2.SchemeGroupVersion.WithKind(kind)
+>>>>>>> 68664908 (feat(gateway-api): add support for UDPRoute (#2578))
 	case *gatewayv1beta1.ReferenceGrant:
 		return gatewayv1beta1.SchemeGroupVersion.WithKind(kind)
 	case *netv1.Ingress, *netv1.IngressClass:

@@ -64,6 +64,11 @@ import (
 const (
 	KindGateway            = "Gateway"
 	KindHTTPRoute          = "HTTPRoute"
+<<<<<<< HEAD
+=======
+	KindTCPRoute           = "TCPRoute"
+	KindUDPRoute           = "UDPRoute"
+>>>>>>> 68664908 (feat(gateway-api): add support for UDPRoute (#2578))
 	KindGRPCRoute          = "GRPCRoute"
 	KindGatewayClass       = "GatewayClass"
 	KindIngress            = "Ingress"
@@ -503,6 +508,11 @@ func routeHostnamesIntersectsWithListenerHostname(route client.Object, listener 
 	switch r := route.(type) {
 	case *gatewayv1.HTTPRoute:
 		return listenerHostnameIntersectWithRouteHostnames(listener, r.Spec.Hostnames)
+<<<<<<< HEAD
+=======
+	case *gatewayv1alpha2.TCPRoute, *gatewayv1alpha2.UDPRoute:
+		return true // TCPRoute and UDPRoute don't have Hostnames to match
+>>>>>>> 68664908 (feat(gateway-api): add support for UDPRoute (#2578))
 	case *gatewayv1.GRPCRoute:
 		return listenerHostnameIntersectWithRouteHostnames(listener, r.Spec.Hostnames)
 	default:
@@ -669,6 +679,17 @@ func routeMatchesListenerType(route client.Object, listener gatewayv1.Listener) 
 				return false
 			}
 		}
+<<<<<<< HEAD
+=======
+	case *gatewayv1alpha2.TCPRoute:
+		if listener.Protocol != gatewayv1.TCPProtocolType {
+			return false
+		}
+	case *gatewayv1alpha2.UDPRoute:
+		if listener.Protocol != gatewayv1.UDPProtocolType {
+			return false
+		}
+>>>>>>> 68664908 (feat(gateway-api): add support for UDPRoute (#2578))
 	default:
 		return false
 	}

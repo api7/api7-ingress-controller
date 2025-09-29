@@ -93,6 +93,11 @@ rules:
   - grpcroutes/status
   - httproutes/status
   - referencegrants/status
+<<<<<<< HEAD
+=======
+  - tcproutes/status
+  - udproutes/status
+>>>>>>> 68664908 (feat(gateway-api): add support for UDPRoute (#2578))
   verbs:
   - get
   - update
@@ -103,6 +108,8 @@ rules:
   - grpcroutes
   - httproutes
   - referencegrants
+  - tcproutes
+  - udproutes
   verbs:
   - get
   - list

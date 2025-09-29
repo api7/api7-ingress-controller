@@ -110,6 +110,15 @@ func (d *apisixProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 	case *gatewayv1.HTTPRoute:
 		result, err = d.translator.TranslateHTTPRoute(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, adctypes.TypeService)
+<<<<<<< HEAD
+=======
+	case *gatewayv1alpha2.TCPRoute:
+		result, err = d.translator.TranslateTCPRoute(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, adctypes.TypeService)
+	case *gatewayv1alpha2.UDPRoute:
+		result, err = d.translator.TranslateUDPRoute(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, adctypes.TypeService)
+>>>>>>> 68664908 (feat(gateway-api): add support for UDPRoute (#2578))
 	case *gatewayv1.GRPCRoute:
 		result, err = d.translator.TranslateGRPCRoute(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, adctypes.TypeService)
@@ -187,7 +196,11 @@ func (d *apisixProvider) Delete(ctx context.Context, obj client.Object) error {
 	var resourceTypes []string
 	var labels map[string]string
 	switch obj.(type) {
+<<<<<<< HEAD
 	case *gatewayv1.HTTPRoute, *apiv2.ApisixRoute, *gatewayv1.GRPCRoute:
+=======
+	case *gatewayv1.HTTPRoute, *apiv2.ApisixRoute, *gatewayv1.GRPCRoute, *gatewayv1alpha2.TCPRoute, *gatewayv1alpha2.UDPRoute:
+>>>>>>> 68664908 (feat(gateway-api): add support for UDPRoute (#2578))
 		resourceTypes = append(resourceTypes, adctypes.TypeService)
 		labels = label.GenLabel(obj)
 	case *gatewayv1.Gateway:

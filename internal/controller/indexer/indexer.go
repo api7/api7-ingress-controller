@@ -89,6 +89,18 @@ func SetupIndexer(mgr ctrl.Manager) error {
 
 	// Core Kubernetes and APISIX indexers - always setup these
 	for _, setup := range []func(ctrl.Manager) error{
+<<<<<<< HEAD
+=======
+		setupGatewayIndexer,
+		setupHTTPRouteIndexer,
+		setupTCPRouteIndexer,
+		setupUDPRouteIndexer,
+		setupGRPCRouteIndexer,
+		setupIngressIndexer,
+		setupConsumerIndexer,
+		setupBackendTrafficPolicyIndexer,
+		setupIngressClassIndexer,
+>>>>>>> 68664908 (feat(gateway-api): add support for UDPRoute (#2578))
 		setupGatewayProxyIndexer,
 		setupApisixRouteIndexer,
 		setupApisixPluginConfigIndexer,
@@ -257,6 +269,51 @@ func setupHTTPRouteIndexer(mgr ctrl.Manager) error {
 	return nil
 }
 
+<<<<<<< HEAD
+=======
+func setupTCPRouteIndexer(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&gatewayv1alpha2.TCPRoute{},
+		ParentRefs,
+		TCPRouteParentRefsIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&gatewayv1alpha2.TCPRoute{},
+		ServiceIndexRef,
+		TCPPRouteServiceIndexFunc,
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
+func setupUDPRouteIndexer(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&gatewayv1alpha2.UDPRoute{},
+		ParentRefs,
+		UDPRouteParentRefsIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&gatewayv1alpha2.UDPRoute{},
+		ServiceIndexRef,
+		UDPRouteServiceIndexFunc,
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
+>>>>>>> 68664908 (feat(gateway-api): add support for UDPRoute (#2578))
 func setupIngressClassIndexer(mgr ctrl.Manager) error {
 	// create IngressClass index
 	if err := mgr.GetFieldIndexer().IndexField(
@@ -542,6 +599,35 @@ func HTTPRouteParentRefsIndexFunc(rawObj client.Object) []string {
 	return keys
 }
 
+<<<<<<< HEAD
+=======
+func TCPRouteParentRefsIndexFunc(rawObj client.Object) []string {
+	tr := rawObj.(*gatewayv1alpha2.TCPRoute)
+	keys := make([]string, 0, len(tr.Spec.ParentRefs))
+	for _, ref := range tr.Spec.ParentRefs {
+		ns := tr.GetNamespace()
+		if ref.Namespace != nil {
+			ns = string(*ref.Namespace)
+		}
+		keys = append(keys, GenIndexKey(ns, string(ref.Name)))
+	}
+	return keys
+}
+
+func UDPRouteParentRefsIndexFunc(rawObj client.Object) []string {
+	ur := rawObj.(*gatewayv1alpha2.UDPRoute)
+	keys := make([]string, 0, len(ur.Spec.ParentRefs))
+	for _, ref := range ur.Spec.ParentRefs {
+		ns := ur.GetNamespace()
+		if ref.Namespace != nil {
+			ns = string(*ref.Namespace)
+		}
+		keys = append(keys, GenIndexKey(ns, string(ref.Name)))
+	}
+	return keys
+}
+
+>>>>>>> 68664908 (feat(gateway-api): add support for UDPRoute (#2578))
 func HTTPRouteServiceIndexFunc(rawObj client.Object) []string {
 	hr := rawObj.(*gatewayv1.HTTPRoute)
 	keys := make([]string, 0, len(hr.Spec.Rules))
@@ -560,6 +646,45 @@ func HTTPRouteServiceIndexFunc(rawObj client.Object) []string {
 	return keys
 }
 
+<<<<<<< HEAD
+=======
+func TCPPRouteServiceIndexFunc(rawObj client.Object) []string {
+	tr := rawObj.(*gatewayv1alpha2.TCPRoute)
+	keys := make([]string, 0, len(tr.Spec.Rules))
+	for _, rule := range tr.Spec.Rules {
+		for _, backend := range rule.BackendRefs {
+			namespace := tr.GetNamespace()
+			if backend.Kind != nil && *backend.Kind != internaltypes.KindService {
+				continue
+			}
+			if backend.Namespace != nil {
+				namespace = string(*backend.Namespace)
+			}
+			keys = append(keys, GenIndexKey(namespace, string(backend.Name)))
+		}
+	}
+	return keys
+}
+
+func UDPRouteServiceIndexFunc(rawObj client.Object) []string {
+	ur := rawObj.(*gatewayv1alpha2.UDPRoute)
+	keys := make([]string, 0, len(ur.Spec.Rules))
+	for _, rule := range ur.Spec.Rules {
+		for _, backend := range rule.BackendRefs {
+			namespace := ur.GetNamespace()
+			if backend.Kind != nil && *backend.Kind != internaltypes.KindService {
+				continue
+			}
+			if backend.Namespace != nil {
+				namespace = string(*backend.Namespace)
+			}
+			keys = append(keys, GenIndexKey(namespace, string(backend.Name)))
+		}
+	}
+	return keys
+}
+
+>>>>>>> 68664908 (feat(gateway-api): add support for UDPRoute (#2578))
 func ApisixRouteServiceIndexFunc(cli client.Client) func(client.Object) []string {
 	return func(obj client.Object) (keys []string) {
 		ar := obj.(*apiv2.ApisixRoute)
