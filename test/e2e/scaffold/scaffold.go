@@ -397,10 +397,12 @@ func (s *Scaffold) createDataplaneTunnels(
 	}
 	tunnels.TCP = tcpTunnel
 
-	if err := http2Tunnel.ForwardPortE(s.t); err != nil {
-		return nil, err
+	if http2Port != 0 {
+		if err := http2Tunnel.ForwardPortE(s.t); err != nil {
+			return nil, err
+		}
+		tunnels.HTTP2 = http2Tunnel
 	}
-	tunnels.HTTP2 = http2Tunnel
 
 	return tunnels, nil
 }
