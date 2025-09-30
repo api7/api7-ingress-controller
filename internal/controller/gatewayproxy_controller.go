@@ -136,7 +136,11 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 	if providerService == nil {
 		tctx.EndpointSlices[req.NamespacedName] = nil
 	} else {
+<<<<<<< HEAD
 		serviceNN := k8stypes.NamespacedName{
+=======
+		if err := addProviderEndpointsToTranslateContext(tctx, r.Client, r.Log, types.NamespacedName{
+>>>>>>> d9550d88 (chore: unify the logging component (#2584))
 			Namespace: gp.Namespace,
 			Name:      providerService.Name,
 		}

@@ -21,9 +21,7 @@ import (
 	"cmp"
 	"fmt"
 
-	"github.com/api7/gopkg/pkg/log"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -33,10 +31,56 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
+<<<<<<< HEAD
 func (t *Translator) translateApisixUpstream(tctx *provider.TranslateContext, au *apiv2.ApisixUpstream) (ups *adc.Upstream, err error) {
 	ups = adc.NewDefaultUpstream()
 	for _, f := range []func(*apiv2.ApisixUpstream, *adc.Upstream) error{
 		patchApisixUpstreamBasics,
+=======
+func (t *Translator) translateApisixUpstream(tctx *provider.TranslateContext, au *apiv2.ApisixUpstream) (*adc.Upstream, error) {
+	return t.translateApisixUpstreamForPort(tctx, au, nil)
+}
+
+func (t *Translator) translateApisixUpstreamForPort(tctx *provider.TranslateContext, au *apiv2.ApisixUpstream, port *int32) (*adc.Upstream, error) {
+	t.Log.V(1).Info("translating ApisixUpstream", "apisixupstream", au, "port", port)
+
+	ups := adc.NewDefaultUpstream()
+	ups.Name = composeExternalUpstreamName(au)
+	maps.Copy(ups.Labels, au.Labels)
+
+	// translateApisixUpstreamConfig translates the core upstream configuration fields
+	// from au.Spec.ApisixUpstreamConfig into the ADC upstream.
+	//
+	// Note: ExternalNodes is not part of ApisixUpstreamConfig but a separate field
+	// on ApisixUpstreamSpec, so it is handled separately in translateApisixUpstreamExternalNodes.
+	if err := translateApisixUpstreamConfig(tctx, &au.Spec.ApisixUpstreamConfig, ups); err != nil {
+		return nil, err
+	}
+	if err := translateApisixUpstreamExternalNodes(tctx, au, ups); err != nil {
+		return nil, err
+	}
+
+	// If PortLevelSettings is configured and a specific port is provided,
+	// apply the ApisixUpstreamConfig for the matching port to the upstream.
+	if len(au.Spec.PortLevelSettings) > 0 && port != nil {
+		for _, pls := range au.Spec.PortLevelSettings {
+			if pls.Port != *port {
+				continue
+			}
+			if err := translateApisixUpstreamConfig(tctx, &pls.ApisixUpstreamConfig, ups); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	t.Log.V(1).Info("translated ApisixUpstream", "upstream", ups)
+
+	return ups, nil
+}
+
+func translateApisixUpstreamConfig(tctx *provider.TranslateContext, config *apiv2.ApisixUpstreamConfig, ups *adc.Upstream) (err error) {
+	for _, f := range []func(*apiv2.ApisixUpstreamConfig, *adc.Upstream) error{
+>>>>>>> d9550d88 (chore: unify the logging component (#2584))
 		translateApisixUpstreamScheme,
 		translateApisixUpstreamLoadBalancer,
 		translateApisixUpstreamRetriesAndTimeout,

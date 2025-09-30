@@ -38,7 +38,6 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/manager"
 	"github.com/apache/apisix-ingress-controller/internal/version"
-	"github.com/api7/gopkg/pkg/log"
 )
 
 type GatewayConfigsFlag struct {
@@ -115,6 +114,7 @@ func newAPISIXIngressController() *cobra.Command {
 				return err
 			}
 
+<<<<<<< HEAD
 			// dashboard sdk log
 			l, err := log.NewLogger(
 				log.WithOutputFile("stderr"),
@@ -126,6 +126,8 @@ func newAPISIXIngressController() *cobra.Command {
 			}
 			log.DefaultLogger = l
 
+=======
+>>>>>>> d9550d88 (chore: unify the logging component (#2584))
 			// controllers log
 			core := zapcore.NewCore(
 				zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig()),

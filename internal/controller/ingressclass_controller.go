@@ -173,3 +173,74 @@ func (r *IngressClassReconciler) listIngressClassesForSecret(ctx context.Context
 
 	return distinctRequests(requests)
 }
+<<<<<<< HEAD
+=======
+
+func (r *IngressClassReconciler) processInfrastructure(tctx *provider.TranslateContext, ingressClass *networkingv1.IngressClass) error {
+	if ingressClass.Spec.Parameters == nil {
+		return nil
+	}
+
+	if ingressClass.Spec.Parameters.APIGroup == nil ||
+		*ingressClass.Spec.Parameters.APIGroup != v1alpha1.GroupVersion.Group ||
+		ingressClass.Spec.Parameters.Kind != KindGatewayProxy {
+		return nil
+	}
+
+	namespace := ingressClass.Namespace
+	if ingressClass.Spec.Parameters.Namespace != nil {
+		namespace = *ingressClass.Spec.Parameters.Namespace
+	}
+
+	gatewayProxy := new(v1alpha1.GatewayProxy)
+	if err := r.Get(context.Background(), client.ObjectKey{
+		Namespace: namespace,
+		Name:      ingressClass.Spec.Parameters.Name,
+	}, gatewayProxy); err != nil {
+		return fmt.Errorf("failed to get gateway proxy: %w", err)
+	}
+
+	rk := utils.NamespacedNameKind(ingressClass)
+
+	tctx.GatewayProxies[rk] = *gatewayProxy
+	tctx.ResourceParentRefs[rk] = append(tctx.ResourceParentRefs[rk], rk)
+
+	// Load secrets if needed
+	if gatewayProxy.Spec.Provider != nil && gatewayProxy.Spec.Provider.ControlPlane != nil {
+		auth := gatewayProxy.Spec.Provider.ControlPlane.Auth
+		if auth.Type == v1alpha1.AuthTypeAdminKey && auth.AdminKey != nil && auth.AdminKey.ValueFrom != nil {
+			if auth.AdminKey.ValueFrom.SecretKeyRef != nil {
+				secretRef := auth.AdminKey.ValueFrom.SecretKeyRef
+				secret := &corev1.Secret{}
+				if err := r.Get(context.Background(), client.ObjectKey{
+					Namespace: namespace,
+					Name:      secretRef.Name,
+				}, secret); err != nil {
+					r.Log.Error(err, "failed to get secret for gateway proxy", "namespace", namespace, "name", secretRef.Name)
+					return err
+				}
+				tctx.Secrets[client.ObjectKey{
+					Namespace: namespace,
+					Name:      secretRef.Name,
+				}] = secret
+			}
+		}
+	}
+
+	if service := gatewayProxy.Spec.Provider.ControlPlane.Service; service != nil {
+		if err := addProviderEndpointsToTranslateContext(tctx, r.Client, r.Log, types.NamespacedName{
+			Namespace: gatewayProxy.GetNamespace(),
+			Name:      service.Name,
+		}); err != nil {
+			return err
+		}
+	}
+
+	_, ok := tctx.GatewayProxies[rk]
+	if !ok {
+		return fmt.Errorf("no gateway proxy found for ingress class")
+	}
+
+	return nil
+}
+>>>>>>> d9550d88 (chore: unify the logging component (#2584))
