@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/api7/gopkg/pkg/log"
+	"github.com/go-logr/logr"
 	"go.uber.org/zap"
 	networkingv1 "k8s.io/api/networking/v1"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
@@ -64,14 +65,14 @@ type api7eeProvider struct {
 	client *adcclient.Client
 }
 
-func New(updater status.Updater, readier readiness.ReadinessManager, opts ...provider.Option) (provider.Provider, error) {
+func New(log logr.Logger, updater status.Updater, readier readiness.ReadinessManager, opts ...provider.Option) (provider.Provider, error) {
 	o := provider.Options{}
 	o.ApplyOptions(opts)
 	if o.BackendMode == "" {
 		o.BackendMode = ProviderTypeAPI7EE
 	}
 
-	cli, err := adcclient.New(o.BackendMode, o.SyncTimeout)
+	cli, err := adcclient.New(log, o.BackendMode, o.SyncTimeout)
 	if err != nil {
 		return nil, err
 	}
