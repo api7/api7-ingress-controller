@@ -61,6 +61,7 @@ func SetupIndexer(mgr ctrl.Manager) error {
 	for resource, setup := range map[client.Object]func(ctrl.Manager) error{
 		&gatewayv1.Gateway{}:              setupGatewayIndexer,
 		&gatewayv1.HTTPRoute{}:            setupHTTPRouteIndexer,
+		&gatewayv1.GRPCRoute{}:            setupGRPCRouteIndexer,
 		&gatewayv1.GatewayClass{}:         setupGatewayClassIndexer,
 		&v1alpha1.Consumer{}:              setupConsumerIndexer,
 		&networkingv1.Ingress{}:           setupIngressIndexer,

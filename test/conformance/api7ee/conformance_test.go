@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/gateway-api/conformance"
 	conformancev1 "sigs.k8s.io/gateway-api/conformance/apis/v1"
 	"sigs.k8s.io/gateway-api/conformance/tests"
@@ -51,7 +50,6 @@ func TestGatewayAPIConformance(t *testing.T) {
 		URL:          "https://github.com/apache/apisix-ingress-controller.git",
 		Version:      "v2.0.0",
 	}
-	opts.ConformanceProfiles = sets.New(suite.GatewayHTTPConformanceProfileName)
 
 	cSuite, err := suite.NewConformanceTestSuite(opts)
 	require.NoError(t, err)

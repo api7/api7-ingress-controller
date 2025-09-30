@@ -240,6 +240,7 @@ func (t *Translator) buildUpstream(tctx *provider.TranslateContext, service *adc
 		upstreamName := adc.ComposeUpstreamName(ar.Namespace, ar.Name, fmt.Sprintf("%d", ruleIndex), fmt.Sprintf("%d", backendIndex))
 		upstream.Name = upstreamName
 		upstream.ID = id.GenID(upstreamName)
+		upstream.Scheme = cmp.Or(upstream.Scheme, apiv2.SchemeHTTP)
 		upstreams = append(upstreams, upstream)
 	}
 
@@ -265,6 +266,7 @@ func (t *Translator) buildUpstream(tctx *provider.TranslateContext, service *adc
 		upstreamName := adc.ComposeExternalUpstreamName(upsNN.Namespace, upsNN.Name)
 		upstream.Name = upstreamName
 		upstream.ID = id.GenID(upstreamName)
+		upstream.Scheme = cmp.Or(upstream.Scheme, apiv2.SchemeHTTP)
 		upstreams = append(upstreams, upstream)
 	}
 

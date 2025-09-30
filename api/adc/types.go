@@ -343,10 +343,6 @@ const (
 
 type Scheme string
 
-const (
-	SchemeHTTP = "http"
-)
-
 type UpstreamType string
 
 const (
@@ -518,11 +514,13 @@ func ComposeServiceNameWithRule(namespace, name string, rule string) string {
 	return buf.String()
 }
 
-func ComposeServiceNameWithStream(namespace, name string, rule string) string {
-	// FIXME Use sync.Pool to reuse this buffer if the upstream
-	// name composing code path is hot.
+func ComposeGRPCServiceNameWithRule(namespace, name string, rule string) string {
+	return ComposeServicesNameWithScheme(namespace, name, rule, "grpc")
+}
+
+func ComposeServicesNameWithScheme(namespace, name string, rule string, scheme string) string {
 	var p []byte
-	plen := len(namespace) + len(name) + 6
+	plen := len(namespace) + len(name) + len(rule) + len(scheme) + 3
 
 	p = make([]byte, 0, plen)
 	buf := bytes.NewBuffer(p)
@@ -531,9 +529,14 @@ func ComposeServiceNameWithStream(namespace, name string, rule string) string {
 	buf.WriteString(name)
 	buf.WriteByte('_')
 	buf.WriteString(rule)
-	buf.WriteString("_stream")
+	buf.WriteByte('_')
+	buf.WriteString(scheme)
 
 	return buf.String()
+}
+
+func ComposeServiceNameWithStream(namespace, name string, rule string) string {
+	return ComposeServicesNameWithScheme(namespace, name, rule, "stream")
 }
 
 func ComposeConsumerName(namespace, name string) string {
@@ -568,9 +571,8 @@ func NewDefaultUpstream() *Upstream {
 				"managed-by": "apisix-ingress-controller",
 			},
 		},
-		Nodes:  make(UpstreamNodes, 0),
-		Scheme: SchemeHTTP,
-		Type:   Roundrobin,
+		Nodes: make(UpstreamNodes, 0),
+		Type:  Roundrobin,
 	}
 }
 
