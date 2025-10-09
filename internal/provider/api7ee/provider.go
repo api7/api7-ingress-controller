@@ -19,6 +19,7 @@ package api7ee
 
 import (
 	"context"
+	"net/http"
 	"sync/atomic"
 	"time"
 
@@ -82,6 +83,10 @@ func New(updater status.Updater, readier readiness.ReadinessManager, opts ...pro
 		readier:    readier,
 		syncCh:     make(chan struct{}, 1),
 	}, nil
+}
+
+func (d *api7eeProvider) Register(pathPrefix string, mux *http.ServeMux) {
+	d.client.ADCDebugProvider.SetupHandler(pathPrefix, mux)
 }
 
 func (d *api7eeProvider) Update(ctx context.Context, tctx *provider.TranslateContext, obj client.Object) error {
