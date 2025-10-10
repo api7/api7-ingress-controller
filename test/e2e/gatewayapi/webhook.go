@@ -95,7 +95,7 @@ spec:
 	})
 
 	Context("GatewayProxy configuration conflicts", func() {
-		It("should reject GatewayProxy that reuses the same Service and AdminKey Secret as an existing one", func() {
+		It("should reject GatewayProxy that reuses the same Service and AdminKey Secret as an existing one on create and update", func() {
 			serviceTemplate := `
 apiVersion: v1
 kind: Service
@@ -203,8 +203,78 @@ spec:
 			Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("%s/%s", s.Namespace(), existingProxy)))
 			Expect(err.Error()).To(ContainSubstring("control plane endpoints"))
 			Expect(err.Error()).To(ContainSubstring("inline AdminKey value"))
+		})
 
-			Expect(s.DeleteResource("GatewayProxy", existingProxy)).ShouldNot(HaveOccurred())
+		It("should reject GatewayProxy update that creates conflict with another GatewayProxy", func() {
+			serviceTemplate := `
+apiVersion: v1
+kind: Service
+metadata:
+  name: %s
+spec:
+  selector:
+    app: dummy-control-plane
+  ports:
+  - name: admin
+    port: 9180
+    targetPort: 9180
+`
+			secretTemplate := `
+apiVersion: v1
+kind: Secret
+metadata:
+  name: %s
+type: Opaque
+stringData:
+  %s: %s
+`
+			gatewayProxyTemplate := `
+apiVersion: apisix.apache.org/v1alpha1
+kind: GatewayProxy
+metadata:
+  name: %s
+spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      service:
+        name: %s
+        port: 9180
+      auth:
+        type: AdminKey
+        adminKey:
+          valueFrom:
+            secretKeyRef:
+              name: %s
+              key: token
+`
+
+			sharedServiceName := "gatewayproxy-update-shared-service"
+			sharedSecretName := "gatewayproxy-update-shared-secret"
+			uniqueServiceName := "gatewayproxy-update-unique-service"
+			proxyA := "gatewayproxy-update-a"
+			proxyB := "gatewayproxy-update-b"
+
+			Expect(s.CreateResourceFromString(fmt.Sprintf(serviceTemplate, sharedServiceName))).ShouldNot(HaveOccurred(), "creating shared Service")
+			Expect(s.CreateResourceFromString(fmt.Sprintf(serviceTemplate, uniqueServiceName))).ShouldNot(HaveOccurred(), "creating unique Service")
+			Expect(s.CreateResourceFromString(fmt.Sprintf(secretTemplate, sharedSecretName, "token", "value"))).ShouldNot(HaveOccurred(), "creating shared Secret")
+
+			err := s.CreateResourceFromString(fmt.Sprintf(gatewayProxyTemplate, proxyA, sharedServiceName, sharedSecretName))
+			Expect(err).ShouldNot(HaveOccurred(), "creating GatewayProxy A with shared Service and Secret")
+
+			time.Sleep(2 * time.Second)
+
+			err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxyTemplate, proxyB, uniqueServiceName, sharedSecretName))
+			Expect(err).ShouldNot(HaveOccurred(), "creating GatewayProxy B with unique Service but same Secret")
+
+			time.Sleep(2 * time.Second)
+
+			By("updating GatewayProxy B to use the same Service as GatewayProxy A, causing conflict")
+			err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxyTemplate, proxyB, sharedServiceName, sharedSecretName))
+			Expect(err).Should(HaveOccurred(), "expecting conflict when updating to same Service")
+			Expect(err.Error()).To(ContainSubstring("gateway proxy configuration conflict"))
+			Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("%s/%s", s.Namespace(), proxyA)))
+			Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("%s/%s", s.Namespace(), proxyB)))
 		})
 	})
 })

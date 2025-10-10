@@ -177,7 +177,6 @@ type gatewayProxyConfig struct {
 	serviceKey          string
 	serviceDescription  string
 	endpoints           map[string]struct{}
-	sortedEndpoints     []string
 }
 
 func buildGatewayProxyConfig(gp *v1alpha1.GatewayProxy) gatewayProxyConfig {
@@ -207,11 +206,9 @@ func buildGatewayProxyConfig(gp *v1alpha1.GatewayProxy) gatewayProxyConfig {
 
 	if len(cp.Endpoints) > 0 {
 		cfg.endpoints = make(map[string]struct{}, len(cp.Endpoints))
-		cfg.sortedEndpoints = append([]string(nil), cp.Endpoints...)
-		for _, endpoint := range cfg.sortedEndpoints {
+		for _, endpoint := range cp.Endpoints {
 			cfg.endpoints[endpoint] = struct{}{}
 		}
-		sort.Strings(cfg.sortedEndpoints)
 	}
 
 	return cfg
