@@ -66,8 +66,8 @@ func (v *GatewayProxyCustomValidator) ValidateCreate(ctx context.Context, obj ru
 	gatewayProxyLog.Info("Validation for GatewayProxy upon creation", "name", gp.GetName(), "namespace", gp.GetNamespace())
 
 	warnings := v.collectWarnings(ctx, gp)
-	if err := v.validateGatewayGroupConflict(ctx, gp); err != nil {
-		return warnings, err
+	if err := v.validateGatewayProxyConflict(ctx, gp); err != nil {
+		return nil, err
 	}
 
 	return warnings, nil
@@ -81,8 +81,8 @@ func (v *GatewayProxyCustomValidator) ValidateUpdate(ctx context.Context, oldObj
 	gatewayProxyLog.Info("Validation for GatewayProxy upon update", "name", gp.GetName(), "namespace", gp.GetNamespace())
 
 	warnings := v.collectWarnings(ctx, gp)
-	if err := v.validateGatewayGroupConflict(ctx, gp); err != nil {
-		return warnings, err
+	if err := v.validateGatewayProxyConflict(ctx, gp); err != nil {
+		return nil, err
 	}
 
 	return warnings, nil
@@ -124,8 +124,8 @@ func (v *GatewayProxyCustomValidator) collectWarnings(ctx context.Context, gp *v
 	return warnings
 }
 
-func (v *GatewayProxyCustomValidator) validateGatewayGroupConflict(ctx context.Context, gp *v1alpha1.GatewayProxy) error {
-	current := buildGatewayGroupConfig(gp)
+func (v *GatewayProxyCustomValidator) validateGatewayProxyConflict(ctx context.Context, gp *v1alpha1.GatewayProxy) error {
+	current := buildGatewayProxyConfig(gp)
 	if !current.readyForConflict() {
 		return nil
 	}
@@ -141,7 +141,7 @@ func (v *GatewayProxyCustomValidator) validateGatewayGroupConflict(ctx context.C
 			// skip self
 			continue
 		}
-		otherConfig := buildGatewayGroupConfig(&other)
+		otherConfig := buildGatewayProxyConfig(&other)
 		if !otherConfig.readyForConflict() {
 			continue
 		}
@@ -171,7 +171,7 @@ func (v *GatewayProxyCustomValidator) validateGatewayGroupConflict(ctx context.C
 	return nil
 }
 
-type gatewayGroupConfig struct {
+type gatewayProxyConfig struct {
 	adminKeyKey         string
 	adminKeyDescription string
 	serviceKey          string
@@ -180,8 +180,8 @@ type gatewayGroupConfig struct {
 	sortedEndpoints     []string
 }
 
-func buildGatewayGroupConfig(gp *v1alpha1.GatewayProxy) gatewayGroupConfig {
-	var cfg gatewayGroupConfig
+func buildGatewayProxyConfig(gp *v1alpha1.GatewayProxy) gatewayProxyConfig {
+	var cfg gatewayProxyConfig
 
 	if gp == nil || gp.Spec.Provider == nil || gp.Spec.Provider.Type != v1alpha1.ProviderTypeControlPlane || gp.Spec.Provider.ControlPlane == nil {
 		return cfg
@@ -217,14 +217,14 @@ func buildGatewayGroupConfig(gp *v1alpha1.GatewayProxy) gatewayGroupConfig {
 	return cfg
 }
 
-func (c gatewayGroupConfig) readyForConflict() bool {
+func (c gatewayProxyConfig) readyForConflict() bool {
 	if c.adminKeyKey == "" {
 		return false
 	}
 	return c.serviceKey != "" || len(c.endpoints) > 0
 }
 
-func (c gatewayGroupConfig) endpointOverlap(other gatewayGroupConfig) []string {
+func (c gatewayProxyConfig) endpointOverlap(other gatewayProxyConfig) []string {
 	var overlap []string
 	for endpoint := range c.endpoints {
 		if _, ok := other.endpoints[endpoint]; ok {
