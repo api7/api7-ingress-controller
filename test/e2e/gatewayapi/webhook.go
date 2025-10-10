@@ -44,22 +44,22 @@ var _ = Describe("Test Gateway Webhook", Label("webhook"), func() {
 			By("creating Gateway referencing a missing GatewayProxy")
 			missingName := "missing-proxy"
 			gwYAML := `
-	apiVersion: gateway.networking.k8s.io/v1
-	kind: Gateway
-	metadata:
-	  name: %s
-	spec:
-	  gatewayClassName: %s
-	  listeners:
-	  - name: http1
-		protocol: HTTP
-		port: 80
-	  infrastructure:
-		parametersRef:
-		  group: apisix.apache.org
-		  kind: GatewayProxy
-		  name: %s
-	`
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: %s
+spec:
+  gatewayClassName: %s
+  listeners:
+  - name: http1
+    protocol: HTTP
+    port: 80
+  infrastructure:
+    parametersRef:
+      group: apisix.apache.org
+      kind: GatewayProxy
+      name: %s
+`
 
 			output, err := s.CreateResourceFromStringAndGetOutput(fmt.Sprintf(gwYAML, s.Namespace(), s.Namespace(), missingName))
 			Expect(err).ShouldNot(HaveOccurred())
