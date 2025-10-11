@@ -35,6 +35,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/utils/ptr"
 
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
@@ -1642,6 +1643,14 @@ spec:
 		})
 
 		Context("complex scenarios", func() {
+			BeforeEach(func() {
+				By("deploy nginx service")
+				s.DeployNginx(framework.NginxOptions{
+					Namespace: s.Namespace(),
+					Replicas:  ptr.To(int32(1)),
+				})
+			})
+
 			It("multiple external services in one upstream", func() {
 				upstreamName := s.Namespace()
 				routeName := s.Namespace()
@@ -1656,9 +1665,9 @@ spec:
   ingressClassName: %s
   externalNodes:
   - type: Domain
-    name: httpbin.org
+    name: httpbin-service-e2e-test
   - type: Domain
-    name: postman-echo.com
+    name: nginx
 `
 				var upstream apiv2.ApisixUpstream
 				applier.MustApplyAPIv2(
@@ -1671,24 +1680,26 @@ spec:
 
 				By("verify access to multiple services")
 				time.Sleep(7 * time.Second)
-				hasEtag := false   // postman-echo.com
-				hasNoEtag := false // httpbin.org
+				hasHttpbin := false
+				hasNginx := false
 				for range 20 {
-					headers := s.NewAPISIXClient().GET("/ip").
+					expect := s.NewAPISIXClient().GET("/ip").
 						WithHeader("Host", "httpbin.org").
 						WithHeader("X-Foo", "bar").
-						Expect().
-						Headers().Raw()
-					if _, ok := headers["Etag"]; ok {
-						hasEtag = true
-					} else {
-						hasNoEtag = true
+						Expect()
+
+					body := expect.Body().Raw()
+					if strings.Contains(body, "Hello") {
+						hasNginx = true
+					} else if strings.Contains(body, `"origin"`) {
+						hasHttpbin = true
 					}
-					if hasEtag && hasNoEtag {
+					if hasHttpbin && hasNginx {
 						break
 					}
+					time.Sleep(100 * time.Millisecond)
 				}
-				assert.True(GinkgoT(), hasEtag && hasNoEtag, "both httpbin and postman should be accessed at least once")
+				assert.True(GinkgoT(), hasHttpbin && hasNginx, "both httpbin and nginx should be accessed at least once")
 			})
 
 			It("should be able to use backends and upstreams together", func() {
@@ -1703,7 +1714,7 @@ spec:
   ingressClassName: %s
   externalNodes:
   - type: Domain
-    name: postman-echo.com
+    name: nginx
 `
 				var upstream apiv2.ApisixUpstream
 				applier.MustApplyAPIv2(
@@ -1742,24 +1753,25 @@ spec:
 				)
 				By("verify access to multiple services")
 				time.Sleep(7 * time.Second)
-				hasEtag := false   // postman-echo.com
-				hasNoEtag := false // httpbin.org
+				hasNginx := false
+				hasHttpbin := false
 				for range 20 {
-					headers := s.NewAPISIXClient().GET("/ip").
+					expect := s.NewAPISIXClient().GET("/ip").
 						WithHeader("Host", "httpbin.org").
 						WithHeader("X-Foo", "bar").
-						Expect().
-						Headers().Raw()
-					if _, ok := headers["Etag"]; ok {
-						hasEtag = true
-					} else {
-						hasNoEtag = true
+						Expect()
+					body := expect.Body().Raw()
+					if strings.Contains(body, "Hello") {
+						hasNginx = true
+					} else if strings.Contains(body, `"origin"`) {
+						hasHttpbin = true
 					}
-					if hasEtag && hasNoEtag {
+					if hasNginx && hasHttpbin {
 						break
 					}
+					time.Sleep(100 * time.Millisecond)
 				}
-				assert.True(GinkgoT(), hasEtag && hasNoEtag, "both httpbin and postman should be accessed at least once")
+				assert.True(GinkgoT(), hasNginx && hasHttpbin, "both nginx and httpbin should be accessed at least once")
 			})
 		})
 	})
@@ -2125,6 +2137,77 @@ spec:
 				Path:   "/get",
 				Host:   "httpbin",
 				Check:  scaffold.WithExpectedStatus(200),
+			})
+		})
+	})
+
+	Context("Test ApisixRoute with multiple backends", func() {
+		It("create ApisixRoute with multiple backends", func() {
+			var httpService = `
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpbin-service-e2e-test2
+spec:
+  selector:
+    app: httpbin-deployment-e2e-test
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 80
+  type: ClusterIP
+`
+			err := s.CreateResourceFromString(httpService)
+			Expect(err).ShouldNot(HaveOccurred())
+			s.EnsureNumEndpointsReady(GinkgoT(), "httpbin-service-e2e-test2", 1)
+
+			const apisixRouteSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: httpbin
+spec:
+  ingressClassName: %s
+  http:
+    - name: get
+      match:
+        paths:
+          - /get
+      backends:
+        - serviceName: httpbin-service-e2e-test
+          servicePort: 80
+        - serviceName: httpbin-service-e2e-test2
+          servicePort: 80
+    - name: ip
+      match:
+        paths:
+          - /ip
+      backends:
+        - serviceName: httpbin-service-e2e-test
+          servicePort: 80
+        - serviceName: httpbin-service-e2e-test2
+          servicePort: 80
+`
+			By("apply ApisixRoute")
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"},
+				&apiv2.ApisixRoute{}, fmt.Sprintf(apisixRouteSpec, s.Namespace()))
+
+			By("check upstreams")
+			upstreams, err := s.DefaultDataplaneResource().Upstream().List(context.Background())
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(upstreams).Should(HaveLen(4))
+
+			By("verify ApisixRoute works")
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/get",
+				Check:  scaffold.WithExpectedStatus(http.StatusOK),
+			})
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/ip",
+				Check:  scaffold.WithExpectedStatus(http.StatusOK),
 			})
 		})
 	})

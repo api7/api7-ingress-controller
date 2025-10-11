@@ -30,54 +30,6 @@ import (
 )
 
 const (
-	// HashOnVars means the hash scope is variable.
-	HashOnVars = "vars"
-	// HashOnVarsCombination means the hash scope is the
-	// variable combination.
-	HashOnVarsCombination = "vars_combinations"
-	// HashOnHeader means the hash scope is HTTP request
-	// headers.
-	HashOnHeader = "header"
-	// HashOnCookie means the hash scope is HTTP Cookie.
-	HashOnCookie = "cookie"
-	// HashOnConsumer means the hash scope is APISIX consumer.
-	HashOnConsumer = "consumer"
-
-	// LbRoundRobin is the round robin load balancer.
-	LBRoundRobin = "roundrobin"
-	// LbConsistentHash is the consistent hash load balancer.
-	LbConsistentHash = "chash"
-	// LbEwma is the ewma load balancer.
-	LbEwma = "ewma"
-	// LbLeaseConn is the least connection load balancer.
-	LbLeastConn = "least_conn"
-
-	// SchemeHTTP represents the HTTP protocol.
-	SchemeHTTP = "http"
-	// SchemeGRPC represents the GRPC protocol.
-	SchemeGRPC = "grpc"
-	// SchemeHTTPS represents the HTTPS protocol.
-	SchemeHTTPS = "https"
-	// SchemeGRPCS represents the GRPCS protocol.
-	SchemeGRPCS = "grpcs"
-	// SchemeTCP represents the TCP protocol.
-	SchemeTCP = "tcp"
-	// SchemeUDP represents the UDP protocol.
-	SchemeUDP = "udp"
-
-	// DefaultUpstreamTimeout represents the default connect,
-	// read and send timeout (in seconds) with upstreams.
-	DefaultUpstreamTimeout = 60
-
-	// PassHostPass represents pass option for pass_host Upstream settings.
-	PassHostPass = "pass"
-	// PassHostPass represents node option for pass_host Upstream settings.
-	PassHostNode = "node"
-	// PassHostPass represents rewrite option for pass_host Upstream settings.
-	PassHostRewrite = "rewrite"
-)
-
-const (
 	TypeRoute          = "route"
 	TypeService        = "service"
 	TypeConsumer       = "consumer"
@@ -391,14 +343,6 @@ const (
 
 type Scheme string
 
-const (
-	Grpc  Scheme = "grpc"
-	Grpcs Scheme = "grpcs"
-	Kafka Scheme = "kafka"
-	TLS   Scheme = "tls"
-	UDP   Scheme = "udp"
-)
-
 type UpstreamType string
 
 const (
@@ -570,11 +514,13 @@ func ComposeServiceNameWithRule(namespace, name string, rule string) string {
 	return buf.String()
 }
 
-func ComposeServiceNameWithStream(namespace, name string, rule string) string {
-	// FIXME Use sync.Pool to reuse this buffer if the upstream
-	// name composing code path is hot.
+func ComposeGRPCServiceNameWithRule(namespace, name string, rule string) string {
+	return ComposeServicesNameWithScheme(namespace, name, rule, "grpc")
+}
+
+func ComposeServicesNameWithScheme(namespace, name string, rule string, scheme string) string {
 	var p []byte
-	plen := len(namespace) + len(name) + 6
+	plen := len(namespace) + len(name) + len(rule) + len(scheme) + 3
 
 	p = make([]byte, 0, plen)
 	buf := bytes.NewBuffer(p)
@@ -583,9 +529,14 @@ func ComposeServiceNameWithStream(namespace, name string, rule string) string {
 	buf.WriteString(name)
 	buf.WriteByte('_')
 	buf.WriteString(rule)
-	buf.WriteString("_stream")
+	buf.WriteByte('_')
+	buf.WriteString(scheme)
 
 	return buf.String()
+}
+
+func ComposeServiceNameWithStream(namespace, name string, rule string) string {
+	return ComposeServicesNameWithScheme(namespace, name, rule, "stream")
 }
 
 func ComposeConsumerName(namespace, name string) string {
@@ -620,9 +571,8 @@ func NewDefaultUpstream() *Upstream {
 				"managed-by": "apisix-ingress-controller",
 			},
 		},
-		Nodes:  make(UpstreamNodes, 0),
-		Scheme: SchemeHTTP,
-		Type:   Roundrobin,
+		Nodes: make(UpstreamNodes, 0),
+		Type:  Roundrobin,
 	}
 }
 
@@ -819,22 +769,13 @@ var (
 	}
 )
 
-// ComposeUpstreamName uses namespace, name, subset (optional), port, resolveGranularity info to compose
+// ComposeUpstreamName uses namespace, name, ruleIndex, backendIndex, serviceName info to compose
 // the upstream name.
 // the resolveGranularity is not composited in the upstream name when it is endpoint.
 // ref: https://github.com/apache/apisix-ingress-controller/blob/10059afe3e84b693cc61e6df7a0040890a9d16eb/pkg/types/apisix/v1/types.go#L595-L598
-func ComposeUpstreamName(namespace, name, subset string, port int32, resolveGranularity string) string {
-	pstr := strconv.Itoa(int(port))
-	// FIXME Use sync.Pool to reuse this buffer if the upstream
-	// name composing code path is hot.
+func ComposeUpstreamName(namespace, name, ruleIndex, backendIndex string) string {
 	var p []byte
-	plen := len(namespace) + len(name) + len(pstr) + 2
-	if subset != "" {
-		plen = plen + len(subset) + 1
-	}
-	if resolveGranularity == ResolveGranularity.Service {
-		plen = plen + len(resolveGranularity) + 1
-	}
+	plen := len(namespace) + len(name) + len(ruleIndex) + len(backendIndex) + 3
 
 	p = make([]byte, 0, plen)
 	buf := bytes.NewBuffer(p)
@@ -842,15 +783,9 @@ func ComposeUpstreamName(namespace, name, subset string, port int32, resolveGran
 	buf.WriteByte('_')
 	buf.WriteString(name)
 	buf.WriteByte('_')
-	if subset != "" {
-		buf.WriteString(subset)
-		buf.WriteByte('_')
-	}
-	buf.WriteString(pstr)
-	if resolveGranularity == ResolveGranularity.Service {
-		buf.WriteByte('_')
-		buf.WriteString(resolveGranularity)
-	}
+	buf.WriteString(ruleIndex)
+	buf.WriteByte('_')
+	buf.WriteString(backendIndex)
 
 	return buf.String()
 }

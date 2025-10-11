@@ -10,6 +10,126 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
+      path: /validate-apisix-apache-org-v2-apisixconsumer
+  failurePolicy: Fail
+  name: vapisixconsumer-v2.kb.io
+  rules:
+  - apiGroups:
+    - apisix.apache.org
+    apiVersions:
+    - v2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - apisixconsumers
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-apisix-apache-org-v2-apisixroute
+  failurePolicy: Fail
+  name: vapisixroute-v2.kb.io
+  rules:
+  - apiGroups:
+    - apisix.apache.org
+    apiVersions:
+    - v2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - apisixroutes
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-apisix-apache-org-v2-apisixtls
+  failurePolicy: Fail
+  name: vapisixtls-v2.kb.io
+  rules:
+  - apiGroups:
+    - apisix.apache.org
+    apiVersions:
+    - v2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - apisixtlses
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-apisix-apache-org-v1alpha1-consumer
+  failurePolicy: Fail
+  name: vconsumer-v1alpha1.kb.io
+  rules:
+  - apiGroups:
+    - apisix.apache.org
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - consumers
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-gateway-networking-k8s-io-v1-gateway
+  failurePolicy: Fail
+  name: vgateway-v1.kb.io
+  rules:
+  - apiGroups:
+    - gateway.networking.k8s.io
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - gateways
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-apisix-apache-org-v1alpha1-gatewayproxy
+  failurePolicy: Fail
+  name: vgatewayproxy-v1alpha1.kb.io
+  rules:
+  - apiGroups:
+    - apisix.apache.org
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - gatewayproxies
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
       path: /validate-networking-k8s-io-v1-ingress
   failurePolicy: Fail
   name: vingress-v1.kb.io
@@ -23,4 +143,24 @@ webhooks:
     - UPDATE
     resources:
     - ingresses
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-networking-k8s-io-v1-ingressclass
+  failurePolicy: Fail
+  name: vingressclass-v1.kb.io
+  rules:
+  - apiGroups:
+    - networking.k8s.io
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - ingressclasses
   sideEffects: None

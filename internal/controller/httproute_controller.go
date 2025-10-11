@@ -94,7 +94,7 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	// Conditionally watch EndpointSlice or Endpoints based on cluster API support
 	bdr = watchEndpointSliceOrEndpoints(bdr, r.supportsEndpointSlice,
-		r.listHTTPRoutesByServiceBef,
+		r.listHTTPRoutesByServiceRef,
 		r.listHTTPRoutesByServiceForEndpoints,
 		r.Log)
 
@@ -280,7 +280,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return ctrl.Result{}, nil
 }
 
-func (r *HTTPRouteReconciler) listHTTPRoutesByServiceBef(ctx context.Context, obj client.Object) []reconcile.Request {
+func (r *HTTPRouteReconciler) listHTTPRoutesByServiceRef(ctx context.Context, obj client.Object) []reconcile.Request {
 	endpointSlice, ok := obj.(*discoveryv1.EndpointSlice)
 	if !ok {
 		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to EndpointSlice")
@@ -341,7 +341,7 @@ func (r *HTTPRouteReconciler) listHTTPRoutesByServiceForEndpoints(ctx context.Co
 func (r *HTTPRouteReconciler) listHTTPRoutesByExtensionRef(ctx context.Context, obj client.Object) []reconcile.Request {
 	pluginconfig, ok := obj.(*v1alpha1.PluginConfig)
 	if !ok {
-		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to EndpointSlice")
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to PluginConfig")
 		return nil
 	}
 	namespace := pluginconfig.GetNamespace()
@@ -447,7 +447,7 @@ func (r *HTTPRouteReconciler) listHTTPRouteByHTTPRoutePolicy(ctx context.Context
 
 	var keys = make(map[k8stypes.NamespacedName]struct{})
 	for _, ref := range httpRoutePolicy.Spec.TargetRefs {
-		if ref.Kind != "HTTPRoute" {
+		if ref.Kind != types.KindHTTPRoute {
 			continue
 		}
 		key := k8stypes.NamespacedName{
@@ -506,7 +506,7 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 			targetNN.Namespace = string(*backend.Namespace)
 		}
 
-		if backend.Kind != nil && *backend.Kind != "Service" {
+		if backend.Kind != nil && *backend.Kind != types.KindService {
 			terr = types.NewInvalidKindError(*backend.Kind)
 			continue
 		}
@@ -587,7 +587,7 @@ func (r *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, 
 			if filter.Type != gatewayv1.HTTPRouteFilterExtensionRef || filter.ExtensionRef == nil {
 				continue
 			}
-			if filter.ExtensionRef.Kind == "PluginConfig" {
+			if filter.ExtensionRef.Kind == types.KindPluginConfig {
 				pluginconfig := new(v1alpha1.PluginConfig)
 				if err := r.Get(context.Background(), client.ObjectKey{
 					Namespace: httpRoute.GetNamespace(),
@@ -603,7 +603,7 @@ func (r *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, 
 			}
 		}
 		for _, backend := range rule.BackendRefs {
-			if backend.Kind != nil && *backend.Kind != "Service" {
+			if backend.Kind != nil && *backend.Kind != types.KindService {
 				terror = types.NewInvalidKindError(*backend.Kind)
 				continue
 			}

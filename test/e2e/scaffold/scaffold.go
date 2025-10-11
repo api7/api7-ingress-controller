@@ -36,6 +36,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 )
 
@@ -84,6 +85,7 @@ type Tunnels struct {
 	HTTP  *k8s.Tunnel
 	HTTPS *k8s.Tunnel
 	TCP   *k8s.Tunnel
+	HTTP2 *k8s.Tunnel
 }
 
 func (t *Tunnels) Close() {
@@ -98,6 +100,10 @@ func (t *Tunnels) Close() {
 	if t.TCP != nil {
 		t.safeClose(t.TCP.Close)
 		t.TCP = nil
+	}
+	if t.HTTP2 != nil {
+		t.safeClose(t.HTTP2.Close)
+		t.HTTP2 = nil
 	}
 }
 
@@ -182,7 +188,7 @@ func (s *Scaffold) DefaultHTTPBackend() (string, []int32) {
 // NewAPISIXClient creates the default HTTP client.
 func (s *Scaffold) NewAPISIXClient() *httpexpect.Expect {
 	u := url.URL{
-		Scheme: "http",
+		Scheme: apiv2.SchemeHTTP,
 		Host:   s.apisixTunnels.HTTP.Endpoint(),
 	}
 	return httpexpect.WithConfig(httpexpect.Config{
@@ -219,7 +225,7 @@ func (s *Scaffold) UpdateNamespace(ns string) {
 // NewAPISIXHttpsClient creates the default HTTPS client.
 func (s *Scaffold) NewAPISIXHttpsClient(host string) *httpexpect.Expect {
 	u := url.URL{
-		Scheme: "https",
+		Scheme: apiv2.SchemeHTTPS,
 		Host:   s.apisixTunnels.HTTPS.Endpoint(),
 	}
 	return httpexpect.WithConfig(httpexpect.Config{
@@ -242,7 +248,7 @@ func (s *Scaffold) NewAPISIXHttpsClient(host string) *httpexpect.Expect {
 // NewAPISIXClientWithTCPProxy creates the HTTP client but with the TCP proxy of APISIX.
 func (s *Scaffold) NewAPISIXClientWithTCPProxy() *httpexpect.Expect {
 	u := url.URL{
-		Scheme: "http",
+		Scheme: apiv2.SchemeHTTP,
 		Host:   s.apisixTunnels.TCP.Endpoint(),
 	}
 	return httpexpect.WithConfig(httpexpect.Config{
@@ -348,16 +354,19 @@ func (s *Scaffold) createDataplaneTunnels(
 		httpPort  int
 		httpsPort int
 		tcpPort   int
+		http2Port int
 	)
 
 	for _, port := range svc.Spec.Ports {
 		switch port.Name {
-		case "http":
+		case apiv2.SchemeHTTP:
 			httpPort = int(port.Port)
-		case "https":
+		case apiv2.SchemeHTTPS:
 			httpsPort = int(port.Port)
-		case "tcp":
+		case apiv2.SchemeTCP:
 			tcpPort = int(port.Port)
+		case "http2":
+			http2Port = int(port.Port)
 		}
 	}
 
@@ -370,6 +379,8 @@ func (s *Scaffold) createDataplaneTunnels(
 		0, httpsPort)
 	tcpTunnel := k8s.NewTunnel(kubectlOpts, k8s.ResourceTypeService, serviceName,
 		0, tcpPort)
+	http2Tunnel := k8s.NewTunnel(kubectlOpts, k8s.ResourceTypeService, serviceName,
+		0, http2Port)
 
 	if err := httpTunnel.ForwardPortE(s.t); err != nil {
 		return nil, err
@@ -385,6 +396,13 @@ func (s *Scaffold) createDataplaneTunnels(
 		return nil, err
 	}
 	tunnels.TCP = tcpTunnel
+
+	if http2Port != 0 {
+		if err := http2Tunnel.ForwardPortE(s.t); err != nil {
+			return nil, err
+		}
+		tunnels.HTTP2 = http2Tunnel
+	}
 
 	return tunnels, nil
 }
@@ -403,7 +421,7 @@ func (s *Scaffold) NewAPISIXClientForGateway(identifier string) (*httpexpect.Exp
 	}
 
 	u := url.URL{
-		Scheme: "http",
+		Scheme: apiv2.SchemeHTTP,
 		Host:   resources.Tunnels.HTTP.Endpoint(),
 	}
 	return httpexpect.WithConfig(httpexpect.Config{
@@ -428,7 +446,7 @@ func (s *Scaffold) NewAPISIXHttpsClientForGateway(identifier string, host string
 	}
 
 	u := url.URL{
-		Scheme: "https",
+		Scheme: apiv2.SchemeHTTPS,
 		Host:   resources.Tunnels.HTTPS.Endpoint(),
 	}
 	return httpexpect.WithConfig(httpexpect.Config{

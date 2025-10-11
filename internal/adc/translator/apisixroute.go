@@ -37,6 +37,7 @@ import (
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	internaltypes "github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
 	"github.com/apache/apisix-ingress-controller/pkg/id"
 	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
@@ -73,7 +74,7 @@ func (t *Translator) translateHTTPRule(tctx *provider.TranslateContext, ar *apiv
 
 	service := t.buildService(ar, rule, ruleIndex)
 	t.buildRoute(ar, service, rule, plugins, timeout, vars)
-	t.buildUpstream(tctx, service, ar, rule)
+	t.buildUpstream(tctx, service, ar, rule, ruleIndex)
 
 	return service, nil
 }
@@ -203,13 +204,13 @@ func (t *Translator) buildRoute(ar *apiv2.ApisixRoute, service *adc.Service, rul
 	service.Routes = []*adc.Route{route}
 }
 
-func (t *Translator) buildUpstream(tctx *provider.TranslateContext, service *adc.Service, ar *apiv2.ApisixRoute, rule apiv2.ApisixRouteHTTP) {
+func (t *Translator) buildUpstream(tctx *provider.TranslateContext, service *adc.Service, ar *apiv2.ApisixRoute, rule apiv2.ApisixRouteHTTP, ruleIndex int) {
 	var (
 		upstreams         = make([]*adc.Upstream, 0)
 		weightedUpstreams = make([]adc.TrafficSplitConfigRuleWeightedUpstream, 0)
 	)
 
-	for _, backend := range rule.Backends {
+	for backendIndex, backend := range rule.Backends {
 		var backendErr error
 		upstream := adc.NewDefaultUpstream()
 		// try to get the apisixupstream with the same name as the backend service to be upstream config.
@@ -236,9 +237,10 @@ func (t *Translator) buildUpstream(tctx *provider.TranslateContext, service *adc
 			upstream.Labels["meta_weight"] = strconv.FormatInt(int64(*backend.Weight), 10)
 		}
 
-		upstreamName := adc.ComposeUpstreamName(ar.Namespace, backend.ServiceName, backend.Subset, int32(backend.ServicePort.IntValue()), backend.ResolveGranularity)
+		upstreamName := adc.ComposeUpstreamName(ar.Namespace, ar.Name, fmt.Sprintf("%d", ruleIndex), fmt.Sprintf("%d", backendIndex))
 		upstream.Name = upstreamName
 		upstream.ID = id.GenID(upstreamName)
+		upstream.Scheme = cmp.Or(upstream.Scheme, apiv2.SchemeHTTP)
 		upstreams = append(upstreams, upstream)
 	}
 
@@ -264,6 +266,7 @@ func (t *Translator) buildUpstream(tctx *provider.TranslateContext, service *adc
 		upstreamName := adc.ComposeExternalUpstreamName(upsNN.Namespace, upsNN.Name)
 		upstream.Name = upstreamName
 		upstream.ID = id.GenID(upstreamName)
+		upstream.Scheme = cmp.Or(upstream.Scheme, apiv2.SchemeHTTP)
 		upstreams = append(upstreams, upstream)
 	}
 
@@ -405,7 +408,7 @@ func (t *Translator) translateApisixRouteBackendResolveGranularityEndpoint(tctx 
 	backendRef := gatewayv1.BackendRef{
 		BackendObjectReference: gatewayv1.BackendObjectReference{
 			Group:     (*gatewayv1.Group)(&apiv2.GroupVersion.Group),
-			Kind:      (*gatewayv1.Kind)(ptr.To("Service")),
+			Kind:      (*gatewayv1.Kind)(ptr.To(internaltypes.KindService)),
 			Name:      gatewayv1.ObjectName(backend.ServiceName),
 			Namespace: (*gatewayv1.Namespace)(&arNN.Namespace),
 			Port:      (*gatewayv1.PortNumber)(&port),

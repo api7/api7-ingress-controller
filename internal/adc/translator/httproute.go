@@ -18,6 +18,7 @@
 package translator
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -37,6 +38,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 	"github.com/apache/apisix-ingress-controller/internal/id"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	internaltypes "github.com/apache/apisix-ingress-controller/internal/types"
 )
 
 func (t *Translator) fillPluginsFromHTTPRouteFilters(
@@ -53,7 +55,7 @@ func (t *Translator) fillPluginsFromHTTPRouteFilters(
 		case gatewayv1.HTTPRouteFilterRequestRedirect:
 			t.fillPluginFromHTTPRequestRedirectFilter(plugins, filter.RequestRedirect)
 		case gatewayv1.HTTPRouteFilterRequestMirror:
-			t.fillPluginFromHTTPRequestMirrorFilter(plugins, namespace, filter.RequestMirror)
+			t.fillPluginFromHTTPRequestMirrorFilter(plugins, namespace, filter.RequestMirror, apiv2.SchemeHTTP)
 		case gatewayv1.HTTPRouteFilterURLRewrite:
 			t.fillPluginFromURLRewriteFilter(plugins, filter.URLRewrite, matches)
 		case gatewayv1.HTTPRouteFilterResponseHeaderModifier:
@@ -70,7 +72,7 @@ func (t *Translator) fillPluginFromExtensionRef(plugins adctypes.Plugins, namesp
 	if extensionRef == nil {
 		return
 	}
-	if extensionRef.Kind == "PluginConfig" {
+	if extensionRef.Kind == internaltypes.KindPluginConfig {
 		pluginconfig := tctx.PluginConfigs[types.NamespacedName{
 			Namespace: namespace,
 			Name:      string(extensionRef.Name),
@@ -231,7 +233,7 @@ func (t *Translator) fillPluginFromHTTPResponseHeaderFilter(plugins adctypes.Plu
 	plugin.Headers.Remove = append(plugin.Headers.Remove, respHeaderModifier.Remove...)
 }
 
-func (t *Translator) fillPluginFromHTTPRequestMirrorFilter(plugins adctypes.Plugins, namespace string, reqMirror *gatewayv1.HTTPRequestMirrorFilter) {
+func (t *Translator) fillPluginFromHTTPRequestMirrorFilter(plugins adctypes.Plugins, namespace string, reqMirror *gatewayv1.HTTPRequestMirrorFilter, scheme string) {
 	pluginName := adctypes.PluginProxyMirror
 	obj := plugins[pluginName]
 
@@ -254,7 +256,7 @@ func (t *Translator) fillPluginFromHTTPRequestMirrorFilter(plugins adctypes.Plug
 		ns = string(*reqMirror.BackendRef.Namespace)
 	}
 
-	host := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", reqMirror.BackendRef.Name, ns, port)
+	host := fmt.Sprintf("%s://%s.%s.svc.cluster.local:%d", scheme, reqMirror.BackendRef.Name, ns, port)
 
 	plugin.Host = host
 }
@@ -300,7 +302,7 @@ func (t *Translator) fillHTTPRoutePoliciesForHTTPRoute(tctx *provider.TranslateC
 	var policies []v1alpha1.HTTPRoutePolicy
 	for _, policy := range tctx.HTTPRoutePolicies {
 		for _, ref := range policy.Spec.TargetRefs {
-			if string(ref.Kind) == "HTTPRoute" && (ref.SectionName == nil || *ref.SectionName == "" || ptr.Equal(ref.SectionName, rule.Name)) {
+			if string(ref.Kind) == internaltypes.KindHTTPRoute && (ref.SectionName == nil || *ref.SectionName == "" || ptr.Equal(ref.SectionName, rule.Name)) {
 				policies = append(policies, policy)
 				break
 			}
@@ -376,7 +378,7 @@ func (t *Translator) TranslateBackendRefWithFilter(tctx *provider.TranslateConte
 }
 
 func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref gatewayv1.BackendRef, endpointFilter func(*discoveryv1.Endpoint) bool) (adctypes.UpstreamNodes, error) {
-	if ref.Kind != nil && *ref.Kind != "Service" {
+	if ref.Kind != nil && *ref.Kind != internaltypes.KindService {
 		return adctypes.UpstreamNodes{}, fmt.Errorf("kind %s is not supported", *ref.Kind)
 	}
 
@@ -549,7 +551,7 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 				port int32
 			)
 			if backend.Kind == nil {
-				kind = "Service"
+				kind = internaltypes.KindService
 			} else {
 				kind = string(*backend.Kind)
 			}
@@ -560,6 +562,7 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 			name := string(backend.Name)
 			upstreamName := adctypes.ComposeUpstreamNameForBackendRef(kind, namespace, name, port)
 			upstream.Name = upstreamName
+			upstream.Scheme = cmp.Or(upstream.Scheme, apiv2.SchemeHTTP)
 			upstream.ID = id.GenID(upstreamName)
 			upstreams = append(upstreams, upstream)
 		}
@@ -721,36 +724,10 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 
 	if len(match.Headers) > 0 {
 		for _, header := range match.Headers {
-			name := strings.ToLower(string(header.Name))
-			name = strings.ReplaceAll(name, "-", "_")
-
-			var this []adctypes.StringOrSlice
-			this = append(this, adctypes.StringOrSlice{
-				StrVal: "http_" + name,
-			})
-
-			matchType := gatewayv1.HeaderMatchExact
-			if header.Type != nil {
-				matchType = *header.Type
+			this, err := t.translateHTTPRouteHeaderMatchToVars(header)
+			if err != nil {
+				return nil, err
 			}
-
-			switch matchType {
-			case gatewayv1.HeaderMatchExact:
-				this = append(this, adctypes.StringOrSlice{
-					StrVal: "==",
-				})
-			case gatewayv1.HeaderMatchRegularExpression:
-				this = append(this, adctypes.StringOrSlice{
-					StrVal: "~~",
-				})
-			default:
-				return nil, errors.New("unknown header match type " + string(matchType))
-			}
-
-			this = append(this, adctypes.StringOrSlice{
-				StrVal: header.Value,
-			})
-
 			route.Vars = append(route.Vars, this)
 		}
 	}
@@ -795,4 +772,40 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 	}
 
 	return route, nil
+}
+
+func HeaderMatchToVars(matchType, name, value string) ([]adctypes.StringOrSlice, error) {
+	name = strings.ToLower(name)
+	name = strings.ReplaceAll(name, "-", "_")
+
+	var this []adctypes.StringOrSlice
+	this = append(this, adctypes.StringOrSlice{
+		StrVal: "http_" + name,
+	})
+
+	switch matchType {
+	case string(gatewayv1.HeaderMatchExact):
+		this = append(this, adctypes.StringOrSlice{
+			StrVal: "==",
+		})
+	case string(gatewayv1.HeaderMatchRegularExpression):
+		this = append(this, adctypes.StringOrSlice{
+			StrVal: "~~",
+		})
+	default:
+		return nil, errors.New("unknown header match type " + matchType)
+	}
+
+	this = append(this, adctypes.StringOrSlice{
+		StrVal: value,
+	})
+	return this, nil
+}
+
+func (t *Translator) translateHTTPRouteHeaderMatchToVars(header gatewayv1.HTTPHeaderMatch) ([]adctypes.StringOrSlice, error) {
+	var matchType string
+	if header.Type != nil {
+		matchType = string(*header.Type)
+	}
+	return HeaderMatchToVars(matchType, string(header.Name), header.Value)
 }

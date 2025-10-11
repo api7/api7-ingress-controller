@@ -32,7 +32,7 @@ import (
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
-	intypes "github.com/apache/apisix-ingress-controller/internal/types"
+	internaltypes "github.com/apache/apisix-ingress-controller/internal/types"
 	k8sutils "github.com/apache/apisix-ingress-controller/internal/utils"
 	"github.com/apache/apisix-ingress-controller/pkg/utils"
 )
@@ -61,6 +61,7 @@ func SetupIndexer(mgr ctrl.Manager) error {
 	for resource, setup := range map[client.Object]func(ctrl.Manager) error{
 		&gatewayv1.Gateway{}:              setupGatewayIndexer,
 		&gatewayv1.HTTPRoute{}:            setupHTTPRouteIndexer,
+		&gatewayv1.GRPCRoute{}:            setupGRPCRouteIndexer,
 		&gatewayv1.GatewayClass{}:         setupGatewayClassIndexer,
 		&v1alpha1.Consumer{}:              setupConsumerIndexer,
 		&networkingv1.Ingress{}:           setupIngressIndexer,
@@ -492,7 +493,7 @@ func GatewaySecretIndexFunc(rawObj client.Object) (keys []string) {
 			continue
 		}
 		for _, ref := range listener.TLS.CertificateRefs {
-			if ref.Kind == nil || *ref.Kind != "Secret" {
+			if ref.Kind == nil || *ref.Kind != internaltypes.KindSecret {
 				continue
 			}
 			namespace := gateway.GetNamespace()
@@ -547,7 +548,7 @@ func HTTPRouteServiceIndexFunc(rawObj client.Object) []string {
 	for _, rule := range hr.Spec.Rules {
 		for _, backend := range rule.BackendRefs {
 			namespace := hr.GetNamespace()
-			if backend.Kind != nil && *backend.Kind != "Service" {
+			if backend.Kind != nil && *backend.Kind != internaltypes.KindService {
 				continue
 			}
 			if backend.Namespace != nil {
@@ -681,7 +682,7 @@ func HTTPRouteExtensionIndexFunc(rawObj client.Object) []string {
 			if filter.Type != gatewayv1.HTTPRouteFilterExtensionRef || filter.ExtensionRef == nil {
 				continue
 			}
-			if filter.ExtensionRef.Kind == "PluginConfig" {
+			if filter.ExtensionRef.Kind == internaltypes.KindPluginConfig {
 				keys = append(keys, GenIndexKey(hr.GetNamespace(), string(filter.ExtensionRef.Name)))
 			}
 		}
@@ -707,7 +708,7 @@ func GatewayParametersRefIndexFunc(rawObj client.Object) []string {
 	gw := rawObj.(*gatewayv1.Gateway)
 	if gw.Spec.Infrastructure != nil && gw.Spec.Infrastructure.ParametersRef != nil {
 		// now we only care about kind: GatewayProxy
-		if gw.Spec.Infrastructure.ParametersRef.Kind == intypes.KindGatewayProxy {
+		if gw.Spec.Infrastructure.ParametersRef.Kind == internaltypes.KindGatewayProxy {
 			name := gw.Spec.Infrastructure.ParametersRef.Name
 			return []string{GenIndexKey(gw.GetNamespace(), name)}
 		}
@@ -737,7 +738,7 @@ func IngressClassParametersRefIndexFunc(rawObj client.Object) []string {
 	if ingressClass.Spec.Parameters != nil &&
 		ingressClass.Spec.Parameters.APIGroup != nil &&
 		*ingressClass.Spec.Parameters.APIGroup == v1alpha1.GroupVersion.Group &&
-		ingressClass.Spec.Parameters.Kind == intypes.KindGatewayProxy {
+		ingressClass.Spec.Parameters.Kind == internaltypes.KindGatewayProxy {
 		namespace := k8sutils.GetIngressClassParametersNamespace(*ingressClass)
 		return []string{GenIndexKey(namespace, ingressClass.Spec.Parameters.Name)}
 	}
@@ -750,7 +751,7 @@ func IngressClassV1beta1ParametersRefIndexFunc(rawObj client.Object) []string {
 	if ingressClass.Spec.Parameters != nil &&
 		ingressClass.Spec.Parameters.APIGroup != nil &&
 		*ingressClass.Spec.Parameters.APIGroup == v1alpha1.GroupVersion.Group &&
-		ingressClass.Spec.Parameters.Kind == intypes.KindGatewayProxy {
+		ingressClass.Spec.Parameters.Kind == internaltypes.KindGatewayProxy {
 		namespace := k8sutils.GetIngressClassV1beta1ParametersNamespace(*ingressClass)
 		return []string{GenIndexKey(namespace, ingressClass.Spec.Parameters.Name)}
 	}
