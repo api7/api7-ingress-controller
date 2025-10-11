@@ -220,7 +220,7 @@ func TestGatewayProxyValidator_DetectsServiceConflict(t *testing.T) {
 	require.Len(t, warnings, 0)
 	require.Contains(t, err.Error(), "gateway proxy configuration conflict")
 	require.Contains(t, err.Error(), "Service default/control-plane port 9180")
-	require.Contains(t, err.Error(), "AdminKey secret default/admin-key key token")
+	require.Contains(t, err.Error(), "AdminKey secret default/admin-key:token")
 }
 
 func TestGatewayProxyValidator_DetectsEndpointConflict(t *testing.T) {
@@ -243,7 +243,7 @@ func TestGatewayProxyValidator_DetectsEndpointConflict(t *testing.T) {
 	require.Len(t, warnings, 0)
 	require.Contains(t, err.Error(), "gateway proxy configuration conflict")
 	require.Contains(t, err.Error(), "endpoints [https://10.0.0.1:9443, https://127.0.0.1:9443]")
-	require.Contains(t, err.Error(), "AdminKey secret default/admin-key key token")
+	require.Contains(t, err.Error(), "AdminKey secret default/admin-key:token")
 }
 
 func TestGatewayProxyValidator_AllowsDistinctGatewayGroups(t *testing.T) {

@@ -153,7 +153,7 @@ func (v *GatewayProxyCustomValidator) validateGatewayProxyConflict(ctx context.C
 				gp.GetNamespace(), gp.GetName(),
 				other.GetNamespace(), other.GetName(),
 				current.serviceDescription,
-				current.adminKeyDescription,
+				current.adminKeyDetail(),
 			)
 		}
 		if len(current.endpoints) > 0 && len(otherConfig.endpoints) > 0 {
@@ -162,7 +162,7 @@ func (v *GatewayProxyCustomValidator) validateGatewayProxyConflict(ctx context.C
 					gp.GetNamespace(), gp.GetName(),
 					other.GetNamespace(), other.GetName(),
 					strings.Join(overlap, ", "),
-					current.adminKeyDescription,
+					current.adminKeyDetail(),
 				)
 			}
 		}
@@ -172,11 +172,11 @@ func (v *GatewayProxyCustomValidator) validateGatewayProxyConflict(ctx context.C
 }
 
 type gatewayProxyConfig struct {
-	adminKeyKey         string
-	adminKeyDescription string
-	serviceKey          string
-	serviceDescription  string
-	endpoints           map[string]struct{}
+	adminKeyKey        string
+	secretKey          string
+	serviceKey         string
+	serviceDescription string
+	endpoints          map[string]struct{}
 }
 
 func buildGatewayProxyConfig(gp *v1alpha1.GatewayProxy) gatewayProxyConfig {
@@ -191,11 +191,10 @@ func buildGatewayProxyConfig(gp *v1alpha1.GatewayProxy) gatewayProxyConfig {
 	if cp.Auth.AdminKey != nil {
 		if value := strings.TrimSpace(cp.Auth.AdminKey.Value); value != "" {
 			cfg.adminKeyKey = "value:" + value
-			cfg.adminKeyDescription = "the same inline AdminKey value"
 		} else if cp.Auth.AdminKey.ValueFrom != nil && cp.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
 			ref := cp.Auth.AdminKey.ValueFrom.SecretKeyRef
 			cfg.adminKeyKey = fmt.Sprintf("secret:%s/%s:%s", gp.GetNamespace(), ref.Name, ref.Key)
-			cfg.adminKeyDescription = fmt.Sprintf("AdminKey secret %s/%s key %s", gp.GetNamespace(), ref.Name, ref.Key)
+			cfg.secretKey = fmt.Sprintf("%s/%s:%s", gp.GetNamespace(), ref.Name, ref.Key)
 		}
 	}
 
@@ -212,6 +211,13 @@ func buildGatewayProxyConfig(gp *v1alpha1.GatewayProxy) gatewayProxyConfig {
 	}
 
 	return cfg
+}
+
+func (c gatewayProxyConfig) adminKeyDetail() string {
+	if c.secretKey != "" {
+		return fmt.Sprintf("AdminKey secret %s", c.secretKey)
+	}
+	return "the same inline AdminKey value"
 }
 
 func (c gatewayProxyConfig) readyForConflict() bool {
