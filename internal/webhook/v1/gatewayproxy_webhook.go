@@ -145,7 +145,7 @@ func (v *GatewayProxyCustomValidator) validateGatewayProxyConflict(ctx context.C
 		if !otherConfig.readyForConflict() {
 			continue
 		}
-		if current.adminKeyKey != otherConfig.adminKeyKey {
+		if !current.sharesAdminKeyWith(otherConfig) {
 			continue
 		}
 		if current.serviceKey != "" && current.serviceKey == otherConfig.serviceKey {
@@ -172,7 +172,7 @@ func (v *GatewayProxyCustomValidator) validateGatewayProxyConflict(ctx context.C
 }
 
 type gatewayProxyConfig struct {
-	adminKeyKey        string
+	inlineAdminKey     string
 	secretKey          string
 	serviceKey         string
 	serviceDescription string
@@ -190,10 +190,9 @@ func buildGatewayProxyConfig(gp *v1alpha1.GatewayProxy) gatewayProxyConfig {
 
 	if cp.Auth.AdminKey != nil {
 		if value := strings.TrimSpace(cp.Auth.AdminKey.Value); value != "" {
-			cfg.adminKeyKey = "value:" + value
+			cfg.inlineAdminKey = value
 		} else if cp.Auth.AdminKey.ValueFrom != nil && cp.Auth.AdminKey.ValueFrom.SecretKeyRef != nil {
 			ref := cp.Auth.AdminKey.ValueFrom.SecretKeyRef
-			cfg.adminKeyKey = fmt.Sprintf("secret:%s/%s:%s", gp.GetNamespace(), ref.Name, ref.Key)
 			cfg.secretKey = fmt.Sprintf("%s/%s:%s", gp.GetNamespace(), ref.Name, ref.Key)
 		}
 	}
@@ -220,8 +219,18 @@ func (c gatewayProxyConfig) adminKeyDetail() string {
 	return "the same inline AdminKey value"
 }
 
+func (c gatewayProxyConfig) sharesAdminKeyWith(other gatewayProxyConfig) bool {
+	if c.inlineAdminKey != "" && other.inlineAdminKey != "" {
+		return c.inlineAdminKey == other.inlineAdminKey
+	}
+	if c.secretKey != "" && other.secretKey != "" {
+		return c.secretKey == other.secretKey
+	}
+	return false
+}
+
 func (c gatewayProxyConfig) readyForConflict() bool {
-	if c.adminKeyKey == "" {
+	if c.inlineAdminKey == "" && c.secretKey == "" {
 		return false
 	}
 	return c.serviceKey != "" || len(c.endpoints) > 0
