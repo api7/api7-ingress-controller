@@ -67,6 +67,7 @@ func SetupIndexer(mgr ctrl.Manager) error {
 			&gatewayv1.GRPCRoute{}:      setupGRPCRouteIndexer,
 			&gatewayv1alpha2.TCPRoute{}: setupTCPRouteIndexer,
 			&gatewayv1alpha2.UDPRoute{}: setupUDPRouteIndexer,
+			&gatewayv1alpha2.TLSRoute{}: setupTLSRouteIndexer,
 			&gatewayv1.GatewayClass{}:   setupGatewayClassIndexer,
 			&v1alpha1.Consumer{}:        setupConsumerIndexer,
 		} {
