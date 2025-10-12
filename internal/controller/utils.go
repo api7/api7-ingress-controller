@@ -505,6 +505,8 @@ func routeHostnamesIntersectsWithListenerHostname(route client.Object, listener 
 		return listenerHostnameIntersectWithRouteHostnames(listener, r.Spec.Hostnames)
 	case *gatewayv1.GRPCRoute:
 		return listenerHostnameIntersectWithRouteHostnames(listener, r.Spec.Hostnames)
+	case *gatewayv1alpha2.TLSRoute:
+		return listenerHostnameIntersectWithRouteHostnames(listener, r.Spec.Hostnames)
 	default:
 		return false
 	}
@@ -669,6 +671,21 @@ func routeMatchesListenerType(route client.Object, listener gatewayv1.Listener) 
 				return false
 			}
 		}
+<<<<<<< HEAD
+=======
+	case *gatewayv1alpha2.TCPRoute:
+		if listener.Protocol != gatewayv1.TCPProtocolType {
+			return false
+		}
+	case *gatewayv1alpha2.UDPRoute:
+		if listener.Protocol != gatewayv1.UDPProtocolType {
+			return false
+		}
+	case *gatewayv1alpha2.TLSRoute:
+		if listener.Protocol != gatewayv1.TLSProtocolType {
+			return false
+		}
+>>>>>>> 1afb9ace (feat(gateway-api): support TLSRoute (#2594))
 	default:
 		return false
 	}

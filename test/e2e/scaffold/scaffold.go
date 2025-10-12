@@ -85,7 +85,11 @@ type Tunnels struct {
 	HTTP  *k8s.Tunnel
 	HTTPS *k8s.Tunnel
 	TCP   *k8s.Tunnel
+<<<<<<< HEAD
 	HTTP2 *k8s.Tunnel
+=======
+	TLS   *k8s.Tunnel
+>>>>>>> 1afb9ace (feat(gateway-api): support TLSRoute (#2594))
 }
 
 func (t *Tunnels) Close() {
@@ -101,9 +105,15 @@ func (t *Tunnels) Close() {
 		t.safeClose(t.TCP.Close)
 		t.TCP = nil
 	}
+<<<<<<< HEAD
 	if t.HTTP2 != nil {
 		t.safeClose(t.HTTP2.Close)
 		t.HTTP2 = nil
+=======
+	if t.TLS != nil {
+		t.safeClose(t.TLS.Close)
+		t.TLS = nil
+>>>>>>> 1afb9ace (feat(gateway-api): support TLSRoute (#2594))
 	}
 }
 
@@ -265,6 +275,31 @@ func (s *Scaffold) NewAPISIXClientWithTCPProxy() *httpexpect.Expect {
 	})
 }
 
+func (s *Scaffold) NewAPISIXClientWithTLSProxy(host string) *httpexpect.Expect {
+	u := url.URL{
+		Scheme: apiv2.SchemeHTTPS,
+		Host:   s.apisixTunnels.TLS.Endpoint(),
+	}
+	return httpexpect.WithConfig(httpexpect.Config{
+		BaseURL: u.String(),
+		Client: &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					// accept any certificate; for testing only!
+					InsecureSkipVerify: true,
+					ServerName:         host,
+				},
+			},
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
+		Reporter: httpexpect.NewAssertReporter(
+			httpexpect.NewAssertReporter(s.GinkgoT),
+		),
+	})
+}
+
 func (s *Scaffold) DefaultDataplaneResource() DataplaneResource {
 	return s.Deployer.DefaultDataplaneResource()
 }
@@ -354,7 +389,11 @@ func (s *Scaffold) createDataplaneTunnels(
 		httpPort  int
 		httpsPort int
 		tcpPort   int
+<<<<<<< HEAD
 		http2Port int
+=======
+		tlsPort   int
+>>>>>>> 1afb9ace (feat(gateway-api): support TLSRoute (#2594))
 	)
 
 	for _, port := range svc.Spec.Ports {
@@ -365,8 +404,13 @@ func (s *Scaffold) createDataplaneTunnels(
 			httpsPort = int(port.Port)
 		case apiv2.SchemeTCP:
 			tcpPort = int(port.Port)
+<<<<<<< HEAD
 		case "http2":
 			http2Port = int(port.Port)
+=======
+		case apiv2.SchemeTLS:
+			tlsPort = int(port.Port)
+>>>>>>> 1afb9ace (feat(gateway-api): support TLSRoute (#2594))
 		}
 	}
 
@@ -379,8 +423,13 @@ func (s *Scaffold) createDataplaneTunnels(
 		0, httpsPort)
 	tcpTunnel := k8s.NewTunnel(kubectlOpts, k8s.ResourceTypeService, serviceName,
 		0, tcpPort)
+<<<<<<< HEAD
 	http2Tunnel := k8s.NewTunnel(kubectlOpts, k8s.ResourceTypeService, serviceName,
 		0, http2Port)
+=======
+	tlsTunnel := k8s.NewTunnel(kubectlOpts, k8s.ResourceTypeService, serviceName,
+		0, tlsPort)
+>>>>>>> 1afb9ace (feat(gateway-api): support TLSRoute (#2594))
 
 	if err := httpTunnel.ForwardPortE(s.t); err != nil {
 		return nil, err
@@ -396,6 +445,10 @@ func (s *Scaffold) createDataplaneTunnels(
 		return nil, err
 	}
 	tunnels.TCP = tcpTunnel
+	if err := tlsTunnel.ForwardPortE(s.t); err != nil {
+		return nil, err
+	}
+	tunnels.TLS = tlsTunnel
 
 	if http2Port != 0 {
 		if err := http2Tunnel.ForwardPortE(s.t); err != nil {

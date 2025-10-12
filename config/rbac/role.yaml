@@ -93,6 +93,12 @@ rules:
   - grpcroutes/status
   - httproutes/status
   - referencegrants/status
+<<<<<<< HEAD
+=======
+  - tcproutes/status
+  - tlsroutes/status
+  - udproutes/status
+>>>>>>> 1afb9ace (feat(gateway-api): support TLSRoute (#2594))
   verbs:
   - get
   - update
@@ -103,6 +109,12 @@ rules:
   - grpcroutes
   - httproutes
   - referencegrants
+<<<<<<< HEAD
+=======
+  - tcproutes
+  - tlsroutes
+  - udproutes
+>>>>>>> 1afb9ace (feat(gateway-api): support TLSRoute (#2594))
   verbs:
   - get
   - list
