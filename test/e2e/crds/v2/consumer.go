@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -591,9 +592,10 @@ spec:
 	Context("Test LDAPAuth", func() {
 		getLDAPServerURL := func() (string, error) {
 			wd, _ := os.Getwd()
-			cmd := exec.Command("sh", "../testdata/ldap/cmd.sh", "ip")
+			path := filepath.Join(wd, "testdata", "ldap", "cmd.sh")
+			cmd := exec.Command("sh", path, "ip")
 			ip, err := cmd.Output()
-			errr := fmt.Sprintf("cd %s/testdata/ldap && sh cmd.sh ip failed", wd)
+			errr := fmt.Sprintf("%s failed", path)
 			if err != nil {
 				return "", fmt.Errorf(errr+" : %v", err)
 			}
