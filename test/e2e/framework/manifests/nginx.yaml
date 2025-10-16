@@ -35,6 +35,39 @@ data:
         location / {
           return 200 'Hello, World!';
         }
+
+        location /ws {
+          content_by_lua_block {
+            local server = require "resty.websocket.server"
+            local wb, err = server:new {
+              timeout = 5000,          -- 5 seconds timeout
+              max_payload_len = 65535  -- max message length
+            }
+            if not wb then
+              ngx.log(ngx.ERR, "failed to create websocket: ", err)
+              return ngx.exit(444)
+            end
+
+            while true do
+              local data, typ, err = wb:recv_frame()
+              if wb.fatal then
+                ngx.log(ngx.ERR, "failed to receive frame: ", err)
+                break
+              end
+
+              if typ == "close" then
+                wb:send_close()
+                break
+              elseif typ == "text" then
+                wb:send_text(data)   -- echo text
+              elseif typ == "binary" then
+                wb:send_binary(data) -- echo binary
+              elseif typ == "ping" then
+                wb:send_pong()
+              end
+            end
+          }
+        }
       }
     }
 
@@ -67,7 +100,7 @@ spec:
               path: /healthz
               port: 80
             timeoutSeconds: 2
-          image: "nginx:1.21.4"
+          image: "openresty/openresty:1.27.1.2-4-bullseye-fat"
           imagePullPolicy: IfNotPresent
           name: nginx
           ports:
@@ -75,7 +108,7 @@ spec:
               name: "http"
               protocol: "TCP"
           volumeMounts:
-            - mountPath: /etc/nginx/nginx.conf
+            - mountPath: /usr/local/openresty/nginx/conf/nginx.conf
               name: nginx-config
               subPath: nginx.conf
 ---
@@ -91,4 +124,40 @@ spec:
       port: 80
       protocol: TCP
       targetPort: 80
+<<<<<<< HEAD
+=======
+    - name: https
+      port: 443
+      protocol: TCP
+      targetPort: 443
+      appProtocol: https
+    - name: ws
+      port: 8080
+      protocol: TCP
+      targetPort: 80
+      appProtocol: kubernetes.io/ws
+    - name: wss
+      port: 8443
+      protocol: TCP
+      targetPort: 443
+      appProtocol: kubernetes.io/wss
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx2
+spec:
+  selector:
+    app: nginx
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 80
+    - name: https
+      port: 443
+      protocol: TCP
+      targetPort: 443
+>>>>>>> f28b3429 (feat: support resolve svc.ports[].appProtocol (#2601))
   type: ClusterIP
