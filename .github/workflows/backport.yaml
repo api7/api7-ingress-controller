@@ -1,11 +1,8 @@
 name: Auto Backport from Upstream
 
 on:
-  # schedule:
-  #   - cron: "*/30 * * * *"
-  push:
-    branches:
-      - feat/add_backport_ci
+  schedule:
+    - cron: "*/30 * * * *"
   workflow_dispatch:
     inputs:
       force_sync:
@@ -108,8 +105,8 @@ jobs:
 
       - name: Process commits
         if: steps.collect_commits.outputs.count != '0'
-        # env:
-        #   GH_TOKEN: ${{ github.token }}
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           chmod +x .github/scripts/backport-commit.sh
           SUCCESS=0
