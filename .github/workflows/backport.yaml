@@ -12,10 +12,6 @@ on:
         description: "Force sync all recent commits (ignores watermark)"
         required: false
         default: "false"
-      dry_run:
-        description: "List planned actions only (no pushes or PRs)"
-        required: false
-        default: "false"
 
 concurrency:
   group: auto-backport
@@ -40,7 +36,6 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.BACKPORT_PAT }}
       GITHUB_REPOSITORY: ${{ github.repository }}
-      DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
       FORCE_SYNC: ${{ github.event.inputs.force_sync || 'false' }}
 
     steps:
@@ -52,7 +47,6 @@ jobs:
 
       - name: Show run configuration
         run: |
-          echo "Dry run: $DRY_RUN"
           echo "Force sync: $FORCE_SYNC"
           echo "Source repo: $SOURCE_REPO"
           echo "Source branch: $SOURCE_BRANCH"
@@ -105,7 +99,6 @@ jobs:
           echo "Commits to process: ${COUNT}"
 
       - name: Ensure labels exist
-        if: env.DRY_RUN != 'true'
         run: |
           gh label create backport --color EDEDED --description "Automated backport" -R "${GITHUB_REPOSITORY}" 2>/dev/null || true
           gh label create automated --color EDEDED --description "Created by automation" -R "${GITHUB_REPOSITORY}" 2>/dev/null || true
@@ -113,28 +106,8 @@ jobs:
           gh label create needs-manual-action --color FBCA04 --description "Manual intervention required" -R "${GITHUB_REPOSITORY}" 2>/dev/null || true
           gh label create conflicts --color D93F0B --description "Contains merge conflicts" -R "${GITHUB_REPOSITORY}" 2>/dev/null || true
 
-      - name: Process commits (dry run)
-        if: env.DRY_RUN == 'true' && steps.collect_commits.outputs.count != '0'
-        run: |
-          chmod +x .github/scripts/dry-run-test.sh
-          SUCCESS=0
-          FAILURE=0
-          LAST_PROCESSED=""
-          while IFS= read -r COMMIT; do
-            [[ -z "$COMMIT" ]] && continue
-            if .github/scripts/dry-run-test.sh "$COMMIT"; then
-              SUCCESS=$((SUCCESS + 1))
-              LAST_PROCESSED="$COMMIT"
-            else
-              FAILURE=$((FAILURE + 1))
-            fi
-          done <<< "${{ steps.collect_commits.outputs.commits }}"
-          echo "SUCCESS_COUNT=$SUCCESS" >> "$GITHUB_ENV"
-          echo "FAILURE_COUNT=$FAILURE" >> "$GITHUB_ENV"
-          echo "LAST_PROCESSED_SHA=$LAST_PROCESSED" >> "$GITHUB_ENV"
-
       - name: Process commits
-        if: env.DRY_RUN != 'true' && steps.collect_commits.outputs.count != '0'
+        if: steps.collect_commits.outputs.count != '0'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -157,7 +130,7 @@ jobs:
           echo "LAST_PROCESSED_SHA=$LAST_PROCESSED" >> "$GITHUB_ENV"
 
       - name: Update watermark
-        if: env.DRY_RUN != 'true' && env.LAST_PROCESSED_SHA != ''
+        if: env.LAST_PROCESSED_SHA != ''
         run: |
           if [[ "${FAILURE_COUNT:-0}" == "0" ]]; then
             gh variable set LAST_BACKPORT_SHA -b "${LAST_PROCESSED_SHA}" -R "${GITHUB_REPOSITORY}"
@@ -176,6 +149,5 @@ jobs:
             echo "- Successful: ${SUCCESS_COUNT:-0}"
             echo "- Failed: ${FAILURE_COUNT:-0}"
             echo "- Last processed: ${LAST_PROCESSED_SHA:-none}"
-            echo "- Dry run: ${DRY_RUN}"
             echo "- Force sync: ${FORCE_SYNC}"
           } >> "$GITHUB_STEP_SUMMARY"
