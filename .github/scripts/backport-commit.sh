@@ -89,8 +89,7 @@ BRANCH_NAME="backport/${SHORT_SHA}-to-${TARGET_BRANCH}"
 
 echo -e "${YELLOW}Generated branch name: ${BRANCH_NAME}${NC}"
 
-SEARCH_QUERY="${COMMIT_URL} in:body"
-EXISTING_PR="$(gh pr list --state all --search "$SEARCH_QUERY" --json url --jq '.[0].url' 2>/dev/null || true)"
+EXISTING_PR="$(gh pr list --state all --head "$BRANCH_NAME" --json url --jq '.[0].url' 2>/dev/null || true)"
 if [[ -n "$EXISTING_PR" ]]; then
   echo -e "${GREEN}PR already exists: ${EXISTING_PR}. Skipping duplicate.${NC}"
   exit 0
@@ -144,6 +143,8 @@ echo -e "${YELLOW}Creating pull request...${NC}"
 if [[ "$HAS_CONFLICTS" == "true" ]]; then
   PR_TITLE="conflict: ${COMMIT_TITLE}${TITLE_SUFFIX}"
   PR_BODY=$(cat <<EOF
+<!-- backport:${COMMIT_SHA} -->
+
 ## ⚠️ Backport With Conflicts
 
 - Upstream commit: ${COMMIT_URL}
@@ -164,6 +165,8 @@ EOF
 else
   PR_TITLE="${COMMIT_TITLE}${TITLE_SUFFIX}"
   PR_BODY=$(cat <<EOF
+<!-- backport:${COMMIT_SHA} -->
+
 ## 🔄 Automated Backport
 
 - Upstream commit: ${COMMIT_URL}
