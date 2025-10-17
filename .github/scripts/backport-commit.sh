@@ -52,6 +52,22 @@ fi
 
 echo -e "${YELLOW}Backporting commit ${COMMIT_SHA} from ${SOURCE_REPO}${NC}"
 
+ORIGINAL_REF=""
+ORIGINAL_COMMIT=""
+if ORIGINAL_REF=$(git symbolic-ref --quiet HEAD 2>/dev/null); then
+  ORIGINAL_REF=${ORIGINAL_REF#refs/heads/}
+else
+  ORIGINAL_COMMIT=$(git rev-parse HEAD)
+fi
+
+restore_original_ref() {
+  if [[ -n "$ORIGINAL_REF" ]]; then
+    git checkout "$ORIGINAL_REF" >/dev/null 2>&1 || true
+  elif [[ -n "$ORIGINAL_COMMIT" ]]; then
+    git checkout --detach "$ORIGINAL_COMMIT" >/dev/null 2>&1 || true
+  fi
+}
+
 if ! git cat-file -e "${COMMIT_SHA}^{commit}" 2>/dev/null; then
   die "Commit $COMMIT_SHA is not available locally - fetch upstream before running this script"
 fi
@@ -110,6 +126,7 @@ if ! git push -u origin "$BRANCH_NAME"; then
   git push -u origin "$BRANCH_NAME" --force-with-lease || {
     git checkout "$TARGET_BRANCH"
     git branch -D "$BRANCH_NAME" || true
+    restore_original_ref
     die "Unable to push branch ${BRANCH_NAME}"
   }
 fi
@@ -169,17 +186,18 @@ if [[ $PR_EXIT_CODE -ne 0 ]]; then
   if grep -q "already exists" <<<"$PR_RESPONSE"; then
     echo -e "${YELLOW}Detected existing PR, assuming success.${NC}"
     git checkout "$TARGET_BRANCH"
+    restore_original_ref
     exit 0
   fi
   git checkout "$TARGET_BRANCH"
   git push origin --delete "$BRANCH_NAME" || true
   git branch -D "$BRANCH_NAME" || true
+  restore_original_ref
   die "PR creation failed"
 fi
 
 echo -e "${GREEN}Pull request created successfully:${NC} ${PR_RESPONSE}"
 
-git checkout "$TARGET_BRANCH"
+restore_original_ref
 
 echo -e "${GREEN}Backport finished for ${COMMIT_SHA}.${NC}"
-
