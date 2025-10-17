@@ -91,13 +91,15 @@ jobs:
           else
             COMMITS=$(git log "upstream/${SOURCE_BRANCH}" -1 --format="%H")
           fi
-          echo "commits<<'EOF'" >> "$GITHUB_OUTPUT"
-          echo "$COMMITS" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          {
+            echo "commits<<EOF"
+            printf '%s\n' "$COMMITS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
           if [[ -z "$COMMITS" ]]; then
             COUNT=0
           else
-            COUNT=$(echo "$COMMITS" | wc -l | tr -d '[:space:]')
+            COUNT=$(printf '%s\n' "$COMMITS" | grep -c '[0-9a-f]')
           fi
           echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
           echo "Commits to process: ${COUNT}"
