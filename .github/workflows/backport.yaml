@@ -70,7 +70,7 @@ jobs:
 
       - name: Fetch upstream branch
         run: |
-          git fetch upstream "${SOURCE_BRANCH}" --prune --tags
+          git fetch --prune --no-tags upstream "${SOURCE_BRANCH}"
 
       - name: Read last processed commit watermark
         id: watermark
