@@ -1087,7 +1087,7 @@ values={[
 apiVersion: v1
 kind: Secret
 metadata:
-  namespace: api7
+  namespace: ingress-apisix
   name: test-tls-secret
 type: kubernetes.io/tls
 data:
@@ -1097,7 +1097,7 @@ data:
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  namespace: api7
+  namespace: ingress-apisix
   name: apisix
 spec:
   gatewayClassName: apisix
@@ -1132,7 +1132,7 @@ The `port` in the Gateway listener is required but ignored. This is due to limit
 apiVersion: v1
 kind: Secret
 metadata:
-  namespace: api7
+  namespace: ingress-apisix
   name: test-tls-secret
 type: kubernetes.io/tls
 data:
@@ -1142,7 +1142,7 @@ data:
 apiVersion: apisix.apache.org/v2
 kind: ApisixTls
 metadata:
-  namespace: api7
+  namespace: ingress-apisix
   name: test-tls
 spec:
   ingressClassName: apisix-tls
@@ -1150,7 +1150,7 @@ spec:
   - apisix.test
   secret:
     name: test-tls-secret
-    namespace: api7
+    namespace: ingress-apisix
 ```
 
 </TabItem>
@@ -1179,7 +1179,7 @@ Not supported.
 apiVersion: v1
 kind: Secret
 metadata:
-  namespace: api7
+  namespace: ingress-apisix
   name: test-mtls-secret
 type: kubernetes.io/tls
 data:
@@ -1189,7 +1189,7 @@ data:
 apiVersion: v1
 kind: Secret
 metadata:
-  namespace: api7
+  namespace: ingress-apisix
   name: test-ca-secret
 data:
   cert: <base64-encoded caCert>
@@ -1197,7 +1197,7 @@ data:
 apiVersion: apisix.apache.org/v2
 kind: ApisixTls
 metadata:
-  namespace: api7
+  namespace: ingress-apisix
   name: test-mtls
 spec:
   ingressClassName: apisix-tls
@@ -1205,11 +1205,11 @@ spec:
   - apisix.test
   secret:
     name: test-mtls-secret
-    namespace: api7
+    namespace: ingress-apisix
   client:
     caSecret:
       name: test-ca-secret
-      namespace: api7
+      namespace: ingress-apisix
     depth: 1
 ```
 
