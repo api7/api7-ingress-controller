@@ -52,6 +52,14 @@ spec:
           value: replace-with-your-admin-key
 ```
 
+:::important
+
+All resources within the same gateway group must use the same IngressClass (for Ingress / APISIX CRDs) or Gateway (for Gateway API), each of which points to a single GatewayProxy.
+
+Using multiple GatewayProxy, IngressClass, or Gateway resources for a single gateway group can lead to conflicts and unintended resource overwrites.
+
+:::
+
 ## Define Controller and Gateway
 
 To specify the controller responsible for handling resources before applying further configurations:
@@ -94,7 +102,7 @@ spec:
       name: apisix-config       # 5
 ```
 
-❶ The controllerName field in GatewayClass needs to be customized if you are running multiple distinct instances of the APISIX Ingress Controller in the same cluster (not a single instance with multiple replicas). Each ingress controller instance must use a unique controllerName in its [configuration file](configuration-file.md), and the corresponding GatewayClass should reference that value.
+❶ The controller name should be customized if you are running multiple distinct instances of the APISIX Ingress Controller in the same cluster (not a single instance with multiple replicas). Each ingress controller instance must use a unique controllerName in its [configuration file](configuration-file.md), and the corresponding GatewayClass should reference that value.
 
 ❷ The `port` in the Gateway listener is required but ignored. This is due to limitations in the data plane: it cannot dynamically open new ports. Since the Ingress Controller does not manage the data plane deployment, it cannot automatically update the configuration or restart the data plane to apply port changes.
 
@@ -115,14 +123,24 @@ metadata:
   namespace: ingress-apisix
   name: apisix
 spec:
-  controller: apisix.apache.org/apisix-ingress-controller
+  controller: apisix.apache.org/apisix-ingress-controller    # 1
   parameters:
-    apiGroup: apisix.apache.org
-    kind: GatewayProxy
-    name: apisix-config
-    namespace: ingress-apisix
-    scope: Namespace
+    apiGroup: apisix.apache.org    # 2
+    kind: GatewayProxy             # 3
+    name: apisix-config            # 4
+    namespace: ingress-apisix      # 5
+    scope: Namespace               # 6
 ```
+
+❷ API group of the referenced resource.
+
+❸ Kind of the referenced resource.
+
+❹ Name of the referenced resource. Should match the `metadata.name` of the GatewayProxy resource.
+
+❺ Namespace where the referenced resource is defined.
+
+❻ Scope of the referenced resource.
 
 </TabItem>
 
@@ -135,14 +153,24 @@ metadata:
   namespace: ingress-apisix
   name: apisix
 spec:
-  controller: apisix.apache.org/apisix-ingress-controller
+  controller: apisix.apache.org/apisix-ingress-controller    # 1
   parameters:
-    apiGroup: apisix.apache.org
-    kind: GatewayProxy
-    name: apisix-config
-    namespace: ingress-apisix
-    scope: Namespace
+    apiGroup: apisix.apache.org    # 2
+    kind: GatewayProxy             # 3
+    name: apisix-config            # 4
+    namespace: ingress-apisix      # 5
+    scope: Namespace               # 6
 ```
+
+❷ API group of the referenced resource.
+
+❸ Kind of the referenced resource.
+
+❹ Name of the referenced resource. Should match the `metadata.name` of the GatewayProxy resource.
+
+❺ Namespace where the referenced resource is defined.
+
+❻ Scope of the referenced resource.
 
 </TabItem>
 
@@ -836,6 +864,15 @@ metadata:
   namespace: ingress-apisix
   name: apisix-config
 spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+        - https://xxx.xxx.xxx.xxx:7443  # update with your CP endpoint
+      auth:
+        type: AdminKey
+        adminKey:
+          value: xxxxxxxxxxx            # update with your admin key
   plugins:
   - name: clickhouse-logger
     config:
@@ -894,6 +931,15 @@ metadata:
   namespace: ingress-apisix
   name: apisix-config
 spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+        - https://xxx.xxx.xxx.xxx:7443  # update with your CP endpoint
+      auth:
+        type: AdminKey
+        adminKey:
+          value: xxxxxxxxxxx            # update with your admin key
   pluginMetadata:
     opentelemetry: {
       "trace_id_source": "x-request-id",
@@ -1023,6 +1069,154 @@ spec:
 
 </Tabs>
 
+## Configure Downstream (m)TLS
+
+To configure downstream TLS:
+
+<Tabs
+groupId="k8s-api"
+defaultValue="gateway"
+values={[
+{label: 'Gateway API', value: 'gateway'},
+{label: 'APISIX CRD', value: 'apisix-crd'},
+]}>
+
+<TabItem value="gateway">
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  namespace: api7
+  name: test-tls-secret
+type: kubernetes.io/tls
+data:
+  tls.crt: <base64-encoded cert>
+  tls.key: <base64-encoded key>
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  namespace: api7
+  name: apisix
+spec:
+  gatewayClassName: apisix
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: apisix.test
+      tls:
+        certificateRefs:
+        - kind: Secret
+          group: ""
+          name: test-tls-secret
+  infrastructure:
+    parametersRef:
+      group: apisix.apache.org
+      kind: GatewayProxy
+      name: apisix-proxy-config
+```
+
+:::note
+
+The `port` in the Gateway listener is required but ignored. This is due to limitations in the data plane: it cannot dynamically open new ports. Since the Ingress Controller does not manage the data plane deployment, it cannot automatically update the configuration or restart the data plane to apply port changes.
+
+:::
+
+</TabItem>
+
+<TabItem value="apisix-crd">
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  namespace: api7
+  name: test-tls-secret
+type: kubernetes.io/tls
+data:
+  tls.crt: <base64-encoded cert>
+  tls.key: <base64-encoded key>
+---
+apiVersion: apisix.apache.org/v2
+kind: ApisixTls
+metadata:
+  namespace: api7
+  name: test-tls
+spec:
+  ingressClassName: apisix-tls
+  hosts:
+  - apisix.test
+  secret:
+    name: test-tls-secret
+    namespace: api7
+```
+
+</TabItem>
+
+</Tabs>
+
+To configure downstream mTLS:
+
+<Tabs
+groupId="k8s-api"
+defaultValue="gateway"
+values={[
+{label: 'Gateway API', value: 'gateway'},
+{label: 'APISIX CRD', value: 'apisix-crd'},
+]}>
+
+<TabItem value="gateway">
+
+Not supported.
+
+</TabItem>
+
+<TabItem value="apisix-crd">
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  namespace: api7
+  name: test-mtls-secret
+type: kubernetes.io/tls
+data:
+  tls.crt: <base64-encoded cert>
+  tls.key: <base64-encoded key>
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  namespace: api7
+  name: test-ca-secret
+data:
+  cert: <base64-encoded caCert>
+---
+apiVersion: apisix.apache.org/v2
+kind: ApisixTls
+metadata:
+  namespace: api7
+  name: test-mtls
+spec:
+  ingressClassName: apisix-tls
+  hosts:
+  - apisix.test
+  secret:
+    name: test-mtls-secret
+    namespace: api7
+  client:
+    caSecret:
+      name: test-ca-secret
+      namespace: api7
+    depth: 1
+```
+
+</TabItem>
+
+</Tabs>
+
 ## Configure Gateway Access Information
 
 These configurations allow Ingress Controller users to access the gateway.
@@ -1047,6 +1241,15 @@ metadata:
   namespace: ingress-apisix
   name: apisix-config
 spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+        - https://xxx.xxx.xxx.xxx:7443  # update with your CP endpoint
+      auth:
+        type: AdminKey
+        adminKey:
+          value: xxxxxxxxxxx            # update with your admin key
   statusAddress:
     - 10.24.87.13
 ```
@@ -1066,6 +1269,15 @@ metadata:
   namespace: ingress-apisix
   name: apisix-config
 spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+        - https://xxx.xxx.xxx.xxx:7443  # update with your CP endpoint
+      auth:
+        type: AdminKey
+        adminKey:
+          value: xxxxxxxxxxx            # update with your admin key
   statusAddress:
     - 10.24.87.13
 ```
@@ -1079,6 +1291,15 @@ metadata:
   namespace: ingress-apisix
   name: apisix-config
 spec:
+  provider:
+    type: ControlPlane
+    controlPlane:
+      endpoints:
+        - https://xxx.xxx.xxx.xxx:7443  # update with your CP endpoint
+      auth:
+        type: AdminKey
+        adminKey:
+          value: xxxxxxxxxxx            # update with your admin key
   publishService: apisix-ee-3-gateway-gateway
 ```
 
