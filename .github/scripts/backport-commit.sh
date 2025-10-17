@@ -76,13 +76,21 @@ COMMIT_TITLE="$(git log --format='%s' -n 1 "$COMMIT_SHA")"
 COMMIT_AUTHOR="$(git log --format='%an <%ae>' -n 1 "$COMMIT_SHA")"
 COMMIT_URL="https://github.com/${SOURCE_REPO}/commit/${COMMIT_SHA}"
 SHORT_SHA="${COMMIT_SHA:0:7}"
+if [[ -z "$COMMIT_TITLE" ]]; then
+  COMMIT_TITLE="Backport ${SHORT_SHA} from ${SOURCE_REPO}"
+fi
+TITLE_SUFFIX=" (${SHORT_SHA})"
+if [[ "$COMMIT_TITLE" == *"$SHORT_SHA"* ]]; then
+  TITLE_SUFFIX=""
+fi
 BRANCH_NAME="backport/${SHORT_SHA}-to-${TARGET_BRANCH}"
 
 [[ "$BRANCH_NAME" =~ ^[A-Za-z0-9._/-]+$ ]] || die "Generated branch name is unsafe: $BRANCH_NAME"
 
 echo -e "${YELLOW}Generated branch name: ${BRANCH_NAME}${NC}"
 
-EXISTING_PR="$(gh pr list --state all --search "\"backport ${SHORT_SHA}\" in:title" --json url --jq '.[0].url' 2>/dev/null || true)"
+SEARCH_QUERY="${COMMIT_URL} in:body"
+EXISTING_PR="$(gh pr list --state all --search "$SEARCH_QUERY" --json url --jq '.[0].url' 2>/dev/null || true)"
 if [[ -n "$EXISTING_PR" ]]; then
   echo -e "${GREEN}PR already exists: ${EXISTING_PR}. Skipping duplicate.${NC}"
   exit 0
@@ -134,7 +142,7 @@ fi
 echo -e "${YELLOW}Creating pull request...${NC}"
 
 if [[ "$HAS_CONFLICTS" == "true" ]]; then
-  PR_TITLE="🔥 [CONFLICTS] backport ${SHORT_SHA} from ${SOURCE_REPO}"
+  PR_TITLE="conflict: ${COMMIT_TITLE}${TITLE_SUFFIX}"
   PR_BODY=$(cat <<EOF
 ## ⚠️ Backport With Conflicts
 
@@ -154,7 +162,7 @@ EOF
 )
   LABEL_FLAGS=(--label backport --label automated --label needs-manual-action --label conflicts)
 else
-  PR_TITLE="chore: backport ${SHORT_SHA} from ${SOURCE_REPO}"
+  PR_TITLE="${COMMIT_TITLE}${TITLE_SUFFIX}"
   PR_BODY=$(cat <<EOF
 ## 🔄 Automated Backport
 
