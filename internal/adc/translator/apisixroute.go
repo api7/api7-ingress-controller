@@ -211,7 +211,6 @@ func (t *Translator) buildUpstream(tctx *provider.TranslateContext, service *adc
 	)
 
 	for backendIndex, backend := range rule.Backends {
-		upstream := adc.NewDefaultUpstream()
 		// try to get the apisixupstream with the same name as the backend service to be upstream config.
 		// err is ignored because it does not care about the externalNodes of the apisixupstream.
 		upstream, err := t.translateApisixRouteHTTPBackend(tctx, ar, backend)
