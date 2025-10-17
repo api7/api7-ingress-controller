@@ -158,6 +158,9 @@ rules:
   - grpcroutes/status
   - httproutes/status
   - referencegrants/status
+  - tcproutes/status
+  - tlsroutes/status
+  - udproutes/status
   verbs:
   - get
   - update
@@ -168,6 +171,9 @@ rules:
   - grpcroutes
   - httproutes
   - referencegrants
+  - tcproutes
+  - tlsroutes
+  - udproutes
   verbs:
   - get
   - list
@@ -188,6 +194,7 @@ rules:
   verbs:
   - get
   - update
+<<<<<<< HEAD
 - apiGroups:
   - ""
   resources:
@@ -196,6 +203,9 @@ rules:
   - get
   - list
   - watch
+=======
+
+>>>>>>> 1afb9ace (feat(gateway-api): support TLSRoute (#2594))
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
