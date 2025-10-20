@@ -26,6 +26,13 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+<<<<<<< HEAD
+=======
+
+	"github.com/apache/apisix-ingress-controller/internal/controller"
+	"github.com/apache/apisix-ingress-controller/internal/webhook/v1/reference"
+	sslvalidator "github.com/apache/apisix-ingress-controller/internal/webhook/v1/ssl"
+>>>>>>> 351d20a5 (feat: add certificate conflict detection to admission webhooks (#2603))
 )
 
 var ingresslog = logf.Log.WithName("ingress-resource")
@@ -124,6 +131,12 @@ func (v *IngressCustomValidator) ValidateCreate(_ context.Context, obj runtime.O
 	}
 	ingresslog.Info("Validation for Ingress upon creation", "name", ingress.GetName(), "namespace", ingress.GetNamespace())
 
+	detector := sslvalidator.NewConflictDetector(v.Client)
+	conflicts := detector.DetectConflicts(ctx, ingress)
+	if len(conflicts) > 0 {
+		return nil, fmt.Errorf("%s", sslvalidator.FormatConflicts(conflicts))
+	}
+
 	// Check for unsupported annotations and generate warnings
 	warnings := checkUnsupportedAnnotations(ingress)
 
@@ -138,9 +151,19 @@ func (v *IngressCustomValidator) ValidateUpdate(_ context.Context, oldObj, newOb
 	}
 	ingresslog.Info("Validation for Ingress upon update", "name", ingress.GetName(), "namespace", ingress.GetNamespace())
 
+	detector := sslvalidator.NewConflictDetector(v.Client)
+	conflicts := detector.DetectConflicts(ctx, ingress)
+	if len(conflicts) > 0 {
+		return nil, fmt.Errorf("%s", sslvalidator.FormatConflicts(conflicts))
+	}
+
 	// Check for unsupported annotations and generate warnings
 	warnings := checkUnsupportedAnnotations(ingress)
+<<<<<<< HEAD
 
+=======
+	warnings = append(warnings, v.collectReferenceWarnings(ctx, ingress)...)
+>>>>>>> 351d20a5 (feat: add certificate conflict detection to admission webhooks (#2603))
 	return warnings, nil
 }
 

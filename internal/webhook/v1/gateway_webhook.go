@@ -31,6 +31,11 @@ import (
 	v1alpha1 "github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	internaltypes "github.com/apache/apisix-ingress-controller/internal/types"
+<<<<<<< HEAD
+=======
+	"github.com/apache/apisix-ingress-controller/internal/webhook/v1/reference"
+	sslvalidator "github.com/apache/apisix-ingress-controller/internal/webhook/v1/ssl"
+>>>>>>> 351d20a5 (feat: add certificate conflict detection to admission webhooks (#2603))
 )
 
 // nolint:unused
@@ -67,6 +72,24 @@ func (v *GatewayCustomValidator) ValidateCreate(ctx context.Context, obj runtime
 	}
 	gatewaylog.Info("Validation for Gateway upon creation", "name", gateway.GetName())
 
+<<<<<<< HEAD
+=======
+	managed, err := isGatewayManaged(ctx, v.Client, gateway)
+	if err != nil {
+		gatewaylog.Error(err, "failed to decide controller ownership", "name", gateway.GetName(), "namespace", gateway.GetNamespace())
+		return nil, nil
+	}
+	if !managed {
+		return nil, nil
+	}
+
+	detector := sslvalidator.NewConflictDetector(v.Client)
+	conflicts := detector.DetectConflicts(ctx, gateway)
+	if len(conflicts) > 0 {
+		return nil, fmt.Errorf("%s", sslvalidator.FormatConflicts(conflicts))
+	}
+
+>>>>>>> 351d20a5 (feat: add certificate conflict detection to admission webhooks (#2603))
 	warnings := v.warnIfMissingGatewayProxyForGateway(ctx, gateway)
 
 	return warnings, nil
@@ -80,6 +103,24 @@ func (v *GatewayCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 	}
 	gatewaylog.Info("Validation for Gateway upon update", "name", gateway.GetName())
 
+<<<<<<< HEAD
+=======
+	managed, err := isGatewayManaged(ctx, v.Client, gateway)
+	if err != nil {
+		gatewaylog.Error(err, "failed to decide controller ownership", "name", gateway.GetName(), "namespace", gateway.GetNamespace())
+		return nil, nil
+	}
+	if !managed {
+		return nil, nil
+	}
+
+	detector := sslvalidator.NewConflictDetector(v.Client)
+	conflicts := detector.DetectConflicts(ctx, gateway)
+	if len(conflicts) > 0 {
+		return nil, fmt.Errorf("%s", sslvalidator.FormatConflicts(conflicts))
+	}
+
+>>>>>>> 351d20a5 (feat: add certificate conflict detection to admission webhooks (#2603))
 	warnings := v.warnIfMissingGatewayProxyForGateway(ctx, gateway)
 
 	return warnings, nil

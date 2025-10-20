@@ -29,6 +29,7 @@ import (
 
 	apisixv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/webhook/v1/reference"
+	sslvalidator "github.com/apache/apisix-ingress-controller/internal/webhook/v1/ssl"
 )
 
 var apisixTlsLog = logf.Log.WithName("apisixtls-resource")
@@ -63,6 +64,12 @@ func (v *ApisixTlsCustomValidator) ValidateCreate(ctx context.Context, obj runti
 	}
 	apisixTlsLog.Info("Validation for ApisixTls upon creation", "name", tls.GetName(), "namespace", tls.GetNamespace())
 
+	detector := sslvalidator.NewConflictDetector(v.Client)
+	conflicts := detector.DetectConflicts(ctx, tls)
+	if len(conflicts) > 0 {
+		return nil, fmt.Errorf("%s", sslvalidator.FormatConflicts(conflicts))
+	}
+
 	return v.collectWarnings(ctx, tls), nil
 }
 
@@ -72,6 +79,12 @@ func (v *ApisixTlsCustomValidator) ValidateUpdate(ctx context.Context, oldObj, n
 		return nil, fmt.Errorf("expected an ApisixTls object for the newObj but got %T", newObj)
 	}
 	apisixTlsLog.Info("Validation for ApisixTls upon update", "name", tls.GetName(), "namespace", tls.GetNamespace())
+
+	detector := sslvalidator.NewConflictDetector(v.Client)
+	conflicts := detector.DetectConflicts(ctx, tls)
+	if len(conflicts) > 0 {
+		return nil, fmt.Errorf("%s", sslvalidator.FormatConflicts(conflicts))
+	}
 
 	return v.collectWarnings(ctx, tls), nil
 }
