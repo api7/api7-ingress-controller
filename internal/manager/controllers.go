@@ -158,14 +158,6 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Updater:  updater,
 			Readier:  readier,
 		},
-		&netv1.Ingress{}: &controller.IngressReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindIngress),
-			Provider: pro,
-			Updater:  updater,
-			Readier:  readier,
-		},
 		&netv1.IngressClass{}: &controller.IngressClassReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
@@ -178,6 +170,29 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 		} else {
 			setupLog.Info("Skipping controller setup, API not found in cluster", "api", utils.FormatGVK(resource))
 		}
+	}
+
+	if utils.HasAPIResource(mgr, &netv1.Ingress{}) {
+		controllers = append(controllers, &controller.IngressReconciler{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindIngress),
+			Provider: pro,
+			Updater:  updater,
+			Readier:  readier,
+		})
+	} else if utils.HasAPIResource(mgr, &netv1beta1.Ingress{}) {
+		setupLog.Info("Ingress v1 not found, falling back to Ingress v1beta1")
+		controllers = append(controllers, &controller.IngressV1beta1Reconciler{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindIngress),
+			Provider: pro,
+			Updater:  updater,
+			Readier:  readier,
+		})
+	} else {
+		setupLog.Info("Skipping controller setup, API not found in cluster", "api", utils.FormatGVK(&netv1.Ingress{}))
 	}
 
 	controllers = append(controllers, []Controller{
@@ -269,6 +284,9 @@ func registerV2ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessM
 	}
 	if utils.HasAPIResource(mgr, &netv1.Ingress{}) {
 		gvks = append(gvks, types.GvkOf(&netv1.Ingress{}))
+	}
+	if utils.HasAPIResource(mgr, &netv1beta1.Ingress{}) {
+		gvks = append(gvks, types.GvkOf(&netv1beta1.Ingress{}))
 	}
 
 	c := mgr.GetClient()
