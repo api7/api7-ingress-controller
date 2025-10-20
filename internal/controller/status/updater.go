@@ -24,6 +24,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -245,6 +246,12 @@ func statusEqual(a, b any, opts ...cmp.Option) bool {
 		statusA, statusB = a.Status, b.Status
 	case *v1alpha1.Consumer:
 		b, ok := b.(*v1alpha1.Consumer)
+		if !ok {
+			return false
+		}
+		statusA, statusB = a.Status, b.Status
+	case *networkingv1beta1.Ingress:
+		b, ok := b.(*networkingv1beta1.Ingress)
 		if !ok {
 			return false
 		}

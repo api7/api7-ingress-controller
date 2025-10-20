@@ -66,6 +66,7 @@ func SetupIndexer(mgr ctrl.Manager) error {
 		&v1alpha1.Consumer{}:              setupConsumerIndexer,
 		&networkingv1.Ingress{}:           setupIngressIndexer,
 		&networkingv1.IngressClass{}:      setupIngressClassIndexer,
+		&networkingv1beta1.Ingress{}:      setupIngressV1beta1Indexer,
 		&networkingv1beta1.IngressClass{}: setupIngressClassV1beta1Indexer,
 		&v1alpha1.BackendTrafficPolicy{}:  setupBackendTrafficPolicyIndexer,
 	} {
@@ -412,6 +413,37 @@ func setupIngressIndexer(mgr ctrl.Manager) error {
 	return nil
 }
 
+func setupIngressV1beta1Indexer(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&networkingv1beta1.Ingress{},
+		IngressClassRef,
+		IngressClassRefIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&networkingv1beta1.Ingress{},
+		ServiceIndexRef,
+		IngressServiceIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&networkingv1beta1.Ingress{},
+		SecretIndexRef,
+		IngressSecretIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func setupBackendTrafficPolicyIndexer(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
@@ -443,15 +475,46 @@ func IngressClassIndexFunc(rawObj client.Object) []string {
 }
 
 func IngressClassRefIndexFunc(rawObj client.Object) []string {
-	ingress := rawObj.(*networkingv1.Ingress)
+	switch ingress := rawObj.(type) {
+	case *networkingv1.Ingress:
+		return ingressClassRefIndexFromV1(ingress)
+	case *networkingv1beta1.Ingress:
+		return ingressClassRefIndexFromV1(utils.ConvertIngressV1beta1ToV1(ingress))
+	default:
+		return nil
+	}
+}
+
+func IngressServiceIndexFunc(rawObj client.Object) []string {
+	switch ingress := rawObj.(type) {
+	case *networkingv1.Ingress:
+		return ingressServiceIndexFromV1(ingress)
+	case *networkingv1beta1.Ingress:
+		return ingressServiceIndexFromV1(utils.ConvertIngressV1beta1ToV1(ingress))
+	default:
+		return nil
+	}
+}
+
+func IngressSecretIndexFunc(rawObj client.Object) []string {
+	switch ingress := rawObj.(type) {
+	case *networkingv1.Ingress:
+		return ingressSecretIndexFromV1(ingress)
+	case *networkingv1beta1.Ingress:
+		return ingressSecretIndexFromV1(utils.ConvertIngressV1beta1ToV1(ingress))
+	default:
+		return nil
+	}
+}
+
+func ingressClassRefIndexFromV1(ingress *networkingv1.Ingress) []string {
 	if ingress.Spec.IngressClassName == nil {
 		return nil
 	}
 	return []string{*ingress.Spec.IngressClassName}
 }
 
-func IngressServiceIndexFunc(rawObj client.Object) []string {
-	ingress := rawObj.(*networkingv1.Ingress)
+func ingressServiceIndexFromV1(ingress *networkingv1.Ingress) []string {
 	var services []string
 
 	for _, rule := range ingress.Spec.Rules {
@@ -470,8 +533,7 @@ func IngressServiceIndexFunc(rawObj client.Object) []string {
 	return services
 }
 
-func IngressSecretIndexFunc(rawObj client.Object) []string {
-	ingress := rawObj.(*networkingv1.Ingress)
+func ingressSecretIndexFromV1(ingress *networkingv1.Ingress) []string {
 	secrets := make([]string, 0)
 
 	for _, tls := range ingress.Spec.TLS {

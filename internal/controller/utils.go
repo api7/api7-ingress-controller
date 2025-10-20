@@ -1719,6 +1719,11 @@ func ExtractIngressClass(obj client.Object) string {
 	switch v := obj.(type) {
 	case *networkingv1.Ingress:
 		return ptr.Deref(v.Spec.IngressClassName, "")
+	case *networkingv1beta1.Ingress:
+		if v.Spec.IngressClassName == nil {
+			return ""
+		}
+		return *v.Spec.IngressClassName
 	case *apiv2.ApisixConsumer:
 		return v.Spec.IngressClassName
 	case *apiv2.ApisixRoute:
