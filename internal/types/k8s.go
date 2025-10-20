@@ -66,7 +66,7 @@ func KindOf(obj any) string {
 		return KindGRPCRoute
 	case *gatewayv1.GatewayClass:
 		return KindGatewayClass
-	case *netv1.Ingress:
+	case *netv1.Ingress, *netv1beta1.Ingress:
 		return KindIngress
 	case *netv1.IngressClass, *netv1beta1.IngressClass:
 		return KindIngressClass
@@ -130,6 +130,8 @@ func GvkOf(obj any) schema.GroupVersionKind {
 		return gatewayv1beta1.SchemeGroupVersion.WithKind(kind)
 	case *netv1.Ingress, *netv1.IngressClass:
 		return netv1.SchemeGroupVersion.WithKind(kind)
+	case *netv1beta1.Ingress:
+		return netv1beta1.SchemeGroupVersion.WithKind(kind)
 	case *netv1beta1.IngressClass:
 		return netv1beta1.SchemeGroupVersion.WithKind(kind)
 	case *corev1.Secret, *corev1.Service:
