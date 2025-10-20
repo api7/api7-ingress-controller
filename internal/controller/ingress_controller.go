@@ -28,10 +28,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
-	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -68,67 +66,6 @@ type IngressReconciler struct { //nolint:revive
 
 	// supportsEndpointSlice indicates whether the cluster supports EndpointSlice API
 	supportsEndpointSlice bool
-
-	IngressGV schema.GroupVersion
-	ICGV      schema.GroupVersion
-}
-
-func (r *IngressReconciler) ingressGV() schema.GroupVersion {
-	if r.IngressGV.Empty() {
-		return networkingv1.SchemeGroupVersion
-	}
-	return r.IngressGV
-}
-
-func (r *IngressReconciler) newIngressObject() client.Object {
-	if r.ingressGV() == networkingv1beta1.SchemeGroupVersion {
-		obj := &networkingv1beta1.Ingress{}
-		obj.GetObjectKind().SetGroupVersionKind(networkingv1beta1.SchemeGroupVersion.WithKind(internaltypes.KindIngress))
-		return obj
-	}
-	obj := &networkingv1.Ingress{}
-	obj.GetObjectKind().SetGroupVersionKind(networkingv1.SchemeGroupVersion.WithKind(internaltypes.KindIngress))
-	return obj
-}
-
-func (r *IngressReconciler) newIngressList() client.ObjectList {
-	if r.ingressGV() == networkingv1beta1.SchemeGroupVersion {
-		return &networkingv1beta1.IngressList{}
-	}
-	return &networkingv1.IngressList{}
-}
-
-func (r *IngressReconciler) convertIngressToV1(obj client.Object) (*networkingv1.Ingress, error) {
-	return pkgutils.ConvertIngressToV1(obj, r.Scheme)
-}
-
-func (r *IngressReconciler) listIngressesAsV1(ctx context.Context, opts ...client.ListOption) ([]*networkingv1.Ingress, error) {
-	list := r.newIngressList()
-	if err := r.List(ctx, list, opts...); err != nil {
-		return nil, err
-	}
-
-	switch typed := list.(type) {
-	case *networkingv1.IngressList:
-		result := make([]*networkingv1.Ingress, 0, len(typed.Items))
-		for i := range typed.Items {
-			result = append(result, typed.Items[i].DeepCopy())
-		}
-		return result, nil
-	case *networkingv1beta1.IngressList:
-		result := make([]*networkingv1.Ingress, 0, len(typed.Items))
-		for i := range typed.Items {
-			item := typed.Items[i].DeepCopy()
-			converted, err := pkgutils.ConvertIngressToV1(item, r.Scheme)
-			if err != nil {
-				return nil, err
-			}
-			result = append(result, converted)
-		}
-		return result, nil
-	default:
-		return nil, fmt.Errorf("unsupported ingress list type %T", list)
-	}
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -148,21 +85,15 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		eventFilters = append(eventFilters, predicate.NewPredicateFuncs(TypePredicate[*corev1.Endpoints]()))
 	}
 
-	ingressWatch := r.newIngressObject()
-	ingressClassWatch := client.Object(&networkingv1.IngressClass{})
-	if r.ICGV == networkingv1beta1.SchemeGroupVersion {
-		ingressClassWatch = &networkingv1beta1.IngressClass{}
-	}
-
 	bdr := ctrl.NewControllerManagedBy(mgr).
-		For(ingressWatch,
+		For(&networkingv1.Ingress{},
 			builder.WithPredicates(
-				MatchesIngressClassPredicate(r.Client, r.Log, r.ICGV.String()),
+				MatchesIngressClassPredicate(r.Client, r.Log, ""),
 			),
 		).
 		WithEventFilter(predicate.Or(eventFilters...)).
 		Watches(
-			ingressClassWatch,
+			&networkingv1.IngressClass{},
 			handler.EnqueueRequestsFromMapFunc(r.listIngressForIngressClass),
 			builder.WithPredicates(
 				predicate.NewPredicateFuncs(r.matchesIngressController),
@@ -204,49 +135,31 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // Reconcile handles the reconciliation of Ingress resources
 func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	defer r.Readier.Done(r.newIngressObject(), req.NamespacedName)
-
-	rawIngress := r.newIngressObject()
-	if err := r.Get(ctx, req.NamespacedName, rawIngress); err != nil {
+	defer r.Readier.Done(&networkingv1.Ingress{}, req.NamespacedName)
+	ingress := new(networkingv1.Ingress)
+	if err := r.Get(ctx, req.NamespacedName, ingress); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			if err := r.updateHTTPRoutePolicyStatusOnDeleting(ctx, req.NamespacedName); err != nil {
 				return ctrl.Result{}, err
 			}
 
 			// Ingress was deleted, clean up corresponding resources
-			rawIngress.SetNamespace(req.Namespace)
-			rawIngress.SetName(req.Name)
-			rawIngress.GetObjectKind().SetGroupVersionKind(r.ingressGV().WithKind(internaltypes.KindIngress))
+			ingress.Namespace = req.Namespace
+			ingress.Name = req.Name
 
-			ingressForDelete, convErr := r.convertIngressToV1(rawIngress)
-			if convErr != nil {
-				r.Log.Error(convErr, "failed to convert ingress for deletion cleanup", "ingress", req.NamespacedName)
-				return ctrl.Result{}, nil
-			}
-			ingressForDelete.TypeMeta = metav1.TypeMeta{
+			ingress.TypeMeta = metav1.TypeMeta{
 				Kind:       KindIngress,
 				APIVersion: networkingv1.SchemeGroupVersion.String(),
 			}
 
-			if err := r.Provider.Delete(ctx, ingressForDelete); err != nil {
-				r.Log.Error(err, "failed to delete ingress resources", "ingress", ingressForDelete.Name)
+			if err := r.Provider.Delete(ctx, ingress); err != nil {
+				r.Log.Error(err, "failed to delete ingress resources", "ingress", ingress.Name)
 				return ctrl.Result{}, err
 			}
-			r.Log.Info("deleted ingress resources", "ingress", ingressForDelete.Name)
+			r.Log.Info("deleted ingress resources", "ingress", ingress.Name)
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
-	}
-
-	ingress, err := r.convertIngressToV1(rawIngress)
-	if err != nil {
-		r.Log.Error(err, "failed to convert ingress to v1", "ingress", req.NamespacedName)
-		return ctrl.Result{}, err
-	}
-
-	ingress.TypeMeta = metav1.TypeMeta{
-		Kind:       KindIngress,
-		APIVersion: networkingv1.SchemeGroupVersion.String(),
 	}
 
 	r.Log.Info("reconciling ingress", "ingress", ingress.Name)
@@ -254,7 +167,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// create a translate context
 	tctx := provider.NewDefaultTranslateContext(ctx)
 
-	ingressClass, err := FindMatchingIngressClassByObject(tctx, r.Client, r.Log, ingress, r.ICGV.String())
+	ingressClass, err := FindMatchingIngressClassByObject(tctx, r.Client, r.Log, ingress, "")
 	if err != nil {
 		if err := r.Provider.Delete(ctx, ingress); err != nil {
 			r.Log.Error(err, "failed to delete ingress resources", "ingress", ingress.Name)
@@ -315,47 +228,65 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 // matchesIngressController check if the ingress class is controlled by us
 func (r *IngressReconciler) matchesIngressController(obj client.Object) bool {
-	ingressClass := pkgutils.ConvertToIngressClassV1(obj)
+	ingressClass, ok := obj.(*networkingv1.IngressClass)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to IngressClass")
+		return false
+	}
+
 	return matchesController(ingressClass.Spec.Controller)
 }
 
 // listIngressForIngressClass list all ingresses that use a specific ingress class
 func (r *IngressReconciler) listIngressForIngressClass(ctx context.Context, obj client.Object) []reconcile.Request {
-	ingressClass := pkgutils.ConvertToIngressClassV1(obj)
-
-	var (
-		ingresses []*networkingv1.Ingress
-		err       error
-	)
-
-	if IsDefaultIngressClass(ingressClass) {
-		ingresses, err = r.listIngressesAsV1(ctx)
-	} else {
-		ingresses, err = r.listIngressesAsV1(ctx, client.MatchingFields{
-			indexer.IngressClassRef: ingressClass.GetName(),
-		})
-	}
-	if err != nil {
-		r.Log.Error(err, "failed to list ingresses for ingress class", "ingressclass", ingressClass.GetName())
+	ingressClass, ok := obj.(*networkingv1.IngressClass)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to IngressClass")
 		return nil
 	}
 
-	requests := make([]reconcile.Request, 0, len(ingresses))
-	for _, ingress := range ingresses {
-		if IsDefaultIngressClass(ingressClass) {
-			if ingress.Spec.IngressClassName != nil && *ingress.Spec.IngressClassName != "" &&
-				*ingress.Spec.IngressClassName != ingressClass.GetName() {
-				continue
+	// check if the ingress class is the default ingress class
+	if IsDefaultIngressClass(ingressClass) {
+		ingressList := &networkingv1.IngressList{}
+		if err := r.List(ctx, ingressList); err != nil {
+			r.Log.Error(err, "failed to list ingresses for ingress class", "ingressclass", ingressClass.GetName())
+			return nil
+		}
+
+		requests := make([]reconcile.Request, 0, len(ingressList.Items))
+		for _, ingress := range ingressList.Items {
+			if ingress.Spec.IngressClassName == nil || *ingress.Spec.IngressClassName == "" ||
+				*ingress.Spec.IngressClassName == ingressClass.GetName() {
+				requests = append(requests, reconcile.Request{
+					NamespacedName: client.ObjectKey{
+						Namespace: ingress.Namespace,
+						Name:      ingress.Name,
+					},
+				})
 			}
 		}
-		requests = append(requests, reconcile.Request{
-			NamespacedName: client.ObjectKey{
-				Namespace: ingress.Namespace,
-				Name:      ingress.Name,
-			},
-		})
+		return requests
+	} else {
+		ingressList := &networkingv1.IngressList{}
+		if err := r.List(ctx, ingressList, client.MatchingFields{
+			indexer.IngressClassRef: ingressClass.GetName(),
+		}); err != nil {
+			r.Log.Error(err, "failed to list ingresses for ingress class", "ingressclass", ingressClass.GetName())
+			return nil
+		}
+
+		requests := make([]reconcile.Request, 0, len(ingressList.Items))
+		for _, ingress := range ingressList.Items {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: client.ObjectKey{
+					Namespace: ingress.Namespace,
+					Name:      ingress.Name,
+				},
+			})
+		}
+
+		return requests
 	}
-	return requests
 }
 
 // listIngressesByService list all ingresses that use a specific service
@@ -369,17 +300,17 @@ func (r *IngressReconciler) listIngressesByService(ctx context.Context, obj clie
 	namespace := endpointSlice.GetNamespace()
 	serviceName := endpointSlice.Labels[discoveryv1.LabelServiceName]
 
-	ingresses, err := r.listIngressesAsV1(ctx, client.MatchingFields{
+	ingressList := &networkingv1.IngressList{}
+	if err := r.List(ctx, ingressList, client.MatchingFields{
 		indexer.ServiceIndexRef: indexer.GenIndexKey(namespace, serviceName),
-	})
-	if err != nil {
+	}); err != nil {
 		r.Log.Error(err, "failed to list ingresses by service", "service", serviceName)
 		return nil
 	}
 
-	requests := make([]reconcile.Request, 0, len(ingresses))
-	for _, ingress := range ingresses {
-		if MatchesIngressClass(r.Client, r.Log, ingress, r.ICGV.String()) {
+	requests := make([]reconcile.Request, 0, len(ingressList.Items))
+	for _, ingress := range ingressList.Items {
+		if MatchesIngressClass(r.Client, r.Log, &ingress, "") {
 			requests = append(requests, reconcile.Request{
 				NamespacedName: client.ObjectKey{
 					Namespace: ingress.Namespace,
@@ -403,17 +334,17 @@ func (r *IngressReconciler) listIngressesByEndpoints(ctx context.Context, obj cl
 	namespace := endpoint.GetNamespace()
 	serviceName := endpoint.GetName() // For Endpoints, the name is the service name
 
-	ingresses, err := r.listIngressesAsV1(ctx, client.MatchingFields{
+	ingressList := &networkingv1.IngressList{}
+	if err := r.List(ctx, ingressList, client.MatchingFields{
 		indexer.ServiceIndexRef: indexer.GenIndexKey(namespace, serviceName),
-	})
-	if err != nil {
+	}); err != nil {
 		r.Log.Error(err, "failed to list ingresses by service", "service", serviceName)
 		return nil
 	}
 
-	requests := make([]reconcile.Request, 0, len(ingresses))
-	for _, ingress := range ingresses {
-		if MatchesIngressClass(r.Client, r.Log, ingress, r.ICGV.String()) {
+	requests := make([]reconcile.Request, 0, len(ingressList.Items))
+	for _, ingress := range ingressList.Items {
+		if MatchesIngressClass(r.Client, r.Log, &ingress, "") {
 			requests = append(requests, reconcile.Request{
 				NamespacedName: client.ObjectKey{
 					Namespace: ingress.Namespace,
@@ -436,17 +367,17 @@ func (r *IngressReconciler) listIngressesBySecret(ctx context.Context, obj clien
 	namespace := secret.GetNamespace()
 	name := secret.GetName()
 
-	ingresses, err := r.listIngressesAsV1(ctx, client.MatchingFields{
+	ingressList := &networkingv1.IngressList{}
+	if err := r.List(ctx, ingressList, client.MatchingFields{
 		indexer.SecretIndexRef: indexer.GenIndexKey(namespace, name),
-	})
-	if err != nil {
+	}); err != nil {
 		r.Log.Error(err, "failed to list ingresses by secret", "secret", name)
 		return nil
 	}
 
-	requests := make([]reconcile.Request, 0, len(ingresses))
-	for _, ingress := range ingresses {
-		if MatchesIngressClass(r.Client, r.Log, ingress, r.ICGV.String()) {
+	requests := make([]reconcile.Request, 0, len(ingressList.Items))
+	for _, ingress := range ingressList.Items {
+		if MatchesIngressClass(r.Client, r.Log, &ingress, "") {
 			requests = append(requests, reconcile.Request{
 				NamespacedName: client.ObjectKey{
 					Namespace: ingress.Namespace,
@@ -465,27 +396,17 @@ func (r *IngressReconciler) listIngressesBySecret(ctx context.Context, obj clien
 	}
 
 	for _, gatewayProxy := range gatewayProxyList.Items {
-		indexKey := indexer.GenIndexKey(gatewayProxy.GetNamespace(), gatewayProxy.GetName())
-		matchingFields := client.MatchingFields{indexer.IngressClassParametersRef: indexKey}
-		var ingressClassList client.ObjectList
-		if r.ICGV == networkingv1beta1.SchemeGroupVersion {
-			ingressClassList = &networkingv1beta1.IngressClassList{}
-		} else {
-			ingressClassList = &networkingv1.IngressClassList{}
-		}
-		if err := r.List(ctx, ingressClassList, matchingFields); err != nil {
+		var (
+			ingressClassList networkingv1.IngressClassList
+			indexKey         = indexer.GenIndexKey(gatewayProxy.GetNamespace(), gatewayProxy.GetName())
+			matchingFields   = client.MatchingFields{indexer.IngressClassParametersRef: indexKey}
+		)
+		if err := r.List(ctx, &ingressClassList, matchingFields); err != nil {
 			r.Log.Error(err, "failed to list ingress classes for gateway proxy", "gatewayproxy", indexKey)
 			continue
 		}
-		switch list := ingressClassList.(type) {
-		case *networkingv1.IngressClassList:
-			for i := range list.Items {
-				requests = append(requests, r.listIngressForIngressClass(ctx, &list.Items[i])...)
-			}
-		case *networkingv1beta1.IngressClassList:
-			for i := range list.Items {
-				requests = append(requests, r.listIngressForIngressClass(ctx, &list.Items[i])...)
-			}
+		for _, ingressClass := range ingressClassList.Items {
+			requests = append(requests, r.listIngressForIngressClass(ctx, &ingressClass)...)
 		}
 	}
 
@@ -499,6 +420,7 @@ func (r *IngressReconciler) listIngressForBackendTrafficPolicy(ctx context.Conte
 		return nil
 	}
 	var namespacedNameMap = make(map[types.NamespacedName]struct{})
+	ingresses := []networkingv1.Ingress{}
 	for _, ref := range v.Spec.TargetRefs {
 		service := &corev1.Service{}
 		if err := r.Get(ctx, client.ObjectKey{
@@ -510,23 +432,25 @@ func (r *IngressReconciler) listIngressForBackendTrafficPolicy(ctx context.Conte
 			}
 			continue
 		}
-		ingresses, err := r.listIngressesAsV1(ctx, client.MatchingFields{
+		ingressList := &networkingv1.IngressList{}
+		if err := r.List(ctx, ingressList, client.MatchingFields{
 			indexer.ServiceIndexRef: indexer.GenIndexKey(v.GetNamespace(), string(ref.Name)),
-		})
-		if err != nil {
+		}); err != nil {
 			r.Log.Error(err, "failed to list HTTPRoutes for BackendTrafficPolicy", "namespace", v.GetNamespace(), "ref", ref.Name)
 			return nil
 		}
-		for _, ingress := range ingresses {
-			key := types.NamespacedName{
-				Namespace: ingress.Namespace,
-				Name:      ingress.Name,
-			}
-			if _, ok := namespacedNameMap[key]; ok {
-				continue
-			}
+		ingresses = append(ingresses, ingressList.Items...)
+	}
+	for _, ins := range ingresses {
+		key := types.NamespacedName{
+			Namespace: ins.Namespace,
+			Name:      ins.Name,
+		}
+		if _, ok := namespacedNameMap[key]; !ok {
 			namespacedNameMap[key] = struct{}{}
-			requests = append(requests, reconcile.Request{NamespacedName: key})
+			requests = append(requests, reconcile.Request{
+				NamespacedName: key,
+			})
 		}
 	}
 	return requests
@@ -564,8 +488,8 @@ func (r *IngressReconciler) listIngressesByHTTPRoutePolicy(ctx context.Context, 
 			continue
 		}
 
-		raw := r.newIngressObject()
-		if err := r.Get(ctx, key, raw); err != nil {
+		var ingress networkingv1.Ingress
+		if err := r.Get(ctx, key, &ingress); err != nil {
 			r.Log.Error(err, "failed to get Ingress By HTTPRoutePolicy targetRef", "namespace", key.Namespace, "name", key.Name)
 			continue
 		}
@@ -740,44 +664,24 @@ func (r *IngressReconciler) updateStatus(ctx context.Context, tctx *provider.Tra
 	}
 
 	// update the load balancer status
-	if len(loadBalancerStatus.Ingress) == 0 || reflect.DeepEqual(ingress.Status.LoadBalancer, loadBalancerStatus) {
+	if len(loadBalancerStatus.Ingress) > 0 && !reflect.DeepEqual(ingress.Status.LoadBalancer, loadBalancerStatus) {
+		ingress.Status.LoadBalancer = loadBalancerStatus
+		r.Updater.Update(status.Update{
+			NamespacedName: utils.NamespacedName(ingress),
+			Resource:       ingress.DeepCopy(),
+			Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
+				cp := obj.(*networkingv1.Ingress).DeepCopy()
+				cp.Status = ingress.Status
+				return cp
+			}),
+		})
 		return nil
 	}
 
-	ingress.Status.LoadBalancer = loadBalancerStatus
-
-	resource := r.newIngressObject()
-	r.Updater.Update(status.Update{
-		NamespacedName: utils.NamespacedName(ingress),
-		Resource:       resource,
-		Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
-			switch typed := obj.(type) {
-			case *networkingv1.Ingress:
-				cp := typed.DeepCopy()
-				cp.Status = ingress.Status
-				return cp
-			case *networkingv1beta1.Ingress:
-				convertedAny, err := pkgutils.ConvertIngressFromV1(ingress.DeepCopy(), r.Scheme, networkingv1beta1.SchemeGroupVersion)
-				if err != nil {
-					r.Log.Error(err, "failed to convert ingress status to v1beta1", "ingress", ingress.Name)
-					return nil
-				}
-				cp := typed.DeepCopy()
-				cp.Status = convertedAny.(*networkingv1beta1.Ingress).Status
-				return cp
-			default:
-				r.Log.Error(fmt.Errorf("unexpected ingress object type %T in status mutator", obj), "skip status update")
-				return nil
-			}
-		}),
-	})
 	return nil
 }
 
 // listIngressesForGatewayProxy list all ingresses that use a specific gateway proxy
 func (r *IngressReconciler) listIngressesForGatewayProxy(ctx context.Context, obj client.Object) []reconcile.Request {
-	if r.ICGV == networkingv1beta1.SchemeGroupVersion {
-		return listIngressClassV1beta1RequestsForGatewayProxy(ctx, r.Client, obj, r.Log, r.listIngressForIngressClass)
-	}
 	return listIngressClassRequestsForGatewayProxy(ctx, r.Client, obj, r.Log, r.listIngressForIngressClass)
 }

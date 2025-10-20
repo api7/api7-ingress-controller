@@ -119,16 +119,6 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 		})
 	}
 
-	ingressGV := netv1.SchemeGroupVersion
-	switch {
-	case utils.HasAPIResource(mgr, &netv1.Ingress{}):
-	case utils.HasAPIResource(mgr, &netv1beta1.Ingress{}):
-		setupLog.Info("Ingress v1 not found, falling back to Ingress v1beta1")
-		ingressGV = netv1beta1.SchemeGroupVersion
-	default:
-		ingressGV = schema.GroupVersion{}
-	}
-
 	// Gateway API Controllers - conditional registration based on API availability
 	for resource, controller := range map[client.Object]Controller{
 		&gatewayv1.GatewayClass{}: &controller.GatewayClassReconciler{
@@ -168,6 +158,14 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Updater:  updater,
 			Readier:  readier,
 		},
+		&netv1.Ingress{}: &controller.IngressReconciler{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindIngress),
+			Provider: pro,
+			Updater:  updater,
+			Readier:  readier,
+		},
 		&netv1.IngressClass{}: &controller.IngressClassReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
@@ -180,21 +178,6 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 		} else {
 			setupLog.Info("Skipping controller setup, API not found in cluster", "api", utils.FormatGVK(resource))
 		}
-	}
-
-	if !ingressGV.Empty() {
-		controllers = append(controllers, &controller.IngressReconciler{
-			Client:    mgr.GetClient(),
-			Scheme:    mgr.GetScheme(),
-			Log:       ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindIngress),
-			Provider:  pro,
-			Updater:   updater,
-			Readier:   readier,
-			IngressGV: ingressGV,
-			ICGV:      icgv,
-		})
-	} else {
-		setupLog.Info("Skipping controller setup, Ingress API not found in cluster")
 	}
 
 	controllers = append(controllers, []Controller{
@@ -286,8 +269,6 @@ func registerV2ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessM
 	}
 	if utils.HasAPIResource(mgr, &netv1.Ingress{}) {
 		gvks = append(gvks, types.GvkOf(&netv1.Ingress{}))
-	} else if utils.HasAPIResource(mgr, &netv1beta1.Ingress{}) {
-		gvks = append(gvks, types.GvkOf(&netv1beta1.Ingress{}))
 	}
 
 	c := mgr.GetClient()

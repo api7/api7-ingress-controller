@@ -65,7 +65,6 @@ func SetupIndexer(mgr ctrl.Manager) error {
 		&gatewayv1.GatewayClass{}:         setupGatewayClassIndexer,
 		&v1alpha1.Consumer{}:              setupConsumerIndexer,
 		&networkingv1.Ingress{}:           setupIngressIndexer,
-		&networkingv1beta1.Ingress{}:      setupIngressV1beta1Indexer,
 		&networkingv1.IngressClass{}:      setupIngressClassIndexer,
 		&networkingv1beta1.IngressClass{}: setupIngressClassV1beta1Indexer,
 		&v1alpha1.BackendTrafficPolicy{}:  setupBackendTrafficPolicyIndexer,
@@ -413,37 +412,6 @@ func setupIngressIndexer(mgr ctrl.Manager) error {
 	return nil
 }
 
-func setupIngressV1beta1Indexer(mgr ctrl.Manager) error {
-	if err := mgr.GetFieldIndexer().IndexField(
-		context.Background(),
-		&networkingv1beta1.Ingress{},
-		IngressClassRef,
-		IngressV1beta1ClassRefIndexFunc,
-	); err != nil {
-		return err
-	}
-
-	if err := mgr.GetFieldIndexer().IndexField(
-		context.Background(),
-		&networkingv1beta1.Ingress{},
-		ServiceIndexRef,
-		IngressV1beta1ServiceIndexFunc,
-	); err != nil {
-		return err
-	}
-
-	if err := mgr.GetFieldIndexer().IndexField(
-		context.Background(),
-		&networkingv1beta1.Ingress{},
-		SecretIndexRef,
-		IngressV1beta1SecretIndexFunc,
-	); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func setupBackendTrafficPolicyIndexer(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
@@ -482,14 +450,6 @@ func IngressClassRefIndexFunc(rawObj client.Object) []string {
 	return []string{*ingress.Spec.IngressClassName}
 }
 
-func IngressV1beta1ClassRefIndexFunc(rawObj client.Object) []string {
-	ingress := rawObj.(*networkingv1beta1.Ingress)
-	if ingress.Spec.IngressClassName == nil {
-		return nil
-	}
-	return []string{*ingress.Spec.IngressClassName}
-}
-
 func IngressServiceIndexFunc(rawObj client.Object) []string {
 	ingress := rawObj.(*networkingv1.Ingress)
 	var services []string
@@ -510,43 +470,8 @@ func IngressServiceIndexFunc(rawObj client.Object) []string {
 	return services
 }
 
-func IngressV1beta1ServiceIndexFunc(rawObj client.Object) []string {
-	ingress := rawObj.(*networkingv1beta1.Ingress)
-	var services []string
-
-	for _, rule := range ingress.Spec.Rules {
-		if rule.HTTP == nil {
-			continue
-		}
-
-		for _, path := range rule.HTTP.Paths {
-			if path.Backend.ServiceName == "" {
-				continue
-			}
-			key := GenIndexKey(ingress.Namespace, path.Backend.ServiceName)
-			services = append(services, key)
-		}
-	}
-	return services
-}
-
 func IngressSecretIndexFunc(rawObj client.Object) []string {
 	ingress := rawObj.(*networkingv1.Ingress)
-	secrets := make([]string, 0)
-
-	for _, tls := range ingress.Spec.TLS {
-		if tls.SecretName == "" {
-			continue
-		}
-
-		key := GenIndexKey(ingress.Namespace, tls.SecretName)
-		secrets = append(secrets, key)
-	}
-	return secrets
-}
-
-func IngressV1beta1SecretIndexFunc(rawObj client.Object) []string {
-	ingress := rawObj.(*networkingv1beta1.Ingress)
 	secrets := make([]string, 0)
 
 	for _, tls := range ingress.Spec.TLS {

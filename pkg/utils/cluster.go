@@ -89,20 +89,16 @@ func FormatGVK(obj client.Object) string {
 func ConvertToIngressClassV1(obj client.Object) *networkingv1.IngressClass {
 	switch t := obj.(type) {
 	case *networkingv1beta1.IngressClass:
-		var params *networkingv1.IngressClassParametersReference
-		if t.Spec.Parameters != nil {
-			params = &networkingv1.IngressClassParametersReference{
-				APIGroup: t.Spec.Parameters.APIGroup,
-				Kind:     t.Spec.Parameters.Kind,
-				Name:     t.Spec.Parameters.Name,
-			}
-		}
 		icv1 := &networkingv1.IngressClass{
 			TypeMeta:   t.TypeMeta,
 			ObjectMeta: t.ObjectMeta,
 			Spec: networkingv1.IngressClassSpec{
 				Controller: t.Spec.Controller,
-				Parameters: params,
+				Parameters: &networkingv1.IngressClassParametersReference{
+					APIGroup: t.Spec.Parameters.APIGroup,
+					Kind:     t.Spec.Parameters.Kind,
+					Name:     t.Spec.Parameters.Name,
+				},
 			},
 		}
 		icv1.APIVersion = networkingv1.SchemeGroupVersion.String()
