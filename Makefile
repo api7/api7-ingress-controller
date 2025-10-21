@@ -29,8 +29,12 @@ ENVTEST_K8S_VERSION = 1.30.0
 KIND_NAME ?= apisix-ingress-cluster
 KIND_NODE_IMAGE ?= kindest/node:v1.30.0@sha256:047357ac0cfea04663786a612ba1eaba9702bef25227a794b52890dd8bcd692e
 
+<<<<<<< HEAD
 DASHBOARD_VERSION ?= dev
 ADC_VERSION ?= 0.21.0
+=======
+ADC_VERSION ?= 0.21.2
+>>>>>>> 3bee9ac2 (chore(e2e-test): update adc to 0.21.1 (#2609))
 
 DIR := $(shell pwd)
 
