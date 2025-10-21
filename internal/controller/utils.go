@@ -41,7 +41,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -1718,7 +1717,7 @@ func MatchesIngressClass(c client.Client, log logr.Logger, obj client.Object, ap
 func ExtractIngressClass(obj client.Object) string {
 	switch v := obj.(type) {
 	case *networkingv1.Ingress:
-		return ptr.Deref(v.Spec.IngressClassName, "")
+		return types.GetEffectiveIngressClassName(v)
 	case *apiv2.ApisixConsumer:
 		return v.Spec.IngressClassName
 	case *apiv2.ApisixRoute:

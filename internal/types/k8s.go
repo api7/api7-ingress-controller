@@ -23,6 +23,7 @@ import (
 	netv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	kschema "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
@@ -31,7 +32,10 @@ import (
 	v2 "github.com/apache/apisix-ingress-controller/api/v2"
 )
 
-const DefaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
+const (
+	DefaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
+	IngressClassNameAnnotation    = "kubernetes.io/ingress.class"
+)
 
 const (
 	KindGateway              = "Gateway"
@@ -203,4 +207,11 @@ func GvkOf(obj any) schema.GroupVersionKind {
 	default:
 		return schema.GroupVersionKind{}
 	}
+}
+
+func GetEffectiveIngressClassName(ingress *netv1.Ingress) string {
+	if cls := ptr.Deref(ingress.Spec.IngressClassName, ""); cls != "" {
+		return cls
+	}
+	return ingress.GetAnnotations()[IngressClassNameAnnotation]
 }
