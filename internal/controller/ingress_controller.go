@@ -254,9 +254,19 @@ func (r *IngressReconciler) listIngressForIngressClass(ctx context.Context, obj 
 		}
 
 		requests := make([]reconcile.Request, 0, len(ingressList.Items))
-		for _, ingress := range ingressList.Items {
-			if ingress.Spec.IngressClassName == nil || *ingress.Spec.IngressClassName == "" ||
-				*ingress.Spec.IngressClassName == ingressClass.GetName() {
+		for i := range ingressList.Items {
+			ingress := &ingressList.Items[i]
+			specClassName := ptr.Deref(ingress.Spec.IngressClassName, "")
+			annotationClassName := ""
+			if annotations := ingress.GetAnnotations(); annotations != nil {
+				annotationClassName = annotations[ingressClassNameAnnotation]
+			}
+			effectiveClassName := specClassName
+			if effectiveClassName == "" {
+				effectiveClassName = annotationClassName
+			}
+			hasExplicitClass := specClassName != "" || annotationClassName != ""
+			if !hasExplicitClass || effectiveClassName == ingressClass.GetName() {
 				requests = append(requests, reconcile.Request{
 					NamespacedName: client.ObjectKey{
 						Namespace: ingress.Namespace,
