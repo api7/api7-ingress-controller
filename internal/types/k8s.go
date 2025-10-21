@@ -210,5 +210,8 @@ func GvkOf(obj any) schema.GroupVersionKind {
 }
 
 func GetEffectiveIngressClassName(ingress *netv1.Ingress) string {
-	return ptr.Deref(ingress.Spec.IngressClassName, ingress.GetAnnotations()[IngressClassNameAnnotation])
+	if cls := ptr.Deref(ingress.Spec.IngressClassName, ""); cls != "" {
+		return cls
+	}
+	return ingress.GetAnnotations()[IngressClassNameAnnotation]
 }
