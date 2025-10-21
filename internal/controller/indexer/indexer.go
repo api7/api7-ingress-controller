@@ -54,10 +54,6 @@ const (
 	ControllerName            = "controllerName"
 )
 
-const (
-	ingressClassNameAnnotation = "kubernetes.io/ingress.class"
-)
-
 func SetupIndexer(mgr ctrl.Manager) error {
 	setupLog := ctrl.LoggerFrom(context.Background()).WithName("indexer-setup")
 
@@ -448,15 +444,11 @@ func IngressClassIndexFunc(rawObj client.Object) []string {
 
 func IngressClassRefIndexFunc(rawObj client.Object) []string {
 	ingress := rawObj.(*networkingv1.Ingress)
-	if ingress.Spec.IngressClassName != nil && *ingress.Spec.IngressClassName != "" {
-		return []string{*ingress.Spec.IngressClassName}
+	ingressClassName := internaltypes.GetEffectiveIngressClassName(ingress)
+	if ingressClassName == "" {
+		return nil
 	}
-	if annotations := ingress.GetAnnotations(); annotations != nil {
-		if className := annotations[ingressClassNameAnnotation]; className != "" {
-			return []string{className}
-		}
-	}
-	return nil
+	return []string{ingressClassName}
 }
 
 func IngressServiceIndexFunc(rawObj client.Object) []string {

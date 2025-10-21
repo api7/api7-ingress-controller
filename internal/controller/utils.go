@@ -41,7 +41,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -82,7 +81,6 @@ const (
 const (
 	defaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
 	parametersNamespaceAnnotation = "apisix.apache.org/parameters-namespace"
-	ingressClassNameAnnotation    = "kubernetes.io/ingress.class"
 )
 
 var (
@@ -1719,13 +1717,7 @@ func MatchesIngressClass(c client.Client, log logr.Logger, obj client.Object, ap
 func ExtractIngressClass(obj client.Object) string {
 	switch v := obj.(type) {
 	case *networkingv1.Ingress:
-		if className := ptr.Deref(v.Spec.IngressClassName, ""); className != "" {
-			return className
-		}
-		if annotations := v.GetAnnotations(); annotations != nil {
-			return annotations[ingressClassNameAnnotation]
-		}
-		return ""
+		return types.GetEffectiveIngressClassName(v)
 	case *apiv2.ApisixConsumer:
 		return v.Spec.IngressClassName
 	case *apiv2.ApisixRoute:
