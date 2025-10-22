@@ -380,6 +380,54 @@ spec:
 		})
 	})
 
+	Context("Ingress Annotation", func() {
+		var ingressSpecWithAnnotation = `
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: %s
+  annotations:
+    kubernetes.io/ingress.class: %s
+spec:
+  rules:
+  - host: annotation.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: httpbin-service-e2e-test
+            port:
+              number: 80
+`
+
+		It("kubernetes.io/ingress.class", func() {
+			By("create GatewayProxy")
+			err := s.CreateResourceFromString(s.GetGatewayProxySpec())
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+			time.Sleep(5 * time.Second)
+
+			By("create IngressClass")
+			err = s.CreateResourceFromStringWithNamespace(s.GetIngressClassYaml(), s.Namespace())
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+			time.Sleep(5 * time.Second)
+
+			By("create Ingress with annotation-defined class")
+			ingressName := s.Namespace() + "-annotation"
+			err = s.CreateResourceFromString(fmt.Sprintf(ingressSpecWithAnnotation, ingressName, s.Namespace()))
+			Expect(err).NotTo(HaveOccurred(), "creating Ingress with kubernetes.io/ingress.class annotation")
+
+			By("verify ingress served through annotated class")
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/get",
+				Host:   "annotation.example.com",
+				Check:  scaffold.WithExpectedStatus(http.StatusOK),
+			})
+		})
+	})
+
 	// Tests concerning the default ingress class need to be run serially
 	Context("IngressClass with GatewayProxy", Serial, func() {
 		gatewayProxyYaml := `
