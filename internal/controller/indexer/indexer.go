@@ -90,8 +90,6 @@ func SetupIndexer(mgr ctrl.Manager) error {
 
 	// Core Kubernetes and APISIX indexers - always setup these
 	for _, setup := range []func(ctrl.Manager) error{
-<<<<<<< HEAD
-=======
 		setupGatewayIndexer,
 		setupHTTPRouteIndexer,
 		setupTCPRouteIndexer,
@@ -100,12 +98,13 @@ func SetupIndexer(mgr ctrl.Manager) error {
 		setupConsumerIndexer,
 		setupBackendTrafficPolicyIndexer,
 		setupIngressClassIndexer,
->>>>>>> 0fd8e9d7 (feat: add support for TCPRoute (#2564))
 		setupGatewayProxyIndexer,
+		setupGatewaySecretIndex,
 		setupApisixRouteIndexer,
 		setupApisixPluginConfigIndexer,
 		setupApisixTlsIndexer,
 		setupApisixConsumerIndexer,
+		setupGatewayClassIndexer,
 	} {
 		if err := setup(mgr); err != nil {
 			return err
