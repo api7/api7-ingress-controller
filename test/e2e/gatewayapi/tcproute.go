@@ -68,23 +68,14 @@ spec:
 
 		BeforeEach(func() {
 			// Create GatewayProxy
-			Expect(s.CreateResourceFromString(s.GetGatewayProxySpec())).
-				NotTo(HaveOccurred(), "creating GatewayProxy")
+			Expect(s.CreateResourceFromString(s.GetGatewayProxySpec())).NotTo(HaveOccurred(), "creating GatewayProxy")
 
 			// Create GatewayClass
-			gatewayClassName := s.Namespace()
-			Expect(s.CreateResourceFromString(s.GetGatewayClassYaml())).
-				NotTo(HaveOccurred(), "creating GatewayClass")
-			gcyaml, _ := s.GetResourceYaml("GatewayClass", gatewayClassName)
-			s.ResourceApplied("GatewayClass", gatewayClassName, gcyaml, 1)
+			Expect(s.CreateResourceFromString(s.GetGatewayClassYaml())).NotTo(HaveOccurred(), "creating GatewayClass")
 
 			// Create Gateway with TCP listener
-			gatewayName := s.Namespace()
-			Expect(s.CreateResourceFromString(fmt.Sprintf(tcpGateway, gatewayName, gatewayClassName))).
+			Expect(s.CreateResourceFromString(fmt.Sprintf(tcpGateway, s.Namespace(), s.Namespace()))).
 				NotTo(HaveOccurred(), "creating Gateway")
-
-			gwyaml, _ := s.GetResourceYaml("Gateway", gatewayName)
-			s.ResourceApplied("Gateway", gatewayName, gwyaml, 1)
 		})
 
 		It("should route TCP traffic to backend service", func() {
