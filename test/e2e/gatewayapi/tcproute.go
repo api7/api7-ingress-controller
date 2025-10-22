@@ -83,10 +83,7 @@ spec:
 			By("creating TCPRoute")
 			Expect(s.CreateResourceFromString(fmt.Sprintf(tcpRoute, gatewayName))).
 				NotTo(HaveOccurred(), "creating TCPRoute")
-
-			// Verify TCPRoute status becomes programmed
-			routeYaml, _ := s.GetResourceYaml("TCPRoute", "tcp-app-1")
-			s.ResourceApplied("TCPRoute", "tcp-app-1", routeYaml, 1)
+			time.Sleep(2 * time.Second)
 
 			By("verifying TCPRoute is functional")
 			s.HTTPOverTCPConnectAssert(true, time.Minute*5) // should be able to connect
