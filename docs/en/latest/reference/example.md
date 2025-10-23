@@ -132,6 +132,11 @@ spec:
     scope: Namespace               # 6
 ```
 
+<<<<<<< HEAD
+=======
+❶ The controller name should be customized if you are running multiple distinct instances of the APISIX Ingress Controller in the same cluster (not a single instance with multiple replicas). Each ingress controller instance must use a unique controllerName in its [configuration file](configuration-file.md), and the corresponding IngressClass should reference that value.
+
+>>>>>>> 50dda249 (docs: update reference configuration examples (#2606))
 ❷ API group of the referenced resource.
 
 ❸ Kind of the referenced resource.
@@ -162,6 +167,11 @@ spec:
     scope: Namespace               # 6
 ```
 
+<<<<<<< HEAD
+=======
+❶ The controller name should be customized if you are running multiple distinct instances of the APISIX Ingress Controller in the same cluster (not a single instance with multiple replicas). Each ingress controller instance must use a unique controllerName in its [configuration file](configuration-file.md), and the corresponding IngressClass should reference that value.
+
+>>>>>>> 50dda249 (docs: update reference configuration examples (#2606))
 ❷ API group of the referenced resource.
 
 ❸ Kind of the referenced resource.
@@ -867,12 +877,17 @@ spec:
   provider:
     type: ControlPlane
     controlPlane:
+<<<<<<< HEAD
       endpoints:
         - https://xxx.xxx.xxx.xxx:7443  # update with your CP endpoint
       auth:
         type: AdminKey
         adminKey:
           value: xxxxxxxxxxx            # update with your admin key
+=======
+      # add your control plane connection configuration here
+      # ....
+>>>>>>> 50dda249 (docs: update reference configuration examples (#2606))
   plugins:
   - name: clickhouse-logger
     config:
@@ -934,12 +949,17 @@ spec:
   provider:
     type: ControlPlane
     controlPlane:
+<<<<<<< HEAD
       endpoints:
         - https://xxx.xxx.xxx.xxx:7443  # update with your CP endpoint
       auth:
         type: AdminKey
         adminKey:
           value: xxxxxxxxxxx            # update with your admin key
+=======
+      # add your control plane connection configuration here
+      # ....
+>>>>>>> 50dda249 (docs: update reference configuration examples (#2606))
   pluginMetadata:
     opentelemetry: {
       "trace_id_source": "x-request-id",
@@ -1244,12 +1264,17 @@ spec:
   provider:
     type: ControlPlane
     controlPlane:
+<<<<<<< HEAD
       endpoints:
         - https://xxx.xxx.xxx.xxx:7443  # update with your CP endpoint
       auth:
         type: AdminKey
         adminKey:
           value: xxxxxxxxxxx            # update with your admin key
+=======
+      # add your control plane connection configuration here
+      # ....
+>>>>>>> 50dda249 (docs: update reference configuration examples (#2606))
   statusAddress:
     - 10.24.87.13
 ```
@@ -1272,12 +1297,17 @@ spec:
   provider:
     type: ControlPlane
     controlPlane:
+<<<<<<< HEAD
       endpoints:
         - https://xxx.xxx.xxx.xxx:7443  # update with your CP endpoint
       auth:
         type: AdminKey
         adminKey:
           value: xxxxxxxxxxx            # update with your admin key
+=======
+      # add your control plane connection configuration here
+      # ....
+>>>>>>> 50dda249 (docs: update reference configuration examples (#2606))
   statusAddress:
     - 10.24.87.13
 ```
@@ -1294,6 +1324,7 @@ spec:
   provider:
     type: ControlPlane
     controlPlane:
+<<<<<<< HEAD
       endpoints:
         - https://xxx.xxx.xxx.xxx:7443  # update with your CP endpoint
       auth:
@@ -1301,6 +1332,11 @@ spec:
         adminKey:
           value: xxxxxxxxxxx            # update with your admin key
   publishService: apisix-ee-3-gateway-gateway
+=======
+      # add your control plane connection configuration here
+      # ....
+  publishService: apisix-gateway
+>>>>>>> 50dda249 (docs: update reference configuration examples (#2606))
 ```
 
 When using `publishService`, make sure your gateway Service is of `LoadBalancer` type the address can be populated. The controller will use the endpoint of this Service to update the status information of the Ingress resource. The format can be either `namespace/svc-name` or simply `svc-name` if the default namespace is correctly set.
