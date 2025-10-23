@@ -18,11 +18,14 @@
 package translator
 
 import (
+<<<<<<< HEAD
 	"encoding/json"
 
 	"github.com/api7/gopkg/pkg/log"
 	"go.uber.org/zap"
 
+=======
+>>>>>>> 06e00cd3 (fix: apisix global rule support plugins secret reference (#2612))
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
@@ -45,6 +48,7 @@ func (t *Translator) TranslateApisixGlobalRule(tctx *provider.TranslateContext, 
 			continue
 		}
 
+<<<<<<< HEAD
 		pluginConfig := make(map[string]any)
 		if len(plugin.Config.Raw) > 0 {
 			if err := json.Unmarshal(plugin.Config.Raw, &pluginConfig); err != nil {
@@ -52,6 +56,9 @@ func (t *Translator) TranslateApisixGlobalRule(tctx *provider.TranslateContext, 
 				continue
 			}
 		}
+=======
+		pluginConfig := t.buildPluginConfig(plugin, obj.Namespace, tctx.Secrets)
+>>>>>>> 06e00cd3 (fix: apisix global rule support plugins secret reference (#2612))
 		plugins[plugin.Name] = pluginConfig
 	}
 

@@ -96,6 +96,11 @@ func SetupIndexer(mgr ctrl.Manager) error {
 		setupApisixPluginConfigIndexer,
 		setupApisixTlsIndexer,
 		setupApisixConsumerIndexer,
+<<<<<<< HEAD
+=======
+		setupApisixGlobalRuleIndexer,
+		setupGatewayClassIndexer,
+>>>>>>> 06e00cd3 (fix: apisix global rule support plugins secret reference (#2612))
 	} {
 		if err := setup(mgr); err != nil {
 			return err
@@ -891,4 +896,29 @@ func ApisixTlsIngressClassIndexFunc(rawObj client.Object) []string {
 		return nil
 	}
 	return []string{tls.Spec.IngressClassName}
+}
+
+func setupApisixGlobalRuleIndexer(mgr ctrl.Manager) error {
+	// Create secret index for ApisixGlobalRule
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&apiv2.ApisixGlobalRule{},
+		SecretIndexRef,
+		ApisixGlobalRuleSecretIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ApisixGlobalRuleSecretIndexFunc(rawObj client.Object) []string {
+	agr := rawObj.(*apiv2.ApisixGlobalRule)
+	var keys []string
+	for _, plugin := range agr.Spec.Plugins {
+		if plugin.Enable && plugin.SecretRef != "" {
+			keys = append(keys, GenIndexKey(agr.GetNamespace(), plugin.SecretRef))
+		}
+	}
+	return keys
 }
