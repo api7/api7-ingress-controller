@@ -41,7 +41,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+<<<<<<< HEAD
 	ctrl "sigs.k8s.io/controller-runtime"
+=======
+>>>>>>> cbfa0389 (feat: support kubernetes.io/ingress.class annotations (#2615))
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"

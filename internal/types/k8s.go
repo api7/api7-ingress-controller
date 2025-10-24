@@ -22,9 +22,13 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	netv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+<<<<<<< HEAD
 	kschema "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+=======
+	"k8s.io/utils/ptr"
+>>>>>>> cbfa0389 (feat: support kubernetes.io/ingress.class annotations (#2615))
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
@@ -215,6 +219,11 @@ func GvkOf(obj any) schema.GroupVersionKind {
 	}
 }
 
+<<<<<<< HEAD
+=======
+// GetEffectiveIngressClassName returns the effective ingress class name.
+// It first checks spec.IngressClassName, and falls back to the annotation if spec is empty.
+>>>>>>> cbfa0389 (feat: support kubernetes.io/ingress.class annotations (#2615))
 func GetEffectiveIngressClassName(ingress *netv1.Ingress) string {
 	if cls := ptr.Deref(ingress.Spec.IngressClassName, ""); cls != "" {
 		return cls
