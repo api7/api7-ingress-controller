@@ -64,10 +64,6 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Install kind
-        run: |
-          go install sigs.k8s.io/kind@v0.23.0
-
       - name: Build images
         env:
           TAG: dev
