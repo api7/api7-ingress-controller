@@ -41,6 +41,7 @@ var unsupportedAnnotations = []string{
 	"k8s.apisix.apache.org/use-regex",
 	"k8s.apisix.apache.org/enable-websocket",
 	"k8s.apisix.apache.org/plugin-config-name",
+<<<<<<< HEAD
 	"k8s.apisix.apache.org/upstream-scheme",
 	"k8s.apisix.apache.org/upstream-retries",
 	"k8s.apisix.apache.org/upstream-connect-timeout",
@@ -50,6 +51,8 @@ var unsupportedAnnotations = []string{
 	"k8s.apisix.apache.org/cors-allow-origin",
 	"k8s.apisix.apache.org/cors-allow-headers",
 	"k8s.apisix.apache.org/cors-allow-methods",
+=======
+>>>>>>> 6b708576 (feat: support cors annotations for ingress (#2618))
 	"k8s.apisix.apache.org/enable-csrf",
 	"k8s.apisix.apache.org/csrf-key",
 	"k8s.apisix.apache.org/http-to-https",
