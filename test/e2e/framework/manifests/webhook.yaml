@@ -146,8 +146,6 @@ webhooks:
         - gatewayproxies
   failurePolicy: Fail
   sideEffects: None
-<<<<<<< HEAD
-=======
 - name: vgrpcroute-v1.kb.io
   clientConfig:
     service:
@@ -190,7 +188,6 @@ webhooks:
         - httproutes
   failurePolicy: Fail
   sideEffects: None
->>>>>>> 501b4e89 (test: add e2e test case for webhook (#2585))
 - name: vingress-v1.kb.io
   clientConfig:
     service:
@@ -233,8 +230,6 @@ webhooks:
         - ingressclasses
   failurePolicy: Fail
   sideEffects: None
-<<<<<<< HEAD
-=======
 - name: vtcproute-v1alpha2.kb.io
   clientConfig:
     service:
@@ -256,4 +251,3 @@ webhooks:
         - tcproutes
   failurePolicy: Fail
   sideEffects: None
->>>>>>> 501b4e89 (test: add e2e test case for webhook (#2585))
