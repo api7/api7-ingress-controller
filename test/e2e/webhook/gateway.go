@@ -6,7 +6,7 @@
 // "License"); you may not use this file except in compliance
 // with the License.  You may obtain a copy of the License at
 //
-//	http://www.apache.org/licenses/LICENSE-2.0
+//   http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing,
 // software distributed under the License is distributed on an
@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package ingress
+package webhook
 
 import (
 	"fmt"
@@ -27,40 +27,49 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = Describe("Test IngressClass Webhook", Label("webhook"), func() {
+var _ = Describe("Test Gateway Webhook", Label("webhook"), func() {
 	s := scaffold.NewScaffold(scaffold.Options{
-		Name:          "ingressclass-webhook-test",
+		Name:          "gateway-webhook-test",
 		EnableWebhook: true,
 	})
 
-	Context("IngressClass Validation", func() {
+	Context("GatewayProxy reference validation warnings", func() {
 		It("should warn when referenced GatewayProxy does not exist on create and update", func() {
-			By("creating IngressClass referencing a missing GatewayProxy")
+			By("creating GatewayClass with controller name")
+			err := s.CreateResourceFromString(s.GetGatewayClassYaml())
+			Expect(err).ShouldNot(HaveOccurred())
+
+			time.Sleep(2 * time.Second)
+
+			By("creating Gateway referencing a missing GatewayProxy")
 			missingName := "missing-proxy"
-			icYAML := `
-apiVersion: networking.k8s.io/v1
-kind: IngressClass
+			gwYAML := `
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
 metadata:
-  name: apisix-with-missing
+  name: %s
 spec:
-  controller: "%s"
-  parameters:
-    apiGroup: "apisix.apache.org"
-    kind: "GatewayProxy"
-    name: "%s"
-    namespace: "%s"
-    scope: "Namespace"
+  gatewayClassName: %s
+  listeners:
+  - name: http1
+    protocol: HTTP
+    port: 80
+  infrastructure:
+    parametersRef:
+      group: apisix.apache.org
+      kind: GatewayProxy
+      name: %s
 `
 
-			output, err := s.CreateResourceFromStringAndGetOutput(fmt.Sprintf(icYAML, s.GetControllerName(), missingName, s.Namespace()))
+			output, err := s.CreateResourceFromStringAndGetOutput(fmt.Sprintf(gwYAML, s.Namespace(), s.Namespace(), missingName))
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(output).To(ContainSubstring(fmt.Sprintf("Warning: Referenced GatewayProxy '%s/%s' not found.", s.Namespace(), missingName)))
 
 			time.Sleep(2 * time.Second)
 
-			By("updating IngressClass to reference another missing GatewayProxy")
+			By("updating Gateway to reference another missing GatewayProxy")
 			missingName2 := "missing-proxy-2"
-			output, err = s.CreateResourceFromStringAndGetOutput(fmt.Sprintf(icYAML, s.GetControllerName(), missingName2, s.Namespace()))
+			output, err = s.CreateResourceFromStringAndGetOutput(fmt.Sprintf(gwYAML, s.Namespace(), s.Namespace(), missingName2))
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(output).To(ContainSubstring(fmt.Sprintf("Warning: Referenced GatewayProxy '%s/%s' not found.", s.Namespace(), missingName2)))
 
@@ -69,14 +78,18 @@ spec:
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
 
-			By("updating IngressClass to reference an existing GatewayProxy")
+			By("updating Gateway to reference an existing GatewayProxy")
 			existingName := "apisix-proxy-config"
-			output, err = s.CreateResourceFromStringAndGetOutput(fmt.Sprintf(icYAML, s.GetControllerName(), existingName, s.Namespace()))
+			output, err = s.CreateResourceFromStringAndGetOutput(fmt.Sprintf(gwYAML, s.Namespace(), s.Namespace(), existingName))
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(output).NotTo(ContainSubstring(fmt.Sprintf("Warning: Referenced GatewayProxy '%s/%s' not found.", s.Namespace(), existingName)))
 
-			By("deleting IngressClass")
-			err = s.DeleteResource("IngressClass", "apisix-with-missing")
+			By("delete Gateway")
+			err = s.DeleteResource("Gateway", s.Namespace())
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("delete GatewayClass")
+			err = s.DeleteResource("GatewayClass", s.Namespace())
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 	})
