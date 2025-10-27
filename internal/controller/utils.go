@@ -41,7 +41,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -49,6 +48,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	"sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
@@ -64,6 +64,7 @@ import (
 const (
 	KindGateway            = "Gateway"
 	KindHTTPRoute          = "HTTPRoute"
+	KindTCPRoute           = "TCPRoute"
 	KindGRPCRoute          = "GRPCRoute"
 	KindGatewayClass       = "GatewayClass"
 	KindIngress            = "Ingress"
@@ -503,6 +504,8 @@ func routeHostnamesIntersectsWithListenerHostname(route client.Object, listener 
 	switch r := route.(type) {
 	case *gatewayv1.HTTPRoute:
 		return listenerHostnameIntersectWithRouteHostnames(listener, r.Spec.Hostnames)
+	case *gatewayv1alpha2.TCPRoute:
+		return true // TCPRoute doesn't have Hostnames to match
 	case *gatewayv1.GRPCRoute:
 		return listenerHostnameIntersectWithRouteHostnames(listener, r.Spec.Hostnames)
 	default:
@@ -668,6 +671,10 @@ func routeMatchesListenerType(route client.Object, listener gatewayv1.Listener) 
 			if listener.TLS.Mode != nil && *listener.TLS.Mode != gatewayv1.TLSModeTerminate {
 				return false
 			}
+		}
+	case *gatewayv1alpha2.TCPRoute:
+		if listener.Protocol != gatewayv1.TCPProtocolType {
+			return false
 		}
 	default:
 		return false
@@ -1718,7 +1725,7 @@ func MatchesIngressClass(c client.Client, log logr.Logger, obj client.Object, ap
 func ExtractIngressClass(obj client.Object) string {
 	switch v := obj.(type) {
 	case *networkingv1.Ingress:
-		return ptr.Deref(v.Spec.IngressClassName, "")
+		return types.GetEffectiveIngressClassName(v)
 	case *apiv2.ApisixConsumer:
 		return v.Spec.IngressClassName
 	case *apiv2.ApisixRoute:

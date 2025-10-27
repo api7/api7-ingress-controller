@@ -31,6 +31,7 @@ import (
 	_ "github.com/apache/apisix-ingress-controller/test/e2e/gatewayapi"
 	_ "github.com/apache/apisix-ingress-controller/test/e2e/ingress"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
+	_ "github.com/apache/apisix-ingress-controller/test/e2e/webhook"
 )
 
 // Run e2e tests using the Ginkgo runner.

@@ -1,0 +1,150 @@
+name: Auto Backport from Upstream
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      force_sync:
+        description: "Force sync all recent commits (ignores watermark)"
+        required: false
+        default: "false"
+
+concurrency:
+  group: auto-backport
+  cancel-in-progress: false
+
+env:
+  SOURCE_REPO: apache/apisix-ingress-controller
+  SOURCE_BRANCH: master
+  TARGET_BRANCH: ${{ github.event.repository.default_branch || 'master' }}
+  MAX_COMMITS_PER_RUN: 5
+
+jobs:
+  auto-backport:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+      issues: write
+      repository-projects: write
+    env:
+      GH_TOKEN: ${{ secrets.BACKPORT_PAT }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      FORCE_SYNC: ${{ github.event.inputs.force_sync || 'false' }}
+
+    steps:
+      - name: Checkout target repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.BACKPORT_PAT }}
+
+      - name: Show run configuration
+        run: |
+          echo "Force sync: $FORCE_SYNC"
+          echo "Source repo: $SOURCE_REPO"
+          echo "Source branch: $SOURCE_BRANCH"
+          echo "Target branch: $TARGET_BRANCH"
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "backport-bot[bot]"
+          git config --global user.email "backport-bot[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream "https://github.com/${SOURCE_REPO}.git" 2>/dev/null || true
+          git remote set-url upstream "https://github.com/${SOURCE_REPO}.git"
+
+      - name: Fetch upstream branch
+        run: |
+          git fetch --prune --no-tags upstream "${SOURCE_BRANCH}"
+
+      - name: Read last processed commit watermark
+        id: watermark
+        run: |
+          LAST_SHA=$(gh variable get LAST_BACKPORT_SHA -R "${GITHUB_REPOSITORY}" --json value --jq '.value' 2>/dev/null || echo "")
+          if [[ -z "$LAST_SHA" || "$FORCE_SYNC" == "true" ]]; then
+            LAST_SHA=$(git log "upstream/${SOURCE_BRANCH}" --since="7 days ago" --format="%H" | tail -n 1)
+          fi
+          echo "last_sha=${LAST_SHA}" >> "$GITHUB_OUTPUT"
+          echo "Last processed SHA: ${LAST_SHA:-<none>}"
+
+      - name: Collect new commits
+        id: collect_commits
+        run: |
+          LAST_SHA="${{ steps.watermark.outputs.last_sha }}"
+          if [[ -n "$LAST_SHA" ]]; then
+            COMMITS=$(git log "upstream/${SOURCE_BRANCH}" ^"$LAST_SHA" --format="%H" --reverse | head -"${MAX_COMMITS_PER_RUN}")
+          else
+            COMMITS=$(git log "upstream/${SOURCE_BRANCH}" -1 --format="%H")
+          fi
+          {
+            echo "commits<<EOF"
+            printf '%s\n' "$COMMITS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          if [[ -z "$COMMITS" ]]; then
+            COUNT=0
+          else
+            COUNT=$(printf '%s\n' "$COMMITS" | grep -c '[0-9a-f]')
+          fi
+          echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
+          echo "Commits to process: ${COUNT}"
+
+      - name: Ensure labels exist
+        run: |
+          gh label create backport --color EDEDED --description "Automated backport" -R "${GITHUB_REPOSITORY}" 2>/dev/null || true
+          gh label create automated --color EDEDED --description "Created by automation" -R "${GITHUB_REPOSITORY}" 2>/dev/null || true
+          gh label create backport-failed --color D73A4A --description "Backport failed" -R "${GITHUB_REPOSITORY}" 2>/dev/null || true
+          gh label create needs-manual-action --color FBCA04 --description "Manual intervention required" -R "${GITHUB_REPOSITORY}" 2>/dev/null || true
+          gh label create conflicts --color D93F0B --description "Contains merge conflicts" -R "${GITHUB_REPOSITORY}" 2>/dev/null || true
+
+      - name: Process commits
+        if: steps.collect_commits.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          chmod +x .github/scripts/backport-commit.sh
+          SUCCESS=0
+          FAILURE=0
+          LAST_PROCESSED=""
+          while IFS= read -r COMMIT; do
+            [[ -z "$COMMIT" ]] && continue
+            if .github/scripts/backport-commit.sh "$COMMIT"; then
+              SUCCESS=$((SUCCESS + 1))
+              LAST_PROCESSED="$COMMIT"
+            else
+              echo "Commit ${COMMIT} failed to backport"
+              FAILURE=$((FAILURE + 1))
+            fi
+          done <<< "${{ steps.collect_commits.outputs.commits }}"
+          echo "SUCCESS_COUNT=$SUCCESS" >> "$GITHUB_ENV"
+          echo "FAILURE_COUNT=$FAILURE" >> "$GITHUB_ENV"
+          echo "LAST_PROCESSED_SHA=$LAST_PROCESSED" >> "$GITHUB_ENV"
+
+      - name: Update watermark
+        if: env.LAST_PROCESSED_SHA != ''
+        run: |
+          if [[ "${FAILURE_COUNT:-0}" == "0" ]]; then
+            gh variable set LAST_BACKPORT_SHA -b "${LAST_PROCESSED_SHA}" -R "${GITHUB_REPOSITORY}"
+          else
+            echo "Failures detected; watermark will not be updated."
+          fi
+
+      - name: Summary
+        run: |
+          echo "Successful cherry-picks: ${SUCCESS_COUNT:-0}"
+          echo "Failed cherry-picks: ${FAILURE_COUNT:-0}"
+          echo "Last processed SHA: ${LAST_PROCESSED_SHA:-none}"
+          {
+            echo "# Backport Summary"
+            echo
+            echo "- Successful: ${SUCCESS_COUNT:-0}"
+            echo "- Failed: ${FAILURE_COUNT:-0}"
+            echo "- Last processed: ${LAST_PROCESSED_SHA:-none}"
+            echo "- Force sync: ${FORCE_SYNC}"
+          } >> "$GITHUB_STEP_SUMMARY"
