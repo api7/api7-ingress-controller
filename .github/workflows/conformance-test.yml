@@ -86,7 +86,7 @@ jobs:
 
       - name: Install And Run Cloud Provider KIND
         run: |
-          go install sigs.k8s.io/cloud-provider-kind@latest
+          go install sigs.k8s.io/cloud-provider-kind@v0.8.0
           nohup cloud-provider-kind > /tmp/kind-loadbalancer.log 2>&1 &
   
       - name: Install Gateway API And CRDs
