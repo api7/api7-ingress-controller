@@ -426,7 +426,6 @@ spec:
             port: 3001
           initialDelaySeconds: 5
           periodSeconds: 5
-        securityContext: {}
         volumeMounts:
         - name: socket-volume
           mountPath: /sockets
