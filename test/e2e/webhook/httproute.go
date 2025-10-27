@@ -15,36 +15,32 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package e2e
+package webhook
 
 import (
-	"fmt"
-	"testing"
-
 	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 
-	_ "github.com/apache/apisix-ingress-controller/test/e2e/api7"
-	_ "github.com/apache/apisix-ingress-controller/test/e2e/crds/v1alpha1"
-	_ "github.com/apache/apisix-ingress-controller/test/e2e/crds/v2"
-	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
-	_ "github.com/apache/apisix-ingress-controller/test/e2e/gatewayapi"
-	_ "github.com/apache/apisix-ingress-controller/test/e2e/ingress"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
-	_ "github.com/apache/apisix-ingress-controller/test/e2e/webhook"
 )
 
-// Run e2e tests using the Ginkgo runner.
-func TestE2E(t *testing.T) {
-	RegisterFailHandler(Fail)
-	f := framework.NewFramework()
+var _ = Describe("Test HTTPRoute Webhook", Label("webhook"), func() {
+	s := scaffold.NewScaffold(scaffold.Options{
+		Name:          "httproute-webhook-test",
+		EnableWebhook: true,
+	})
 
-	// init newDeployer function
-	scaffold.NewDeployer = scaffold.NewAPI7Deployer
+	BeforeEach(func() {
+		setupGatewayResources(s)
+	})
 
-	BeforeSuite(f.BeforeSuite)
-	AfterSuite(f.AfterSuite)
-
-	_, _ = fmt.Fprintf(GinkgoWriter, "Starting apisix-ingress suite\n")
-	RunSpecs(t, "e2e suite")
-}
+	It("should warn on missing backend services", func() {
+		verifyMissingBackendWarnings(s, routeWebhookTestCase{
+			routeKind:       "HTTPRoute",
+			routeName:       "webhook-httproute",
+			missingService:  "missing-http-backend",
+			mirrorService:   "missing-http-mirror",
+			servicePortName: "http",
+			servicePort:     80,
+		})
+	})
+})

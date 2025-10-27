@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package gatewayapi
+package webhook
 
 import (
 	"fmt"
@@ -27,71 +27,105 @@ import (
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
-var _ = Describe("Test Gateway Webhook", Label("webhook"), func() {
+var _ = Describe("Test GatewayProxy Webhook", Label("webhook"), func() {
 	s := scaffold.NewScaffold(scaffold.Options{
-		Name:          "gateway-webhook-test",
+		Name:          "gatewayproxy-webhook-test",
 		EnableWebhook: true,
 	})
 
-	Context("GatewayProxy reference validation warnings", func() {
-		It("should warn when referenced GatewayProxy does not exist on create and update", func() {
-			By("creating GatewayClass with controller name")
-			err := s.CreateResourceFromString(s.GetGatewayClassYaml())
-			Expect(err).ShouldNot(HaveOccurred())
-
-			time.Sleep(2 * time.Second)
-
-			By("creating Gateway referencing a missing GatewayProxy")
-			missingName := "missing-proxy"
-			gwYAML := `
-apiVersion: gateway.networking.k8s.io/v1
-kind: Gateway
+	gatewayProxyTemplate := `
+apiVersion: apisix.apache.org/v1alpha1
+kind: GatewayProxy
 metadata:
   name: %s
 spec:
-  gatewayClassName: %s
-  listeners:
-  - name: http1
-    protocol: HTTP
-    port: 80
-  infrastructure:
-    parametersRef:
-      group: apisix.apache.org
-      kind: GatewayProxy
-      name: %s
+  provider:
+    type: ControlPlane
+    controlPlane:
+      service:
+        name: %s
+        port: 9180
+      auth:
+        type: AdminKey
+        adminKey:
+          valueFrom:
+            secretKeyRef:
+              name: %s
+              key: token
 `
 
-			output, err := s.CreateResourceFromStringAndGetOutput(fmt.Sprintf(gwYAML, s.Namespace(), s.Namespace(), missingName))
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(output).To(ContainSubstring(fmt.Sprintf("Warning: Referenced GatewayProxy '%s/%s' not found.", s.Namespace(), missingName)))
+	It("should warn on missing service or secret references", func() {
+		missingService := "missing-control-plane"
+		missingSecret := "missing-admin-secret"
+		gpName := "webhook-gateway-proxy"
 
-			time.Sleep(2 * time.Second)
+		output, err := s.CreateResourceFromStringAndGetOutput(fmt.Sprintf(gatewayProxyTemplate, gpName, missingService, missingSecret))
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(output).To(ContainSubstring(fmt.Sprintf("Warning: Referenced Service '%s/%s' not found", s.Namespace(), missingService)))
+		Expect(output).To(ContainSubstring(fmt.Sprintf("Warning: Referenced Secret '%s/%s' not found", s.Namespace(), missingSecret)))
 
-			By("updating Gateway to reference another missing GatewayProxy")
-			missingName2 := "missing-proxy-2"
-			output, err = s.CreateResourceFromStringAndGetOutput(fmt.Sprintf(gwYAML, s.Namespace(), s.Namespace(), missingName2))
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(output).To(ContainSubstring(fmt.Sprintf("Warning: Referenced GatewayProxy '%s/%s' not found.", s.Namespace(), missingName2)))
+		By("creating the referenced Service and Secret without the required key")
+		serviceYAML := fmt.Sprintf(`
+apiVersion: v1
+kind: Service
+metadata:
+  name: %s
+spec:
+  selector:
+    app: placeholder
+  ports:
+  - name: admin
+    port: 9180
+    targetPort: 9180
+  type: ClusterIP
+`, missingService)
+		err = s.CreateResourceFromString(serviceYAML)
+		Expect(err).NotTo(HaveOccurred(), "creating placeholder service")
 
-			By("create GatewayProxy")
-			err = s.CreateResourceFromString(s.GetGatewayProxySpec())
-			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
-			time.Sleep(5 * time.Second)
+		secretWithoutKey := fmt.Sprintf(`
+apiVersion: v1
+kind: Secret
+metadata:
+  name: %s
+stringData:
+  another: value
+`, missingSecret)
+		err = s.CreateResourceFromString(secretWithoutKey)
+		Expect(err).NotTo(HaveOccurred(), "creating placeholder secret without token key")
 
-			By("updating Gateway to reference an existing GatewayProxy")
-			existingName := "apisix-proxy-config"
-			output, err = s.CreateResourceFromStringAndGetOutput(fmt.Sprintf(gwYAML, s.Namespace(), s.Namespace(), existingName))
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(output).NotTo(ContainSubstring(fmt.Sprintf("Warning: Referenced GatewayProxy '%s/%s' not found.", s.Namespace(), existingName)))
+		time.Sleep(2 * time.Second)
 
-			By("delete Gateway")
-			err = s.DeleteResource("Gateway", s.Namespace())
-			Expect(err).ShouldNot(HaveOccurred())
+		By("delete and reapply the GatewayProxy, because gatewayproxy has no change")
+		err = s.DeleteResource("GatewayProxy", gpName)
+		Expect(err).ShouldNot(HaveOccurred())
 
-			By("delete GatewayClass")
-			err = s.DeleteResource("GatewayClass", s.Namespace())
-			Expect(err).ShouldNot(HaveOccurred())
-		})
+		output, err = s.CreateResourceFromStringAndGetOutput(fmt.Sprintf(gatewayProxyTemplate, gpName, missingService, missingSecret))
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(output).NotTo(ContainSubstring(fmt.Sprintf("Warning: Referenced Service '%s/%s' not found", s.Namespace(), missingService)))
+		Expect(output).To(ContainSubstring(fmt.Sprintf("Warning: Secret key 'token' not found in Secret '%s/%s'", s.Namespace(), missingSecret)))
+
+		By("updating the Secret to include the expected key")
+		secretWithKey := fmt.Sprintf(`
+apiVersion: v1
+kind: Secret
+metadata:
+  name: %s
+stringData:
+  token: %s
+`, missingSecret, s.AdminKey())
+		err = s.CreateResourceFromString(secretWithKey)
+		Expect(err).NotTo(HaveOccurred(), "adding token key to secret")
+
+		time.Sleep(2 * time.Second)
+
+		By("delete and reapply the GatewayProxy, because gatewayproxy has no change")
+		err = s.DeleteResource("GatewayProxy", gpName)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		output, err = s.CreateResourceFromStringAndGetOutput(fmt.Sprintf(gatewayProxyTemplate, gpName, missingService, missingSecret))
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(output).NotTo(ContainSubstring(fmt.Sprintf("Warning: Referenced Service '%s/%s' not found", s.Namespace(), missingService)))
+		Expect(output).NotTo(ContainSubstring(fmt.Sprintf("Warning: Secret key 'token' not found in Secret '%s/%s'", s.Namespace(), missingSecret)))
 	})
 
 	Context("GatewayProxy configuration conflicts", func() {
@@ -118,27 +152,6 @@ type: Opaque
 stringData:
   %s: %s
 `
-			gatewayProxyTemplate := `
-apiVersion: apisix.apache.org/v1alpha1
-kind: GatewayProxy
-metadata:
-  name: %s
-spec:
-  provider:
-    type: ControlPlane
-    controlPlane:
-      service:
-        name: %s
-        port: 9180
-      auth:
-        type: AdminKey
-        adminKey:
-          valueFrom:
-            secretKeyRef:
-              name: %s
-              key: token
-`
-
 			serviceName := "gatewayproxy-shared-service"
 			secretName := "gatewayproxy-shared-secret"
 			initialProxy := "gatewayproxy-shared-primary"
@@ -228,27 +241,6 @@ type: Opaque
 stringData:
   %s: %s
 `
-			gatewayProxyTemplate := `
-apiVersion: apisix.apache.org/v1alpha1
-kind: GatewayProxy
-metadata:
-  name: %s
-spec:
-  provider:
-    type: ControlPlane
-    controlPlane:
-      service:
-        name: %s
-        port: 9180
-      auth:
-        type: AdminKey
-        adminKey:
-          valueFrom:
-            secretKeyRef:
-              name: %s
-              key: token
-`
-
 			sharedServiceName := "gatewayproxy-update-shared-service"
 			sharedSecretName := "gatewayproxy-update-shared-secret"
 			uniqueServiceName := "gatewayproxy-update-unique-service"
