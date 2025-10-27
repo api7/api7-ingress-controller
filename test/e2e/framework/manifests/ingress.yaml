@@ -159,6 +159,7 @@ rules:
   - httproutes/status
   - referencegrants/status
   - tcproutes/status
+  - udproutes/status
   verbs:
   - get
   - update
@@ -170,6 +171,7 @@ rules:
   - httproutes
   - referencegrants
   - tcproutes
+  - udproutes
   verbs:
   - get
   - list
