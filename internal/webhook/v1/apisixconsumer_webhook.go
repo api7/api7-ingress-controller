@@ -65,7 +65,7 @@ func (v *ApisixConsumerCustomValidator) ValidateCreate(ctx context.Context, obj 
 	}
 	apisixConsumerLog.Info("Validation for ApisixConsumer upon creation", "name", consumer.GetName(), "namespace", consumer.GetNamespace())
 
-	if !controller.MatchesIngressClass(v.Client, apisixConsumerLog, consumer) {
+	if !controller.MatchesIngressClass(v.Client, apisixConsumerLog, consumer, "") {
 		return nil, nil
 	}
 
@@ -78,7 +78,7 @@ func (v *ApisixConsumerCustomValidator) ValidateUpdate(ctx context.Context, oldO
 		return nil, fmt.Errorf("expected an ApisixConsumer object for the newObj but got %T", newObj)
 	}
 	apisixConsumerLog.Info("Validation for ApisixConsumer upon update", "name", consumer.GetName(), "namespace", consumer.GetNamespace())
-	if !controller.MatchesIngressClass(v.Client, apisixConsumerLog, consumer) {
+	if !controller.MatchesIngressClass(v.Client, apisixConsumerLog, consumer, "") {
 		return nil, nil
 	}
 

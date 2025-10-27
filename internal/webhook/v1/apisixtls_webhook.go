@@ -63,7 +63,7 @@ func (v *ApisixTlsCustomValidator) ValidateCreate(ctx context.Context, obj runti
 		return nil, fmt.Errorf("expected an ApisixTls object but got %T", obj)
 	}
 	apisixTlsLog.Info("Validation for ApisixTls upon creation", "name", tls.GetName(), "namespace", tls.GetNamespace())
-	if !controller.MatchesIngressClass(v.Client, apisixTlsLog, tls) {
+	if !controller.MatchesIngressClass(v.Client, apisixTlsLog, tls, "") {
 		return nil, nil
 	}
 
@@ -76,7 +76,7 @@ func (v *ApisixTlsCustomValidator) ValidateUpdate(ctx context.Context, oldObj, n
 		return nil, fmt.Errorf("expected an ApisixTls object for the newObj but got %T", newObj)
 	}
 	apisixTlsLog.Info("Validation for ApisixTls upon update", "name", tls.GetName(), "namespace", tls.GetNamespace())
-	if !controller.MatchesIngressClass(v.Client, apisixTlsLog, tls) {
+	if !controller.MatchesIngressClass(v.Client, apisixTlsLog, tls, "") {
 		return nil, nil
 	}
 

@@ -63,7 +63,7 @@ func (v *ApisixRouteCustomValidator) ValidateCreate(ctx context.Context, obj run
 		return nil, fmt.Errorf("expected an ApisixRoute object but got %T", obj)
 	}
 	apisixRouteLog.Info("Validation for ApisixRoute upon creation", "name", route.GetName(), "namespace", route.GetNamespace())
-	if !controller.MatchesIngressClass(v.Client, apisixRouteLog, route) {
+	if !controller.MatchesIngressClass(v.Client, apisixRouteLog, route, "") {
 		return nil, nil
 	}
 
@@ -76,7 +76,7 @@ func (v *ApisixRouteCustomValidator) ValidateUpdate(ctx context.Context, oldObj,
 		return nil, fmt.Errorf("expected an ApisixRoute object for the newObj but got %T", newObj)
 	}
 	apisixRouteLog.Info("Validation for ApisixRoute upon update", "name", route.GetName(), "namespace", route.GetNamespace())
-	if !controller.MatchesIngressClass(v.Client, apisixRouteLog, route) {
+	if !controller.MatchesIngressClass(v.Client, apisixRouteLog, route, "") {
 		return nil, nil
 	}
 

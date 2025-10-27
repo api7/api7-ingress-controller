@@ -138,7 +138,7 @@ func (v *IngressCustomValidator) ValidateCreate(ctx context.Context, obj runtime
 		return nil, fmt.Errorf("expected a Ingress object but got %T", obj)
 	}
 	ingresslog.Info("Validation for Ingress upon creation", "name", ingress.GetName(), "namespace", ingress.GetNamespace())
-	if !controller.MatchesIngressClass(v.Client, ingresslog, ingress) {
+	if !controller.MatchesIngressClass(v.Client, ingresslog, ingress, "") {
 		return nil, nil
 	}
 
@@ -156,7 +156,7 @@ func (v *IngressCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 		return nil, fmt.Errorf("expected a Ingress object for the newObj but got %T", newObj)
 	}
 	ingresslog.Info("Validation for Ingress upon update", "name", ingress.GetName(), "namespace", ingress.GetNamespace())
-	if !controller.MatchesIngressClass(v.Client, ingresslog, ingress) {
+	if !controller.MatchesIngressClass(v.Client, ingresslog, ingress, "") {
 		return nil, nil
 	}
 
