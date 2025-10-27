@@ -426,13 +426,10 @@ spec:
             port: 3001
           initialDelaySeconds: 5
           periodSeconds: 5
-<<<<<<< HEAD
         securityContext: {}
-=======
         volumeMounts:
         - name: socket-volume
           mountPath: /sockets
->>>>>>> dc8b6621 (feat: add Unix socket support for inter-container communication (#2587))
       volumes:
       - name: ingress-config
         configMap:
