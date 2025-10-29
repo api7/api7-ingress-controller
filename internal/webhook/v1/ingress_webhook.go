@@ -41,6 +41,7 @@ var unsupportedAnnotations = []string{
 	"k8s.apisix.apache.org/use-regex",
 	"k8s.apisix.apache.org/enable-websocket",
 	"k8s.apisix.apache.org/plugin-config-name",
+<<<<<<< HEAD
 	"k8s.apisix.apache.org/upstream-scheme",
 	"k8s.apisix.apache.org/upstream-retries",
 	"k8s.apisix.apache.org/upstream-connect-timeout",
@@ -55,6 +56,8 @@ var unsupportedAnnotations = []string{
 	"k8s.apisix.apache.org/http-to-https",
 	"k8s.apisix.apache.org/http-redirect",
 	"k8s.apisix.apache.org/http-redirect-code",
+=======
+>>>>>>> b25c4b41 (feat: support csrf annotations for ingress (#2626))
 	"k8s.apisix.apache.org/rewrite-target",
 	"k8s.apisix.apache.org/rewrite-target-regex",
 	"k8s.apisix.apache.org/rewrite-target-regex-template",
