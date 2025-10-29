@@ -33,6 +33,7 @@ import (
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	"github.com/apache/apisix-ingress-controller/internal/adc/translator/annotations"
 	internaltypes "github.com/apache/apisix-ingress-controller/internal/types"
 	k8sutils "github.com/apache/apisix-ingress-controller/internal/utils"
 	"github.com/apache/apisix-ingress-controller/pkg/utils"
@@ -431,6 +432,27 @@ func setupIngressIndexer(mgr ctrl.Manager) error {
 		return err
 	}
 
+<<<<<<< HEAD
+=======
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&networkingv1.Ingress{},
+		TLSHostIndexRef,
+		IngressTLSHostIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&networkingv1.Ingress{},
+		PluginConfigIndexRef,
+		IngressPluginConfigIndexFunc,
+	); err != nil {
+		return err
+	}
+
+>>>>>>> 15932856 (feat: support plugin config annotations for ingress (#2627))
 	return nil
 }
 
@@ -892,3 +914,41 @@ func ApisixTlsIngressClassIndexFunc(rawObj client.Object) []string {
 	}
 	return []string{tls.Spec.IngressClassName}
 }
+<<<<<<< HEAD
+=======
+
+func setupApisixGlobalRuleIndexer(mgr ctrl.Manager) error {
+	// Create secret index for ApisixGlobalRule
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&apiv2.ApisixGlobalRule{},
+		SecretIndexRef,
+		ApisixGlobalRuleSecretIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ApisixGlobalRuleSecretIndexFunc(rawObj client.Object) []string {
+	agr := rawObj.(*apiv2.ApisixGlobalRule)
+	var keys []string
+	for _, plugin := range agr.Spec.Plugins {
+		if plugin.Enable && plugin.SecretRef != "" {
+			keys = append(keys, GenIndexKey(agr.GetNamespace(), plugin.SecretRef))
+		}
+	}
+	return keys
+}
+
+func IngressPluginConfigIndexFunc(rawObj client.Object) []string {
+	ingress := rawObj.(*networkingv1.Ingress)
+	pluginConfigName := ingress.Annotations[annotations.AnnotationsPluginConfigName]
+	if pluginConfigName == "" {
+		return nil
+	}
+
+	return []string{GenIndexKey(ingress.GetNamespace(), pluginConfigName)}
+}
+>>>>>>> 15932856 (feat: support plugin config annotations for ingress (#2627))
