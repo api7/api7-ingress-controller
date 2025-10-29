@@ -88,6 +88,8 @@ import (
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes/status,verbs=get;update
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=tcproutes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=tcproutes/status,verbs=get;update
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=udproutes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=udproutes/status,verbs=get;update
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=referencegrants,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=referencegrants/status,verbs=get;update
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=grpcroutes,verbs=get;list;watch
@@ -149,6 +151,14 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindTCPRoute),
+			Provider: pro,
+			Updater:  updater,
+			Readier:  readier,
+		},
+		&gatewayv1alpha2.UDPRoute{}: &controller.UDPRouteReconciler{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindUDPRoute),
 			Provider: pro,
 			Updater:  updater,
 			Readier:  readier,
@@ -304,6 +314,9 @@ func registerGatewayAPIForReadinessGVK(mgr manager.Manager, readier readiness.Re
 	}
 	if utils.HasAPIResource(mgr, &gatewayv1alpha2.TCPRoute{}) {
 		gvks = append(gvks, types.GvkOf(&gatewayv1alpha2.TCPRoute{}))
+	}
+	if utils.HasAPIResource(mgr, &gatewayv1alpha2.UDPRoute{}) {
+		gvks = append(gvks, types.GvkOf(&gatewayv1alpha2.UDPRoute{}))
 	}
 	if len(gvks) == 0 {
 		return

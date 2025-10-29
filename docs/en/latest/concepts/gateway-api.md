@@ -52,14 +52,14 @@ By supporting Gateway API, the APISIX Ingress controller can realize richer func
 | ReferenceGrant   | Supported           | Not supported          | Not supported                         | v1beta1     |
 | TLSRoute         | Not supported       | Not supported          | Not supported                         | v1alpha2    |
 | TCPRoute         | Supported           | Supported              | Not supported                         | v1alpha2    |
-| UDPRoute         | Not supported       | Not supported          | Not supported                         | v1alpha2    |
+| UDPRoute         | Supported           | Supported              | Not supported                         | v1alpha2    |
 | BackendTLSPolicy | Not supported       | Not supported          | Not supported                         | v1alpha3    |
 
 ## Examples
 
 For configuration examples, see the Gateway API tabs in [Configuration Examples](../reference/example.md).
 
-For a complete list of configuration options, refer to the [Gateway API Reference](https://gateway-api.sigs.k8s.io/reference/spec/). Be aware that some fields are not supported, or partially supported.
+For a complete list of configuration options, refer to the [Gateway API Reference](https://gateway-api.sigs.k8s.io/reference/main/spec/). Be aware that some fields are not supported, or partially supported.
 
 ## Unsupported / Partially Supported Fields
 
