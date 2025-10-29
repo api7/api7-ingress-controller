@@ -456,6 +456,7 @@ func (t *Translator) translateStreamRule(tctx *provider.TranslateContext, ar *ap
 	svc.Name = adc.ComposeServiceNameWithStream(ar.Namespace, ar.Name, part.Name)
 	svc.ID = id.GenID(svc.Name)
 	svc.StreamRoutes = append(svc.StreamRoutes, sr)
+	svc.Labels = label.GenLabel(ar)
 
 	upstream, err := t.translateApisixRouteStreamBackend(tctx, ar, part.Backend)
 	if err != nil {
