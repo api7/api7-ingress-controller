@@ -68,35 +68,19 @@ spec:
 `
 
 		BeforeEach(func() {
-			// Create GatewayProxy
-			Expect(s.CreateResourceFromString(s.GetGatewayProxySpec())).
-				NotTo(HaveOccurred(), "creating GatewayProxy")
+			Expect(s.CreateResourceFromString(s.GetGatewayProxySpec())).NotTo(HaveOccurred(), "creating GatewayProxy")
 
-			// Create GatewayClass
-			gatewayClassName := s.Namespace()
-			Expect(s.CreateResourceFromString(s.GetGatewayClassYaml())).
-				NotTo(HaveOccurred(), "creating GatewayClass")
-			gcyaml, _ := s.GetResourceYaml("GatewayClass", gatewayClassName)
-			s.ResourceApplied("GatewayClass", gatewayClassName, gcyaml, 1)
+			Expect(s.CreateResourceFromString(s.GetGatewayClassYaml())).NotTo(HaveOccurred(), "creating GatewayClass")
 
-			// Create Gateway with UDP listener
-			gatewayName := s.Namespace()
-			Expect(s.CreateResourceFromString(fmt.Sprintf(udpGateway, gatewayName, gatewayClassName))).
+			Expect(s.CreateResourceFromString(fmt.Sprintf(udpGateway, s.Namespace(), s.Namespace()))).
 				NotTo(HaveOccurred(), "creating Gateway")
-
-			gwyaml, _ := s.GetResourceYaml("Gateway", gatewayName)
-			s.ResourceApplied("Gateway", gatewayName, gwyaml, 1)
 		})
 
 		It("should route UDP traffic to backend service", func() {
 			dnsSvc := s.NewCoreDNSService()
 			gatewayName := s.Namespace()
 			By("creating UDPRoute")
-			Expect(s.CreateResourceFromString(fmt.Sprintf(udpRoute, gatewayName, dnsSvc.Name, dnsSvc.Spec.Ports[0].Port))).
-				NotTo(HaveOccurred(), "creating UDPRoute")
-
-			// Verify UDPRoute status becomes programmed
-			routeYaml, _ := s.GetResourceYaml("UDPRoute", "udp-app-1")
+			routeYaml := fmt.Sprintf(udpRoute, gatewayName, dnsSvc.Name, dnsSvc.Spec.Ports[0].Port)
 			s.ResourceApplied("UDPRoute", "udp-app-1", routeYaml, 1)
 
 			svc := s.GetDataplaneService()
