@@ -33,6 +33,7 @@ import (
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	"github.com/apache/apisix-ingress-controller/internal/adc/translator/annotations"
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	internaltypes "github.com/apache/apisix-ingress-controller/internal/types"
 	k8sutils "github.com/apache/apisix-ingress-controller/internal/utils"
@@ -477,6 +478,15 @@ func setupIngressIndexer(mgr ctrl.Manager) error {
 		&networkingv1.Ingress{},
 		TLSHostIndexRef,
 		IngressTLSHostIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&networkingv1.Ingress{},
+		PluginConfigIndexRef,
+		IngressPluginConfigIndexFunc,
 	); err != nil {
 		return err
 	}
@@ -1006,4 +1016,14 @@ func ApisixGlobalRuleSecretIndexFunc(rawObj client.Object) []string {
 		}
 	}
 	return keys
+}
+
+func IngressPluginConfigIndexFunc(rawObj client.Object) []string {
+	ingress := rawObj.(*networkingv1.Ingress)
+	pluginConfigName := ingress.Annotations[annotations.AnnotationsPluginConfigName]
+	if pluginConfigName == "" {
+		return nil
+	}
+
+	return []string{GenIndexKey(ingress.GetNamespace(), pluginConfigName)}
 }
