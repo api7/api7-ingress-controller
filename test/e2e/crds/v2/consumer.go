@@ -23,9 +23,9 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
-	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -591,13 +591,15 @@ spec:
 	})
 	Context("Test LDAPAuth", func() {
 		getLDAPServerURL := func() (string, error) {
-			wd, _ := os.Getwd()
-			path := filepath.Join(wd, "testdata", "ldap", "cmd.sh")
+			// Get current file's directory using runtime.Caller
+			_, filename, _, _ := runtime.Caller(0)
+			currentDir := filepath.Dir(filename)
+			path := filepath.Join(currentDir, "..", "..", "testdata", "ldap", "cmd.sh")
+
 			cmd := exec.Command("sh", path, "ip")
 			ip, err := cmd.Output()
-			errr := fmt.Sprintf("%s failed", path)
 			if err != nil {
-				return "", fmt.Errorf(errr+" : %v", err)
+				return "", fmt.Errorf("%s failed: %v", path, err)
 			}
 			if len(ip) == 0 {
 				return "", fmt.Errorf("ldap-server start failed")
@@ -657,7 +659,7 @@ spec:
     authentication:
       enable: true
       type: ldapAuth
-      ldapAuth: 
+      ldapAuth:
         ldap_uri: %s
         base_dn: "ou=users,dc=ldap,dc=example,dc=org"
         use_tls: false

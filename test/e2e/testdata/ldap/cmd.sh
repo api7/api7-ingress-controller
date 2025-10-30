@@ -1,5 +1,3 @@
-!/bin/sh
-
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
@@ -32,7 +30,7 @@ else
 fi
 
 if  [ $OPTION = "ip" ]; then
-    echo -n `docker inspect -f '{{range .NetworkSettings.Networks}}{{.Gateway}}{{end}}' openldap`
+    printf '%s' "$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.Gateway}}{{end}}' openldap)"
 elif [ $OPTION = "start" ]; then
     $COMPOSE_CMD -f 'docker-compose.yaml'  -p 'openldap' down
 
