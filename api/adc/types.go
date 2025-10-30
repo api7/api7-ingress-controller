@@ -204,7 +204,7 @@ type UpstreamActiveHealthCheck struct {
 	Host               string                             `json:"host,omitempty" yaml:"host,omitempty"`
 	Port               int32                              `json:"port,omitempty" yaml:"port,omitempty"`
 	HTTPPath           string                             `json:"http_path,omitempty" yaml:"http_path,omitempty"`
-	HTTPSVerifyCert    bool                               `json:"https_verify_certificate,omitempty" yaml:"https_verify_certificate,omitempty"`
+	HTTPSVerifyCert    bool                               `json:"https_verify_cert,omitempty" yaml:"https_verify_cert,omitempty"`
 	HTTPRequestHeaders []string                           `json:"req_headers,omitempty" yaml:"req_headers,omitempty"`
 	Healthy            UpstreamActiveHealthCheckHealthy   `json:"healthy,omitempty" yaml:"healthy,omitempty"`
 	Unhealthy          UpstreamActiveHealthCheckUnhealthy `json:"unhealthy,omitempty" yaml:"unhealthy,omitempty"`
@@ -448,18 +448,28 @@ func (n *UpstreamNodes) UnmarshalJSON(p []byte) error {
 	return nil
 }
 
-// MarshalJSON implements the json.Marshaler interface for UpstreamNodes.
-// By default, Go serializes a nil slice as JSON null. However, for compatibility
-// with APISIX semantics, we want a nil UpstreamNodes to be encoded as an empty
-// array ([]) instead of null. Non-nil slices are marshaled as usual.
-//
-// See APISIX upstream nodes schema definition for details:
-// https://github.com/apache/apisix/blob/77dacda31277a31d6014b4970e36bae2a5c30907/apisix/schema_def.lua#L295-L338
-func (n UpstreamNodes) MarshalJSON() ([]byte, error) {
-	if n == nil {
-		return []byte("[]"), nil
+func (n Upstream) MarshalJSON() ([]byte, error) {
+	type Alias Upstream
+	// APISIX does not allow discovery_type and nodes to exist at the same time.
+	// https://github.com/apache/apisix/blob/01b4b49eb2ba642b337f7a1fbe1894a77942910b/apisix/schema_def.lua#L501-L504
+	if n.DiscoveryType != "" {
+		aux := struct {
+			Alias
+			Nodes UpstreamNodes `json:"nodes,omitempty" yaml:"nodes,omitempty"`
+		}{
+			Alias: (Alias)(n),
+		}
+		aux.Nodes = nil
+		return json.Marshal(&aux)
 	}
-	return json.Marshal([]UpstreamNode(n))
+
+	// By default Go serializes a nil slice as JSON null.
+	// For APISIX compatibility, nil UpstreamNodes should be encoded as [] instead.
+	// https://github.com/apache/apisix/blob/77dacda31277a31d6014b4970e36bae2a5c30907/apisix/schema_def.lua#L295-L338
+	if n.Nodes == nil {
+		n.Nodes = UpstreamNodes{}
+	}
+	return json.Marshal((Alias)(n))
 }
 
 // ComposeRouteName uses namespace, name and rule name to compose
@@ -481,10 +491,13 @@ func ComposeRouteName(namespace, name string, rule string) string {
 
 // ComposeStreamRouteName uses namespace, name and rule name to compose
 // the stream_route name.
-func ComposeStreamRouteName(namespace, name string, rule string) string {
+func ComposeStreamRouteName(namespace, name string, rule string, typ string) string {
+	if typ == "" {
+		typ = "TCP"
+	}
 	// FIXME Use sync.Pool to reuse this buffer if the upstream
 	// name composing code path is hot.
-	p := make([]byte, 0, len(namespace)+len(name)+len(rule)+6)
+	p := make([]byte, 0, len(namespace)+len(name)+len(rule)+len(typ)+3)
 	buf := bytes.NewBuffer(p)
 
 	buf.WriteString(namespace)
@@ -492,7 +505,8 @@ func ComposeStreamRouteName(namespace, name string, rule string) string {
 	buf.WriteString(name)
 	buf.WriteByte('_')
 	buf.WriteString(rule)
-	buf.WriteString("_tcp")
+	buf.WriteByte('_')
+	buf.WriteString(typ)
 
 	return buf.String()
 }
@@ -535,8 +549,8 @@ func ComposeServicesNameWithScheme(namespace, name string, rule string, scheme s
 	return buf.String()
 }
 
-func ComposeServiceNameWithStream(namespace, name string, rule string) string {
-	return ComposeServicesNameWithScheme(namespace, name, rule, "stream")
+func ComposeServiceNameWithStream(namespace, name string, rule, typ string) string {
+	return ComposeServicesNameWithScheme(namespace, name, rule, typ)
 }
 
 func ComposeConsumerName(namespace, name string) string {
@@ -571,8 +585,7 @@ func NewDefaultUpstream() *Upstream {
 				"managed-by": "apisix-ingress-controller",
 			},
 		},
-		Nodes: make(UpstreamNodes, 0),
-		Type:  Roundrobin,
+		Type: Roundrobin,
 	}
 }
 

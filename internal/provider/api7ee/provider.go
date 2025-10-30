@@ -29,6 +29,7 @@ import (
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
@@ -103,6 +104,12 @@ func (d *api7eeProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 	case *gatewayv1.HTTPRoute:
 		result, err = d.translator.TranslateHTTPRoute(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "service")
+	case *gatewayv1alpha2.TCPRoute:
+		result, err = d.translator.TranslateTCPRoute(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, adctypes.TypeService)
+	case *gatewayv1alpha2.UDPRoute:
+		result, err = d.translator.TranslateUDPRoute(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, adctypes.TypeService)
 	case *gatewayv1.GRPCRoute:
 		result, err = d.translator.TranslateGRPCRoute(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "service")
@@ -184,7 +191,7 @@ func (d *api7eeProvider) Delete(ctx context.Context, obj client.Object) error {
 	var resourceTypes []string
 	var labels map[string]string
 	switch obj.(type) {
-	case *gatewayv1.HTTPRoute, *apiv2.ApisixRoute, *gatewayv1.GRPCRoute:
+	case *gatewayv1.HTTPRoute, *apiv2.ApisixRoute, *gatewayv1.GRPCRoute, *gatewayv1alpha2.TCPRoute, *gatewayv1alpha2.UDPRoute:
 		resourceTypes = append(resourceTypes, "service")
 		labels = label.GenLabel(obj)
 	case *gatewayv1.Gateway:

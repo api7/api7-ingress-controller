@@ -211,30 +211,12 @@ func (t *Translator) buildUpstream(tctx *provider.TranslateContext, service *adc
 	)
 
 	for backendIndex, backend := range rule.Backends {
-		var backendErr error
-		upstream := adc.NewDefaultUpstream()
 		// try to get the apisixupstream with the same name as the backend service to be upstream config.
 		// err is ignored because it does not care about the externalNodes of the apisixupstream.
-		auNN := types.NamespacedName{Namespace: ar.GetNamespace(), Name: backend.ServiceName}
-		if au, ok := tctx.Upstreams[auNN]; ok {
-			upstream, _ = t.translateApisixUpstream(tctx, au)
-		}
-
-		if backend.ResolveGranularity == apiv2.ResolveGranularityService {
-			upstream.Nodes, backendErr = t.translateApisixRouteBackendResolveGranularityService(tctx, utils.NamespacedName(ar), backend)
-			if backendErr != nil {
-				t.Log.Error(backendErr, "failed to translate ApisixRoute backend with ResolveGranularity Service")
-				continue
-			}
-		} else {
-			upstream.Nodes, backendErr = t.translateApisixRouteBackendResolveGranularityEndpoint(tctx, utils.NamespacedName(ar), backend)
-			if backendErr != nil {
-				t.Log.Error(backendErr, "failed to translate ApisixRoute backend with ResolveGranularity Endpoint")
-				continue
-			}
-		}
-		if backend.Weight != nil {
-			upstream.Labels["meta_weight"] = strconv.FormatInt(int64(*backend.Weight), 10)
+		upstream, err := t.translateApisixRouteHTTPBackend(tctx, ar, backend)
+		if err != nil {
+			t.Log.Error(err, "failed to translate ApisixRoute backend", "backend", backend)
+			continue
 		}
 
 		upstreamName := adc.ComposeUpstreamName(ar.Namespace, ar.Name, fmt.Sprintf("%d", ruleIndex), fmt.Sprintf("%d", backendIndex))
@@ -271,7 +253,7 @@ func (t *Translator) buildUpstream(tctx *provider.TranslateContext, service *adc
 	}
 
 	// no valid upstream
-	if len(upstreams) == 0 || len(upstreams[0].Nodes) == 0 {
+	if len(upstreams) == 0 {
 		return
 	}
 
@@ -352,6 +334,46 @@ func getPortFromService(svc *v1.Service, backendSvcPort intstr.IntOrString) (int
 	return port, nil
 }
 
+func (t *Translator) translateApisixRouteHTTPBackend(tctx *provider.TranslateContext, ar *apiv2.ApisixRoute, backend apiv2.ApisixRouteHTTPBackend) (*adc.Upstream, error) {
+	auNN := types.NamespacedName{
+		Namespace: ar.Namespace,
+		Name:      backend.ServiceName,
+	}
+	upstream := adc.NewDefaultUpstream()
+	if au, ok := tctx.Upstreams[auNN]; ok {
+		svc := tctx.Services[auNN]
+		if svc == nil {
+			return nil, errors.Errorf("service not found, ApisixRoute: %s, Service: %s", utils.NamespacedName(ar).String(), auNN)
+		}
+		port, err := getPortFromService(svc, backend.ServicePort)
+		if err != nil {
+			return nil, err
+		}
+		u, err := t.translateApisixUpstreamForPort(tctx, au, ptr.To(port))
+		if err != nil {
+			return nil, err
+		}
+		upstream = u
+	}
+	var (
+		err   error
+		nodes adc.UpstreamNodes
+	)
+	if backend.ResolveGranularity == apiv2.ResolveGranularityService {
+		nodes, err = t.translateApisixRouteBackendResolveGranularityService(tctx, auNN, backend)
+	} else {
+		nodes, err = t.translateApisixRouteBackendResolveGranularityEndpoint(tctx, auNN, backend)
+	}
+	if err != nil {
+		return nil, err
+	}
+	upstream.Nodes = nodes
+	if backend.Weight != nil {
+		upstream.Labels["meta_weight"] = strconv.FormatInt(int64(*backend.Weight), 10)
+	}
+	return upstream, nil
+}
+
 func (t *Translator) translateApisixRouteBackendResolveGranularityService(tctx *provider.TranslateContext, arNN types.NamespacedName, backend apiv2.ApisixRouteHTTPBackend) (adc.UpstreamNodes, error) {
 	serviceNN := types.NamespacedName{
 		Namespace: arNN.Namespace,
@@ -424,30 +446,50 @@ func (t *Translator) translateStreamRule(tctx *provider.TranslateContext, ar *ap
 	t.loadRoutePlugins(tctx, ar, part.Plugins, plugins)
 
 	sr := adc.NewDefaultStreamRoute()
-	sr.Name = adc.ComposeStreamRouteName(ar.Namespace, ar.Name, part.Name)
+	sr.Name = adc.ComposeStreamRouteName(ar.Namespace, ar.Name, part.Name, part.Protocol)
 	sr.ID = id.GenID(sr.Name)
 	sr.ServerPort = part.Match.IngressPort
 	sr.SNI = part.Match.Host
 	sr.Plugins = plugins
 
 	svc := adc.NewDefaultService()
-	svc.Name = adc.ComposeServiceNameWithStream(ar.Namespace, ar.Name, part.Name)
+	svc.Name = adc.ComposeServiceNameWithStream(ar.Namespace, ar.Name, part.Name, part.Protocol)
 	svc.ID = id.GenID(svc.Name)
 	svc.StreamRoutes = append(svc.StreamRoutes, sr)
 
-	auNN := types.NamespacedName{Namespace: ar.GetNamespace(), Name: part.Backend.ServiceName}
-	upstream := adc.NewDefaultUpstream()
-	if au, ok := tctx.Upstreams[auNN]; ok {
-		upstream, _ = t.translateApisixUpstream(tctx, au)
-	}
-	nodes, err := t.translateApisixRouteStreamBackendResolveGranularity(tctx, utils.NamespacedName(ar), part.Backend)
+	upstream, err := t.translateApisixRouteStreamBackend(tctx, ar, part.Backend)
 	if err != nil {
 		return nil, err
 	}
-	upstream.Nodes = nodes
 	upstream.ID = ""
 	upstream.Name = ""
 
 	svc.Upstream = upstream
 	return svc, nil
+}
+
+func (t *Translator) translateApisixRouteStreamBackend(tctx *provider.TranslateContext, ar *apiv2.ApisixRoute, backend apiv2.ApisixRouteStreamBackend) (*adc.Upstream, error) {
+	auNN := types.NamespacedName{Namespace: ar.GetNamespace(), Name: backend.ServiceName}
+	upstream := adc.NewDefaultUpstream()
+	if au, ok := tctx.Upstreams[auNN]; ok {
+		service := tctx.Services[auNN]
+		if service == nil {
+			return nil, errors.Errorf("service not found, ApisixRoute: %s, Service: %s", utils.NamespacedName(ar), auNN)
+		}
+		port, err := getPortFromService(service, backend.ServicePort)
+		if err != nil {
+			return nil, err
+		}
+		u, err := t.translateApisixUpstreamForPort(tctx, au, ptr.To(port))
+		if err != nil {
+			return nil, err
+		}
+		upstream = u
+	}
+	nodes, err := t.translateApisixRouteStreamBackendResolveGranularity(tctx, utils.NamespacedName(ar), backend)
+	if err != nil {
+		return nil, err
+	}
+	upstream.Nodes = nodes
+	return upstream, nil
 }
