@@ -117,6 +117,7 @@ spec:
         time_window: 60
         rejected_code: 503
         key: remote_addr
+        policy: local
 `
 
 		var unlimitConsumer = `
