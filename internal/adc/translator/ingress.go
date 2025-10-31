@@ -94,12 +94,64 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 		result.SSL = append(result.SSL, ssl)
 	}
 
+<<<<<<< HEAD
 	// process Ingress rules, convert to Service and Route objects
 	for i, rule := range obj.Spec.Rules {
 		// extract hostnames
 		var hosts []string
 		if rule.Host != "" {
 			hosts = append(hosts, rule.Host)
+=======
+func (t *Translator) buildServiceFromIngressPath(
+	tctx *provider.TranslateContext,
+	obj *networkingv1.Ingress,
+	config *IngressConfig,
+	path *networkingv1.HTTPIngressPath,
+	index string,
+	hosts []string,
+	labels map[string]string,
+) *adctypes.Service {
+	if path.Backend.Service == nil {
+		return nil
+	}
+
+	service := adctypes.NewDefaultService()
+	service.Labels = labels
+	service.Name = adctypes.ComposeServiceNameWithRule(obj.Namespace, obj.Name, index)
+	service.ID = id.GenID(service.Name)
+	service.Hosts = hosts
+
+	upstream := adctypes.NewDefaultUpstream()
+	protocol := t.resolveIngressUpstream(tctx, obj, config, path.Backend.Service, upstream)
+	service.Upstream = upstream
+
+	route := buildRouteFromIngressPath(obj, path, config, index, labels)
+	// Check if websocket is enabled via annotation first, then fall back to appProtocol detection
+	if config != nil && config.EnableWebsocket {
+		route.EnableWebsocket = ptr.To(true)
+	} else if protocol == internaltypes.AppProtocolWS || protocol == internaltypes.AppProtocolWSS {
+		route.EnableWebsocket = ptr.To(true)
+	}
+	service.Routes = []*adctypes.Route{route}
+
+	t.fillHTTPRoutePoliciesForIngress(tctx, service.Routes)
+	return service
+}
+
+func (t *Translator) resolveIngressUpstream(
+	tctx *provider.TranslateContext,
+	obj *networkingv1.Ingress,
+	config *IngressConfig,
+	backendService *networkingv1.IngressServiceBackend,
+	upstream *adctypes.Upstream,
+) string {
+	backendRef := convertBackendRef(obj.Namespace, backendService.Name, internaltypes.KindService)
+	t.AttachBackendTrafficPolicyToUpstream(backendRef, tctx.BackendTrafficPolicies, upstream)
+	if config != nil {
+		upConfig := config.Upstream
+		if upConfig.Scheme != "" {
+			upstream.Scheme = upConfig.Scheme
+>>>>>>> f554569c (feat: support websocket annotations for ingress (#2621))
 		}
 		// if there is no HTTP path, skip
 		if rule.HTTP == nil {
