@@ -39,6 +39,7 @@ var ingresslog = logf.Log.WithName("ingress-resource")
 // ref: https://apisix.apache.org/docs/ingress-controller/upgrade-guide/#limited-support-for-ingress-annotations
 var unsupportedAnnotations = []string{
 	"k8s.apisix.apache.org/use-regex",
+<<<<<<< HEAD
 	"k8s.apisix.apache.org/enable-websocket",
 	"k8s.apisix.apache.org/plugin-config-name",
 	"k8s.apisix.apache.org/upstream-scheme",
@@ -65,6 +66,8 @@ var unsupportedAnnotations = []string{
 	"k8s.apisix.apache.org/response-rewrite-add-header",
 	"k8s.apisix.apache.org/response-rewrite-set-header",
 	"k8s.apisix.apache.org/response-rewrite-remove-header",
+=======
+>>>>>>> 9be64b6a (feat: support response rewrite annotations for ingress (#2638))
 	"k8s.apisix.apache.org/auth-uri",
 	"k8s.apisix.apache.org/auth-ssl-verify",
 	"k8s.apisix.apache.org/auth-request-headers",
