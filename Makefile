@@ -205,6 +205,7 @@ kind-load-images: pull-infra-images kind-load-ingress-image kind-load-adc-image
 	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
 	@kind load docker-image kennethreitz/httpbin:latest --name $(KIND_NAME)
 	@kind load docker-image jmalloc/echo-server:latest --name $(KIND_NAME)
+<<<<<<< HEAD
 	@kind load docker-image apache/apisix:dev --name $(KIND_NAME)
 
 .PHONY: kind-load-gateway-image
@@ -215,6 +216,9 @@ kind-load-gateway-image:
 kind-load-dashboard-images:
 	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
 	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
+=======
+	@kind load docker-image openresty/openresty:1.27.1.2-4-bullseye-fat --name $(KIND_NAME)
+>>>>>>> e3c2f816 (chore(e2e-test): optimize the startup speed of OpenResty/Nginx (#2617))
 
 .PHONY: kind-load-ingress-image
 kind-load-ingress-image:
@@ -233,8 +237,12 @@ pull-infra-images:
 	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)
 	@docker pull kennethreitz/httpbin:latest
 	@docker pull jmalloc/echo-server:latest
+<<<<<<< HEAD
 	@docker pull ghcr.io/api7/adc:dev
 	@docker pull apache/apisix:dev
+=======
+	@docker pull openresty/openresty:1.27.1.2-4-bullseye-fat
+>>>>>>> e3c2f816 (chore(e2e-test): optimize the startup speed of OpenResty/Nginx (#2617))
 
 ##@ Build
 
