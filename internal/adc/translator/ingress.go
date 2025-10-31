@@ -25,6 +25,11 @@ import (
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/types"
+<<<<<<< HEAD
+=======
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
+>>>>>>> 18882b92 (fix(ingress): port.name matching failure for ExternalName Services (#2604))
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
@@ -94,6 +99,7 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 		result.SSL = append(result.SSL, ssl)
 	}
 
+<<<<<<< HEAD
 	// process Ingress rules, convert to Service and Route objects
 	for i, rule := range obj.Spec.Rules {
 		// extract hostnames
@@ -219,6 +225,129 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 	}
 
 	return result, nil
+=======
+func (t *Translator) buildServiceFromIngressPath(
+	tctx *provider.TranslateContext,
+	obj *networkingv1.Ingress,
+	path *networkingv1.HTTPIngressPath,
+	ruleIndex, pathIndex int,
+	hosts []string,
+	labels map[string]string,
+) *adctypes.Service {
+	if path.Backend.Service == nil {
+		return nil
+	}
+
+	service := adctypes.NewDefaultService()
+	service.Labels = labels
+	service.Name = adctypes.ComposeServiceNameWithRule(obj.Namespace, obj.Name, fmt.Sprintf("%d-%d", ruleIndex, pathIndex))
+	service.ID = id.GenID(service.Name)
+	service.Hosts = hosts
+
+	upstream := adctypes.NewDefaultUpstream()
+	protocol := t.resolveIngressUpstream(tctx, obj, path.Backend.Service, upstream)
+	service.Upstream = upstream
+
+	route := buildRouteFromIngressPath(obj, path, ruleIndex, pathIndex, labels)
+	if protocol == internaltypes.AppProtocolWS || protocol == internaltypes.AppProtocolWSS {
+		route.EnableWebsocket = ptr.To(true)
+	}
+	service.Routes = []*adctypes.Route{route}
+
+	t.fillHTTPRoutePoliciesForIngress(tctx, service.Routes)
+	return service
+}
+
+func (t *Translator) resolveIngressUpstream(
+	tctx *provider.TranslateContext,
+	obj *networkingv1.Ingress,
+	backendService *networkingv1.IngressServiceBackend,
+	upstream *adctypes.Upstream,
+) string {
+	backendRef := convertBackendRef(obj.Namespace, backendService.Name, internaltypes.KindService)
+	t.AttachBackendTrafficPolicyToUpstream(backendRef, tctx.BackendTrafficPolicies, upstream)
+	// determine service port/port name
+	var protocol string
+	var port intstr.IntOrString
+	if backendService.Port.Number != 0 {
+		port = intstr.FromInt32(backendService.Port.Number)
+	} else if backendService.Port.Name != "" {
+		port = intstr.FromString(backendService.Port.Name)
+	}
+
+	getService := tctx.Services[types.NamespacedName{
+		Namespace: obj.Namespace,
+		Name:      backendService.Name,
+	}]
+	if getService == nil {
+		return protocol
+	}
+	getServicePort, _ := findMatchingServicePort(getService, port)
+	if getServicePort != nil && getServicePort.AppProtocol != nil {
+		protocol = *getServicePort.AppProtocol
+		if upstream.Scheme == "" {
+			upstream.Scheme = appProtocolToUpstreamScheme(*getServicePort.AppProtocol)
+		}
+	}
+	if getService.Spec.Type == corev1.ServiceTypeExternalName {
+		servicePort := 80
+		if getServicePort != nil {
+			servicePort = int(getServicePort.Port)
+		}
+		upstream.Nodes = adctypes.UpstreamNodes{
+			{
+				Host:   getService.Spec.ExternalName,
+				Port:   servicePort,
+				Weight: 1,
+			},
+		}
+		return protocol
+	}
+
+	endpointSlices := tctx.EndpointSlices[types.NamespacedName{
+		Namespace: obj.Namespace,
+		Name:      backendService.Name,
+	}]
+	if len(endpointSlices) > 0 {
+		upstream.Nodes = t.translateEndpointSliceForIngress(1, endpointSlices, getServicePort)
+	}
+
+	return protocol
+}
+
+func buildRouteFromIngressPath(
+	obj *networkingv1.Ingress,
+	path *networkingv1.HTTPIngressPath,
+	ruleIndex, pathIndex int,
+	labels map[string]string,
+) *adctypes.Route {
+	route := adctypes.NewDefaultRoute()
+	route.Name = adctypes.ComposeRouteName(obj.Namespace, obj.Name, fmt.Sprintf("%d-%d", ruleIndex, pathIndex))
+	route.ID = id.GenID(route.Name)
+	route.Labels = labels
+
+	uris := []string{path.Path}
+	if path.PathType != nil {
+		switch *path.PathType {
+		case networkingv1.PathTypePrefix:
+			// As per the specification of Ingress path matching rule:
+			// if the last element of the path is a substring of the
+			// last element in request path, it is not a match, e.g. /foo/bar
+			// matches /foo/bar/baz, but does not match /foo/barbaz.
+			// While in APISIX, /foo/bar matches both /foo/bar/baz and
+			// /foo/barbaz.
+			// In order to be conformant with Ingress specification, here
+			// we create two paths here, the first is the path itself
+			// (exact match), the other is path + "/*" (prefix match).
+			prefix := strings.TrimSuffix(path.Path, "/") + "/*"
+			uris = append(uris, prefix)
+		case networkingv1.PathTypeImplementationSpecific:
+			uris = []string{"/*"}
+		}
+	}
+	route.Uris = uris
+	return route
+>>>>>>> 18882b92 (fix(ingress): port.name matching failure for ExternalName Services (#2604))
 }
 
 // translateEndpointSliceForIngress create upstream nodes from EndpointSlice
