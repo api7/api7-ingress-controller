@@ -18,6 +18,7 @@
 package translator
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 
@@ -74,8 +75,48 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 
 	labels := label.GenLabel(obj)
 
+	config := t.TranslateIngressAnnotations(obj.Annotations)
+
+	t.Log.V(1).Info("translating Ingress Annotations", "config", config)
+
 	// handle TLS configuration, convert to SSL objects
+<<<<<<< HEAD
 	for _, tls := range obj.Spec.TLS {
+=======
+	if err := t.translateIngressTLSSection(tctx, obj, result, labels); err != nil {
+		return nil, err
+	}
+
+	// process Ingress rules, convert to Service and Route objects
+	for i, rule := range obj.Spec.Rules {
+		if rule.HTTP == nil {
+			continue
+		}
+
+		hosts := []string{}
+		if rule.Host != "" {
+			hosts = append(hosts, rule.Host)
+		}
+
+		for j, path := range rule.HTTP.Paths {
+			index := fmt.Sprintf("%d-%d", i, j)
+			if svc := t.buildServiceFromIngressPath(tctx, obj, config, &path, index, hosts, labels); svc != nil {
+				result.Services = append(result.Services, svc)
+			}
+		}
+	}
+
+	return result, nil
+}
+
+func (t *Translator) translateIngressTLSSection(
+	tctx *provider.TranslateContext,
+	obj *networkingv1.Ingress,
+	result *TranslateResult,
+	labels map[string]string,
+) error {
+	for tlsIndex, tls := range obj.Spec.TLS {
+>>>>>>> 2dc7ae60 (feat: support upstream scheme/retries/timeouts via ingress annotations (#2614))
 		if tls.SecretName == "" {
 			continue
 		}
@@ -94,6 +135,7 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 		result.SSL = append(result.SSL, ssl)
 	}
 
+<<<<<<< HEAD
 	// process Ingress rules, convert to Service and Route objects
 	for i, rule := range obj.Spec.Rules {
 		// extract hostnames
@@ -120,6 +162,36 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 
 			// create an upstream
 			upstream := adctypes.NewDefaultUpstream()
+=======
+func (t *Translator) buildServiceFromIngressPath(
+	tctx *provider.TranslateContext,
+	obj *networkingv1.Ingress,
+	config *IngressConfig,
+	path *networkingv1.HTTPIngressPath,
+	index string,
+	hosts []string,
+	labels map[string]string,
+) *adctypes.Service {
+	if path.Backend.Service == nil {
+		return nil
+	}
+
+	service := adctypes.NewDefaultService()
+	service.Labels = labels
+	service.Name = adctypes.ComposeServiceNameWithRule(obj.Namespace, obj.Name, index)
+	service.ID = id.GenID(service.Name)
+	service.Hosts = hosts
+
+	upstream := adctypes.NewDefaultUpstream()
+	protocol := t.resolveIngressUpstream(tctx, obj, config, path.Backend.Service, upstream)
+	service.Upstream = upstream
+
+	route := buildRouteFromIngressPath(obj, path, index, labels)
+	if protocol == internaltypes.AppProtocolWS || protocol == internaltypes.AppProtocolWSS {
+		route.EnableWebsocket = ptr.To(true)
+	}
+	service.Routes = []*adctypes.Route{route}
+>>>>>>> 2dc7ae60 (feat: support upstream scheme/retries/timeouts via ingress annotations (#2614))
 
 			// get the EndpointSlice of the backend service
 			backendService := path.Backend.Service
@@ -128,6 +200,7 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 				t.AttachBackendTrafficPolicyToUpstream(backendRef, tctx.BackendTrafficPolicies, upstream)
 			}
 
+<<<<<<< HEAD
 			// get the service port configuration
 			var servicePort int32 = 0
 			var servicePortName string
@@ -136,6 +209,41 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 			} else if backendService.Port.Name != "" {
 				servicePortName = backendService.Port.Name
 			}
+=======
+func (t *Translator) resolveIngressUpstream(
+	tctx *provider.TranslateContext,
+	obj *networkingv1.Ingress,
+	config *IngressConfig,
+	backendService *networkingv1.IngressServiceBackend,
+	upstream *adctypes.Upstream,
+) string {
+	backendRef := convertBackendRef(obj.Namespace, backendService.Name, internaltypes.KindService)
+	t.AttachBackendTrafficPolicyToUpstream(backendRef, tctx.BackendTrafficPolicies, upstream)
+	if config != nil {
+		upConfig := config.Upstream
+		if upConfig.Scheme != "" {
+			upstream.Scheme = upConfig.Scheme
+		}
+		if upConfig.Retries > 0 {
+			upstream.Retries = ptr.To(int64(upConfig.Retries))
+		}
+		if upConfig.TimeoutConnect > 0 || upConfig.TimeoutRead > 0 || upConfig.TimeoutSend > 0 {
+			upstream.Timeout = &adctypes.Timeout{
+				Connect: cmp.Or(upConfig.TimeoutConnect, 60),
+				Read:    cmp.Or(upConfig.TimeoutRead, 60),
+				Send:    cmp.Or(upConfig.TimeoutSend, 60),
+			}
+		}
+	}
+	// determine service port/port name
+	var protocol string
+	var port intstr.IntOrString
+	if backendService.Port.Number != 0 {
+		port = intstr.FromInt32(backendService.Port.Number)
+	} else if backendService.Port.Name != "" {
+		port = intstr.FromString(backendService.Port.Name)
+	}
+>>>>>>> 2dc7ae60 (feat: support upstream scheme/retries/timeouts via ingress annotations (#2614))
 
 			getService := tctx.Services[types.NamespacedName{
 				Namespace: obj.Namespace,
@@ -218,7 +326,53 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 		}
 	}
 
+<<<<<<< HEAD
 	return result, nil
+=======
+	endpointSlices := tctx.EndpointSlices[types.NamespacedName{
+		Namespace: obj.Namespace,
+		Name:      backendService.Name,
+	}]
+	if len(endpointSlices) > 0 {
+		upstream.Nodes = t.translateEndpointSliceForIngress(1, endpointSlices, getServicePort)
+	}
+
+	return protocol
+}
+
+func buildRouteFromIngressPath(
+	obj *networkingv1.Ingress,
+	path *networkingv1.HTTPIngressPath,
+	index string,
+	labels map[string]string,
+) *adctypes.Route {
+	route := adctypes.NewDefaultRoute()
+	route.Name = adctypes.ComposeRouteName(obj.Namespace, obj.Name, index)
+	route.ID = id.GenID(route.Name)
+	route.Labels = labels
+
+	uris := []string{path.Path}
+	if path.PathType != nil {
+		switch *path.PathType {
+		case networkingv1.PathTypePrefix:
+			// As per the specification of Ingress path matching rule:
+			// if the last element of the path is a substring of the
+			// last element in request path, it is not a match, e.g. /foo/bar
+			// matches /foo/bar/baz, but does not match /foo/barbaz.
+			// While in APISIX, /foo/bar matches both /foo/bar/baz and
+			// /foo/barbaz.
+			// In order to be conformant with Ingress specification, here
+			// we create two paths here, the first is the path itself
+			// (exact match), the other is path + "/*" (prefix match).
+			prefix := strings.TrimSuffix(path.Path, "/") + "/*"
+			uris = append(uris, prefix)
+		case networkingv1.PathTypeImplementationSpecific:
+			uris = []string{"/*"}
+		}
+	}
+	route.Uris = uris
+	return route
+>>>>>>> 2dc7ae60 (feat: support upstream scheme/retries/timeouts via ingress annotations (#2614))
 }
 
 // translateEndpointSliceForIngress create upstream nodes from EndpointSlice
