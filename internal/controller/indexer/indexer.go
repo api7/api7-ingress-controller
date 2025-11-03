@@ -385,15 +385,6 @@ func setupGatewayProxyIndexer(mgr ctrl.Manager) error {
 	return nil
 }
 
-func setupGatewaySecretIndex(mgr ctrl.Manager) error {
-	return mgr.GetFieldIndexer().IndexField(
-		context.Background(),
-		&gatewayv1.Gateway{},
-		SecretIndexRef,
-		GatewaySecretIndexFunc,
-	)
-}
-
 func setupGatewayClassIndexer(mgr ctrl.Manager) error {
 	return mgr.GetFieldIndexer().IndexField(
 		context.Background(),

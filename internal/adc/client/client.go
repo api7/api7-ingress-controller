@@ -358,8 +358,12 @@ func prepareSyncFile(resources any) (string, func(), error) {
 		return "", nil, err
 	}
 	cleanup := func() {
-		_ = tmpFile.Close()
-		_ = os.Remove(tmpFile.Name())
+		if err := tmpFile.Close(); err != nil {
+			log.Errorf("failed to close temp file: %v", err)
+		}
+		if err := os.Remove(tmpFile.Name()); err != nil {
+			log.Errorf("failed to remove temp file: %v", err)
+		}
 	}
 	if _, err := tmpFile.Write(data); err != nil {
 		cleanup()

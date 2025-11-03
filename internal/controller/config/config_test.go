@@ -24,11 +24,13 @@ disable_gateway_api: true
 `
 	tempFile, err := os.CreateTemp("", "config-*.yaml")
 	assert.NoError(t, err)
-	defer os.Remove(tempFile.Name())
+	defer func() {
+		_ = os.Remove(tempFile.Name())
+	}()
 
 	_, err = tempFile.WriteString(fileContent)
 	assert.NoError(t, err)
-	tempFile.Close()
+	_ = tempFile.Close()
 
 	cfg, err := NewConfigFromFile(tempFile.Name())
 	assert.NoError(t, err)
