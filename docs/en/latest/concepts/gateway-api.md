@@ -59,7 +59,11 @@ By supporting Gateway API, the APISIX Ingress controller can realize richer func
 
 For configuration examples, see the Gateway API tabs in [Configuration Examples](../reference/example.md).
 
+<<<<<<< HEAD
 For a complete list of configuration options, refer to the [Gateway API Reference](https://gateway-api.sigs.k8s.io/reference/main/spec/). Be aware that some fields are not supported, or partially supported.
+=======
+For a complete list of configuration options, refer to the [Gateway API Reference](https://gateway-api.sigs.k8s.io/reference/1.3/spec/). Be aware that some fields are not supported, or partially supported.
+>>>>>>> 0c7d37f7 (docs: fix link to gateway api reference in doc (#2635))
 
 ## Unsupported / Partially Supported Fields
 
