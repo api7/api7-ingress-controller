@@ -33,6 +33,7 @@ import (
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	internaltypes "github.com/apache/apisix-ingress-controller/internal/types"
 	k8sutils "github.com/apache/apisix-ingress-controller/internal/utils"
 	"github.com/apache/apisix-ingress-controller/pkg/utils"
@@ -59,14 +60,27 @@ func SetupIndexer(mgr ctrl.Manager) error {
 	setupLog := ctrl.LoggerFrom(context.Background()).WithName("indexer-setup")
 
 	// Gateway API indexers - conditional setup based on API availability
+	if !config.ControllerConfig.DisableGatewayAPI {
+		for resource, setup := range map[client.Object]func(ctrl.Manager) error{
+			&gatewayv1.Gateway{}:        setupGatewayIndexer,
+			&gatewayv1.HTTPRoute{}:      setupHTTPRouteIndexer,
+			&gatewayv1.GRPCRoute{}:      setupGRPCRouteIndexer,
+			&gatewayv1alpha2.TCPRoute{}: setupTCPRouteIndexer,
+			&gatewayv1alpha2.UDPRoute{}: setupUDPRouteIndexer,
+			&gatewayv1.GatewayClass{}:   setupGatewayClassIndexer,
+			&v1alpha1.Consumer{}:        setupConsumerIndexer,
+		} {
+			if utils.HasAPIResource(mgr, resource) {
+				if err := setup(mgr); err != nil {
+					return err
+				}
+			} else {
+				setupLog.Info("Skipping indexer setup, API not found in cluster", "api", utils.FormatGVK(resource))
+			}
+		}
+	}
+
 	for resource, setup := range map[client.Object]func(ctrl.Manager) error{
-		&gatewayv1.Gateway{}:              setupGatewayIndexer,
-		&gatewayv1.HTTPRoute{}:            setupHTTPRouteIndexer,
-		&gatewayv1.GRPCRoute{}:            setupGRPCRouteIndexer,
-		&gatewayv1alpha2.TCPRoute{}:       setupTCPRouteIndexer,
-		&gatewayv1alpha2.UDPRoute{}:       setupUDPRouteIndexer,
-		&gatewayv1.GatewayClass{}:         setupGatewayClassIndexer,
-		&v1alpha1.Consumer{}:              setupConsumerIndexer,
 		&networkingv1.Ingress{}:           setupIngressIndexer,
 		&networkingv1.IngressClass{}:      setupIngressClassIndexer,
 		&networkingv1beta1.IngressClass{}: setupIngressClassV1beta1Indexer,
@@ -79,15 +93,6 @@ func SetupIndexer(mgr ctrl.Manager) error {
 		} else {
 			setupLog.Info("Skipping indexer setup, API not found in cluster", "api", utils.FormatGVK(resource))
 		}
-	}
-
-	// Gateway secret index needs conditional setup since it uses Gateway API
-	if utils.HasAPIResource(mgr, &gatewayv1.Gateway{}) {
-		if err := setupGatewaySecretIndex(mgr); err != nil {
-			return err
-		}
-	} else {
-		setupLog.Info("Skipping indexer setup, API not found in cluster", "api", utils.FormatGVK(&gatewayv1.Gateway{}))
 	}
 
 	// Core Kubernetes and APISIX indexers - always setup these
@@ -122,6 +127,15 @@ func setupGatewayIndexer(mgr ctrl.Manager) error {
 		func(obj client.Object) (requests []string) {
 			return []string{string(obj.(*gatewayv1.Gateway).Spec.GatewayClassName)}
 		},
+	); err != nil {
+		return err
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&gatewayv1.Gateway{},
+		SecretIndexRef,
+		GatewaySecretIndexFunc,
 	); err != nil {
 		return err
 	}
@@ -369,15 +383,6 @@ func setupGatewayProxyIndexer(mgr ctrl.Manager) error {
 		return err
 	}
 	return nil
-}
-
-func setupGatewaySecretIndex(mgr ctrl.Manager) error {
-	return mgr.GetFieldIndexer().IndexField(
-		context.Background(),
-		&gatewayv1.Gateway{},
-		SecretIndexRef,
-		GatewaySecretIndexFunc,
-	)
 }
 
 func setupGatewayClassIndexer(mgr ctrl.Manager) error {
