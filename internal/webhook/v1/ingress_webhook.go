@@ -70,10 +70,13 @@ var unsupportedAnnotations = []string{
 	"k8s.apisix.apache.org/auth-request-headers",
 	"k8s.apisix.apache.org/auth-upstream-headers",
 	"k8s.apisix.apache.org/auth-client-headers",
+<<<<<<< HEAD
 	"k8s.apisix.apache.org/allowlist-source-range",
 	"k8s.apisix.apache.org/blocklist-source-range",
 	"k8s.apisix.apache.org/http-allow-methods",
 	"k8s.apisix.apache.org/http-block-methods",
+=======
+>>>>>>> d3bc2a53 (feat: support ip restriction for ingress annotations (#2642))
 	"k8s.apisix.apache.org/auth-type",
 	"k8s.apisix.apache.org/svc-namespace",
 }
