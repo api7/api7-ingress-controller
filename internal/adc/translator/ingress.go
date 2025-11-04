@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
+	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 	"github.com/apache/apisix-ingress-controller/internal/id"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
@@ -101,8 +102,156 @@ func (t *Translator) TranslateIngress(tctx *provider.TranslateContext, obj *netw
 		if rule.Host != "" {
 			hosts = append(hosts, rule.Host)
 		}
+<<<<<<< HEAD
 		// if there is no HTTP path, skip
 		if rule.HTTP == nil {
+=======
+		if upConfig.Retries > 0 {
+			upstream.Retries = ptr.To(int64(upConfig.Retries))
+		}
+		if upConfig.TimeoutConnect > 0 || upConfig.TimeoutRead > 0 || upConfig.TimeoutSend > 0 {
+			upstream.Timeout = &adctypes.Timeout{
+				Connect: cmp.Or(upConfig.TimeoutConnect, 60),
+				Read:    cmp.Or(upConfig.TimeoutRead, 60),
+				Send:    cmp.Or(upConfig.TimeoutSend, 60),
+			}
+		}
+	}
+	// determine service port/port name
+	var protocol string
+	var port intstr.IntOrString
+	if backendService.Port.Number != 0 {
+		port = intstr.FromInt32(backendService.Port.Number)
+	} else if backendService.Port.Name != "" {
+		port = intstr.FromString(backendService.Port.Name)
+	}
+
+	getService := tctx.Services[types.NamespacedName{
+		Namespace: ns,
+		Name:      backendService.Name,
+	}]
+	if getService == nil {
+		return protocol
+	}
+	getServicePort, _ := findMatchingServicePort(getService, port)
+	if getServicePort != nil && getServicePort.AppProtocol != nil {
+		protocol = *getServicePort.AppProtocol
+		if upstream.Scheme == "" {
+			upstream.Scheme = appProtocolToUpstreamScheme(*getServicePort.AppProtocol)
+		}
+	}
+	if getService.Spec.Type == corev1.ServiceTypeExternalName {
+		servicePort := 80
+		if getServicePort != nil {
+			servicePort = int(getServicePort.Port)
+		}
+		upstream.Nodes = adctypes.UpstreamNodes{
+			{
+				Host:   getService.Spec.ExternalName,
+				Port:   servicePort,
+				Weight: 1,
+			},
+		}
+		return protocol
+	}
+
+	endpointSlices := tctx.EndpointSlices[types.NamespacedName{
+		Namespace: ns,
+		Name:      backendService.Name,
+	}]
+	if len(endpointSlices) > 0 {
+		upstream.Nodes = t.translateEndpointSliceForIngress(1, endpointSlices, getServicePort)
+	}
+
+	return protocol
+}
+
+func (t *Translator) buildRouteFromIngressPath(
+	tctx *provider.TranslateContext,
+	obj *networkingv1.Ingress,
+	path *networkingv1.HTTPIngressPath,
+	config *IngressConfig,
+	index string,
+	labels map[string]string,
+) *adctypes.Route {
+	route := adctypes.NewDefaultRoute()
+	route.Name = adctypes.ComposeRouteName(obj.Namespace, obj.Name, index)
+	route.ID = id.GenID(route.Name)
+	route.Labels = labels
+
+	uris := []string{path.Path}
+	if path.PathType != nil {
+		switch *path.PathType {
+		case networkingv1.PathTypePrefix:
+			// As per the specification of Ingress path matching rule:
+			// if the last element of the path is a substring of the
+			// last element in request path, it is not a match, e.g. /foo/bar
+			// matches /foo/bar/baz, but does not match /foo/barbaz.
+			// While in APISIX, /foo/bar matches both /foo/bar/baz and
+			// /foo/barbaz.
+			// In order to be conformant with Ingress specification, here
+			// we create two paths here, the first is the path itself
+			// (exact match), the other is path + "/*" (prefix match).
+			prefix := strings.TrimSuffix(path.Path, "/") + "/*"
+			uris = append(uris, prefix)
+		case networkingv1.PathTypeImplementationSpecific:
+			if config.UseRegex {
+				uris = []string{"/*"}
+				vars := apiv2.ApisixRouteHTTPMatchExprs{
+					apiv2.ApisixRouteHTTPMatchExpr{
+						Subject: apiv2.ApisixRouteHTTPMatchExprSubject{
+							Scope: apiv2.ScopePath,
+						},
+						Op:    apiv2.OpRegexMatch,
+						Value: &path.Path,
+					},
+				}
+				routeVars, err := vars.ToVars()
+				if err != nil {
+					t.Log.Error(err, "failed to convert regex match exprs to vars", "exprs", vars)
+				} else {
+					route.Vars = append(route.Vars, routeVars...)
+				}
+			}
+		}
+	}
+
+	if config != nil {
+		// check if PluginConfig is specified
+		if config.PluginConfigName != "" {
+			route.Plugins = t.loadPluginConfigPluginsForIngress(tctx, obj.Namespace, config.PluginConfigName)
+		}
+
+		// apply plugins from annotations
+		if len(config.Plugins) > 0 {
+			if route.Plugins == nil {
+				route.Plugins = make(adctypes.Plugins)
+			}
+			for k, v := range config.Plugins {
+				route.Plugins[k] = v
+			}
+		}
+	}
+
+	route.Uris = uris
+	return route
+}
+
+func (t *Translator) loadPluginConfigPluginsForIngress(tctx *provider.TranslateContext, namespace, pluginConfigName string) adctypes.Plugins {
+	plugins := make(adctypes.Plugins)
+
+	pcKey := types.NamespacedName{
+		Namespace: namespace,
+		Name:      pluginConfigName,
+	}
+	pc, ok := tctx.ApisixPluginConfigs[pcKey]
+	if !ok || pc == nil {
+		return plugins
+	}
+
+	for _, plugin := range pc.Spec.Plugins {
+		if !plugin.Enable {
+>>>>>>> b21b6e9d (feat: support regex route for ingress annotations (#2640))
 			continue
 		}
 

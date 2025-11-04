@@ -18,7 +18,6 @@ package v1
 import (
 	"context"
 	"fmt"
-	"slices"
 
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -35,6 +34,7 @@ import (
 
 var ingresslog = logf.Log.WithName("ingress-resource")
 
+<<<<<<< HEAD
 // unsupportedAnnotations contains all the APISIX Ingress annotations that are not supported in 2.0.0
 // ref: https://apisix.apache.org/docs/ingress-controller/upgrade-guide/#limited-support-for-ingress-annotations
 var unsupportedAnnotations = []string{
@@ -101,6 +101,8 @@ func checkUnsupportedAnnotations(ingress *networkingv1.Ingress) admission.Warnin
 	return warnings
 }
 
+=======
+>>>>>>> b21b6e9d (feat: support regex route for ingress annotations (#2640))
 // SetupIngressWebhookWithManager registers the webhook for Ingress in the manager.
 func SetupIngressWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).For(&networkingv1.Ingress{}).
@@ -142,10 +144,20 @@ func (v *IngressCustomValidator) ValidateCreate(ctx context.Context, obj runtime
 		return nil, nil
 	}
 
+<<<<<<< HEAD
 	// Check for unsupported annotations and generate warnings
 	warnings := checkUnsupportedAnnotations(ingress)
 	warnings = append(warnings, v.collectReferenceWarnings(ctx, ingress)...)
 
+=======
+	detector := sslvalidator.NewConflictDetector(v.Client)
+	conflicts := detector.DetectConflicts(ctx, ingress)
+	if len(conflicts) > 0 {
+		return nil, fmt.Errorf("%s", sslvalidator.FormatConflicts(conflicts))
+	}
+
+	warnings := v.collectReferenceWarnings(ctx, ingress)
+>>>>>>> b21b6e9d (feat: support regex route for ingress annotations (#2640))
 	return warnings, nil
 }
 
@@ -160,10 +172,20 @@ func (v *IngressCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 		return nil, nil
 	}
 
+<<<<<<< HEAD
 	// Check for unsupported annotations and generate warnings
 	warnings := checkUnsupportedAnnotations(ingress)
 	warnings = append(warnings, v.collectReferenceWarnings(ctx, ingress)...)
 
+=======
+	detector := sslvalidator.NewConflictDetector(v.Client)
+	conflicts := detector.DetectConflicts(ctx, ingress)
+	if len(conflicts) > 0 {
+		return nil, fmt.Errorf("%s", sslvalidator.FormatConflicts(conflicts))
+	}
+
+	warnings := v.collectReferenceWarnings(ctx, ingress)
+>>>>>>> b21b6e9d (feat: support regex route for ingress annotations (#2640))
 	return warnings, nil
 }
 

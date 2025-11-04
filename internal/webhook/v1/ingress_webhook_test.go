@@ -64,6 +64,7 @@ func buildIngressValidator(t *testing.T, objects ...runtime.Object) *IngressCust
 	return NewIngressCustomValidator(builder.Build())
 }
 
+<<<<<<< HEAD
 func TestIngressCustomValidator_ValidateCreate_UnsupportedAnnotations(t *testing.T) {
 	validator := buildIngressValidator(t)
 	obj := &networkingv1.Ingress{
@@ -159,6 +160,8 @@ func TestIngressCustomValidator_ValidateCreate_NoAnnotations(t *testing.T) {
 	assert.Empty(t, warnings)
 }
 
+=======
+>>>>>>> b21b6e9d (feat: support regex route for ingress annotations (#2640))
 func TestIngressCustomValidator_WarnsForMissingServiceAndSecret(t *testing.T) {
 	validator := buildIngressValidator(t)
 	obj := &networkingv1.Ingress{
