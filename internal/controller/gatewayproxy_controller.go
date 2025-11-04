@@ -136,10 +136,16 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 	if providerService == nil {
 		tctx.EndpointSlices[req.NamespacedName] = nil
 	} else {
-		if err := addProviderEndpointsToTranslateContext(tctx, r.Client, r.Log, k8stypes.NamespacedName{
+		serviceNN := k8stypes.NamespacedName{
 			Namespace: gp.Namespace,
 			Name:      providerService.Name,
-		}); err != nil {
+		}
+		service := &corev1.Service{}
+		if err := r.Get(ctx, serviceNN, service); err != nil {
+			return reconcile.Result{}, err
+		}
+		tctx.Services[serviceNN] = service
+		if err := resolveServiceEndpoints(tctx, r.Client, serviceNN, r.supportsEndpointSlice, nil); err != nil {
 			return reconcile.Result{}, err
 		}
 	}

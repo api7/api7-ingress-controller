@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/api7/gopkg/pkg/log"
-	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -147,7 +145,7 @@ func (d *api7eeProvider) updateStatus(nnk types.NamespacedNameKind, condition me
 		})
 	case types.KindUDPRoute:
 		parentRefs := d.client.ConfigManager.GetConfigRefsByResourceKey(nnk)
-		log.Debugw("updating UDPRoute status", zap.Any("parentRefs", parentRefs))
+		d.log.V(1).Info("updating UDPRoute status", "parentRefs", parentRefs)
 		gatewayRefs := map[types.NamespacedNameKind]struct{}{}
 		for _, parentRef := range parentRefs {
 			if parentRef.Kind == types.KindGateway {
@@ -182,7 +180,7 @@ func (d *api7eeProvider) updateStatus(nnk types.NamespacedNameKind, condition me
 		})
 	case types.KindTCPRoute:
 		parentRefs := d.client.ConfigManager.GetConfigRefsByResourceKey(nnk)
-		log.Debugw("updating TCPRoute status", zap.Any("parentRefs", parentRefs))
+		d.log.V(1).Info("updating TCPRoute status", "parentRefs", parentRefs)
 		gatewayRefs := map[types.NamespacedNameKind]struct{}{}
 		for _, parentRef := range parentRefs {
 			if parentRef.Kind == types.KindGateway {
@@ -217,7 +215,7 @@ func (d *api7eeProvider) updateStatus(nnk types.NamespacedNameKind, condition me
 		})
 	case types.KindGRPCRoute:
 		parentRefs := d.client.ConfigManager.GetConfigRefsByResourceKey(nnk)
-		log.Debugw("updating GRPCRoute status", zap.Any("parentRefs", parentRefs))
+		d.log.V(1).Info("updating GRPCRoute status", "parentRefs", parentRefs)
 		gatewayRefs := map[types.NamespacedNameKind]struct{}{}
 		for _, parentRef := range parentRefs {
 			if parentRef.Kind == types.KindGateway {
@@ -279,7 +277,7 @@ func (d *api7eeProvider) handleEmptyFailedStatuses(
 ) {
 	resource, err := d.client.GetResources(configName)
 	if err != nil {
-		log.Errorw("failed to get resources from store", zap.String("configName", configName), zap.Error(err))
+		d.log.Error(err, "failed to get resources from store", "configName", configName)
 		return
 	}
 
@@ -297,7 +295,7 @@ func (d *api7eeProvider) handleEmptyFailedStatuses(
 
 	globalRules, err := d.client.ListGlobalRules(configName)
 	if err != nil {
-		log.Errorw("failed to list global rules", zap.String("configName", configName), zap.Error(err))
+		d.log.Error(err, "failed to list global rules", "configName", configName)
 		return
 	}
 	for _, rule := range globalRules {
@@ -314,11 +312,10 @@ func (d *api7eeProvider) handleDetailedFailedStatuses(
 		id := status.Event.ResourceID
 		labels, err := d.client.GetResourceLabel(configName, status.Event.ResourceType, id)
 		if err != nil {
-			log.Errorw("failed to get resource label",
-				zap.String("configName", configName),
-				zap.String("resourceType", status.Event.ResourceType),
-				zap.String("id", id),
-				zap.Error(err),
+			d.log.Error(err, "failed to get resource label",
+				"configName", configName,
+				"resourceType", status.Event.ResourceType,
+				"id", id,
 			)
 			continue
 		}
