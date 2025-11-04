@@ -33,6 +33,7 @@ import (
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/internal/adc/cache"
+	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 	"github.com/apache/apisix-ingress-controller/internal/provider/common"
 	"github.com/apache/apisix-ingress-controller/internal/types"
 	pkgmetrics "github.com/apache/apisix-ingress-controller/pkg/metrics"
@@ -222,6 +223,11 @@ func (c *Client) Sync(ctx context.Context) (map[string]types.ADCExecutionErrors,
 
 func (c *Client) sync(ctx context.Context, task Task) error {
 	log.Debugw("syncing resources", zap.Any("task", task))
+
+	if len(task.Labels) > 0 {
+		// only keep the resource key label for filtering resources
+		task.Labels = map[string]string{label.LabelResourceKey: task.Labels[label.LabelResourceKey]}
+	}
 
 	if len(task.Configs) == 0 {
 		log.Warnw("no adc configs provided", zap.Any("task", task))
