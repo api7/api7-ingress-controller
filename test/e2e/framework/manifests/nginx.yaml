@@ -42,6 +42,63 @@ data:
         location / {
           return 200 'Hello, World!';
         }
+<<<<<<< HEAD
+=======
+
+        location /delay {
+          content_by_lua_block {
+            local delay = tonumber(ngx.var.arg_delay) or 0
+            ngx.sleep(delay)
+            ngx.say("Slept for ", delay, " seconds")
+          }
+        }
+
+        location /auth {
+          content_by_lua_block {
+            local auth = ngx.req.get_headers()["Authorization"]
+            if auth == "123" then
+              ngx.header["X-User-ID"] = "user-123"
+              ngx.exit(200)
+            else
+              ngx.header["Location"] = "http://example.com/auth"
+              ngx.exit(401)
+            end
+          }
+        }
+
+        location /ws {
+          content_by_lua_block {
+            local server = require "resty.websocket.server"
+            local wb, err = server:new {
+              timeout = 5000,          -- 5 seconds timeout
+              max_payload_len = 65535  -- max message length
+            }
+            if not wb then
+              ngx.log(ngx.ERR, "failed to create websocket: ", err)
+              return ngx.exit(444)
+            end
+
+            while true do
+              local data, typ, err = wb:recv_frame()
+              if wb.fatal then
+                ngx.log(ngx.ERR, "failed to receive frame: ", err)
+                break
+              end
+
+              if typ == "close" then
+                wb:send_close()
+                break
+              elseif typ == "text" then
+                wb:send_text(data)   -- echo text
+              elseif typ == "binary" then
+                wb:send_binary(data) -- echo binary
+              elseif typ == "ping" then
+                wb:send_pong()
+              end
+            end
+          }
+        }
+>>>>>>> e7d192b6 (feat: support forward-auth for ingress annotations (#2641))
       }
     }
 

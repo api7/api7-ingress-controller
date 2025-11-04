@@ -39,6 +39,7 @@ var ingresslog = logf.Log.WithName("ingress-resource")
 // ref: https://apisix.apache.org/docs/ingress-controller/upgrade-guide/#limited-support-for-ingress-annotations
 var unsupportedAnnotations = []string{
 	"k8s.apisix.apache.org/use-regex",
+<<<<<<< HEAD
 	"k8s.apisix.apache.org/enable-websocket",
 	"k8s.apisix.apache.org/plugin-config-name",
 	"k8s.apisix.apache.org/upstream-scheme",
@@ -74,6 +75,8 @@ var unsupportedAnnotations = []string{
 	"k8s.apisix.apache.org/blocklist-source-range",
 	"k8s.apisix.apache.org/http-allow-methods",
 	"k8s.apisix.apache.org/http-block-methods",
+=======
+>>>>>>> e7d192b6 (feat: support forward-auth for ingress annotations (#2641))
 	"k8s.apisix.apache.org/auth-type",
 	"k8s.apisix.apache.org/svc-namespace",
 }
