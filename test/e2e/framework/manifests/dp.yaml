@@ -213,7 +213,7 @@ spec:
           name: admin
           protocol: TCP
         - containerPort: 9443
-          name: tls
+          name: https
           protocol: TCP
         - containerPort: 9090
           name: control-api
