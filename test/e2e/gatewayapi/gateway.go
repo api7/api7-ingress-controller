@@ -256,7 +256,7 @@ spec:
         name: %s
   - name: https-with-hostname
     port: 443
-    hostname: api6.com
+    hostname: test.com
     protocol: HTTPS
     allowedRoutes:
       namespaces:
