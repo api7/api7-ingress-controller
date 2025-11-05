@@ -312,6 +312,9 @@ spec:
 		})
 
 		It("ApisixTls and Ingress with same certificate but different hosts", func() {
+			if framework.IngressVersion != "v1" {
+				Skip("skipping test in non-v1 ingress version")
+			}
 			By("create shared TLS secret")
 			err := s.NewKubeTlsSecret("shared-tls-secret", Cert, Key)
 			Expect(err).NotTo(HaveOccurred(), "creating shared TLS secret")
