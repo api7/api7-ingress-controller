@@ -21,13 +21,14 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/api7/gopkg/pkg/log"
-	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+var log = logf.Log.WithName("endpoints")
 
 // ConvertEndpointsToEndpointSlice converts a Kubernetes Endpoints object to one
 // or more EndpointSlice objects, supporting IPv4/IPv6 dual stack.
@@ -140,7 +141,7 @@ func ConvertEndpointsToEndpointSlice(ep *corev1.Endpoints) []discoveryv1.Endpoin
 		}
 	}
 
-	log.Debugw("Converted Endpoints to EndpointSlices", zap.Any("endpointSlices", endpointSlices))
+	log.V(1).Info("Converted Endpoints to EndpointSlices", "endpointSlices", endpointSlices)
 
 	return endpointSlices
 }

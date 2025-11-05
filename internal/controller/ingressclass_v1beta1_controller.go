@@ -236,7 +236,7 @@ func (r *IngressClassV1beta1Reconciler) processInfrastructure(tctx *provider.Tra
 	}
 
 	if service := gatewayProxy.Spec.Provider.ControlPlane.Service; service != nil {
-		if err := addProviderEndpointsToTranslateContext(tctx, r.Client, types.NamespacedName{
+		if err := addProviderEndpointsToTranslateContext(tctx, r.Client, r.Log, types.NamespacedName{
 			Namespace: gatewayProxy.GetNamespace(),
 			Name:      service.Name,
 		}); err != nil {

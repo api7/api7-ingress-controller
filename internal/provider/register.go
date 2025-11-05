@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/go-logr/logr"
+
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
 )
@@ -29,7 +31,7 @@ type RegisterHandler interface {
 	Register(pathPrefix string, mux *http.ServeMux)
 }
 
-type RegisterFunc func(status.Updater, readiness.ReadinessManager, ...Option) (Provider, error)
+type RegisterFunc func(logr.Logger, status.Updater, readiness.ReadinessManager, ...Option) (Provider, error)
 
 var providers = map[string]RegisterFunc{}
 
@@ -45,10 +47,16 @@ func Get(name string) (RegisterFunc, error) {
 	return f, nil
 }
 
-func New(providerType string, updater status.Updater, readinesser readiness.ReadinessManager, opts ...Option) (Provider, error) {
+func New(
+	providerType string,
+	log logr.Logger,
+	updater status.Updater,
+	readinesser readiness.ReadinessManager,
+	opts ...Option,
+) (Provider, error) {
 	f, err := Get(providerType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get provider %q: %w", providerType, err)
 	}
-	return f(updater, readinesser, opts...)
+	return f(log, updater, readinesser, opts...)
 }
