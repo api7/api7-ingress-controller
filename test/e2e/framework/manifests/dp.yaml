@@ -34,6 +34,8 @@ data:
       stream_proxy:
         tcp:
           - 9100
+          - addr: 9110
+            tls: true
         udp:
           - 9200
     nginx_config:
@@ -222,6 +224,9 @@ spec:
         - containerPort: 9200
           name: udp
           protocol: UDP
+        - containerPort: 9110
+          name: tls
+          protocol: TCP
         readinessProbe:
           failureThreshold: 10
           initialDelaySeconds: 3
@@ -286,6 +291,10 @@ spec:
     port: 9200
     protocol: UDP
     targetPort: 9200
+  - name: tls
+    port: 9110
+    protocol: TCP
+    targetPort: 9110
   selector:
     app.kubernetes.io/instance: api7ee3
     app.kubernetes.io/name: apisix
