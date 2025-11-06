@@ -1087,8 +1087,13 @@ spec:
 				},
 			}
 
-			conn, resp, err := dialer.Dial(u.String(), headers)
-			Expect(err).ShouldNot(HaveOccurred(), "WebSocket handshake")
+			var conn *websocket.Conn
+			var resp *http.Response
+			Eventually(func() error {
+				var dialErr error
+				conn, resp, dialErr = dialer.Dial(u.String(), headers)
+				return dialErr
+			}).WithTimeout(30*time.Second).WithPolling(2*time.Second).Should(Succeed(), "WebSocket handshake should succeed")
 			Expect(resp.StatusCode).Should(Equal(http.StatusSwitchingProtocols))
 
 			defer func() {
@@ -1097,7 +1102,7 @@ spec:
 
 			By("send and receive message through WebSocket")
 			testMessage := "hello, this is APISIX"
-			err = conn.WriteMessage(websocket.TextMessage, []byte(testMessage))
+			err := conn.WriteMessage(websocket.TextMessage, []byte(testMessage))
 			Expect(err).ShouldNot(HaveOccurred(), "writing WebSocket message")
 
 			// Then our echo
