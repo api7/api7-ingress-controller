@@ -2285,6 +2285,9 @@ spec:
     namespace: %s
 `
 		BeforeEach(func() {
+			if framework.IngressVersion != "v1" {
+				Skip("skipping test in non-v1 ingress version")
+			}
 			s.DeployNginx(framework.NginxOptions{
 				Namespace: s.Namespace(),
 				Replicas:  ptr.To(int32(1)),

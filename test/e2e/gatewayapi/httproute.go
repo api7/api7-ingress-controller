@@ -2444,9 +2444,6 @@ spec:
 	})
 
 	Context("Test Service With AppProtocol", func() {
-		if framework.IngressVersion != "v1" {
-			Skip("skipping test in non-v1 ingress version")
-		}
 		var (
 			httproute = `
 apiVersion: gateway.networking.k8s.io/v1
@@ -2489,6 +2486,9 @@ spec:
 		)
 
 		BeforeEach(func() {
+			if framework.IngressVersion != "v1" {
+				Skip("skipping test in non-v1 ingress version")
+			}
 			beforeEachHTTPS()
 			s.DeployNginx(framework.NginxOptions{
 				Namespace: s.Namespace(),
