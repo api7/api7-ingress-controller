@@ -206,6 +206,7 @@ kind-load-images: pull-infra-images kind-load-ingress-image kind-load-adc-image
 	@kind load docker-image kennethreitz/httpbin:latest --name $(KIND_NAME)
 	@kind load docker-image jmalloc/echo-server:latest --name $(KIND_NAME)
 	@kind load docker-image apache/apisix:dev --name $(KIND_NAME)
+	@kind load docker-image openresty/openresty:1.27.1.2-4-bullseye-fat --name $(KIND_NAME)
 
 .PHONY: kind-load-gateway-image
 kind-load-gateway-image:
@@ -235,6 +236,7 @@ pull-infra-images:
 	@docker pull jmalloc/echo-server:latest
 	@docker pull ghcr.io/api7/adc:dev
 	@docker pull apache/apisix:dev
+	@docker pull openresty/openresty:1.27.1.2-4-bullseye-fat
 
 ##@ Build
 
