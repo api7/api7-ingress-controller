@@ -30,7 +30,7 @@ KIND_NAME ?= apisix-ingress-cluster
 KIND_NODE_IMAGE ?= kindest/node:v1.30.0@sha256:047357ac0cfea04663786a612ba1eaba9702bef25227a794b52890dd8bcd692e
 
 DASHBOARD_VERSION ?= dev
-ADC_VERSION ?= 0.21.0
+ADC_VERSION ?= 0.22.1
 
 DIR := $(shell pwd)
 
@@ -206,6 +206,7 @@ kind-load-images: pull-infra-images kind-load-ingress-image kind-load-adc-image
 	@kind load docker-image kennethreitz/httpbin:latest --name $(KIND_NAME)
 	@kind load docker-image jmalloc/echo-server:latest --name $(KIND_NAME)
 	@kind load docker-image apache/apisix:dev --name $(KIND_NAME)
+	@kind load docker-image openresty/openresty:1.27.1.2-4-bullseye-fat --name $(KIND_NAME)
 
 .PHONY: kind-load-gateway-image
 kind-load-gateway-image:
@@ -235,6 +236,7 @@ pull-infra-images:
 	@docker pull jmalloc/echo-server:latest
 	@docker pull ghcr.io/api7/adc:dev
 	@docker pull apache/apisix:dev
+	@docker pull openresty/openresty:1.27.1.2-4-bullseye-fat
 
 ##@ Build
 

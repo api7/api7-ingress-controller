@@ -29,6 +29,7 @@ import (
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -431,10 +432,11 @@ func (r *ApisixRouteReconciler) validateHTTPBackend(tctx *provider.TranslateCont
 	)
 
 	if err := r.Get(tctx, serviceNN, &service); err != nil {
-		if err = client.IgnoreNotFound(err); err == nil {
-			r.Log.Error(errors.New("service not found"), "Service", serviceNN)
+		if k8serrors.IsNotFound(err) {
+			r.Log.Info("service not found", "Service", serviceNN)
 			return nil
 		}
+		r.Log.Error(err, "failed to get service", "Service", serviceNN)
 		return err
 	}
 
@@ -458,7 +460,11 @@ func (r *ApisixRouteReconciler) validateHTTPBackend(tctx *provider.TranslateCont
 	}
 
 	if backend.ResolveGranularity == apiv2.ResolveGranularityService && service.Spec.ClusterIP == "" {
-		r.Log.Error(errors.New("service has no ClusterIP"), "Service", serviceNN, "ResolveGranularity", backend.ResolveGranularity)
+		r.Log.Error(errors.New("service has no ClusterIP"),
+			"service missing ClusterIP",
+			"Service", serviceNN,
+			"ResolveGranularity", backend.ResolveGranularity,
+		)
 		return nil
 	}
 
@@ -472,11 +478,11 @@ func (r *ApisixRouteReconciler) validateHTTPBackend(tctx *provider.TranslateCont
 		}
 		return false
 	}) {
-		if backend.ServicePort.Type == intstr.Int {
-			r.Log.Error(errors.New("port not found in service"), "Service", serviceNN, "port", backend.ServicePort.IntValue())
-		} else {
-			r.Log.Error(errors.New("named port not found in service"), "Service", serviceNN, "port", backend.ServicePort.StrVal)
-		}
+		r.Log.Error(errors.New("service port not found"),
+			"failed to match service port",
+			"Service", serviceNN,
+			"ServicePort", backend.ServicePort,
+		)
 		return nil
 	}
 	tctx.Services[serviceNN] = &service
