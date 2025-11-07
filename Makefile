@@ -30,7 +30,7 @@ KIND_NAME ?= apisix-ingress-cluster
 KIND_NODE_IMAGE ?= kindest/node:v1.30.0@sha256:047357ac0cfea04663786a612ba1eaba9702bef25227a794b52890dd8bcd692e
 
 DASHBOARD_VERSION ?= dev
-ADC_VERSION ?= 0.21.0
+ADC_VERSION ?= 0.22.1
 
 DIR := $(shell pwd)
 
