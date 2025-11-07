@@ -2285,6 +2285,9 @@ spec:
     namespace: %s
 `
 		BeforeEach(func() {
+			if framework.IngressVersion != "v1" {
+				Skip("skipping test in non-v1 ingress version")
+			}
 			s.DeployNginx(framework.NginxOptions{
 				Namespace: s.Namespace(),
 				Replicas:  ptr.To(int32(1)),
@@ -2319,9 +2322,8 @@ spec:
 
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"},
 				new(apiv2.ApisixRoute), fmt.Sprintf(apisixRouteWithBackendWSS, s.Namespace()))
-			time.Sleep(6 * time.Second)
 
-			By("verify wss connection")
+			By("verify wss connection with retry")
 			u := url.URL{
 				Scheme: "wss",
 				Host:   s.GetAPISIXHTTPSEndpoint(),
@@ -2335,8 +2337,13 @@ spec:
 				},
 			}
 
-			conn, resp, err := dialer.Dial(u.String(), headers)
-			Expect(err).ShouldNot(HaveOccurred(), "WebSocket handshake")
+			var conn *websocket.Conn
+			var resp *http.Response
+			Eventually(func() error {
+				var dialErr error
+				conn, resp, dialErr = dialer.Dial(u.String(), headers)
+				return dialErr
+			}).WithTimeout(30*time.Second).WithPolling(2*time.Second).Should(Succeed(), "WebSocket handshake should succeed")
 			Expect(resp.StatusCode).Should(Equal(http.StatusSwitchingProtocols))
 
 			defer func() {

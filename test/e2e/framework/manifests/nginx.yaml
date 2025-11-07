@@ -143,17 +143,23 @@ spec:
       port: 443
       protocol: TCP
       targetPort: 443
+      {{ if eq .IngressVersion "v1" }}
       appProtocol: https
+      {{ end }}
     - name: ws
       port: 8080
       protocol: TCP
       targetPort: 80
+      {{ if eq .IngressVersion "v1" }}
       appProtocol: kubernetes.io/ws
+      {{ end }}
     - name: wss
       port: 8443
       protocol: TCP
       targetPort: 443
+      {{ if eq .IngressVersion "v1" }}
       appProtocol: kubernetes.io/wss
+      {{ end }}
   type: ClusterIP
 ---
 apiVersion: v1
