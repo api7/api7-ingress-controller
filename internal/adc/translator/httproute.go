@@ -23,9 +23,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/api7/gopkg/pkg/log"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -85,13 +83,13 @@ func (t *Translator) fillPluginFromExtensionRef(plugins adctypes.Plugins, namesp
 			pluginconfig := make(map[string]any)
 			if len(plugin.Config.Raw) > 0 {
 				if err := json.Unmarshal(plugin.Config.Raw, &pluginconfig); err != nil {
-					log.Errorw("plugin config unmarshal failed", zap.Error(err))
+					t.Log.Error(err, "plugin config unmarshal failed", "plugin", plugin.Name)
 					continue
 				}
 			}
 			plugins[pluginName] = pluginconfig
 		}
-		log.Debugw("fill plugin from extension ref", zap.Any("plugins", plugins))
+		t.Log.V(1).Info("fill plugin from extension ref", "plugins", plugins)
 	}
 }
 
@@ -121,14 +119,33 @@ func (t *Translator) fillPluginFromURLRewriteFilter(plugins adctypes.Plugins, ur
 				}
 				prefixPaths = append(prefixPaths, *match.Path.Value)
 			}
-			regexPattern := "^(" + strings.Join(prefixPaths, "|") + ")" + "/(.*)"
-			replaceTarget := *urlRewrite.Path.ReplacePrefixMatch
-			regexTarget := replaceTarget + "/$2"
-
-			plugin.RewriteTargetRegex = []string{
-				regexPattern,
-				regexTarget,
+			if len(prefixPaths) == 0 || urlRewrite.Path.ReplacePrefixMatch == nil {
+				break
 			}
+			prefixGroup := "(" + strings.Join(prefixPaths, "|") + ")"
+			replaceTarget := *urlRewrite.Path.ReplacePrefixMatch
+			// Handle ReplacePrefixMatch path rewrite
+			// If replaceTarget == "/", special handling is required to avoid
+			// producing double slashes or empty paths.
+			var regexPattern, regexTarget string
+			if replaceTarget == "/" {
+				// Match either "/prefix" or "/prefix/<remainder>"
+				// Pattern captures the remainder (if any) without a leading slash.
+				// Template reconstructs "/" + remainder, resulting in:
+				//   /prefix/three → /three
+				//   /prefix       → /
+				regexPattern = "^" + prefixGroup + "(?:/(.*))?$"
+				regexTarget = "/" + "$2"
+			} else {
+				// Match either "/prefix" or "/prefix/<remainder>"
+				// Pattern captures the remainder (including leading slash) as $2.
+				// Template appends it to replaceTarget:
+				//   /prefix/one/two → /one/two
+				//   /prefix/one     → /one
+				regexPattern = "^" + prefixGroup + "(/.*)?$"
+				regexTarget = replaceTarget + "$2"
+			}
+			plugin.RewriteTargetRegex = []string{regexPattern, regexTarget}
 		}
 	}
 }
@@ -325,7 +342,7 @@ func (t *Translator) fillHTTPRoutePolicies(routes []*adctypes.Route, policies []
 			for _, data := range policy.Spec.Vars {
 				var v []adctypes.StringOrSlice
 				if err := json.Unmarshal(data.Raw, &v); err != nil {
-					log.Errorw("failed to unmarshal spec.Vars item to []StringOrSlice", zap.Error(err), zap.String("data", string(data.Raw)))
+					t.Log.Error(err, "failed to unmarshal spec.Vars item to []StringOrSlice", "data", string(data.Raw))
 					// todo: update status
 					continue
 				}
@@ -347,6 +364,7 @@ func (t *Translator) translateEndpointSlice(portName *string, weight int, endpoi
 			}
 			for _, endpoint := range endpointSlice.Endpoints {
 				if endpointFilter != nil && !endpointFilter(&endpoint) {
+					t.Log.V(1).Info("skip endpoint by filter", "endpoint", endpoint)
 					continue
 				}
 				for _, addr := range endpoint.Addresses {
@@ -369,19 +387,20 @@ func (t *Translator) translateEndpointSlice(portName *string, weight int, endpoi
 
 func DefaultEndpointFilter(endpoint *discoveryv1.Endpoint) bool {
 	if endpoint.Conditions.Ready != nil && !*endpoint.Conditions.Ready {
-		log.Debugw("skip not ready endpoint", zap.Any("endpoint", endpoint))
 		return false
 	}
 	return true
 }
 
-func (t *Translator) TranslateBackendRefWithFilter(tctx *provider.TranslateContext, ref gatewayv1.BackendRef, endpointFilter func(*discoveryv1.Endpoint) bool) (adctypes.UpstreamNodes, error) {
+func (t *Translator) TranslateBackendRefWithFilter(tctx *provider.TranslateContext, ref gatewayv1.BackendRef, endpointFilter func(*discoveryv1.Endpoint) bool) (adctypes.UpstreamNodes, string, error) {
 	return t.translateBackendRef(tctx, ref, endpointFilter)
 }
 
-func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref gatewayv1.BackendRef, endpointFilter func(*discoveryv1.Endpoint) bool) (adctypes.UpstreamNodes, error) {
+func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref gatewayv1.BackendRef, endpointFilter func(*discoveryv1.Endpoint) bool) (adctypes.UpstreamNodes, string, error) {
+	nodes := adctypes.UpstreamNodes{}
+	var protocol string
 	if ref.Kind != nil && *ref.Kind != internaltypes.KindService {
-		return adctypes.UpstreamNodes{}, fmt.Errorf("kind %s is not supported", *ref.Kind)
+		return nodes, protocol, fmt.Errorf("kind %s is not supported", *ref.Kind)
 	}
 
 	key := types.NamespacedName{
@@ -390,7 +409,7 @@ func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref ga
 	}
 	service, ok := tctx.Services[key]
 	if !ok {
-		return adctypes.UpstreamNodes{}, fmt.Errorf("service %s not found", key)
+		return nodes, protocol, fmt.Errorf("service %s not found", key)
 	}
 
 	weight := 1
@@ -409,7 +428,7 @@ func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref ga
 				Port:   port,
 				Weight: weight,
 			},
-		}, nil
+		}, protocol, nil
 	}
 
 	var portName *string
@@ -417,16 +436,18 @@ func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref ga
 		for _, p := range service.Spec.Ports {
 			if int(p.Port) == int(*ref.Port) {
 				portName = ptr.To(p.Name)
+				protocol = ptr.Deref(p.AppProtocol, "")
 				break
 			}
 		}
 		if portName == nil {
-			return adctypes.UpstreamNodes{}, nil
+			return adctypes.UpstreamNodes{}, protocol, nil
 		}
 	}
 
 	endpointSlices := tctx.EndpointSlices[key]
-	return t.translateEndpointSlice(portName, weight, endpointSlices, endpointFilter), nil
+	nodes = t.translateEndpointSlice(portName, weight, endpointSlices, endpointFilter)
+	return nodes, protocol, nil
 }
 
 // calculateHTTPRoutePriority calculates the priority of the HTTP route.
@@ -528,6 +549,7 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 			upstreams         = make([]*adctypes.Upstream, 0)
 			weightedUpstreams = make([]adctypes.TrafficSplitConfigRuleWeightedUpstream, 0)
 			backendErr        error
+			enableWebsocket   *bool
 		)
 
 		for _, backend := range rule.BackendRefs {
@@ -536,7 +558,7 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 				backend.Namespace = &namespace
 			}
 			upstream := adctypes.NewDefaultUpstream()
-			upNodes, err := t.translateBackendRef(tctx, backend.BackendRef, DefaultEndpointFilter)
+			upNodes, protocol, err := t.translateBackendRef(tctx, backend.BackendRef, DefaultEndpointFilter)
 			if err != nil {
 				backendErr = err
 				continue
@@ -544,10 +566,13 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 			if len(upNodes) == 0 {
 				continue
 			}
+			if protocol == internaltypes.AppProtocolWS || protocol == internaltypes.AppProtocolWSS {
+				enableWebsocket = ptr.To(true)
+			}
 
 			t.AttachBackendTrafficPolicyToUpstream(backend.BackendRef, tctx.BackendTrafficPolicies, upstream)
 			upstream.Nodes = upNodes
-
+			upstream.Scheme = appProtocolToUpstreamScheme(protocol)
 			var (
 				kind string
 				port int32
@@ -668,7 +693,7 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 			route.Name = name
 			route.ID = id.GenID(name)
 			route.Labels = labels
-			route.EnableWebsocket = ptr.To(true)
+			route.EnableWebsocket = enableWebsocket
 
 			// Set the route priority
 			priority := calculateHTTPRoutePriority(&match, ruleIndex, hosts)
@@ -738,7 +763,7 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 		for _, query := range match.QueryParams {
 			var this []adctypes.StringOrSlice
 			this = append(this, adctypes.StringOrSlice{
-				StrVal: "arg_" + strings.ToLower(fmt.Sprintf("%v", query.Name)),
+				StrVal: "arg_" + fmt.Sprintf("%v", query.Name),
 			})
 
 			queryType := gatewayv1.QueryParamMatchExact
@@ -777,7 +802,6 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 }
 
 func HeaderMatchToVars(matchType, name, value string) ([]adctypes.StringOrSlice, error) {
-	name = strings.ToLower(name)
 	name = strings.ReplaceAll(name, "-", "_")
 
 	var this []adctypes.StringOrSlice
@@ -810,4 +834,19 @@ func (t *Translator) translateHTTPRouteHeaderMatchToVars(header gatewayv1.HTTPHe
 		matchType = string(*header.Type)
 	}
 	return HeaderMatchToVars(matchType, string(header.Name), header.Value)
+}
+
+func appProtocolToUpstreamScheme(appProtocol string) string {
+	switch appProtocol {
+	case internaltypes.AppProtocolHTTP:
+		return apiv2.SchemeHTTP
+	case internaltypes.AppProtocolHTTPS:
+		return apiv2.SchemeHTTPS
+	case internaltypes.AppProtocolWS:
+		return apiv2.SchemeHTTP
+	case internaltypes.AppProtocolWSS:
+		return apiv2.SchemeHTTPS
+	default:
+		return ""
+	}
 }

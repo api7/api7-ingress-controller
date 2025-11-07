@@ -62,7 +62,7 @@ type GatewayProxyController struct {
 func (r *GatewayProxyController) SetupWithManager(mrg ctrl.Manager) error {
 	// Check and store EndpointSlice API support
 	r.supportsEndpointSlice = pkgutils.HasAPIResource(mrg, &discoveryv1.EndpointSlice{})
-	r.supportsGateway = pkgutils.HasAPIResource(mrg, &gatewayv1.Gateway{})
+	r.supportsGateway = pkgutils.HasAPIResource(mrg, &gatewayv1.Gateway{}) && !config.ControllerConfig.DisableGatewayAPI
 	var icWatch client.Object
 	switch r.ICGV.String() {
 	case networkingv1beta1.SchemeGroupVersion.String():

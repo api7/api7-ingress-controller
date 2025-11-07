@@ -23,12 +23,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/api7/gopkg/pkg/log"
-	"go.uber.org/zap"
+	"github.com/go-logr/logr"
 	networkingv1 "k8s.io/api/networking/v1"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
@@ -61,16 +61,17 @@ type api7eeProvider struct {
 	startUpSync atomic.Bool
 
 	client *adcclient.Client
+	log    logr.Logger
 }
 
-func New(updater status.Updater, readier readiness.ReadinessManager, opts ...provider.Option) (provider.Provider, error) {
+func New(log logr.Logger, updater status.Updater, readier readiness.ReadinessManager, opts ...provider.Option) (provider.Provider, error) {
 	o := provider.Options{}
 	o.ApplyOptions(opts)
 	if o.BackendMode == "" {
 		o.BackendMode = ProviderTypeAPI7EE
 	}
 
-	cli, err := adcclient.New(o.BackendMode, o.SyncTimeout)
+	cli, err := adcclient.New(log, o.BackendMode, o.SyncTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -82,6 +83,7 @@ func New(updater status.Updater, readier readiness.ReadinessManager, opts ...pro
 		updater:    updater,
 		readier:    readier,
 		syncCh:     make(chan struct{}, 1),
+		log:        log.WithName("provider"),
 	}, nil
 }
 
@@ -90,7 +92,7 @@ func (d *api7eeProvider) Register(pathPrefix string, mux *http.ServeMux) {
 }
 
 func (d *api7eeProvider) Update(ctx context.Context, tctx *provider.TranslateContext, obj client.Object) error {
-	log.Debugw("updating object", zap.Any("object", obj))
+	d.log.V(1).Info("updating object", "object", obj)
 	var (
 		result        *translator.TranslateResult
 		resourceTypes []string
@@ -103,6 +105,15 @@ func (d *api7eeProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 	case *gatewayv1.HTTPRoute:
 		result, err = d.translator.TranslateHTTPRoute(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "service")
+	case *gatewayv1alpha2.TCPRoute:
+		result, err = d.translator.TranslateTCPRoute(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, adctypes.TypeService)
+	case *gatewayv1alpha2.UDPRoute:
+		result, err = d.translator.TranslateUDPRoute(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, adctypes.TypeService)
+	case *gatewayv1alpha2.TLSRoute:
+		result, err = d.translator.TranslateTLSRoute(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, adctypes.TypeService)
 	case *gatewayv1.GRPCRoute:
 		result, err = d.translator.TranslateGRPCRoute(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "service")
@@ -171,7 +182,7 @@ func (d *api7eeProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 	}
 
 	if !d.startUpSync.Load() {
-		log.Debugw("startup synchronization not completed, skip sync", zap.Any("object", obj))
+		d.log.V(1).Info("startup synchronization not completed, skip sync", "object", obj)
 		return d.client.UpdateConfig(ctx, task)
 	}
 
@@ -179,12 +190,12 @@ func (d *api7eeProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 }
 
 func (d *api7eeProvider) Delete(ctx context.Context, obj client.Object) error {
-	log.Debugw("deleting object", zap.Any("object", obj))
+	d.log.V(1).Info("deleting object", "object", obj)
 
 	var resourceTypes []string
 	var labels map[string]string
 	switch obj.(type) {
-	case *gatewayv1.HTTPRoute, *apiv2.ApisixRoute, *gatewayv1.GRPCRoute:
+	case *gatewayv1.HTTPRoute, *apiv2.ApisixRoute, *gatewayv1.GRPCRoute, *gatewayv1alpha2.TCPRoute, *gatewayv1alpha2.UDPRoute, *gatewayv1alpha2.TLSRoute:
 		resourceTypes = append(resourceTypes, "service")
 		labels = label.GenLabel(obj)
 	case *gatewayv1.Gateway:
@@ -221,16 +232,16 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 	d.readier.WaitReady(ctx, 5*time.Minute)
 
 	d.startUpSync.Store(true)
-	log.Info("Performing startup synchronization")
+	d.log.Info("Performing startup synchronization")
 	if err := d.sync(ctx); err != nil {
-		log.Warnw("failed to sync for startup", zap.Error(err))
+		d.log.Error(err, "failed to sync for startup")
 	}
 
 	initalSyncDelay := d.InitSyncDelay
 	if initalSyncDelay > 0 {
 		time.AfterFunc(initalSyncDelay, func() {
 			if err := d.sync(ctx); err != nil {
-				log.Error(err)
+				d.log.Error(err, "failed to sync for startup")
 				return
 			}
 		})
@@ -253,7 +264,7 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 		}
 		if synced {
 			if err := d.sync(ctx); err != nil {
-				log.Error(err)
+				d.log.Error(err, "failed to sync for startup")
 			}
 		}
 	}
@@ -275,7 +286,7 @@ func (d *api7eeProvider) sync(ctx context.Context) error {
 func (d *api7eeProvider) handleADCExecutionErrors(statusesMap map[string]types.ADCExecutionErrors) {
 	statusUpdateMap := d.resolveADCExecutionErrors(statusesMap)
 	d.handleStatusUpdate(statusUpdateMap)
-	log.Debugw("handled ADC execution errors", zap.Any("status_record", statusesMap), zap.Any("status_update", statusUpdateMap))
+	d.log.V(1).Info("handled ADC execution errors", "status_record", statusesMap, "status_update", statusUpdateMap)
 }
 
 func (d *api7eeProvider) NeedLeaderElection() bool {

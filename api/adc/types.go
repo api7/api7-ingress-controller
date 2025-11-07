@@ -472,6 +472,19 @@ func (n Upstream) MarshalJSON() ([]byte, error) {
 	return json.Marshal((Alias)(n))
 }
 
+func ComposeSSLName(kind, namespace, name string) string {
+	p := make([]byte, 0, len(kind)+len(namespace)+len(name)+2)
+	buf := bytes.NewBuffer(p)
+
+	buf.WriteString(kind)
+	buf.WriteByte('_')
+	buf.WriteString(namespace)
+	buf.WriteByte('_')
+	buf.WriteString(name)
+
+	return buf.String()
+}
+
 // ComposeRouteName uses namespace, name and rule name to compose
 // the route name.
 func ComposeRouteName(namespace, name string, rule string) string {
@@ -491,10 +504,13 @@ func ComposeRouteName(namespace, name string, rule string) string {
 
 // ComposeStreamRouteName uses namespace, name and rule name to compose
 // the stream_route name.
-func ComposeStreamRouteName(namespace, name string, rule string) string {
+func ComposeStreamRouteName(namespace, name string, rule string, typ string) string {
+	if typ == "" {
+		typ = "TCP"
+	}
 	// FIXME Use sync.Pool to reuse this buffer if the upstream
 	// name composing code path is hot.
-	p := make([]byte, 0, len(namespace)+len(name)+len(rule)+6)
+	p := make([]byte, 0, len(namespace)+len(name)+len(rule)+len(typ)+3)
 	buf := bytes.NewBuffer(p)
 
 	buf.WriteString(namespace)
@@ -502,7 +518,8 @@ func ComposeStreamRouteName(namespace, name string, rule string) string {
 	buf.WriteString(name)
 	buf.WriteByte('_')
 	buf.WriteString(rule)
-	buf.WriteString("_tcp")
+	buf.WriteByte('_')
+	buf.WriteString(typ)
 
 	return buf.String()
 }
@@ -545,8 +562,8 @@ func ComposeServicesNameWithScheme(namespace, name string, rule string, scheme s
 	return buf.String()
 }
 
-func ComposeServiceNameWithStream(namespace, name string, rule string) string {
-	return ComposeServicesNameWithScheme(namespace, name, rule, "stream")
+func ComposeServiceNameWithStream(namespace, name string, rule, typ string) string {
+	return ComposeServicesNameWithScheme(namespace, name, rule, typ)
 }
 
 func ComposeConsumerName(namespace, name string) string {

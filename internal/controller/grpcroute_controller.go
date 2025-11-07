@@ -182,7 +182,7 @@ func (r *GRPCRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		msg:    "Route is accepted",
 	}
 
-	gateways, err := ParseRouteParentRefs(ctx, r.Client, gr, gr.Spec.ParentRefs)
+	gateways, err := ParseRouteParentRefs(ctx, r.Client, r.Log, gr, gr.Spec.ParentRefs)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -297,7 +297,6 @@ func (r *GRPCRouteReconciler) listGRPCRoutesForBackendTrafficPolicy(ctx context.
 		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to BackendTrafficPolicy")
 		return nil
 	}
-
 	grpcRouteList := []gatewayv1.GRPCRoute{}
 	for _, targetRef := range policy.Spec.TargetRefs {
 		service := &corev1.Service{}

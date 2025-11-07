@@ -36,8 +36,9 @@ var (
 )
 
 type NginxOptions struct {
-	Namespace string
-	Replicas  *int32
+	Namespace      string
+	Replicas       *int32
+	IngressVersion string
 }
 
 func init() {
@@ -51,6 +52,7 @@ func init() {
 func (f *Framework) DeployNginx(opts NginxOptions) *corev1.Service {
 	buf := bytes.NewBuffer(nil)
 
+	opts.IngressVersion = IngressVersion
 	err := ngxSpecTpl.Execute(buf, opts)
 	f.GomegaT.Expect(err).ToNot(HaveOccurred(), "rendering nginx spec")
 

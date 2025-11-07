@@ -35,6 +35,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	"sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
@@ -57,6 +58,9 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	if err := gatewayv1.Install(scheme); err != nil {
+		panic(err)
+	}
+	if err := gatewayv1alpha2.Install(scheme); err != nil {
 		panic(err)
 	}
 	if err := v1alpha1.AddToScheme(scheme); err != nil {
@@ -164,7 +168,7 @@ func Run(ctx context.Context, logger logr.Logger) error {
 		return err
 	}
 
-	readier := readiness.NewReadinessManager(mgr.GetClient())
+	readier := readiness.NewReadinessManager(mgr.GetClient(), logger)
 	registerReadinessGVK(mgr, readier)
 
 	if err := mgr.Add(readier); err != nil {
@@ -179,12 +183,13 @@ func Run(ctx context.Context, logger logr.Logger) error {
 
 	providerType := string(config.ControllerConfig.ProviderConfig.Type)
 
-	provider, err := provider.New(providerType, updater.Writer(), readier, &provider.Options{
+	providerOptions := &provider.Options{
 		SyncTimeout:   config.ControllerConfig.ExecADCTimeout.Duration,
 		SyncPeriod:    config.ControllerConfig.ProviderConfig.SyncPeriod.Duration,
 		InitSyncDelay: config.ControllerConfig.ProviderConfig.InitSyncDelay.Duration,
 		BackendMode:   string(config.ControllerConfig.ProviderConfig.Type),
-	})
+	}
+	provider, err := provider.New(providerType, logger, updater.Writer(), readier, providerOptions)
 	if err != nil {
 		setupLog.Error(err, "unable to create provider")
 		return err

@@ -26,6 +26,7 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
@@ -40,7 +41,10 @@ const (
 const (
 	KindGateway              = "Gateway"
 	KindHTTPRoute            = "HTTPRoute"
+	KindTCPRoute             = "TCPRoute"
+	KindUDPRoute             = "UDPRoute"
 	KindGRPCRoute            = "GRPCRoute"
+	KindTLSRoute             = "TLSRoute"
 	KindGatewayClass         = "GatewayClass"
 	KindIngress              = "Ingress"
 	KindIngressClass         = "IngressClass"
@@ -60,14 +64,27 @@ const (
 	KindApisixUpstream       = "ApisixUpstream"
 )
 
+const (
+	AppProtocolHTTP  = "http"
+	AppProtocolHTTPS = "https"
+	AppProtocolWS    = "kubernetes.io/ws"
+	AppProtocolWSS   = "kubernetes.io/wss"
+)
+
 func KindOf(obj any) string {
 	switch obj.(type) {
 	case *gatewayv1.Gateway:
 		return KindGateway
+	case *gatewayv1alpha2.TCPRoute:
+		return KindTCPRoute
+	case *gatewayv1alpha2.UDPRoute:
+		return KindUDPRoute
 	case *gatewayv1.HTTPRoute:
 		return KindHTTPRoute
 	case *gatewayv1.GRPCRoute:
 		return KindGRPCRoute
+	case *gatewayv1alpha2.TLSRoute:
+		return KindTLSRoute
 	case *gatewayv1.GatewayClass:
 		return KindGatewayClass
 	case *netv1.Ingress:
@@ -130,6 +147,8 @@ func GvkOf(obj any) schema.GroupVersionKind {
 	switch obj.(type) {
 	case *gatewayv1.Gateway, *gatewayv1.HTTPRoute, *gatewayv1.GatewayClass, *gatewayv1.GRPCRoute:
 		return gatewayv1.SchemeGroupVersion.WithKind(kind)
+	case *gatewayv1alpha2.TCPRoute, *gatewayv1alpha2.UDPRoute, *gatewayv1alpha2.TLSRoute:
+		return gatewayv1alpha2.SchemeGroupVersion.WithKind(kind)
 	case *gatewayv1beta1.ReferenceGrant:
 		return gatewayv1beta1.SchemeGroupVersion.WithKind(kind)
 	case *netv1.Ingress, *netv1.IngressClass:

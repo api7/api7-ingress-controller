@@ -34,6 +34,10 @@ data:
       stream_proxy:
         tcp:
           - 9100
+          - addr: 9110
+            tls: true
+        udp:
+          - 9200
     nginx_config:
       worker_processes: 2
       error_log_level: debug
@@ -209,13 +213,19 @@ spec:
           name: admin
           protocol: TCP
         - containerPort: 9443
-          name: tls
+          name: https
           protocol: TCP
         - containerPort: 9090
           name: control-api
           protocol: TCP
         - containerPort: 9100
           name: stream-route
+          protocol: TCP
+        - containerPort: 9200
+          name: udp
+          protocol: UDP
+        - containerPort: 9110
+          name: tls
           protocol: TCP
         readinessProbe:
           failureThreshold: 10
@@ -277,6 +287,14 @@ spec:
   - name: tcp
     port: 9100
     protocol: TCP
+  - name: udp
+    port: 9200
+    protocol: UDP
+    targetPort: 9200
+  - name: tls
+    port: 9110
+    protocol: TCP
+    targetPort: 9110
   selector:
     app.kubernetes.io/instance: api7ee3
     app.kubernetes.io/name: apisix

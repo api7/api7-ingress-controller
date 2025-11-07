@@ -93,6 +93,9 @@ rules:
   - grpcroutes/status
   - httproutes/status
   - referencegrants/status
+  - tcproutes/status
+  - tlsroutes/status
+  - udproutes/status
   verbs:
   - get
   - update
@@ -103,6 +106,9 @@ rules:
   - grpcroutes
   - httproutes
   - referencegrants
+  - tcproutes
+  - tlsroutes
+  - udproutes
   verbs:
   - get
   - list

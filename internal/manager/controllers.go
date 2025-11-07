@@ -30,10 +30,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller"
+	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
@@ -85,10 +87,16 @@ import (
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get;update
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes/status,verbs=get;update
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=tcproutes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=tcproutes/status,verbs=get;update
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=udproutes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=udproutes/status,verbs=get;update
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=referencegrants,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=referencegrants/status,verbs=get;update
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=grpcroutes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=grpcroutes/status,verbs=get;update
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=tlsroutes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=tlsroutes/status,verbs=get;update
 
 // Networking
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch
@@ -120,44 +128,81 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 	}
 
 	// Gateway API Controllers - conditional registration based on API availability
+	if !config.ControllerConfig.DisableGatewayAPI {
+		for resource, controller := range map[client.Object]Controller{
+			&gatewayv1.GatewayClass{}: &controller.GatewayClassReconciler{
+				Client:  mgr.GetClient(),
+				Scheme:  mgr.GetScheme(),
+				Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindGatewayClass),
+				Updater: updater,
+			},
+			&gatewayv1.Gateway{}: &controller.GatewayReconciler{
+				Client:   mgr.GetClient(),
+				Scheme:   mgr.GetScheme(),
+				Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindGateway),
+				Provider: pro,
+				Updater:  updater,
+			},
+			&gatewayv1.HTTPRoute{}: &controller.HTTPRouteReconciler{
+				Client:   mgr.GetClient(),
+				Scheme:   mgr.GetScheme(),
+				Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindHTTPRoute),
+				Provider: pro,
+				Updater:  updater,
+				Readier:  readier,
+			},
+			&gatewayv1alpha2.TCPRoute{}: &controller.TCPRouteReconciler{
+				Client:   mgr.GetClient(),
+				Scheme:   mgr.GetScheme(),
+				Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindTCPRoute),
+				Provider: pro,
+				Updater:  updater,
+				Readier:  readier,
+			},
+			&gatewayv1alpha2.UDPRoute{}: &controller.UDPRouteReconciler{
+				Client:   mgr.GetClient(),
+				Scheme:   mgr.GetScheme(),
+				Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindUDPRoute),
+				Provider: pro,
+				Updater:  updater,
+				Readier:  readier,
+			},
+			&gatewayv1.GRPCRoute{}: &controller.GRPCRouteReconciler{
+				Client:   mgr.GetClient(),
+				Scheme:   mgr.GetScheme(),
+				Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindGRPCRoute),
+				Provider: pro,
+				Updater:  updater,
+				Readier:  readier,
+			},
+			&gatewayv1alpha2.TLSRoute{}: &controller.TLSRouteReconciler{
+				Client:   mgr.GetClient(),
+				Scheme:   mgr.GetScheme(),
+				Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindTLSRoute),
+				Provider: pro,
+				Updater:  updater,
+				Readier:  readier,
+			},
+			&v1alpha1.Consumer{}: &controller.ConsumerReconciler{
+				Client:   mgr.GetClient(),
+				Scheme:   mgr.GetScheme(),
+				Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindConsumer),
+				Provider: pro,
+				Updater:  updater,
+				Readier:  readier,
+			},
+		} {
+			if utils.HasAPIResource(mgr, resource) {
+				controllers = append(controllers, controller)
+			} else {
+				setupLog.Info("Skipping controller setup, API not found in cluster", "api", utils.FormatGVK(resource))
+			}
+		}
+	} else {
+		setupLog.Info("Skipping Gateway API controllers setup as Gateway API is disabled")
+	}
+
 	for resource, controller := range map[client.Object]Controller{
-		&gatewayv1.GatewayClass{}: &controller.GatewayClassReconciler{
-			Client:  mgr.GetClient(),
-			Scheme:  mgr.GetScheme(),
-			Log:     ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindGatewayClass),
-			Updater: updater,
-		},
-		&gatewayv1.Gateway{}: &controller.GatewayReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindGateway),
-			Provider: pro,
-			Updater:  updater,
-		},
-		&gatewayv1.HTTPRoute{}: &controller.HTTPRouteReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindHTTPRoute),
-			Provider: pro,
-			Updater:  updater,
-			Readier:  readier,
-		},
-		&gatewayv1.GRPCRoute{}: &controller.GRPCRouteReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindGRPCRoute),
-			Provider: pro,
-			Updater:  updater,
-			Readier:  readier,
-		},
-		&v1alpha1.Consumer{}: &controller.ConsumerReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindConsumer),
-			Provider: pro,
-			Updater:  updater,
-			Readier:  readier,
-		},
 		&netv1.Ingress{}: &controller.IngressReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
@@ -249,8 +294,12 @@ func registerReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManage
 	log := ctrl.LoggerFrom(context.Background()).WithName("readiness")
 
 	registerV2ForReadinessGVK(mgr, readier, log)
-	registerGatewayAPIForReadinessGVK(mgr, readier, log)
-	registerV1alpha1ForReadinessGVK(mgr, readier, log)
+	if !config.ControllerConfig.DisableGatewayAPI {
+		registerGatewayAPIForReadinessGVK(mgr, readier, log)
+		registerV1alpha1ForReadinessGVK(mgr, readier, log)
+	} else {
+		log.Info("Skipping Gateway API and v1alpha1 GVK registration for readiness checks as Gateway API is disabled")
+	}
 }
 
 func registerV2ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManager, log logr.Logger) {
@@ -290,6 +339,15 @@ func registerGatewayAPIForReadinessGVK(mgr manager.Manager, readier readiness.Re
 	}
 	if utils.HasAPIResource(mgr, &gatewayv1.GRPCRoute{}) {
 		gvks = append(gvks, types.GvkOf(&gatewayv1.GRPCRoute{}))
+	}
+	if utils.HasAPIResource(mgr, &gatewayv1alpha2.TCPRoute{}) {
+		gvks = append(gvks, types.GvkOf(&gatewayv1alpha2.TCPRoute{}))
+	}
+	if utils.HasAPIResource(mgr, &gatewayv1alpha2.UDPRoute{}) {
+		gvks = append(gvks, types.GvkOf(&gatewayv1alpha2.UDPRoute{}))
+	}
+	if utils.HasAPIResource(mgr, &gatewayv1alpha2.TLSRoute{}) {
+		gvks = append(gvks, types.GvkOf(&gatewayv1alpha2.TLSRoute{}))
 	}
 	if len(gvks) == 0 {
 		return

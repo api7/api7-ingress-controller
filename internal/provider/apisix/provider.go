@@ -23,12 +23,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/api7/gopkg/pkg/log"
-	"go.uber.org/zap"
+	"github.com/go-logr/logr"
 	networkingv1 "k8s.io/api/networking/v1"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
@@ -68,16 +68,17 @@ type apisixProvider struct {
 	syncCh chan struct{}
 
 	client *adcclient.Client
+	log    logr.Logger
 }
 
-func New(updater status.Updater, readier readiness.ReadinessManager, opts ...provider.Option) (provider.Provider, error) {
+func New(log logr.Logger, updater status.Updater, readier readiness.ReadinessManager, opts ...provider.Option) (provider.Provider, error) {
 	o := provider.Options{}
 	o.ApplyOptions(opts)
 	if o.BackendMode == "" {
 		o.BackendMode = ProviderTypeAPISIX
 	}
 
-	cli, err := adcclient.New(o.BackendMode, o.SyncTimeout)
+	cli, err := adcclient.New(log, o.BackendMode, o.SyncTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -85,10 +86,11 @@ func New(updater status.Updater, readier readiness.ReadinessManager, opts ...pro
 	return &apisixProvider{
 		client:     cli,
 		Options:    o,
-		translator: &translator.Translator{},
+		translator: translator.NewTranslator(log),
 		updater:    updater,
 		readier:    readier,
 		syncCh:     make(chan struct{}, 1),
+		log:        log.WithName("provider"),
 	}, nil
 }
 
@@ -97,7 +99,7 @@ func (d *apisixProvider) Register(pathPrefix string, mux *http.ServeMux) {
 }
 
 func (d *apisixProvider) Update(ctx context.Context, tctx *provider.TranslateContext, obj client.Object) error {
-	log.Debugw("updating object", zap.Any("object", obj))
+	d.log.V(1).Info("updating object", "object", obj)
 	var (
 		result        *translator.TranslateResult
 		resourceTypes []string
@@ -109,6 +111,15 @@ func (d *apisixProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 	switch t := obj.(type) {
 	case *gatewayv1.HTTPRoute:
 		result, err = d.translator.TranslateHTTPRoute(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, adctypes.TypeService)
+	case *gatewayv1alpha2.TCPRoute:
+		result, err = d.translator.TranslateTCPRoute(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, adctypes.TypeService)
+	case *gatewayv1alpha2.UDPRoute:
+		result, err = d.translator.TranslateUDPRoute(tctx, t.DeepCopy())
+		resourceTypes = append(resourceTypes, adctypes.TypeService)
+	case *gatewayv1alpha2.TLSRoute:
+		result, err = d.translator.TranslateTLSRoute(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, adctypes.TypeService)
 	case *gatewayv1.GRPCRoute:
 		result, err = d.translator.TranslateGRPCRoute(tctx, t.DeepCopy())
@@ -176,18 +187,18 @@ func (d *apisixProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 			Consumers:      result.Consumers,
 		},
 	}
-	log.Debugw("updating config", zap.Any("task", task))
+	d.log.V(1).Info("updating config", "task", task)
 
 	return d.client.UpdateConfig(ctx, task)
 }
 
 func (d *apisixProvider) Delete(ctx context.Context, obj client.Object) error {
-	log.Debugw("deleting object", zap.Any("object", obj))
+	d.log.V(1).Info("deleting object", "object", obj)
 
 	var resourceTypes []string
 	var labels map[string]string
 	switch obj.(type) {
-	case *gatewayv1.HTTPRoute, *apiv2.ApisixRoute, *gatewayv1.GRPCRoute:
+	case *gatewayv1.HTTPRoute, *apiv2.ApisixRoute, *gatewayv1.GRPCRoute, *gatewayv1alpha2.TCPRoute, *gatewayv1alpha2.UDPRoute, *gatewayv1alpha2.TLSRoute:
 		resourceTypes = append(resourceTypes, adctypes.TypeService)
 		labels = label.GenLabel(obj)
 	case *gatewayv1.Gateway:
@@ -270,7 +281,7 @@ func (d *apisixProvider) Start(ctx context.Context) error {
 			return nil
 		}
 		if err := d.sync(ctx); err != nil {
-			log.Error(err)
+			d.log.Error(err, "failed to sync")
 			retrier.Next()
 		} else {
 			retrier.Reset()
@@ -294,7 +305,7 @@ func (d *apisixProvider) syncNotify() {
 func (d *apisixProvider) handleADCExecutionErrors(statusesMap map[string]types.ADCExecutionErrors) {
 	statusUpdateMap := d.resolveADCExecutionErrors(statusesMap)
 	d.handleStatusUpdate(statusUpdateMap)
-	log.Debugw("handled ADC execution errors", zap.Any("status_record", statusesMap), zap.Any("status_update", statusUpdateMap))
+	d.log.V(1).Info("handled ADC execution errors", "status_record", statusesMap, "status_update", statusUpdateMap)
 }
 
 func (d *apisixProvider) NeedLeaderElection() bool {
