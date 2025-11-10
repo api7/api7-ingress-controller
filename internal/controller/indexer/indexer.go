@@ -33,6 +33,7 @@ import (
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	"github.com/apache/apisix-ingress-controller/internal/adc/translator/annotations"
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	internaltypes "github.com/apache/apisix-ingress-controller/internal/types"
 	k8sutils "github.com/apache/apisix-ingress-controller/internal/utils"
@@ -104,6 +105,7 @@ func SetupIndexer(mgr ctrl.Manager) error {
 		setupApisixPluginConfigIndexer,
 		setupApisixTlsIndexer,
 		setupApisixConsumerIndexer,
+		setupApisixGlobalRuleIndexer,
 	} {
 		if err := setup(mgr); err != nil {
 			return err
@@ -480,6 +482,15 @@ func setupIngressIndexer(mgr ctrl.Manager) error {
 		return err
 	}
 
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&networkingv1.Ingress{},
+		PluginConfigIndexRef,
+		IngressPluginConfigIndexFunc,
+	); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -526,6 +537,10 @@ func IngressServiceIndexFunc(rawObj client.Object) []string {
 	ingress := rawObj.(*networkingv1.Ingress)
 	var services []string
 
+	ns := ingress.Namespace
+	if svcNs := ingress.Annotations[annotations.AnnotationsSvcNamespace]; svcNs != "" {
+		ns = svcNs
+	}
 	for _, rule := range ingress.Spec.Rules {
 		if rule.HTTP == nil {
 			continue
@@ -535,7 +550,7 @@ func IngressServiceIndexFunc(rawObj client.Object) []string {
 			if path.Backend.Service == nil {
 				continue
 			}
-			key := GenIndexKey(ingress.Namespace, path.Backend.Service.Name)
+			key := GenIndexKey(ns, path.Backend.Service.Name)
 			services = append(services, key)
 		}
 	}
@@ -980,4 +995,39 @@ func ApisixTlsIngressClassIndexFunc(rawObj client.Object) []string {
 		return nil
 	}
 	return []string{tls.Spec.IngressClassName}
+}
+
+func setupApisixGlobalRuleIndexer(mgr ctrl.Manager) error {
+	// Create secret index for ApisixGlobalRule
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&apiv2.ApisixGlobalRule{},
+		SecretIndexRef,
+		ApisixGlobalRuleSecretIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ApisixGlobalRuleSecretIndexFunc(rawObj client.Object) []string {
+	agr := rawObj.(*apiv2.ApisixGlobalRule)
+	var keys []string
+	for _, plugin := range agr.Spec.Plugins {
+		if plugin.Enable && plugin.SecretRef != "" {
+			keys = append(keys, GenIndexKey(agr.GetNamespace(), plugin.SecretRef))
+		}
+	}
+	return keys
+}
+
+func IngressPluginConfigIndexFunc(rawObj client.Object) []string {
+	ingress := rawObj.(*networkingv1.Ingress)
+	pluginConfigName := ingress.Annotations[annotations.AnnotationsPluginConfigName]
+	if pluginConfigName == "" {
+		return nil
+	}
+
+	return []string{GenIndexKey(ingress.GetNamespace(), pluginConfigName)}
 }

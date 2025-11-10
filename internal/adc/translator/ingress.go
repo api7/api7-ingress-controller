@@ -18,6 +18,7 @@
 package translator
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 
@@ -29,6 +30,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
+	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 	"github.com/apache/apisix-ingress-controller/internal/id"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
@@ -80,6 +82,10 @@ func (t *Translator) TranslateIngress(
 
 	labels := label.GenLabel(obj)
 
+	config := t.TranslateIngressAnnotations(obj.Annotations)
+
+	t.Log.V(1).Info("translating Ingress Annotations", "config", config)
+
 	// handle TLS configuration, convert to SSL objects
 	if err := t.translateIngressTLSSection(tctx, obj, result, labels); err != nil {
 		return nil, err
@@ -97,7 +103,8 @@ func (t *Translator) TranslateIngress(
 		}
 
 		for j, path := range rule.HTTP.Paths {
-			if svc := t.buildServiceFromIngressPath(tctx, obj, &path, i, j, hosts, labels); svc != nil {
+			index := fmt.Sprintf("%d-%d", i, j)
+			if svc := t.buildServiceFromIngressPath(tctx, obj, config, &path, index, hosts, labels); svc != nil {
 				result.Services = append(result.Services, svc)
 			}
 		}
@@ -135,8 +142,9 @@ func (t *Translator) translateIngressTLSSection(
 func (t *Translator) buildServiceFromIngressPath(
 	tctx *provider.TranslateContext,
 	obj *networkingv1.Ingress,
+	config *IngressConfig,
 	path *networkingv1.HTTPIngressPath,
-	ruleIndex, pathIndex int,
+	index string,
 	hosts []string,
 	labels map[string]string,
 ) *adctypes.Service {
@@ -146,16 +154,19 @@ func (t *Translator) buildServiceFromIngressPath(
 
 	service := adctypes.NewDefaultService()
 	service.Labels = labels
-	service.Name = adctypes.ComposeServiceNameWithRule(obj.Namespace, obj.Name, fmt.Sprintf("%d-%d", ruleIndex, pathIndex))
+	service.Name = adctypes.ComposeServiceNameWithRule(obj.Namespace, obj.Name, index)
 	service.ID = id.GenID(service.Name)
 	service.Hosts = hosts
 
 	upstream := adctypes.NewDefaultUpstream()
-	protocol := t.resolveIngressUpstream(tctx, obj, path.Backend.Service, upstream)
+	protocol := t.resolveIngressUpstream(tctx, obj, config, path.Backend.Service, upstream)
 	service.Upstream = upstream
 
-	route := buildRouteFromIngressPath(obj, path, ruleIndex, pathIndex, labels)
-	if protocol == internaltypes.AppProtocolWS || protocol == internaltypes.AppProtocolWSS {
+	route := t.buildRouteFromIngressPath(tctx, obj, path, config, index, labels)
+	// Check if websocket is enabled via annotation first, then fall back to appProtocol detection
+	if config != nil && config.EnableWebsocket {
+		route.EnableWebsocket = ptr.To(true)
+	} else if protocol == internaltypes.AppProtocolWS || protocol == internaltypes.AppProtocolWSS {
 		route.EnableWebsocket = ptr.To(true)
 	}
 	service.Routes = []*adctypes.Route{route}
@@ -167,11 +178,32 @@ func (t *Translator) buildServiceFromIngressPath(
 func (t *Translator) resolveIngressUpstream(
 	tctx *provider.TranslateContext,
 	obj *networkingv1.Ingress,
+	config *IngressConfig,
 	backendService *networkingv1.IngressServiceBackend,
 	upstream *adctypes.Upstream,
 ) string {
-	backendRef := convertBackendRef(obj.Namespace, backendService.Name, internaltypes.KindService)
+	ns := obj.Namespace
+	if config != nil && config.ServiceNamespace != "" {
+		ns = config.ServiceNamespace
+	}
+	backendRef := convertBackendRef(ns, backendService.Name, internaltypes.KindService)
 	t.AttachBackendTrafficPolicyToUpstream(backendRef, tctx.BackendTrafficPolicies, upstream)
+	if config != nil {
+		upConfig := config.Upstream
+		if upConfig.Scheme != "" {
+			upstream.Scheme = upConfig.Scheme
+		}
+		if upConfig.Retries > 0 {
+			upstream.Retries = ptr.To(int64(upConfig.Retries))
+		}
+		if upConfig.TimeoutConnect > 0 || upConfig.TimeoutRead > 0 || upConfig.TimeoutSend > 0 {
+			upstream.Timeout = &adctypes.Timeout{
+				Connect: cmp.Or(upConfig.TimeoutConnect, 60),
+				Read:    cmp.Or(upConfig.TimeoutRead, 60),
+				Send:    cmp.Or(upConfig.TimeoutSend, 60),
+			}
+		}
+	}
 	// determine service port/port name
 	var protocol string
 	var port intstr.IntOrString
@@ -182,7 +214,7 @@ func (t *Translator) resolveIngressUpstream(
 	}
 
 	getService := tctx.Services[types.NamespacedName{
-		Namespace: obj.Namespace,
+		Namespace: ns,
 		Name:      backendService.Name,
 	}]
 	if getService == nil {
@@ -211,7 +243,7 @@ func (t *Translator) resolveIngressUpstream(
 	}
 
 	endpointSlices := tctx.EndpointSlices[types.NamespacedName{
-		Namespace: obj.Namespace,
+		Namespace: ns,
 		Name:      backendService.Name,
 	}]
 	if len(endpointSlices) > 0 {
@@ -221,14 +253,16 @@ func (t *Translator) resolveIngressUpstream(
 	return protocol
 }
 
-func buildRouteFromIngressPath(
+func (t *Translator) buildRouteFromIngressPath(
+	tctx *provider.TranslateContext,
 	obj *networkingv1.Ingress,
 	path *networkingv1.HTTPIngressPath,
-	ruleIndex, pathIndex int,
+	config *IngressConfig,
+	index string,
 	labels map[string]string,
 ) *adctypes.Route {
 	route := adctypes.NewDefaultRoute()
-	route.Name = adctypes.ComposeRouteName(obj.Namespace, obj.Name, fmt.Sprintf("%d-%d", ruleIndex, pathIndex))
+	route.Name = adctypes.ComposeRouteName(obj.Namespace, obj.Name, index)
 	route.ID = id.GenID(route.Name)
 	route.Labels = labels
 
@@ -248,11 +282,69 @@ func buildRouteFromIngressPath(
 			prefix := strings.TrimSuffix(path.Path, "/") + "/*"
 			uris = append(uris, prefix)
 		case networkingv1.PathTypeImplementationSpecific:
-			uris = []string{"/*"}
+			if config.UseRegex {
+				uris = []string{"/*"}
+				vars := apiv2.ApisixRouteHTTPMatchExprs{
+					apiv2.ApisixRouteHTTPMatchExpr{
+						Subject: apiv2.ApisixRouteHTTPMatchExprSubject{
+							Scope: apiv2.ScopePath,
+						},
+						Op:    apiv2.OpRegexMatch,
+						Value: &path.Path,
+					},
+				}
+				routeVars, err := vars.ToVars()
+				if err != nil {
+					t.Log.Error(err, "failed to convert regex match exprs to vars", "exprs", vars)
+				} else {
+					route.Vars = append(route.Vars, routeVars...)
+				}
+			}
 		}
 	}
+
+	if config != nil {
+		// check if PluginConfig is specified
+		if config.PluginConfigName != "" {
+			route.Plugins = t.loadPluginConfigPluginsForIngress(tctx, obj.Namespace, config.PluginConfigName)
+		}
+
+		// apply plugins from annotations
+		if len(config.Plugins) > 0 {
+			if route.Plugins == nil {
+				route.Plugins = make(adctypes.Plugins)
+			}
+			for k, v := range config.Plugins {
+				route.Plugins[k] = v
+			}
+		}
+	}
+
 	route.Uris = uris
 	return route
+}
+
+func (t *Translator) loadPluginConfigPluginsForIngress(tctx *provider.TranslateContext, namespace, pluginConfigName string) adctypes.Plugins {
+	plugins := make(adctypes.Plugins)
+
+	pcKey := types.NamespacedName{
+		Namespace: namespace,
+		Name:      pluginConfigName,
+	}
+	pc, ok := tctx.ApisixPluginConfigs[pcKey]
+	if !ok || pc == nil {
+		return plugins
+	}
+
+	for _, plugin := range pc.Spec.Plugins {
+		if !plugin.Enable {
+			continue
+		}
+		config := t.buildPluginConfig(plugin, namespace, tctx.Secrets)
+		plugins[plugin.Name] = config
+	}
+
+	return plugins
 }
 
 // translateEndpointSliceForIngress create upstream nodes from EndpointSlice

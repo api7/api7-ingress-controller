@@ -17,7 +17,6 @@ package v1
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -62,101 +61,6 @@ func buildIngressValidator(t *testing.T, objects ...runtime.Object) *IngressCust
 		WithRuntimeObjects(allObjects...)
 
 	return NewIngressCustomValidator(builder.Build())
-}
-
-func TestIngressCustomValidator_ValidateCreate_UnsupportedAnnotations(t *testing.T) {
-	validator := buildIngressValidator(t)
-	obj := &networkingv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-ingress",
-			Namespace: "default",
-			Annotations: map[string]string{
-				"k8s.apisix.apache.org/use-regex":        "true",
-				"k8s.apisix.apache.org/enable-websocket": "true",
-			},
-		},
-	}
-
-	warnings, err := validator.ValidateCreate(context.TODO(), obj)
-	assert.NoError(t, err)
-	assert.Len(t, warnings, 2)
-
-	// Check that warnings contain the expected unsupported annotations
-	warningsStr := strings.Join(warnings, " ")
-	assert.Contains(t, warningsStr, "k8s.apisix.apache.org/use-regex")
-	assert.Contains(t, warningsStr, "k8s.apisix.apache.org/enable-websocket")
-}
-
-func TestIngressCustomValidator_ValidateCreate_SupportedAnnotations(t *testing.T) {
-	validator := buildIngressValidator(t)
-	obj := &networkingv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-ingress",
-			Namespace: "default",
-			Annotations: map[string]string{
-				"ingressclass.kubernetes.io/is-default-class": "true",
-			},
-		},
-	}
-
-	warnings, err := validator.ValidateCreate(context.TODO(), obj)
-	assert.NoError(t, err)
-	assert.Empty(t, warnings)
-}
-
-func TestIngressCustomValidator_ValidateUpdate_UnsupportedAnnotations(t *testing.T) {
-	validator := buildIngressValidator(t)
-	oldObj := &networkingv1.Ingress{}
-	obj := &networkingv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-ingress",
-			Namespace: "default",
-			Annotations: map[string]string{
-				"k8s.apisix.apache.org/enable-cors":       "true",
-				"k8s.apisix.apache.org/cors-allow-origin": "*",
-			},
-		},
-	}
-
-	warnings, err := validator.ValidateUpdate(context.TODO(), oldObj, obj)
-	assert.NoError(t, err)
-	assert.Len(t, warnings, 2)
-
-	// Check that warnings contain the expected unsupported annotations
-	warningsStr := strings.Join(warnings, " ")
-	assert.Contains(t, warningsStr, "k8s.apisix.apache.org/enable-cors")
-	assert.Contains(t, warningsStr, "k8s.apisix.apache.org/cors-allow-origin")
-}
-
-func TestIngressCustomValidator_ValidateDelete_NoWarnings(t *testing.T) {
-	validator := buildIngressValidator(t)
-	obj := &networkingv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-ingress",
-			Namespace: "default",
-			Annotations: map[string]string{
-				"k8s.apisix.apache.org/use-regex": "true",
-			},
-		},
-	}
-
-	warnings, err := validator.ValidateDelete(context.TODO(), obj)
-	assert.NoError(t, err)
-	assert.Empty(t, warnings)
-}
-
-func TestIngressCustomValidator_ValidateCreate_NoAnnotations(t *testing.T) {
-	validator := buildIngressValidator(t)
-	obj := &networkingv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-ingress",
-			Namespace: "default",
-		},
-	}
-
-	warnings, err := validator.ValidateCreate(context.TODO(), obj)
-	assert.NoError(t, err)
-	assert.Empty(t, warnings)
 }
 
 func TestIngressCustomValidator_WarnsForMissingServiceAndSecret(t *testing.T) {

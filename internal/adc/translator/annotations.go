@@ -21,17 +21,40 @@ import (
 
 	"github.com/imdario/mergo"
 
+	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/internal/adc/translator/annotations"
+	"github.com/apache/apisix-ingress-controller/internal/adc/translator/annotations/pluginconfig"
+	"github.com/apache/apisix-ingress-controller/internal/adc/translator/annotations/plugins"
+	"github.com/apache/apisix-ingress-controller/internal/adc/translator/annotations/regex"
+	"github.com/apache/apisix-ingress-controller/internal/adc/translator/annotations/servicenamespace"
+	"github.com/apache/apisix-ingress-controller/internal/adc/translator/annotations/upstream"
+	"github.com/apache/apisix-ingress-controller/internal/adc/translator/annotations/websocket"
 )
 
 // Structure extracted by Ingress Resource
-type Ingress struct{}
+type IngressConfig struct {
+	Upstream         upstream.Upstream
+	Plugins          adctypes.Plugins
+	EnableWebsocket  bool
+	ServiceNamespace string
+	PluginConfigName string
+	UseRegex         bool
+}
 
-// parsers registered for ingress annotations
-var ingressAnnotationParsers = map[string]annotations.IngressAnnotationsParser{}
+var ingressAnnotationParsers = map[string]annotations.IngressAnnotationsParser{
+	"upstream":         upstream.NewParser(),
+	"plugins":          plugins.NewParser(),
+	"EnableWebsocket":  websocket.NewParser(),
+	"PluginConfigName": pluginconfig.NewParser(),
+	"ServiceNamespace": servicenamespace.NewParser(),
+	"UseRegex":         regex.NewParser(),
+}
 
-func (t *Translator) TranslateIngressAnnotations(anno map[string]string) *Ingress {
-	ing := &Ingress{}
+func (t *Translator) TranslateIngressAnnotations(anno map[string]string) *IngressConfig {
+	if len(anno) == 0 {
+		return nil
+	}
+	ing := &IngressConfig{}
 	if err := translateAnnotations(anno, ing); err != nil {
 		t.Log.Error(err, "failed to translate ingress annotations", "annotations", anno)
 	}
