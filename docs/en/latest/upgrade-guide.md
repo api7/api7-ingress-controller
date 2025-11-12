@@ -152,6 +152,7 @@ In apisix >= 3.11, most of the hmac-auth related configuration has been deprecat
 
 Currently supports networking.k8s.io/v1 only. Support for other Ingress API versions (networking.k8s.io/v1beta1 and extensions/v1beta1) is not yet available in 2.0.0.
 
+<<<<<<< HEAD
 ##### Limited Support for Ingress Annotations
 
 The following Ingress annotations supported in version 1.x.x are not supported in the current version. They will be supported in a future release. If your existing setup relies on any of the following annotations, validate compatibility or consider delaying the upgrade.
@@ -197,6 +198,8 @@ The following Ingress annotations supported in version 1.x.x are not supported i
 | `k8s.apisix.apache.org/auth-type`                      |
 | `k8s.apisix.apache.org/svc-namespace`                  |
 
+=======
+>>>>>>> 0d8e880d (docs: update ingress annotation docs (#2645))
 ### Summary
 
 | Category         | Description                                                                                                                       |
