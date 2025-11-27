@@ -58,6 +58,8 @@ type ApisixGlobalRuleReconciler struct {
 	Readier readiness.ReadinessManager
 
 	ICGV schema.GroupVersion
+
+	SupportsEndpointSlice bool // cache capability
 }
 
 // Reconcile implements the reconciliation logic for ApisixGlobalRule
@@ -103,7 +105,7 @@ func (r *ApisixGlobalRuleReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	// process IngressClass parameters if they reference GatewayProxy
-	if err := ProcessIngressClassParameters(tctx, r.Client, r.Log, &globalRule, ingressClass); err != nil {
+	if err := ProcessIngressClassParameters(tctx, r.Client, r.Log, &globalRule, ingressClass, r.SupportsEndpointSlice); err != nil {
 		r.Log.Error(err, "failed to process IngressClass parameters", "ingressClass", ingressClass.Name)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}

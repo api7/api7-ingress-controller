@@ -67,8 +67,8 @@ type HTTPRouteReconciler struct { //nolint:revive
 	Updater status.Updater
 	Readier readiness.ReadinessManager
 
-	// supportsEndpointSlice indicates whether the cluster supports EndpointSlice API
-	supportsEndpointSlice bool
+	// SupportsEndpointSlice indicates whether the cluster supports EndpointSlice API
+	SupportsEndpointSlice bool 
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -76,13 +76,13 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.genericEvent = make(chan event.GenericEvent, 100)
 
 	// Check and store EndpointSlice API support
-	r.supportsEndpointSlice = pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
+	r.SupportsEndpointSlice = pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
 
 	eventFilters := []predicate.Predicate{
 		predicate.GenerationChangedPredicate{},
 	}
 
-	if !r.supportsEndpointSlice {
+	if !r.SupportsEndpointSlice {
 		eventFilters = append(eventFilters, predicate.NewPredicateFuncs(TypePredicate[*corev1.Endpoints]()))
 	}
 
@@ -91,7 +91,7 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithEventFilter(predicate.Or(eventFilters...))
 
 	// Conditionally watch EndpointSlice or Endpoints based on cluster API support
-	bdr = watchEndpointSliceOrEndpoints(bdr, r.supportsEndpointSlice,
+	bdr = watchEndpointSliceOrEndpoints(bdr, r.SupportsEndpointSlice,
 		r.listHTTPRoutesByServiceRef,
 		r.listHTTPRoutesByServiceForEndpoints,
 		r.Log)
@@ -199,7 +199,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	tctx.RouteParentRefs = hr.Spec.ParentRefs
 	rk := utils.NamespacedNameKind(hr)
 	for _, gateway := range gateways {
-		if err := ProcessGatewayProxy(r.Client, r.Log, tctx, gateway.Gateway, rk); err != nil {
+		if err := ProcessGatewayProxy(r.Client, r.Log, tctx, gateway.Gateway, rk, r.SupportsEndpointSlice); err != nil {
 			acceptStatus.status = false
 			acceptStatus.msg = err.Error()
 		}
@@ -576,7 +576,7 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 		tctx.Services[targetNN] = &service
 
 		// Collect endpoints with EndpointSlice support
-		if err := resolveServiceEndpoints(tctx, r.Client, targetNN, r.supportsEndpointSlice, nil); err != nil {
+		if err := resolveServiceEndpoints(tctx, r.Client, targetNN, r.SupportsEndpointSlice, nil); err != nil {
 			r.Log.Error(err, "failed to collect endpoints", "Service", targetNN)
 			terr = err
 			continue
