@@ -16,10 +16,10 @@ leader_election:
                                         # will wait between tries of actions with the controller.
   disable: false                        # Whether to disable leader election.
 
-enable_server: false                    # The debug API is behind this server which is disabled by default for security reasons.
 metrics_addr: ":8080"                   # The address the metrics endpoint binds to.
                                         # The default value is ":8080".
 
+enable_server: false                    # The debug API is behind this server which is disabled by default for security reasons.
 server_addr: "127.0.0.1:9092"           # Available endpoints: /debug can be used to debug in-memory state of translated adc configs to be synced with data plane.
 
 enable_http2: false                     # Whether to enable HTTP/2 for the server.
