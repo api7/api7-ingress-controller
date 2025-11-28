@@ -58,6 +58,8 @@ type UDPRouteReconciler struct { //nolint:revive
 
 	Updater status.Updater
 	Readier readiness.ReadinessManager
+
+	SupportsEndpointSlice bool // cache capability 
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -269,7 +271,7 @@ func (r *UDPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	tctx.RouteParentRefs = tr.Spec.ParentRefs
 	rk := utils.NamespacedNameKind(tr)
 	for _, gateway := range gateways {
-		if err := ProcessGatewayProxy(r.Client, r.Log, tctx, gateway.Gateway, rk); err != nil {
+		if err := ProcessGatewayProxy(r.Client, r.Log, tctx, gateway.Gateway, rk, r.SupportsEndpointSlice); err != nil {
 			acceptStatus.status = false
 			acceptStatus.msg = err.Error()
 		}

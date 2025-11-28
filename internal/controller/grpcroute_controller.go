@@ -61,6 +61,8 @@ type GRPCRouteReconciler struct { //nolint:revive
 
 	Updater status.Updater
 	Readier readiness.ReadinessManager
+
+	SupportsEndpointSlice bool // cache capability
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -196,7 +198,7 @@ func (r *GRPCRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	tctx.RouteParentRefs = gr.Spec.ParentRefs
 	rk := utils.NamespacedNameKind(gr)
 	for _, gateway := range gateways {
-		if err := ProcessGatewayProxy(r.Client, r.Log, tctx, gateway.Gateway, rk); err != nil {
+		if err := ProcessGatewayProxy(r.Client, r.Log, tctx, gateway.Gateway, rk, r.SupportsEndpointSlice); err != nil {
 			acceptStatus.status = false
 			acceptStatus.msg = err.Error()
 		}
