@@ -1604,10 +1604,6 @@ func watchEndpointSliceOrEndpoints(bdr *ctrl.Builder, supportsEndpointSlice bool
 
 // resolveServiceEndpoints collects endpoints and adds them to the translate context
 // It handles both EndpointSlice (K8s 1.19+) and Endpoints (K8s 1.18) APIs with automatic fallback
-// TODO : I think here is where there is relevance to EndpointSlice
-// RN EndpointSlice is set as True by default but it is not supported by Endpoints (K8s, 1.18)
-// the problem is that this function is called by multiple files (apisixroute, gateway_proxy, httproute_controller, ingress_controller)
-// optimally we dont fix this and we assume this to be right
 func resolveServiceEndpoints(
 	tctx *provider.TranslateContext,
 	c client.Client,
