@@ -77,7 +77,6 @@ func (r *IngressClassV1beta1Reconciler) SetupWithManager(mgr ctrl.Manager) error
 		Complete(r)
 }
 
-// TODO:  functions calls processInfrastructure
 func (r *IngressClassV1beta1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	IngressClassV1beta1 := new(v1beta1.IngressClass)
 	if err := r.Get(ctx, req.NamespacedName, IngressClassV1beta1); err != nil {
@@ -178,7 +177,6 @@ func (r *IngressClassV1beta1Reconciler) listIngressClassV1beta1esForSecret(ctx c
 	return distinctRequests(requests)
 }
 
-// TODO : problem here 
 func (r *IngressClassV1beta1Reconciler) processInfrastructure(tctx *provider.TranslateContext, IngressClassV1beta1 *v1beta1.IngressClass) error {
 	if IngressClassV1beta1.Spec.Parameters == nil {
 		return nil
@@ -238,8 +236,6 @@ func (r *IngressClassV1beta1Reconciler) processInfrastructure(tctx *provider.Tra
 		}
 	}
 
-	// TODO : Problem starts here, rn error is just returned by 
-	// addProviderEndpointsToTranslateContext(), which calls resolveServiceEndpoints, which defaults EndpointsSlice to true
 	if service := gatewayProxy.Spec.Provider.ControlPlane.Service; service != nil {
 		if err := addProviderEndpointsToTranslateContext(tctx, r.Client, r.Log, types.NamespacedName{
 			Namespace: gatewayProxy.GetNamespace(),

@@ -1537,11 +1537,6 @@ func CheckEndpointSliceSupport(config *rest.Config) bool {
 	return false
 }
 
-// TODO : Problem 1.2, here in the return call EndpointsSlice is set to true 
-// only called by ingressclass_v1beta1_controller.go so not coupled 
-// i am quite unsure about touching this since it in the util class,
-// either add a paramerter EndpointSlice, which defaults to True, or just change it to 
-// purely support K8s
 func addProviderEndpointsToTranslateContext(tctx *provider.TranslateContext, c client.Client, log logr.Logger, serviceNN k8stypes.NamespacedName, supportsEndpointSlice bool,) error {
 	log.V(1).Info("to process provider endpoints by provider.service", "service", serviceNN)
 	var (
