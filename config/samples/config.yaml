@@ -19,6 +19,7 @@ leader_election:
 metrics_addr: ":8080"                   # The address the metrics endpoint binds to.
                                         # The default value is ":8080".
 
+enable_server: false                    # The debug API is behind this server which is disabled by default for security reasons.
 server_addr: "127.0.0.1:9092"           # Available endpoints: /debug can be used to debug in-memory state of translated adc configs to be synced with data plane.
 
 enable_http2: false                     # Whether to enable HTTP/2 for the server.
@@ -39,10 +40,8 @@ disable_gateway_api: false               # Whether to disable the Gateway API su
 provider:
   type: "api7ee"
 
-  sync_period: 0s
-                                        # The period between two consecutive syncs.
-                                        # The default value is 0 seconds, which means the controller will not sync.
-                                        # If you want to enable the sync, set it to a positive value.
+  sync_period: 1h                       # The period between two consecutive syncs. The default value is 1 hour.
+                                        # If you want to disable the sync, set it to 0.
   init_sync_delay: 20m                # The initial delay before the first sync, only used when the controller is started.
                                         # The default value is 20 minutes.
 
