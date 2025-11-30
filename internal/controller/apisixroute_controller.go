@@ -64,14 +64,14 @@ type ApisixRouteReconciler struct {
 	Readier  readiness.ReadinessManager
 
 	ICGV schema.GroupVersion
-	// supportsEndpointSlice indicates whether the cluster supports EndpointSlice API
-	supportsEndpointSlice bool
+	// SupportsEndpointSlice indicates whether the cluster supports EndpointSlice API
+	SupportsEndpointSlice bool
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Check and store EndpointSlice API support
-	r.supportsEndpointSlice = pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
+	r.SupportsEndpointSlice = pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
 	var icWatch client.Object
 	switch r.ICGV.String() {
 	case networkingv1beta1.SchemeGroupVersion.String():
@@ -86,7 +86,7 @@ func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
 	}
 
-	if !r.supportsEndpointSlice {
+	if !r.SupportsEndpointSlice {
 		eventFilters = append(eventFilters, predicate.NewPredicateFuncs(TypePredicate[*corev1.Endpoints]()))
 	}
 
@@ -109,7 +109,7 @@ func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		)
 
 	// Conditionally watch EndpointSlice or Endpoints based on cluster API support
-	bdr = watchEndpointSliceOrEndpoints(bdr, r.supportsEndpointSlice,
+	bdr = watchEndpointSliceOrEndpoints(bdr, r.SupportsEndpointSlice,
 		r.listApisixRoutesForService,
 		r.listApisixRoutesForEndpoints,
 		r.Log)
@@ -167,7 +167,7 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 	defer func() { r.updateStatus(&ar, err) }()
 
-	if err = ProcessIngressClassParameters(tctx, r.Client, r.Log, &ar, ic); err != nil {
+	if err = ProcessIngressClassParameters(tctx, r.Client, r.Log, &ar, ic, r.SupportsEndpointSlice); err != nil {
 		r.Log.Error(err, "failed to process IngressClass parameters", "ingressClass", ic.Name)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -491,7 +491,7 @@ func (r *ApisixRouteReconciler) validateHTTPBackend(tctx *provider.TranslateCont
 	// It specifies that the target pod's label should be a superset of the subset labels of the ApisixUpstream of the serviceName
 	subsetLabels := r.getSubsetLabels(tctx, serviceNN, backend.Subset)
 
-	if err := resolveServiceEndpoints(tctx, r.Client, serviceNN, r.supportsEndpointSlice, subsetLabels); err != nil {
+	if err := resolveServiceEndpoints(tctx, r.Client, serviceNN, r.SupportsEndpointSlice, subsetLabels); err != nil {
 		return types.ReasonError{
 			Reason:  string(apiv2.ConditionReasonInvalidSpec),
 			Message: err.Error(),
