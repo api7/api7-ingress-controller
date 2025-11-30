@@ -33,6 +33,10 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/types"
 )
 
+type statusMutator struct {
+	resource    client.Object
+	mutatorFunc status.MutatorFunc
+}
 // handleStatusUpdate updates resource conditions based on the latest sync results.
 //
 // It maintains a history of failed resources in d.statusUpdateMap.
@@ -68,221 +72,160 @@ func (d *api7eeProvider) handleStatusUpdate(statusUpdateMap map[types.Namespaced
 
 //nolint:gocyclo
 func (d *api7eeProvider) updateStatus(nnk types.NamespacedNameKind, condition metav1.Condition) {
-	switch nnk.Kind {
+	// Simple APISIX CRDs
+	if mutator := d.getApisixCRDMutator(nnk.Kind, condition); mutator != nil {
+		d.updater.Update(status.Update{
+			NamespacedName: nnk.NamespacedName(),
+			Resource:       mutator.resource,
+			Mutator:        mutator.mutatorFunc,
+		})
+		return
+	}
+
+	// Gateway API Routes
+	if d.isGatewayRoute(nnk.Kind) {
+		d.updateGatewayRoute(nnk, condition)
+	}
+}
+
+func (d *api7eeProvider) getApisixCRDMutator(kind string, condition metav1.Condition) *statusMutator {
+	makeApisixMutator := func(resource client.Object) *statusMutator {
+		return &statusMutator{
+			resource: resource,
+			mutatorFunc: func(obj client.Object) client.Object {
+				switch v := obj.(type) {
+				case *apiv2.ApisixRoute:
+					cp := v.DeepCopy()
+					cutils.SetApisixCRDConditionWithGeneration(&cp.Status, cp.GetGeneration(), condition)
+					return cp
+				case *apiv2.ApisixGlobalRule:
+					cp := v.DeepCopy()
+					cutils.SetApisixCRDConditionWithGeneration(&cp.Status, cp.GetGeneration(), condition)
+					return cp
+				case *apiv2.ApisixTls:
+					cp := v.DeepCopy()
+					cutils.SetApisixCRDConditionWithGeneration(&cp.Status, cp.GetGeneration(), condition)
+					return cp
+				case *apiv2.ApisixConsumer:
+					cp := v.DeepCopy()
+					cutils.SetApisixCRDConditionWithGeneration(&cp.Status, cp.GetGeneration(), condition)
+					return cp
+				}
+				return obj
+			},
+		}
+	}
+
+	switch kind {
 	case types.KindApisixRoute:
-		d.updater.Update(status.Update{
-			NamespacedName: nnk.NamespacedName(),
-			Resource:       &apiv2.ApisixRoute{},
-			Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
-				cp := obj.(*apiv2.ApisixRoute).DeepCopy()
-				cutils.SetApisixCRDConditionWithGeneration(&cp.Status, cp.GetGeneration(), condition)
-				return cp
-			}),
-		})
+		return makeApisixMutator(&apiv2.ApisixRoute{})
 	case types.KindApisixGlobalRule:
-		d.updater.Update(status.Update{
-			NamespacedName: nnk.NamespacedName(),
-			Resource:       &apiv2.ApisixGlobalRule{},
-			Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
-				cp := obj.(*apiv2.ApisixGlobalRule).DeepCopy()
-				cutils.SetApisixCRDConditionWithGeneration(&cp.Status, cp.GetGeneration(), condition)
-				return cp
-			}),
-		})
+		return makeApisixMutator(&apiv2.ApisixGlobalRule{})
 	case types.KindApisixTls:
-		d.updater.Update(status.Update{
-			NamespacedName: nnk.NamespacedName(),
-			Resource:       &apiv2.ApisixTls{},
-			Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
-				cp := obj.(*apiv2.ApisixTls).DeepCopy()
-				cutils.SetApisixCRDConditionWithGeneration(&cp.Status, cp.GetGeneration(), condition)
-				return cp
-			}),
-		})
+		return makeApisixMutator(&apiv2.ApisixTls{})
 	case types.KindApisixConsumer:
-		d.updater.Update(status.Update{
-			NamespacedName: nnk.NamespacedName(),
-			Resource:       &apiv2.ApisixConsumer{},
-			Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
-				cp := obj.(*apiv2.ApisixConsumer).DeepCopy()
-				cutils.SetApisixCRDConditionWithGeneration(&cp.Status, cp.GetGeneration(), condition)
-				return cp
-			}),
-		})
+		return makeApisixMutator(&apiv2.ApisixConsumer{})
+	}
+	return nil
+}
+
+func (d *api7eeProvider) isGatewayRoute(kind string) bool {
+	return kind == types.KindHTTPRoute || kind == types.KindUDPRoute ||
+		kind == types.KindTCPRoute || kind == types.KindGRPCRoute ||
+		kind == types.KindTLSRoute
+}
+
+func (d *api7eeProvider) updateGatewayRoute(nnk types.NamespacedNameKind, condition metav1.Condition) {
+	parentRefs := d.client.ConfigManager.GetConfigRefsByResourceKey(nnk)
+	if nnk.Kind != types.KindHTTPRoute && nnk.Kind != types.KindGRPCRoute {
+		d.log.V(1).Info(fmt.Sprintf("updating %s status", nnk.Kind), "parentRefs", parentRefs)
+	}
+
+	gatewayRefs := d.filterGatewayRefs(parentRefs)
+
+	resource := d.getGatewayResource(nnk.Kind)
+	if resource == nil {
+		return
+	}
+
+	d.updater.Update(status.Update{
+		NamespacedName: nnk.NamespacedName(),
+		Resource:       resource,
+		Mutator:        d.makeGatewayMutator(gatewayRefs, condition),
+	})
+}
+
+func (d *api7eeProvider) filterGatewayRefs(parentRefs []types.NamespacedNameKind) map[types.NamespacedNameKind]struct{} {
+	gatewayRefs := map[types.NamespacedNameKind]struct{}{}
+	for _, parentRef := range parentRefs {
+		if parentRef.Kind == types.KindGateway {
+			gatewayRefs[parentRef] = struct{}{}
+		}
+	}
+	return gatewayRefs
+}
+
+func (d *api7eeProvider) getGatewayResource(kind string) client.Object {
+	switch kind {
 	case types.KindHTTPRoute:
-		parentRefs := d.client.ConfigManager.GetConfigRefsByResourceKey(nnk)
-		gatewayRefs := map[types.NamespacedNameKind]struct{}{}
-		for _, parentRef := range parentRefs {
-			if parentRef.Kind == types.KindGateway {
-				gatewayRefs[parentRef] = struct{}{}
-			}
-		}
-		d.updater.Update(status.Update{
-			NamespacedName: nnk.NamespacedName(),
-			Resource:       &gatewayv1.HTTPRoute{},
-			Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
-				cp := obj.(*gatewayv1.HTTPRoute).DeepCopy()
-				gatewayNs := cp.GetNamespace()
-				for i, ref := range cp.Status.Parents {
-					ns := gatewayNs
-					if ref.ParentRef.Namespace != nil {
-						ns = string(*ref.ParentRef.Namespace)
-					}
-					if ref.ParentRef.Kind == nil || *ref.ParentRef.Kind == types.KindGateway {
-						nnk := types.NamespacedNameKind{
-							Name:      string(ref.ParentRef.Name),
-							Namespace: ns,
-							Kind:      types.KindGateway,
-						}
-						if _, ok := gatewayRefs[nnk]; ok {
-							ref.Conditions = cutils.MergeCondition(ref.Conditions, condition)
-							cp.Status.Parents[i] = ref
-						}
-					}
-				}
-				return cp
-			}),
-		})
+		return &gatewayv1.HTTPRoute{}
 	case types.KindUDPRoute:
-		parentRefs := d.client.ConfigManager.GetConfigRefsByResourceKey(nnk)
-		d.log.V(1).Info("updating UDPRoute status", "parentRefs", parentRefs)
-		gatewayRefs := map[types.NamespacedNameKind]struct{}{}
-		for _, parentRef := range parentRefs {
-			if parentRef.Kind == types.KindGateway {
-				gatewayRefs[parentRef] = struct{}{}
-			}
-		}
-		d.updater.Update(status.Update{
-			NamespacedName: nnk.NamespacedName(),
-			Resource:       &gatewayv1alpha2.UDPRoute{},
-			Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
-				cp := obj.(*gatewayv1alpha2.UDPRoute).DeepCopy()
-				gatewayNs := cp.GetNamespace()
-				for i, ref := range cp.Status.Parents {
-					ns := gatewayNs
-					if ref.ParentRef.Namespace != nil {
-						ns = string(*ref.ParentRef.Namespace)
-					}
-					if ref.ParentRef.Kind == nil || *ref.ParentRef.Kind == types.KindGateway {
-						nnk := types.NamespacedNameKind{
-							Name:      string(ref.ParentRef.Name),
-							Namespace: ns,
-							Kind:      types.KindGateway,
-						}
-						if _, ok := gatewayRefs[nnk]; ok {
-							ref.Conditions = cutils.MergeCondition(ref.Conditions, condition)
-							cp.Status.Parents[i] = ref
-						}
-					}
-				}
-				return cp
-			}),
-		})
+		return &gatewayv1alpha2.UDPRoute{}
 	case types.KindTCPRoute:
-		parentRefs := d.client.ConfigManager.GetConfigRefsByResourceKey(nnk)
-		d.log.V(1).Info("updating TCPRoute status", "parentRefs", parentRefs)
-		gatewayRefs := map[types.NamespacedNameKind]struct{}{}
-		for _, parentRef := range parentRefs {
-			if parentRef.Kind == types.KindGateway {
-				gatewayRefs[parentRef] = struct{}{}
-			}
-		}
-		d.updater.Update(status.Update{
-			NamespacedName: nnk.NamespacedName(),
-			Resource:       &gatewayv1alpha2.TCPRoute{},
-			Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
-				cp := obj.(*gatewayv1alpha2.TCPRoute).DeepCopy()
-				gatewayNs := cp.GetNamespace()
-				for i, ref := range cp.Status.Parents {
-					ns := gatewayNs
-					if ref.ParentRef.Namespace != nil {
-						ns = string(*ref.ParentRef.Namespace)
-					}
-					if ref.ParentRef.Kind == nil || *ref.ParentRef.Kind == types.KindGateway {
-						nnk := types.NamespacedNameKind{
-							Name:      string(ref.ParentRef.Name),
-							Namespace: ns,
-							Kind:      types.KindGateway,
-						}
-						if _, ok := gatewayRefs[nnk]; ok {
-							ref.Conditions = cutils.MergeCondition(ref.Conditions, condition)
-							cp.Status.Parents[i] = ref
-						}
-					}
-				}
-				return cp
-			}),
-		})
+		return &gatewayv1alpha2.TCPRoute{}
 	case types.KindGRPCRoute:
-		parentRefs := d.client.ConfigManager.GetConfigRefsByResourceKey(nnk)
-		d.log.V(1).Info("updating GRPCRoute status", "parentRefs", parentRefs)
-		gatewayRefs := map[types.NamespacedNameKind]struct{}{}
-		for _, parentRef := range parentRefs {
-			if parentRef.Kind == types.KindGateway {
-				gatewayRefs[parentRef] = struct{}{}
-			}
-		}
-		d.updater.Update(status.Update{
-			NamespacedName: nnk.NamespacedName(),
-			Resource:       &gatewayv1.GRPCRoute{},
-			Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
-				cp := obj.(*gatewayv1.GRPCRoute).DeepCopy()
-				gatewayNs := cp.GetNamespace()
-				for i, ref := range cp.Status.Parents {
-					ns := gatewayNs
-					if ref.ParentRef.Namespace != nil {
-						ns = string(*ref.ParentRef.Namespace)
-					}
-					if ref.ParentRef.Kind == nil || *ref.ParentRef.Kind == types.KindGateway {
-						nnk := types.NamespacedNameKind{
-							Name:      string(ref.ParentRef.Name),
-							Namespace: ns,
-							Kind:      types.KindGateway,
-						}
-						if _, ok := gatewayRefs[nnk]; ok {
-							ref.Conditions = cutils.MergeCondition(ref.Conditions, condition)
-							cp.Status.Parents[i] = ref
-						}
-					}
-				}
-				return cp
-			}),
-		})
+		return &gatewayv1.GRPCRoute{}
 	case types.KindTLSRoute:
-		parentRefs := d.client.ConfigManager.GetConfigRefsByResourceKey(nnk)
-		d.log.V(1).Info("updating TLSRoute status", "parentRefs", parentRefs)
-		gatewayRefs := map[types.NamespacedNameKind]struct{}{}
-		for _, parentRef := range parentRefs {
-			if parentRef.Kind == types.KindGateway {
-				gatewayRefs[parentRef] = struct{}{}
+		return &gatewayv1alpha2.TLSRoute{}
+	}
+	return nil
+}
+
+func (d *api7eeProvider) makeGatewayMutator(gatewayRefs map[types.NamespacedNameKind]struct{}, condition metav1.Condition) status.MutatorFunc {
+	return func(obj client.Object) client.Object {
+		switch route := obj.(type) {
+		case *gatewayv1.HTTPRoute:
+			cp := route.DeepCopy()
+			d.updateRouteParentStatuses(&cp.Status.Parents, cp.GetNamespace(), gatewayRefs, condition)
+			return cp
+		case *gatewayv1alpha2.UDPRoute:
+			cp := route.DeepCopy()
+			d.updateRouteParentStatuses(&cp.Status.Parents, cp.GetNamespace(), gatewayRefs, condition)
+			return cp
+		case *gatewayv1alpha2.TCPRoute:
+			cp := route.DeepCopy()
+			d.updateRouteParentStatuses(&cp.Status.Parents, cp.GetNamespace(), gatewayRefs, condition)
+			return cp
+		case *gatewayv1.GRPCRoute:
+			cp := route.DeepCopy()
+			d.updateRouteParentStatuses(&cp.Status.Parents, cp.GetNamespace(), gatewayRefs, condition)
+			return cp
+		case *gatewayv1alpha2.TLSRoute:
+			cp := route.DeepCopy()
+			d.updateRouteParentStatuses(&cp.Status.Parents, cp.GetNamespace(), gatewayRefs, condition)
+			return cp
+		}
+		return obj
+	}
+}
+
+func (d *api7eeProvider) updateRouteParentStatuses(parents *[]gatewayv1.RouteParentStatus, routeNamespace string, gatewayRefs map[types.NamespacedNameKind]struct{}, condition metav1.Condition) {
+	for i, ref := range *parents {
+		ns := routeNamespace
+		if ref.ParentRef.Namespace != nil {
+			ns = string(*ref.ParentRef.Namespace)
+		}
+		if ref.ParentRef.Kind == nil || *ref.ParentRef.Kind == types.KindGateway {
+			nnk := types.NamespacedNameKind{
+				Name:      string(ref.ParentRef.Name),
+				Namespace: ns,
+				Kind:      types.KindGateway,
+			}
+			if _, ok := gatewayRefs[nnk]; ok {
+				ref.Conditions = cutils.MergeCondition(ref.Conditions, condition)
+				(*parents)[i] = ref
 			}
 		}
-		d.updater.Update(status.Update{
-			NamespacedName: nnk.NamespacedName(),
-			Resource:       &gatewayv1alpha2.TLSRoute{},
-			Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
-				cp := obj.(*gatewayv1alpha2.TLSRoute).DeepCopy()
-				gatewayNs := cp.GetNamespace()
-				for i, ref := range cp.Status.Parents {
-					ns := gatewayNs
-					if ref.ParentRef.Namespace != nil {
-						ns = string(*ref.ParentRef.Namespace)
-					}
-					if ref.ParentRef.Kind == nil || *ref.ParentRef.Kind == types.KindGateway {
-						nnk := types.NamespacedNameKind{
-							Name:      string(ref.ParentRef.Name),
-							Namespace: ns,
-							Kind:      types.KindGateway,
-						}
-						if _, ok := gatewayRefs[nnk]; ok {
-							ref.Conditions = cutils.MergeCondition(ref.Conditions, condition)
-							cp.Status.Parents[i] = ref
-						}
-					}
-				}
-				return cp
-			}),
-		})
 	}
 }
 
