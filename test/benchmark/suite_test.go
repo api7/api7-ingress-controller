@@ -31,12 +31,10 @@ import (
 // Run long-term-stability tests using Ginkgo runner.
 func TestBenchmark(t *testing.T) {
 	RegisterFailHandler(Fail)
-	var f = framework.NewFramework()
+
+	var _ = framework.NewFramework()
 
 	scaffold.NewDeployer = scaffold.NewAPI7Deployer
-
-	BeforeSuite(f.BeforeSuite)
-	AfterSuite(f.AfterSuite)
 
 	_, _ = fmt.Fprintf(GinkgoWriter, "Starting Benchmark Tests\n")
 	RunSpecs(t, "Benchmark Tests Suite")
