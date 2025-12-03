@@ -38,6 +38,7 @@ var totalRoutes = 2000
 var totalConsumers = 2000
 
 var _ = BeforeSuite(func() {
+	framework.GetFramework().BeforeSuite()
 	routes := os.Getenv("BENCHMARK_ROUTES")
 	if routes != "" {
 		_, err := fmt.Sscanf(routes, "%d", &totalRoutes)
@@ -50,6 +51,7 @@ var _ = BeforeSuite(func() {
 	}
 })
 var _ = AfterSuite(func() {
+	framework.GetFramework().AfterSuite()
 	report.PrintTable()
 })
 
