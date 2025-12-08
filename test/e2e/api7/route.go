@@ -69,54 +69,15 @@ spec:
     - serviceName: httpbin-service-e2e-test
       servicePort: 80
 `
-		const arWithInvalidPlugin = `
-apiVersion: apisix.apache.org/v2
-kind: ApisixRoute
-metadata:
-  name: default
-  namespace: %s
-spec:
-  ingressClassName: %s
-  http:
-  - name: rule0
-    match:
-      hosts:
-      - httpbin
-      paths:
-      - /*
-    backends:
-    - serviceName: httpbin-service-e2e-test
-      servicePort: 80
-    plugins:
-    - name: non-existent-plugin
-      enable: true
-`
-		const arWithInvalidIngressClass = `
-apiVersion: apisix.apache.org/v2
-kind: ApisixRoute
-metadata:
-  name: ar-with-invalid-ingressclass
-spec:
-  ingressClassName: ar-with-invalid-ingressclass
-  http:
-  - name: rule0
-    match:
-      hosts:
-      - httpbin
-      paths:
-      - /*
-    backends:
-    - serviceName: httpbin-service-e2e-test
-      servicePort: 80
-`
 
 		FIt("dataplane unavailable", func() {
 			s.Deployer.ScaleIngress(0)
 			By("apply ApisixRoute")
-			s.CreateResourceFromString(fmt.Sprintf(ar, s.Namespace(), s.Namespace()))
+			err := s.CreateResourceFromString(fmt.Sprintf(ar, s.Namespace(), s.Namespace()))
+			Expect(err).NotTo(HaveOccurred(), "creating ApisixRoute")
 
 			By("get yaml from service")
-			serviceYaml, err := s.GetOutputFromString("svc", framework.ProviderType, "-o", "yaml")
+			serviceYaml, err := s.GetOutputFromString("svc", framework.DashboardServiceName, "-n", framework.Namespace, "-o", "yaml")
 			Expect(err).NotTo(HaveOccurred(), "getting service yaml")
 			By("update service to type ExternalName with invalid host")
 			var k8sservice corev1.Service
