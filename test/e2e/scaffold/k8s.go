@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"reflect"
 	"strings"
 	"time"
 
@@ -99,6 +100,17 @@ func (s *Scaffold) GetOutputFromString(shell ...string) (string, error) {
 	cmdArgs = append(cmdArgs, "get")
 	cmdArgs = append(cmdArgs, shell...)
 	output, err := k8s.RunKubectlAndGetOutputE(GinkgoT(), s.kubectlOptions, cmdArgs...)
+	return output, err
+}
+
+func (s *Scaffold) GetOutputFromStringWithNamespace(ns string, shell ...string) (string, error) {
+	cmdArgs := []string{}
+	cmdArgs = append(cmdArgs, "get")
+	cmdArgs = append(cmdArgs, shell...)
+	var newOpts *k8s.KubectlOptions
+	reflect.Copy(reflect.ValueOf(newOpts), reflect.ValueOf(s.kubectlOptions))
+	newOpts.Namespace = ns
+	output, err := k8s.RunKubectlAndGetOutputE(GinkgoT(), newOpts, cmdArgs...)
 	return output, err
 }
 

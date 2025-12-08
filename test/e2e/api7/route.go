@@ -77,7 +77,7 @@ spec:
 			Expect(err).NotTo(HaveOccurred(), "creating ApisixRoute")
 
 			By("get yaml from service")
-			serviceYaml, err := s.GetOutputFromString("svc", framework.DashboardServiceName, "-n", framework.Namespace, "-o", "yaml")
+			serviceYaml, err := s.GetOutputFromStringWithNamespace(framework.Namespace, "svc", framework.DashboardServiceName, "-o", "yaml")
 			Expect(err).NotTo(HaveOccurred(), "getting service yaml")
 			By("update service to type ExternalName with invalid host")
 			var k8sservice corev1.Service
