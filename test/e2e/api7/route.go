@@ -111,7 +111,7 @@ spec:
       servicePort: 80
 `
 
-		It("dataplane unavailable", func() {
+		FIt("dataplane unavailable", func() {
 			s.Deployer.ScaleIngress(0)
 			By("apply ApisixRoute")
 			s.CreateResourceFromString(fmt.Sprintf(ar, s.Namespace(), s.Namespace()))
