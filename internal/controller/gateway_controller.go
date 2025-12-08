@@ -43,6 +43,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	internaltypes "github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
+	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
 // GatewayReconciler reconciles a Gateway object.
@@ -80,7 +81,15 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Watches(
 			&gatewayv1.HTTPRoute{},
+<<<<<<< HEAD
 			handler.EnqueueRequestsFromMapFunc(r.listGatewaysForHTTPRoute),
+=======
+			handler.EnqueueRequestsFromMapFunc(r.listGatewaysForStatusParentRefs),
+		).
+		Watches(
+			&gatewayv1.GRPCRoute{},
+			handler.EnqueueRequestsFromMapFunc(r.listGatewaysForStatusParentRefs),
+>>>>>>> 4f9cd000 (feat: support disable gateway-api (#2672))
 		).
 		Watches(
 			&v1alpha1.GatewayProxy{},
@@ -95,6 +104,24 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		bdr.Watches(&v1beta1.ReferenceGrant{},
 			handler.EnqueueRequestsFromMapFunc(r.listReferenceGrantsForGateway),
 			builder.WithPredicates(referenceGrantPredicates(KindGateway)),
+		)
+	}
+	if pkgutils.HasAPIResource(mgr, &gatewayv1alpha2.TCPRoute{}) {
+		bdr.Watches(
+			&gatewayv1alpha2.TCPRoute{},
+			handler.EnqueueRequestsFromMapFunc(r.listGatewaysForStatusParentRefs),
+		)
+	}
+	if pkgutils.HasAPIResource(mgr, &gatewayv1alpha2.TLSRoute{}) {
+		bdr.Watches(
+			&gatewayv1alpha2.TLSRoute{},
+			handler.EnqueueRequestsFromMapFunc(r.listGatewaysForStatusParentRefs),
+		)
+	}
+	if pkgutils.HasAPIResource(mgr, &gatewayv1alpha2.UDPRoute{}) {
+		bdr.Watches(
+			&gatewayv1alpha2.UDPRoute{},
+			handler.EnqueueRequestsFromMapFunc(r.listGatewaysForStatusParentRefs),
 		)
 	}
 

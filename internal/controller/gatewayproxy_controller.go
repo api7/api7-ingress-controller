@@ -53,6 +53,7 @@ type GatewayProxyController struct {
 	Log      logr.Logger
 	Provider provider.Provider
 
+<<<<<<< HEAD
 	ICGV schema.GroupVersion
 	// supportsEndpointSlice indicates whether the cluster supports EndpointSlice API
 	supportsEndpointSlice bool
@@ -81,6 +82,16 @@ func (r *GatewayProxyController) SetupWithManager(mrg ctrl.Manager) error {
 	}
 
 	bdr := ctrl.NewControllerManagedBy(mrg).
+=======
+	disableGatewayAPI bool
+}
+
+func (r *GatewayProxyController) SetupWithManager(mrg ctrl.Manager) error {
+	if config.ControllerConfig.DisableGatewayAPI || !pkgutils.HasAPIResource(mrg, &gatewayv1.Gateway{}) {
+		r.disableGatewayAPI = true
+	}
+	builder := ctrl.NewControllerManagedBy(mrg).
+>>>>>>> 4f9cd000 (feat: support disable gateway-api (#2672))
 		For(&v1alpha1.GatewayProxy{}).
 		WithEventFilter(predicate.Or(eventFilters...)).
 		Watches(&corev1.Service{},
@@ -110,7 +121,19 @@ func (r *GatewayProxyController) SetupWithManager(mrg ctrl.Manager) error {
 		Watches(&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.listGatewayProxiesForSecret),
 		).
+<<<<<<< HEAD
 		Complete(r)
+=======
+		Watches(&networkingv1.IngressClass{},
+			handler.EnqueueRequestsFromMapFunc(r.listGatewayProxiesForIngressClass),
+		)
+	if !r.disableGatewayAPI {
+		builder.Watches(&gatewayv1.Gateway{},
+			handler.EnqueueRequestsFromMapFunc(r.listGatewayProxiesByGateway),
+		)
+	}
+	return builder.Complete(r)
+>>>>>>> 4f9cd000 (feat: support disable gateway-api (#2672))
 }
 
 func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request) (reconcile.Result, error) {
@@ -170,8 +193,18 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 	indexKey := indexer.GenIndexKey(gp.GetNamespace(), gp.GetName())
 
 	// list Gateways that reference the GatewayProxy
+<<<<<<< HEAD
 	if r.supportsGateway {
 		var gatewayList gatewayv1.GatewayList
+=======
+	var (
+		gatewayList      gatewayv1.GatewayList
+		ingressClassList networkingv1.IngressClassList
+		indexKey         = indexer.GenIndexKey(gp.GetNamespace(), gp.GetName())
+	)
+
+	if !r.disableGatewayAPI {
+>>>>>>> 4f9cd000 (feat: support disable gateway-api (#2672))
 		if err := r.List(ctx, &gatewayList, client.MatchingFields{indexer.ParametersRef: indexKey}); err != nil {
 			r.Log.Error(err, "failed to list GatewayList")
 			return ctrl.Result{}, nil
@@ -195,6 +228,7 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 				tctx.GatewayProxyReferrers[req.NamespacedName] = append(tctx.GatewayProxyReferrers[req.NamespacedName], utils.NamespacedNameKind(&item))
 			}
 		}
+<<<<<<< HEAD
 	}
 
 	switch r.ICGV.String() {
@@ -227,6 +261,24 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 			tctx.GatewayProxyReferrers[req.NamespacedName] = append(tctx.GatewayProxyReferrers[req.NamespacedName], utils.NamespacedNameKind(&item))
 		}
 	}
+=======
+		r.Log.V(1).Info("found Gateways for GatewayProxy", "gatewayproxy", req.String(), "gateways", len(gatewayList.Items), "gatewayclasses", len(gatewayclassList.Items), "ingressclasses", len(ingressClassList.Items))
+	}
+
+	// list IngressClasses that reference the GatewayProxy
+	if err := r.List(ctx, &ingressClassList, client.MatchingFields{indexer.IngressClassParametersRef: indexKey}); err != nil {
+		r.Log.Error(err, "failed to list IngressClassList")
+		return reconcile.Result{}, err
+	}
+
+	for _, item := range ingressClassList.Items {
+		if item.Spec.Controller != config.GetControllerName() {
+			continue
+		}
+		tctx.GatewayProxyReferrers[req.NamespacedName] = append(tctx.GatewayProxyReferrers[req.NamespacedName], utils.NamespacedNameKind(&item))
+	}
+
+>>>>>>> 4f9cd000 (feat: support disable gateway-api (#2672))
 	if len(tctx.GatewayProxyReferrers[req.NamespacedName]) == 0 {
 		return ctrl.Result{}, nil
 	}

@@ -169,7 +169,11 @@ func Run(ctx context.Context, logger logr.Logger) error {
 	}
 
 	readier := readiness.NewReadinessManager(mgr.GetClient(), logger)
+<<<<<<< HEAD
 	registerReadinessGVK(mgr, readier)
+=======
+	registerReadiness(mgr, readier)
+>>>>>>> 4f9cd000 (feat: support disable gateway-api (#2672))
 
 	if err := mgr.Add(readier); err != nil {
 		setupLog.Error(err, "unable to add readiness manager")
