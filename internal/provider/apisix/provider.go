@@ -78,7 +78,13 @@ func New(log logr.Logger, updater status.Updater, readier readiness.ReadinessMan
 		o.BackendMode = ProviderTypeAPISIX
 	}
 
+<<<<<<< HEAD
 	cli, err := adcclient.New(log, o.BackendMode, o.SyncTimeout)
+=======
+	logger := log.WithName("provider")
+
+	cli, err := adcclient.New(logger, o.DefaultBackendMode, o.SyncTimeout)
+>>>>>>> 0c0c5f95 (feat: support benchmark test (#2663))
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +96,7 @@ func New(log logr.Logger, updater status.Updater, readier readiness.ReadinessMan
 		updater:    updater,
 		readier:    readier,
 		syncCh:     make(chan struct{}, 1),
-		log:        log.WithName("provider"),
+		log:        logger,
 	}, nil
 }
 
@@ -255,7 +261,12 @@ func (d *apisixProvider) buildConfig(tctx *provider.TranslateContext, nnk types.
 }
 
 func (d *apisixProvider) Start(ctx context.Context) error {
+	d.log.Info("starting provider, waiting for readiness")
 	d.readier.WaitReady(ctx, 5*time.Minute)
+<<<<<<< HEAD
+=======
+	d.log.Info("Ready detected, starting sync loop")
+>>>>>>> 0c0c5f95 (feat: support benchmark test (#2663))
 
 	initalSyncDelay := d.InitSyncDelay
 	if initalSyncDelay > 0 {
