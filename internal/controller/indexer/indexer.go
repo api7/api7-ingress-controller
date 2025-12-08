@@ -36,7 +36,10 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/adc/translator/annotations"
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	internaltypes "github.com/apache/apisix-ingress-controller/internal/types"
+<<<<<<< HEAD
 	k8sutils "github.com/apache/apisix-ingress-controller/internal/utils"
+=======
+>>>>>>> 4f9cd000 (feat: support disable gateway-api (#2672))
 	"github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
@@ -58,6 +61,7 @@ const (
 	ControllerName            = "controllerName"
 )
 
+<<<<<<< HEAD
 func SetupIndexer(mgr ctrl.Manager) error {
 	setupLog := ctrl.LoggerFrom(context.Background()).WithName("indexer-setup")
 
@@ -106,9 +110,66 @@ func SetupIndexer(mgr ctrl.Manager) error {
 		setupApisixTlsIndexer,
 		setupApisixConsumerIndexer,
 		setupApisixGlobalRuleIndexer,
+=======
+func SetupAPIv1alpha1Indexer(mgr ctrl.Manager) error {
+	setupLog := ctrl.LoggerFrom(context.Background()).WithName("indexer").WithName("apiv1alpha1")
+	for resource, setup := range map[client.Object]func(ctrl.Manager) error{
+		&v1alpha1.BackendTrafficPolicy{}: setupBackendTrafficPolicyIndexer,
+		&v1alpha1.Consumer{}:             setupConsumerIndexer,
+		&v1alpha1.GatewayProxy{}:         setupGatewayProxyIndexer,
+>>>>>>> 4f9cd000 (feat: support disable gateway-api (#2672))
 	} {
-		if err := setup(mgr); err != nil {
-			return err
+		if utils.HasAPIResource(mgr, resource) {
+			if err := setup(mgr); err != nil {
+				return err
+			}
+		} else {
+			setupLog.Info("Skipping indexer setup, API not found in cluster", "api", utils.FormatGVK(resource))
+		}
+	}
+	return nil
+}
+func SetupAPIv2Indexer(mgr ctrl.Manager) error {
+	setupLog := ctrl.LoggerFrom(context.Background()).WithName("indexer").WithName("apiv2")
+
+	for resource, setup := range map[client.Object]func(ctrl.Manager) error{
+		&networkingv1.IngressClass{}: setupIngressClassIndexer,
+		&networkingv1.Ingress{}:      setupIngressIndexer,
+		&apiv2.ApisixConsumer{}:      setupApisixConsumerIndexer,
+		&apiv2.ApisixRoute{}:         setupApisixRouteIndexer,
+		&apiv2.ApisixPluginConfig{}:  setupApisixPluginConfigIndexer,
+		&apiv2.ApisixTls{}:           setupApisixTlsIndexer,
+		&apiv2.ApisixGlobalRule{}:    setupApisixGlobalRuleIndexer,
+	} {
+		if utils.HasAPIResource(mgr, resource) {
+			if err := setup(mgr); err != nil {
+				return err
+			}
+		} else {
+			setupLog.Info("Skipping indexer setup, API not found in cluster", "api", utils.FormatGVK(resource))
+		}
+	}
+	return nil
+}
+
+func SetupGatewayAPIIndexer(mgr ctrl.Manager) error {
+	setupLog := ctrl.LoggerFrom(context.Background()).WithName("indexer").WithName("gatewayapi")
+
+	for resource, setup := range map[client.Object]func(ctrl.Manager) error{
+		&gatewayv1.Gateway{}:        setupGatewayIndexer,
+		&gatewayv1.HTTPRoute{}:      setupHTTPRouteIndexer,
+		&gatewayv1.GRPCRoute{}:      setupGRPCRouteIndexer,
+		&gatewayv1alpha2.TCPRoute{}: setupTCPRouteIndexer,
+		&gatewayv1alpha2.UDPRoute{}: setupUDPRouteIndexer,
+		&gatewayv1alpha2.TLSRoute{}: setupTLSRouteIndexer,
+		&gatewayv1.GatewayClass{}:   setupGatewayClassIndexer,
+	} {
+		if utils.HasAPIResource(mgr, resource) {
+			if err := setup(mgr); err != nil {
+				return err
+			}
+		} else {
+			setupLog.Info("Skipping indexer setup, API not found in cluster", "api", utils.FormatGVK(resource))
 		}
 	}
 	return nil
@@ -149,6 +210,15 @@ func setupGatewayIndexer(mgr ctrl.Manager) error {
 		&gatewayv1.Gateway{},
 		TLSHostIndexRef,
 		GatewayTLSHostIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&gatewayv1.Gateway{},
+		SecretIndexRef,
+		GatewaySecretIndexFunc,
 	); err != nil {
 		return err
 	}

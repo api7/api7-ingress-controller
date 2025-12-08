@@ -27,7 +27,12 @@ import (
 )
 
 var (
+<<<<<<< HEAD
 	ProviderType = cmp.Or(os.Getenv("PROVIDER_TYPE"), ProviderTypeAPISIXStandalone)
+=======
+	ProviderType      = cmp.Or(os.Getenv("PROVIDER_TYPE"), "apisix")
+	DisableGatewayAPI = os.Getenv("DISABLE_GATEWAY_API") == "true"
+>>>>>>> 4f9cd000 (feat: support disable gateway-api (#2672))
 )
 
 const (
