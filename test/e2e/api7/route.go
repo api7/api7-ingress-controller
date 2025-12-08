@@ -36,7 +36,6 @@ var _ = Describe("Test apisix.apache.org/v2 Status", Label("apisix.apache.org", 
 			// for triggering the sync
 			SyncPeriod: 3 * time.Second,
 		})
-		applier = framework.NewApplier(s.GinkgoT, s.K8sClient, s.CreateResourceFromString)
 	)
 
 	Context("Test ApisixRoute Sync Status", func() {
