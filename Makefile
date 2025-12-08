@@ -29,8 +29,12 @@ ENVTEST_K8S_VERSION = 1.30.0
 KIND_NAME ?= apisix-ingress-cluster
 KIND_NODE_IMAGE ?= kindest/node:v1.30.0@sha256:047357ac0cfea04663786a612ba1eaba9702bef25227a794b52890dd8bcd692e
 
+<<<<<<< HEAD
 DASHBOARD_VERSION ?= dev
 ADC_VERSION ?= 0.22.1
+=======
+ADC_VERSION ?= 0.23.1
+>>>>>>> 0c0c5f95 (feat: support benchmark test (#2663))
 
 DIR := $(shell pwd)
 
@@ -63,6 +67,9 @@ SUPPORTED_EXTENDED_FEATURES = "HTTPRouteDestinationPortMatching,HTTPRouteMethodM
 CONFORMANCE_TEST_REPORT_OUTPUT ?= $(DIR)/apisix-ingress-controller-conformance-report.yaml
 ## https://github.com/kubernetes-sigs/gateway-api/blob/v1.3.0/conformance/utils/suite/profiles.go
 CONFORMANCE_PROFILES ?= GATEWAY-HTTP,GATEWAY-GRPC,GATEWAY-TLS
+
+TEST_EXCLUDES ?= /e2e /conformance /benchmark
+TEST_PACKAGES = $(shell go list ./... $(foreach p,$(TEST_EXCLUDES),| grep -v $(p)))
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -135,7 +142,7 @@ vet: ## Run go vet against code.
 
 .PHONY: test
 test: manifests generate fmt vet envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e | grep -v /conformance) -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$$( $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path )" go test $(TEST_PACKAGES) -coverprofile cover.out
 
 .PHONY: kind-e2e-test
 kind-e2e-test: kind-up build-image kind-load-images e2e-test
@@ -168,6 +175,7 @@ conformance-test:
 		--conformance-profiles=$(CONFORMANCE_PROFILES) \
 		--report-output=$(CONFORMANCE_TEST_REPORT_OUTPUT)
 
+<<<<<<< HEAD
 
 .PHONY: conformance-test-api7ee
 conformance-test-api7ee:
@@ -175,6 +183,11 @@ conformance-test-api7ee:
 		--supported-features=$(SUPPORTED_EXTENDED_FEATURES) \
 		--conformance-profiles=$(CONFORMANCE_PROFILES) \
 		--report-output=$(CONFORMANCE_TEST_REPORT_OUTPUT)
+=======
+.PHONY: benchmark-test
+benchmark-test:
+	go test -v ./test/benchmark -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v
+>>>>>>> 0c0c5f95 (feat: support benchmark test (#2663))
 
 .PHONY: lint
 lint: sort-import golangci-lint ## Run golangci-lint linter
