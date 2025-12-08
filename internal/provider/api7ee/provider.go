@@ -39,12 +39,18 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	"github.com/apache/apisix-ingress-controller/internal/provider/common"
 	"github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
 	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
-const ProviderTypeAPI7EE = "api7ee"
+const (
+	ProviderTypeAPI7EE = "api7ee"
+
+	RetryBaseDelay = 1 * time.Second
+	RetryMaxDelay  = 1000 * time.Second
+)
 
 type api7eeProvider struct {
 	translator *translator.Translator
@@ -252,6 +258,9 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 	}
 	ticker := time.NewTicker(d.SyncPeriod)
 	defer ticker.Stop()
+
+	retrier := common.NewRetrier(common.NewExponentialBackoff(RetryBaseDelay, RetryMaxDelay))
+
 	for {
 		synced := false
 		select {
@@ -266,6 +275,13 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 			if err := d.sync(ctx); err != nil {
 				d.log.Error(err, "failed to sync for startup")
 			}
+		}
+
+		if err := d.sync(ctx); err != nil {
+			d.log.Error(err, "failed to sync")
+			retrier.Next()
+		} else {
+			retrier.Reset()
 		}
 	}
 }
