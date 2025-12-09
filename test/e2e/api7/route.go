@@ -76,13 +76,9 @@ spec:
 			err := s.CreateResourceFromString(fmt.Sprintf(ar, s.Namespace(), s.Namespace()))
 			Expect(err).NotTo(HaveOccurred(), "creating ApisixRoute")
 
-			By("get yaml from service")
-			serviceYaml, err := s.GetOutputFromStringWithNamespace(framework.Namespace, "svc", framework.DashboardServiceName, "-o", "yaml")
-			Expect(err).NotTo(HaveOccurred(), "getting service yaml")
-			By("update service to type ExternalName with invalid host")
-			var k8sservice corev1.Service
-			err = yaml.Unmarshal([]byte(serviceYaml), &k8sservice)
-			Expect(err).NotTo(HaveOccurred(), "unmarshalling service")
+			By("update service to invalid host")
+			k8sservice, err := s.GetService(framework.Namespace, framework.DashboardServiceName)
+			Expect(err).NotTo(HaveOccurred(), "getting service")
 			oldSpec := k8sservice.Spec
 			k8sservice.Spec = corev1.ServiceSpec{
 				Type:         corev1.ServiceTypeExternalName,
@@ -116,10 +112,7 @@ spec:
 				)
 
 			By("update service to original spec")
-			serviceYaml, err = s.GetOutputFromString("svc", framework.ProviderType, "-o", "yaml")
-			Expect(err).NotTo(HaveOccurred(), "getting service yaml")
-			err = yaml.Unmarshal([]byte(serviceYaml), &k8sservice)
-			Expect(err).NotTo(HaveOccurred(), "unmarshalling service")
+			k8sservice, err = s.GetService(framework.Namespace, framework.DashboardServiceName)
 			k8sservice.Spec = oldSpec
 			newServiceYaml, err = yaml.Marshal(k8sservice)
 			Expect(err).NotTo(HaveOccurred(), "marshalling service")

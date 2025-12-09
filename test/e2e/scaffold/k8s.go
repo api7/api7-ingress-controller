@@ -107,10 +107,10 @@ func (s *Scaffold) GetOutputFromStringWithNamespace(ns string, shell ...string) 
 	cmdArgs := []string{}
 	cmdArgs = append(cmdArgs, "get")
 	cmdArgs = append(cmdArgs, shell...)
-	var newOpts *k8s.KubectlOptions
-	reflect.Copy(reflect.ValueOf(newOpts), reflect.ValueOf(s.kubectlOptions))
+	var newOpts k8s.KubectlOptions
+	reflect.Copy(reflect.ValueOf(newOpts), reflect.ValueOf(*s.kubectlOptions))
 	newOpts.Namespace = ns
-	output, err := k8s.RunKubectlAndGetOutputE(GinkgoT(), newOpts, cmdArgs...)
+	output, err := k8s.RunKubectlAndGetOutputE(GinkgoT(), &newOpts, cmdArgs...)
 	return output, err
 }
 
@@ -131,6 +131,11 @@ func (s *Scaffold) RemoveResourceByString(yaml string) error {
 
 func (s *Scaffold) GetServiceByName(name string) (*corev1.Service, error) {
 	return k8s.GetServiceE(s.t, s.kubectlOptions, name)
+}
+
+func (s *Scaffold) GetService(namespace, name string) (*corev1.Service, error) {
+	kubectlOptions := k8s.NewKubectlOptions("", "", namespace)
+	return k8s.GetServiceE(s.t, kubectlOptions, name)
 }
 
 // ListPodsByLabels lists all pods which matching the label selector.
