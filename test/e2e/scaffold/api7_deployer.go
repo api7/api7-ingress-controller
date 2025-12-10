@@ -193,20 +193,22 @@ func (s *API7Deployer) DeployIngress() {
 	}
 
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
-		ProviderType:   "api7ee",
-		ControllerName: s.runtimeOpts.ControllerName,
-		Namespace:      s.namespace,
-		Replicas:       ptr.To(1),
-		WebhookEnable:  s.runtimeOpts.EnableWebhook,
+		ProviderType:       "api7ee",
+		ControllerName:     s.runtimeOpts.ControllerName,
+		ProviderSyncPeriod: 1 * time.Hour,
+		Namespace:          s.namespace,
+		Replicas:           ptr.To(1),
+		WebhookEnable:      s.runtimeOpts.EnableWebhook,
 	})
 }
 
 func (s *API7Deployer) ScaleIngress(replicas int) {
 	s.Framework.DeployIngress(framework.IngressDeployOpts{
-		ProviderType:   "api7ee",
-		ControllerName: s.runtimeOpts.ControllerName,
-		Namespace:      s.namespace,
-		Replicas:       ptr.To(replicas),
+		ProviderType:       "api7ee",
+		ControllerName:     s.runtimeOpts.ControllerName,
+		ProviderSyncPeriod: 1 * time.Hour,
+		Namespace:          s.namespace,
+		Replicas:           ptr.To(replicas),
 	})
 }
 

@@ -262,19 +262,12 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 	retrier := common.NewRetrier(common.NewExponentialBackoff(RetryBaseDelay, RetryMaxDelay))
 
 	for {
-		synced := false
 		select {
 		case <-d.syncCh:
-			synced = true
+		case <-retrier.C():
 		case <-ticker.C:
-			synced = true
 		case <-ctx.Done():
 			return nil
-		}
-		if synced {
-			if err := d.sync(ctx); err != nil {
-				d.log.Error(err, "failed to sync for startup")
-			}
 		}
 
 		if err := d.sync(ctx); err != nil {
