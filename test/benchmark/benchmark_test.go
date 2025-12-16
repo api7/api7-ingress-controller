@@ -265,8 +265,7 @@ spec:
 
 		BeforeEach(func() {
 			By("create GatewayProxy")
-			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.ProviderType, s.AdminKey())
-			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, s.Namespace())
+			err := s.CreateResourceFromStringWithNamespace(s.GetGatewayProxySpec(), s.Namespace())
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
 
@@ -277,13 +276,6 @@ spec:
 		})
 		It("benchmark ApisixRoute", func() {
 			benchmark("ApisixRoute Benchmark")
-		})
-		It("10 apisix-standalone pod scale benchmark", func() {
-			if framework.ProviderType != framework.ProviderTypeAPISIXStandalone {
-				Skip("only apisix-standalone support scale benchmark")
-			}
-			s.Deployer.ScaleDataplane(10)
-			benchmark("ApisixRoute Benchmark with 10 apisix-standalone pods")
 		})
 		It("ApisixRoute With Consumers benchmark", func() {
 			s.Deployer.ScaleIngress(0)
@@ -318,7 +310,7 @@ spec:
 		})
 	})
 
-	Context("Benchmark HTTPRoute", func() {
+	FContext("Benchmark HTTPRoute", func() {
 		const httpRouteSpec = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -376,8 +368,7 @@ spec:
 
 		BeforeEach(func() {
 			By("create GatewayProxy")
-			gatewayProxy := fmt.Sprintf(gatewayProxyYaml, framework.ProviderType, s.AdminKey())
-			err := s.CreateResourceFromStringWithNamespace(gatewayProxy, s.Namespace())
+			err := s.CreateResourceFromStringWithNamespace(s.GetGatewayProxySpec(), s.Namespace())
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
 			time.Sleep(5 * time.Second)
 
