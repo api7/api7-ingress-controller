@@ -2509,29 +2509,10 @@ spec:
 
 			By("verify wss connection")
 			hostname := "api6.com"
-<<<<<<< HEAD
-
-			dialer := websocket.Dialer{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true,
-					ServerName:         hostname,
-				},
-			}
-
-			var conn *websocket.Conn
-			var resp *http.Response
-			Eventually(func() error {
-				var dialErr error
-				conn, resp, dialErr = dialer.Dial(u.String(), headers)
-				return dialErr
-			}).WithTimeout(30*time.Second).WithPolling(2*time.Second).Should(Succeed(), "WebSocket handshake should succeed")
-			Expect(resp.StatusCode).Should(Equal(http.StatusSwitchingProtocols))
-=======
 			conn := s.NewWebsocketClient(&tls.Config{
 				InsecureSkipVerify: true,
 				ServerName:         hostname,
 			}, "/ws", http.Header{"Host": []string{hostname}})
->>>>>>> b70e22eb (fix: wss related tests are unstable (#2675))
 
 			defer func() {
 				_ = conn.Close()

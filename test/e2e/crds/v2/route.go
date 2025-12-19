@@ -2323,37 +2323,12 @@ spec:
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"},
 				new(apiv2.ApisixRoute), fmt.Sprintf(apisixRouteWithBackendWSS, s.Namespace()))
 
-<<<<<<< HEAD
-			By("verify wss connection with retry")
-			u := url.URL{
-				Scheme: "wss",
-				Host:   s.GetAPISIXHTTPSEndpoint(),
-				Path:   "/ws",
-			}
-			headers := http.Header{"Host": []string{"api6.com"}}
-			dialer := websocket.Dialer{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true,
-					ServerName:         "api6.com",
-				},
-			}
-
-			var conn *websocket.Conn
-			var resp *http.Response
-			Eventually(func() error {
-				var dialErr error
-				conn, resp, dialErr = dialer.Dial(u.String(), headers)
-				return dialErr
-			}).WithTimeout(30*time.Second).WithPolling(2*time.Second).Should(Succeed(), "WebSocket handshake should succeed")
-			Expect(resp.StatusCode).Should(Equal(http.StatusSwitchingProtocols))
-=======
 			By("verify wss connection")
 			hostname := "api6.com"
 			conn := s.NewWebsocketClient(&tls.Config{
 				InsecureSkipVerify: true,
 				ServerName:         hostname,
 			}, "/ws", http.Header{"Host": []string{hostname}})
->>>>>>> b70e22eb (fix: wss related tests are unstable (#2675))
 
 			defer func() {
 				_ = conn.Close()
