@@ -924,6 +924,18 @@ values={[
 
 <TabItem value="gateway">
 
+<!-- leave this section empty -->
+
+</TabItem>
+
+<TabItem value="apisix-crd">
+
+<!-- leave this section empty -->
+
+</TabItem>
+
+</Tabs>
+
 ```yaml
 apiVersion: apisix.apache.org/v1alpha1
 kind: GatewayProxy
@@ -963,16 +975,6 @@ spec:
       "set_ngx_var": true
     }
 ```
-
-</TabItem>
-
-<TabItem value="apisix-crd">
-
-Not currently supported.
-
-</TabItem>
-
-</Tabs>
 
 ## Configure Plugin Config
 
