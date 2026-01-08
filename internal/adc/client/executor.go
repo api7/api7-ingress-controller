@@ -27,9 +27,7 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -47,6 +45,7 @@ type ADCExecutor interface {
 	Execute(ctx context.Context, mode string, config adctypes.Config, args []string) error
 }
 
+<<<<<<< HEAD
 type DefaultADCExecutor struct {
 	sync.Mutex
 	log logr.Logger
@@ -176,6 +175,8 @@ func (e *DefaultADCExecutor) handleOutput(output []byte) (*adctypes.SyncResult, 
 	return &result, nil
 }
 
+=======
+>>>>>>> a979e253 (fix: adjust apisix standalone mode adc sync result (#2697))
 func BuildADCExecuteArgs(filePath string, labels map[string]string, types []string) []string {
 	args := []string{
 		"sync",
@@ -452,13 +453,36 @@ func (e *HTTPADCExecutor) handleHTTPResponse(resp *http.Response, serverAddr str
 	}
 
 	// Check for sync failures
-	if result.FailedCount > 0 && len(result.Failed) > 0 {
-		reason := result.Failed[0].Reason
-		e.log.Error(fmt.Errorf("ADC Server sync failed: %s", reason), "ADC Server sync failed", "result", result)
-		return types.ADCExecutionServerAddrError{
-			ServerAddr:     serverAddr,
-			Err:            reason,
-			FailedStatuses: result.Failed,
+	// For apisix-standalone mode: Failed is always empty, check EndpointStatus instead
+	if result.FailedCount > 0 {
+		if len(result.Failed) > 0 {
+			reason := result.Failed[0].Reason
+			e.log.Error(fmt.Errorf("ADC Server sync failed: %s", reason), "ADC Server sync failed", "result", result)
+			return types.ADCExecutionServerAddrError{
+				ServerAddr:     serverAddr,
+				Err:            reason,
+				FailedStatuses: result.Failed,
+			}
+		}
+		if len(result.EndpointStatus) > 0 {
+			// apisix-standalone mode: use EndpointStatus
+			var failedEndpoints []string
+			for _, ep := range result.EndpointStatus {
+				if !ep.Success {
+					failedEndpoints = append(failedEndpoints, fmt.Sprintf("%s: %s", ep.Server, ep.Reason))
+				}
+			}
+			if len(failedEndpoints) > 0 {
+				reason := strings.Join(failedEndpoints, "; ")
+				e.log.Error(fmt.Errorf("ADC Server sync failed (standalone mode): %s", reason), "ADC Server sync failed", "result", result)
+				return types.ADCExecutionServerAddrError{
+					ServerAddr: serverAddr,
+					Err:        reason,
+					FailedStatuses: []adctypes.SyncStatus{
+						{Reason: reason},
+					},
+				}
+			}
 		}
 	}
 
