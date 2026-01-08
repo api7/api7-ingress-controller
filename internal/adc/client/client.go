@@ -283,8 +283,11 @@ func (c *Client) sync(ctx context.Context, task Task) error {
 			if resourceType == "" {
 				resourceType = "all"
 			}
+			if config.BackendType == "" {
+				config.BackendType = c.defaultMode
+			}
 
-			err = c.executor.Execute(ctx, c.BackendMode, config, args)
+			err = c.executor.Execute(ctx, config, args)
 			duration := time.Since(startTime).Seconds()
 
 			status := "success"
