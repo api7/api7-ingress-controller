@@ -72,7 +72,10 @@ func (t *Translator) translateHTTPRule(tctx *provider.TranslateContext, ar *apiv
 
 	var enableWebsocket *bool
 	service := t.buildService(ar, rule, ruleIndex)
+<<<<<<< HEAD
 	// should build upstream before route because route needs to know the enableWebsocket flag
+=======
+>>>>>>> 80585882 (fix: modify upstream name generation method (#2694))
 	t.buildUpstream(tctx, service, ar, rule, ruleIndex, &enableWebsocket)
 	t.buildRoute(ar, service, rule, plugins, timeout, vars, &enableWebsocket)
 

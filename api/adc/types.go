@@ -806,8 +806,11 @@ var (
 
 // ComposeUpstreamName uses namespace, name, ruleIndex, backendIndex, serviceName info to compose
 // the upstream name.
+<<<<<<< HEAD
 // the resolveGranularity is not composited in the upstream name when it is endpoint.
 // ref: https://github.com/apache/apisix-ingress-controller/blob/10059afe3e84b693cc61e6df7a0040890a9d16eb/pkg/types/apisix/v1/types.go#L595-L598
+=======
+>>>>>>> 80585882 (fix: modify upstream name generation method (#2694))
 func ComposeUpstreamName(namespace, name, ruleIndex, backendIndex string) string {
 	var p []byte
 	plen := len(namespace) + len(name) + len(ruleIndex) + len(backendIndex) + 3
