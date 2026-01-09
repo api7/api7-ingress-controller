@@ -212,6 +212,10 @@ func (s *API7Deployer) ScaleIngress(replicas int) {
 	})
 }
 
+func (s *API7Deployer) CreateAdditionalGatewayWithOptions(namePrefix string, opts DeployDataplaneOptions) (string, *corev1.Service, error) {
+	panic("api7ee mode Doesn't need this")
+}
+
 // CreateAdditionalGateway creates a new gateway group and deploys a dataplane for it.
 // It returns the gateway group ID and namespace name where the dataplane is deployed.
 func (s *API7Deployer) CreateAdditionalGateway(namePrefix string) (string, *corev1.Service, error) {
