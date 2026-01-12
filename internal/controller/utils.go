@@ -1733,7 +1733,10 @@ func GetGatewayProxyByIngressClass(ctx context.Context, r client.Client, ingress
 		return nil, nil
 	}
 
+<<<<<<< HEAD
 	// Use utility function to get namespace, which handles annotation fallback
+=======
+>>>>>>> b52c26c8 (feat: support custom gatewayproxy namespace for ingressclass (#2701))
 	namespace := utils.GetIngressClassParametersNamespace(*ingressClass)
 
 	gatewayProxy := new(v1alpha1.GatewayProxy)
