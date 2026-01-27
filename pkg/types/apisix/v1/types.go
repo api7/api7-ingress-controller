@@ -112,7 +112,7 @@ type Route struct {
 	Uri             string           `json:"uri,omitempty" yaml:"uri,omitempty"`
 	Priority        int              `json:"priority,omitempty" yaml:"priority,omitempty"`
 	Timeout         *UpstreamTimeout `json:"timeout,omitempty" yaml:"timeout,omitempty"`
-	Vars            Vars             `json:"vars,omitempty" yaml:"vars,omitempty"`
+	Vars            Vars             `json:"-" yaml:"-"`
 	Uris            []string         `json:"uris,omitempty" yaml:"uris,omitempty"`
 	Methods         []string         `json:"methods,omitempty" yaml:"methods,omitempty"`
 	EnableWebsocket bool             `json:"enable_websocket,omitempty" yaml:"enable_websocket,omitempty"`
