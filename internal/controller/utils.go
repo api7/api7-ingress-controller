@@ -39,6 +39,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -992,7 +994,7 @@ func SplitMetaNamespaceKey(key string) (namespace, name string, err error) {
 	return "", "", fmt.Errorf("unexpected key format: %q", key)
 }
 
-func ProcessGatewayProxy(r client.Client, log logr.Logger, tctx *provider.TranslateContext, gateway *gatewayv1.Gateway, rk types.NamespacedNameKind) error {
+func ProcessGatewayProxy(r client.Client, log logr.Logger, tctx *provider.TranslateContext, gateway *gatewayv1.Gateway, rk types.NamespacedNameKind, supportsEndpointSlice bool) error {
 	if gateway == nil {
 		return nil
 	}
@@ -1050,7 +1052,7 @@ func ProcessGatewayProxy(r client.Client, log logr.Logger, tctx *provider.Transl
 						if err := addProviderEndpointsToTranslateContext(tctx, r, log, k8stypes.NamespacedName{
 							Namespace: gatewayProxy.GetNamespace(),
 							Name:      cp.Service.Name,
-						}); err != nil {
+						}, supportsEndpointSlice); err != nil {
 							return err
 						}
 					}
@@ -1384,7 +1386,7 @@ func matchesIngressController(obj client.Object) bool {
 	return matchesController(ingressClass.Spec.Controller)
 }
 
-func ProcessIngressClassParameters(tctx *provider.TranslateContext, c client.Client, log logr.Logger, object client.Object, ingressClass *networkingv1.IngressClass) error {
+func ProcessIngressClassParameters(tctx *provider.TranslateContext, c client.Client, log logr.Logger, object client.Object, ingressClass *networkingv1.IngressClass, supportsEndpointSlice bool) error {
 	if ingressClass == nil || ingressClass.Spec.Parameters == nil {
 		return nil
 	}
@@ -1447,7 +1449,7 @@ func ProcessIngressClassParameters(tctx *provider.TranslateContext, c client.Cli
 					if err := addProviderEndpointsToTranslateContext(tctx, c, log, client.ObjectKey{
 						Namespace: gatewayProxy.GetNamespace(),
 						Name:      cp.Service.Name,
-					}); err != nil {
+					}, supportsEndpointSlice); err != nil {
 						return err
 					}
 				}
@@ -1567,7 +1569,32 @@ func distinctRequests(requests []reconcile.Request) []reconcile.Request {
 	return distinctRequests
 }
 
-func addProviderEndpointsToTranslateContext(tctx *provider.TranslateContext, c client.Client, log logr.Logger, serviceNN k8stypes.NamespacedName) error {
+// CheckEndpointSliceSupport checks if the cluster supports EndpointSlice API (K8s 1.19+)
+func CheckEndpointSliceSupport(config *rest.Config) bool {
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
+	if err != nil {
+		// Log warning and default to true (assume newer K8s)
+		return true
+	}
+	
+	// Check if discovery.k8s.io/v1 API group is available
+	resourceList, err := discoveryClient.ServerResourcesForGroupVersion("discovery.k8s.io/v1")
+	if err != nil {
+		// EndpointSlice API not available, fall back to Endpoints
+		return false
+	}
+	
+	// Check if endpointslices resource exists
+	for _, resource := range resourceList.APIResources {
+		if resource.Name == "endpointslices" {
+			return true
+		}
+	}
+	
+	return false
+}
+
+func addProviderEndpointsToTranslateContext(tctx *provider.TranslateContext, c client.Client, log logr.Logger, serviceNN k8stypes.NamespacedName, supportsEndpointSlice bool,) error {
 	log.V(1).Info("to process provider endpoints by provider.service", "service", serviceNN)
 	var (
 		service corev1.Service
@@ -1578,7 +1605,7 @@ func addProviderEndpointsToTranslateContext(tctx *provider.TranslateContext, c c
 	}
 	tctx.Services[serviceNN] = &service
 
-	return resolveServiceEndpoints(tctx, c, serviceNN, true, nil)
+	return resolveServiceEndpoints(tctx, c, serviceNN, supportsEndpointSlice, nil) 
 }
 
 func TypePredicate[T client.Object]() func(obj client.Object) bool {

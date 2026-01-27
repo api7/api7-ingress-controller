@@ -56,6 +56,7 @@ type ApisixTlsReconciler struct {
 	Readier  readiness.ReadinessManager
 
 	ICGV schema.GroupVersion
+	SupportsEndpointSlice bool // cache capability
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -135,7 +136,7 @@ func (r *ApisixTlsReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// process IngressClass parameters if they reference GatewayProxy
-	if err := ProcessIngressClassParameters(tctx, r.Client, r.Log, &tls, ingressClass); err != nil {
+	if err := ProcessIngressClassParameters(tctx, r.Client, r.Log, &tls, ingressClass, r.SupportsEndpointSlice); err != nil {
 		r.Log.Error(err, "failed to process IngressClass parameters", "ingressClass", ingressClass.Name)
 		r.updateStatus(&tls, metav1.Condition{
 			Type:               string(apiv2.ConditionTypeAccepted),
