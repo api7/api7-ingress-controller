@@ -43,7 +43,7 @@ import (
 )
 
 const (
-	_defaultTimeout      = 5 * time.Second
+	_defaultTimeout      = 60 * time.Second
 	_defaultSyncInterval = 6 * time.Hour
 
 	_cacheSyncing = iota
