@@ -155,7 +155,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if err := r.Get(ctx, req.NamespacedName, hr); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			if err := r.updateHTTPRoutePolicyStatusOnDeleting(ctx, req.NamespacedName); err != nil {
-				return ctrl.Result{}, err
+				r.Log.Error(err, "failed to update HTTPRoutePolicy status on HTTPRoute deleting", "httproute", req.NamespacedName)
 			}
 			hr.Namespace = req.Namespace
 			hr.Name = req.Name

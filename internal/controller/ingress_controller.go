@@ -143,7 +143,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err := r.Get(ctx, req.NamespacedName, ingress); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			if err := r.updateHTTPRoutePolicyStatusOnDeleting(ctx, req.NamespacedName); err != nil {
-				return ctrl.Result{}, err
+				r.Log.Error(err, "failed to update HTTPRoutePolicy status on Ingress deleting", "ingress", req.NamespacedName)
 			}
 
 			// Ingress was deleted, clean up corresponding resources
@@ -212,7 +212,6 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// process HTTPRoutePolicy
 	if err := r.processHTTPRoutePolicies(tctx, ingress); err != nil {
 		r.Log.Error(err, "failed to process HTTPRoutePolicy", "ingress", ingress.Name)
-		return ctrl.Result{}, err
 	}
 
 	ProcessBackendTrafficPolicy(r.Client, r.Log, tctx)
