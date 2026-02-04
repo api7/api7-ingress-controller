@@ -45,7 +45,8 @@ func (r *HTTPRouteReconciler) processHTTPRoutePolicies(tctx *provider.TranslateC
 		key  = indexer.GenIndexKeyWithGK(gatewayv1.GroupName, internaltypes.KindHTTPRoute, httpRoute.GetNamespace(), httpRoute.GetName())
 	)
 	if err := r.List(context.Background(), &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
-		return err
+		r.Log.Error(err, "failed to list HTTPRoutePolicies for HTTPRoute", "httproute", utils.NamespacedName(httpRoute))
+		return nil
 	}
 
 	if len(list.Items) == 0 {
@@ -109,7 +110,8 @@ func (r *HTTPRouteReconciler) updateHTTPRoutePolicyStatusOnDeleting(ctx context.
 		key  = indexer.GenIndexKeyWithGK(gatewayv1.GroupName, internaltypes.KindHTTPRoute, nn.Namespace, nn.Name)
 	)
 	if err := r.List(ctx, &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
-		return err
+		r.Log.Error(err, "failed to list HTTPRoutePolicies for HTTPRoute", "httproute", nn)
+		return nil
 	}
 	var (
 		httpRoutes = make(map[types.NamespacedName]gatewayv1.HTTPRoute)
@@ -141,7 +143,8 @@ func (r *IngressReconciler) processHTTPRoutePolicies(tctx *provider.TranslateCon
 		key  = indexer.GenIndexKeyWithGK(networkingv1.GroupName, internaltypes.KindIngress, ingress.GetNamespace(), ingress.GetName())
 	)
 	if err := r.List(context.Background(), &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
-		return err
+		r.Log.Error(err, "failed to list HTTPRoutePolicies for Ingress", "ingress", utils.NamespacedName(ingress))
+		return nil
 	}
 
 	if len(list.Items) == 0 {
@@ -183,7 +186,8 @@ func (r *IngressReconciler) updateHTTPRoutePolicyStatusOnDeleting(ctx context.Co
 		key  = indexer.GenIndexKeyWithGK(networkingv1.GroupName, internaltypes.KindIngress, nn.Namespace, nn.Name)
 	)
 	if err := r.List(ctx, &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
-		return err
+		r.Log.Error(err, "failed to list HTTPRoutePolicies for Ingress", "ingress", nn)
+		return nil
 	}
 	var (
 		ingress2ParentRef = make(map[types.NamespacedName]gatewayv1.ParentReference)

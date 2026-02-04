@@ -88,6 +88,7 @@ func SetupIndexer(mgr ctrl.Manager) error {
 		&networkingv1.IngressClass{}:      setupIngressClassIndexer,
 		&networkingv1beta1.IngressClass{}: setupIngressClassV1beta1Indexer,
 		&v1alpha1.BackendTrafficPolicy{}:  setupBackendTrafficPolicyIndexer,
+		&v1alpha1.HTTPRoutePolicy{}:       setHTTPRoutePolicyIndexer,
 	} {
 		if utils.HasAPIResource(mgr, resource) {
 			if err := setup(mgr); err != nil {
@@ -275,7 +276,10 @@ func setupHTTPRouteIndexer(mgr ctrl.Manager) error {
 	); err != nil {
 		return err
 	}
+	return nil
+}
 
+func setHTTPRoutePolicyIndexer(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
 		&v1alpha1.HTTPRoutePolicy{},
@@ -284,7 +288,6 @@ func setupHTTPRouteIndexer(mgr ctrl.Manager) error {
 	); err != nil {
 		return err
 	}
-
 	return nil
 }
 
