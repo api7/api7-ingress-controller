@@ -893,6 +893,7 @@ func IngressClassParametersRefIndexFunc(rawObj client.Object) []string {
 		ingressClass.Spec.Parameters.Kind == internaltypes.KindGatewayProxy {
 		namespace := k8sutils.GetIngressClassParametersNamespace(*ingressClass)
 		return []string{GenIndexKey(namespace, ingressClass.Spec.Parameters.Name)}
+<<<<<<< HEAD
 	}
 	return nil
 }
@@ -906,6 +907,8 @@ func IngressClassV1beta1ParametersRefIndexFunc(rawObj client.Object) []string {
 		ingressClass.Spec.Parameters.Kind == internaltypes.KindGatewayProxy {
 		namespace := k8sutils.GetIngressClassV1beta1ParametersNamespace(*ingressClass)
 		return []string{GenIndexKey(namespace, ingressClass.Spec.Parameters.Name)}
+=======
+>>>>>>> b52c26c8 (feat: support custom gatewayproxy namespace for ingressclass (#2701))
 	}
 	return nil
 }
