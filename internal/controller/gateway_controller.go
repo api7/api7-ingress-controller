@@ -55,6 +55,8 @@ type GatewayReconciler struct { //nolint:revive
 	Provider provider.Provider
 
 	Updater status.Updater
+
+	SupportsEndpointSlice bool //cache capability
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -428,7 +430,7 @@ func (r *GatewayReconciler) listReferenceGrantsForGateway(ctx context.Context, o
 }
 
 func (r *GatewayReconciler) processInfrastructure(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway) error {
-	return ProcessGatewayProxy(r.Client, r.Log, tctx, gateway, utils.NamespacedNameKind(gateway))
+	return ProcessGatewayProxy(r.Client, r.Log, tctx, gateway, utils.NamespacedNameKind(gateway), r.SupportsEndpointSlice)
 }
 
 func (r *GatewayReconciler) processListenerConfig(tctx *provider.TranslateContext, gateway *gatewayv1.Gateway) {

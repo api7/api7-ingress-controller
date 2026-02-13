@@ -58,6 +58,7 @@ type ApisixConsumerReconciler struct {
 	Readier  readiness.ReadinessManager
 
 	ICGV schema.GroupVersion
+	SupportsEndpointSlice bool // cache capability
 }
 
 // Reconcile FIXME: implement the reconcile logic (For now, it dose nothing other than directly accepting)
@@ -98,7 +99,7 @@ func (r *ApisixConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	defer func() { r.updateStatus(ac, err) }()
 
-	if err = ProcessIngressClassParameters(tctx, r.Client, r.Log, ac, ingressClass); err != nil {
+	if err = ProcessIngressClassParameters(tctx, r.Client, r.Log, ac, ingressClass, r.SupportsEndpointSlice); err != nil {
 		r.Log.Error(err, "failed to process IngressClass parameters", "ingressClass", ingressClass.Name)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}

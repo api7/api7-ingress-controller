@@ -57,6 +57,7 @@ type ConsumerReconciler struct { //nolint:revive
 
 	Updater status.Updater
 	Readier readiness.ReadinessManager
+	SupportsEndpointSlice bool // cache capability
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -224,7 +225,7 @@ func (r *ConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 	rk := utils.NamespacedNameKind(consumer)
 
-	if err := ProcessGatewayProxy(r.Client, r.Log, tctx, gateway, rk); err != nil {
+	if err := ProcessGatewayProxy(r.Client, r.Log, tctx, gateway, rk, r.SupportsEndpointSlice); err != nil {
 		r.Log.Error(err, "failed to process gateway proxy", "gateway", gateway)
 		statusErr = err
 	}
