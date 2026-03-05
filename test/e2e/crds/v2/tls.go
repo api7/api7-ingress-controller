@@ -333,7 +333,7 @@ spec:
 			assert.NotNil(GinkgoT(), tls[0].Client, "client configuration should not be nil")
 			assert.NotEmpty(GinkgoT(), tls[0].Client.CA, "client CA should not be empty")
 			assert.Equal(GinkgoT(), caCert, tls[0].Client.CA, "client CA should match")
-			assert.Equal(GinkgoT(), int64(10), *tls[0].Client.Depth, "client depth should be 1")
+			assert.Equal(GinkgoT(), int64(10), *tls[0].Client.Depth, "client depth should be 10")
 			assert.Contains(GinkgoT(), tls[0].Client.SkipMtlsURIRegex, skipMtlsUriRegex, "skip_mtls_uri_regex should be set")
 		})
 
