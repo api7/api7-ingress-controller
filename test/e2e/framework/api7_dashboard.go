@@ -203,6 +203,8 @@ prometheus:
   server:
     persistence:
       enabled: false
+jaeger:
+  builtin: false
 postgresql:
 {{- if ne .DB "postgres" }}
   builtin: false

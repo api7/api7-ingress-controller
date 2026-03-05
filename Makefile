@@ -48,7 +48,7 @@ CRD_DOCS_TEMPLATE ?= docs/assets/template
 
 INGRESS_VERSION ?= v1
 
-export KUBECONFIG = /tmp/$(KIND_NAME).kubeconfig
+#export KUBECONFIG = /tmp/$(KIND_NAME).kubeconfig
 
 # go
 VERSYM="github.com/apache/apisix-ingress-controller/internal/version._buildVersion"
@@ -143,7 +143,6 @@ kind-e2e-test: kind-up build-image kind-load-images e2e-test
 # Utilize Kind or modify the e2e tests to load the image locally, enabling compatibility with other vendors.
 .PHONY: e2e-test
 e2e-test: adc
-	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
 	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test $(TEST_DIR) -test.timeout=$(TEST_TIMEOUT) -v -ginkgo.v -ginkgo.focus="$(TEST_FOCUS)" -ginkgo.label-filter="$(TEST_LABEL)"
 
 .PHONY: download-api7ee3-chart
@@ -189,8 +188,6 @@ kind-up:
 	@kind get clusters 2>&1 | grep -v $(KIND_NAME) \
 		&& kind create cluster --name $(KIND_NAME) --image $(KIND_NODE_IMAGE) \
 		|| echo "kind cluster already exists"
-	@kind get kubeconfig --name $(KIND_NAME) > $$KUBECONFIG
-	kubectl wait --for=condition=Ready nodes --all
 
 .PHONY: kind-down
 kind-down:
@@ -277,7 +274,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
 docker-build: set-e2e-goos build ## Build docker image with the manager.
-	$(CONTAINER_TOOL) build -t ${IMG} -f Dockerfile .
+	$(CONTAINER_TOOL) build --build-arg TARGETARCH=${GOARCH} -t ${IMG} -f Dockerfile .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
