@@ -48,8 +48,6 @@ CRD_DOCS_TEMPLATE ?= docs/assets/template
 
 INGRESS_VERSION ?= v1
 
-#export KUBECONFIG = /tmp/$(KIND_NAME).kubeconfig
-
 # go
 VERSYM="github.com/apache/apisix-ingress-controller/internal/version._buildVersion"
 GITSHASYM="github.com/apache/apisix-ingress-controller/internal/version._buildGitRevision"
