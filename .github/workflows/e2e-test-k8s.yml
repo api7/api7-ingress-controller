@@ -37,15 +37,15 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Setup Go Env
+      - name: Check Go Env
         run: |
           go env
 
-      - name: Install kind
+      - name: Check Kind Version
         run: |
           kind version
 
