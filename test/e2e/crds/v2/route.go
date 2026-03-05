@@ -1370,6 +1370,7 @@ spec:
   containers:
   - name: websocket-server
     image: jmalloc/echo-server:latest
+	imagePullPolicy: IfNotPresent
     ports:
     - containerPort: 8080
 ---

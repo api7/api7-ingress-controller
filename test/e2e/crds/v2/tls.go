@@ -235,7 +235,7 @@ spec:
 			assert.NotNil(GinkgoT(), tls[0].Client, "client configuration should not be nil")
 			assert.NotEmpty(GinkgoT(), tls[0].Client.CA, "client CA should not be empty")
 			assert.Equal(GinkgoT(), normalizePEM(caCert), normalizePEM(tls[0].Client.CA), "client CA should be test-ca-secret")
-			assert.Equal(GinkgoT(), int64(1), *tls[0].Client.Depth, "client depth should be 1")
+			assert.Equal(GinkgoT(), int64(10), *tls[0].Client.Depth, "client depth should be 1")
 		})
 		It("ApisixTls with skip_mtls_uri_regex test", func() {
 			// TODO: Add support for skip_mtls_uri_regex in API7EE control plane
@@ -328,8 +328,7 @@ spec:
 			assert.NotNil(GinkgoT(), tls[0].Client, "client configuration should not be nil")
 			assert.NotEmpty(GinkgoT(), tls[0].Client.CA, "client CA should not be empty")
 			assert.Equal(GinkgoT(), caCert, tls[0].Client.CA, "client CA should match")
-			// dashboard allows depth to be 1.
-			assert.Equal(GinkgoT(), int64(1), *tls[0].Client.Depth, "client depth should be 1")
+			assert.Equal(GinkgoT(), int64(10), *tls[0].Client.Depth, "client depth should be 1")
 			assert.Contains(GinkgoT(), tls[0].Client.SkipMtlsURIRegex, skipMtlsUriRegex, "skip_mtls_uri_regex should be set")
 		})
 
