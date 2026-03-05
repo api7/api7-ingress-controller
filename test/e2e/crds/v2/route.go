@@ -1430,6 +1430,7 @@ spec:
 			By("create WebSocket server resources")
 			err := s.CreateResourceFromStringWithNamespace(websocketServerResources, s.Namespace())
 			Expect(err).ShouldNot(HaveOccurred(), "creating WebSocket server resources")
+			s.EnsureNumEndpointsReady(GinkgoT(), "websocket-server-service", 1)
 
 			By("create ApisixRoute without WebSocker")
 			var apisixRouteWithoutWS apiv2.ApisixRoute
@@ -1438,7 +1439,6 @@ spec:
 				&apisixRouteWithoutWS,
 				fmt.Sprintf(apisixRouteSpec2, s.Namespace(), s.Namespace()),
 			)
-			time.Sleep(12 * time.Second)
 
 			By("verify WebSocket connection fails without WebSocket enabled")
 			u := url.URL{
