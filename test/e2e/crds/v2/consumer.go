@@ -609,7 +609,7 @@ spec:
 		request := func(path string, username, password string) int {
 			return s.NewAPISIXClient().GET(path).WithBasicAuth(username, password).WithHost("httpbin").Expect().Raw().StatusCode
 		}
-		FIt("ApisixRoute with ldapAuth consumer using secret", func() {
+		It("ApisixRoute with ldapAuth consumer using secret", func() {
 			secret := `
 apiVersion: v1
 kind: Secret

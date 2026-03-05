@@ -169,7 +169,7 @@ spec:
 			}).WithTimeout(30*time.Second).ProbeEvery(1*time.Second).ShouldNot(HaveOccurred(), "tls secret updated in dataplane")
 		})
 
-		FIt("ApisixTls with mTLS test", func() {
+		It("ApisixTls with mTLS test", func() {
 			const host = "api6.com"
 
 			By("generate mTLS certificates")

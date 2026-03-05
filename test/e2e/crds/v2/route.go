@@ -1358,7 +1358,7 @@ spec:
 	})
 
 	Context("Test ApisixRoute WebSocket Support", func() {
-		FIt("basic websocket functionality", func() {
+		It("basic websocket functionality", func() {
 			const websocketServerResources = `
 apiVersion: v1
 kind: Pod
@@ -1370,7 +1370,7 @@ spec:
   containers:
   - name: websocket-server
     image: jmalloc/echo-server:latest
-	imagePullPolicy: IfNotPresent
+    imagePullPolicy: IfNotPresent
     ports:
     - containerPort: 8080
 ---
