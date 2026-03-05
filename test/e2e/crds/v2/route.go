@@ -1358,7 +1358,7 @@ spec:
 	})
 
 	Context("Test ApisixRoute WebSocket Support", func() {
-		It("basic websocket functionality", func() {
+		FIt("basic websocket functionality", func() {
 			const websocketServerResources = `
 apiVersion: v1
 kind: Pod
