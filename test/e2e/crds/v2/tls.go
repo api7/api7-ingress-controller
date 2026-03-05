@@ -239,7 +239,8 @@ spec:
 			if s.Deployer.Name() == framework.ProviderTypeAPI7EE {
 				depth = int64(10) // API7EE control plane currently defaults to depth 10 for mTLS
 			}
-			assert.Equal(GinkgoT(), depth, *tls[0].Client.Depth, "client depth should be 1")
+			assert.NotNil(GinkgoT(), tls[0].Client.Depth, "client depth should be set")
+			assert.Equal(GinkgoT(), depth, *tls[0].Client.Depth, fmt.Sprintf("client depth should be %d", depth))
 		})
 		It("ApisixTls with skip_mtls_uri_regex test", func() {
 			// TODO: Add support for skip_mtls_uri_regex in API7EE control plane
