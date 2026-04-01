@@ -22,7 +22,10 @@ import (
 	"regexp"
 
 	networkingv1 "k8s.io/api/networking/v1"
+<<<<<<< HEAD
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
+=======
+>>>>>>> b52c26c8 (feat: support custom gatewayproxy namespace for ingressclass (#2701))
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -112,6 +115,7 @@ func GetIngressClassParametersNamespace(ingressClass networkingv1.IngressClass) 
 	}
 	return namespace
 }
+<<<<<<< HEAD
 
 func GetIngressClassV1beta1ParametersNamespace(ingressClass networkingv1beta1.IngressClass) string {
 	namespace := "default"
@@ -123,3 +127,5 @@ func GetIngressClassV1beta1ParametersNamespace(ingressClass networkingv1beta1.In
 	}
 	return namespace
 }
+=======
+>>>>>>> b52c26c8 (feat: support custom gatewayproxy namespace for ingressclass (#2701))

@@ -121,4 +121,81 @@ spec:
 			Eventually(request).WithArguments("/headers").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
 		})
 	})
+
+	Context("IngressClass Annotations", func() {
+		It("Basic tests", func() {
+			const ingressClassYaml = `
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: %s
+  annotations:
+    apisix.apache.org/parameters-namespace: %s
+spec:
+  controller: %s
+  parameters:
+    apiGroup: apisix.apache.org
+    kind: GatewayProxy
+    name: apisix-proxy-config
+`
+
+			By("create GatewayProxy")
+
+			err := s.CreateResourceFromString(s.GetGatewayProxySpec())
+			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
+			time.Sleep(5 * time.Second)
+
+			By("create IngressClass")
+			ingressClass := fmt.Sprintf(ingressClassYaml, s.Namespace(), s.Namespace(), s.GetControllerName())
+			err = s.CreateResourceFromString(ingressClass)
+			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
+			time.Sleep(5 * time.Second)
+
+			const apisixRouteSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: default
+spec:
+  ingressClassName: %s
+  http:
+  - name: rule0
+    match:
+      hosts:
+      - httpbin
+      paths:
+      - %s
+    backends:
+    - serviceName: httpbin-service-e2e-test
+      servicePort: 80
+`
+			request := func(path string) int {
+				return s.NewAPISIXClient().GET(path).WithHost("httpbin").Expect().Raw().StatusCode
+			}
+
+			By("apply ApisixRoute")
+			var apisixRoute apiv2.ApisixRoute
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisixRoute,
+				fmt.Sprintf(apisixRouteSpec, s.Namespace(), "/get"))
+
+			By("verify ApisixRoute works")
+			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+
+			By("update ApisixRoute")
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"}, &apisixRoute,
+				fmt.Sprintf(apisixRouteSpec, s.Namespace(), "/headers"))
+			Eventually(request).WithArguments("/get").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/headers",
+				Host:   "httpbin",
+				Check:  scaffold.WithExpectedStatus(http.StatusOK),
+			})
+
+			By("delete ApisixRoute")
+			err = s.DeleteResource("ApisixRoute", "default")
+			Expect(err).ShouldNot(HaveOccurred(), "deleting ApisixRoute")
+			Eventually(request).WithArguments("/headers").WithTimeout(8 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusNotFound))
+		})
+	})
 })
