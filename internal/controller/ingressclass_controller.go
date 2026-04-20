@@ -45,6 +45,7 @@ type IngressClassReconciler struct {
 	Log    logr.Logger
 
 	Provider provider.Provider
+	SupportsEndpointSlice bool // cache capability 
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -96,7 +97,7 @@ func (r *IngressClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// Create a translate context
 	tctx := provider.NewDefaultTranslateContext(ctx)
 
-	if err := ProcessIngressClassParameters(tctx, r.Client, r.Log, ingressClass, ingressClass); err != nil {
+	if err := ProcessIngressClassParameters(tctx, r.Client, r.Log, ingressClass, ingressClass, r.SupportsEndpointSlice); err != nil {
 		r.Log.Error(err, "failed to process infrastructure for ingressclass", "ingressclass", ingressClass.GetName())
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}

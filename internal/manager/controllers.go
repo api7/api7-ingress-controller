@@ -113,6 +113,15 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 	}
 
 	setupLog := ctrl.LoggerFrom(ctx).WithName("setup")
+
+	supportsEndpointSlice := controller.CheckEndpointSliceSupport(mgr.GetConfig())
+	setupLog.Info("Kubernetes API detection", 
+		"supportsEndpointSlice", supportsEndpointSlice,
+		"apiVersion", map[bool]string{
+			true: "discovery.k8s.io/v1 (EndpointSlice)",
+			false: "v1/endpoints",
+		}[supportsEndpointSlice])
+
 	var controllers []Controller
 
 	icgv := netv1.SchemeGroupVersion
@@ -124,6 +133,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Scheme:   mgr.GetScheme(),
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindIngressClass),
 			Provider: pro,
+			SupportsEndpointSlice: supportsEndpointSlice,
 		})
 	}
 
@@ -142,6 +152,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 				Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindGateway),
 				Provider: pro,
 				Updater:  updater,
+				SupportsEndpointSlice: supportsEndpointSlice,
 			},
 			&gatewayv1.HTTPRoute{}: &controller.HTTPRouteReconciler{
 				Client:   mgr.GetClient(),
@@ -150,6 +161,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 				Provider: pro,
 				Updater:  updater,
 				Readier:  readier,
+				SupportsEndpointSlice: supportsEndpointSlice,
 			},
 			&gatewayv1alpha2.TCPRoute{}: &controller.TCPRouteReconciler{
 				Client:   mgr.GetClient(),
@@ -158,6 +170,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 				Provider: pro,
 				Updater:  updater,
 				Readier:  readier,
+				SupportsEndpointSlice: supportsEndpointSlice,
 			},
 			&gatewayv1alpha2.UDPRoute{}: &controller.UDPRouteReconciler{
 				Client:   mgr.GetClient(),
@@ -166,6 +179,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 				Provider: pro,
 				Updater:  updater,
 				Readier:  readier,
+				SupportsEndpointSlice: supportsEndpointSlice,
 			},
 			&gatewayv1.GRPCRoute{}: &controller.GRPCRouteReconciler{
 				Client:   mgr.GetClient(),
@@ -174,6 +188,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 				Provider: pro,
 				Updater:  updater,
 				Readier:  readier,
+				SupportsEndpointSlice: supportsEndpointSlice,
 			},
 			&gatewayv1alpha2.TLSRoute{}: &controller.TLSRouteReconciler{
 				Client:   mgr.GetClient(),
@@ -182,6 +197,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 				Provider: pro,
 				Updater:  updater,
 				Readier:  readier,
+				SupportsEndpointSlice: supportsEndpointSlice,
 			},
 			&v1alpha1.Consumer{}: &controller.ConsumerReconciler{
 				Client:   mgr.GetClient(),
@@ -190,6 +206,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 				Provider: pro,
 				Updater:  updater,
 				Readier:  readier,
+				SupportsEndpointSlice: supportsEndpointSlice,
 			},
 		} {
 			if utils.HasAPIResource(mgr, resource) {
@@ -210,12 +227,14 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Provider: pro,
 			Updater:  updater,
 			Readier:  readier,
+			SupportsEndpointSlice: supportsEndpointSlice,
 		},
 		&netv1.IngressClass{}: &controller.IngressClassReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindIngressClass),
 			Provider: pro,
+			SupportsEndpointSlice: supportsEndpointSlice,
 		},
 	} {
 		if utils.HasAPIResource(mgr, resource) {
@@ -233,6 +252,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindGatewayProxy),
 			Provider: pro,
 			ICGV:     icgv,
+			SupportsEndpointSlice: supportsEndpointSlice,
 		},
 		&controller.ApisixRouteReconciler{
 			Client:   mgr.GetClient(),
@@ -242,6 +262,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Updater:  updater,
 			Readier:  readier,
 			ICGV:     icgv,
+			SupportsEndpointSlice: supportsEndpointSlice,
 		},
 		&controller.ApisixGlobalRuleReconciler{
 			Client:   mgr.GetClient(),
@@ -251,6 +272,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Updater:  updater,
 			Readier:  readier,
 			ICGV:     icgv,
+			SupportsEndpointSlice: supportsEndpointSlice,
 		},
 		&controller.ApisixConsumerReconciler{
 			Client:   mgr.GetClient(),
@@ -260,6 +282,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Updater:  updater,
 			Readier:  readier,
 			ICGV:     icgv,
+			SupportsEndpointSlice: supportsEndpointSlice,
 		},
 		&controller.ApisixPluginConfigReconciler{
 			Client:  mgr.GetClient(),
@@ -276,6 +299,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Updater:  updater,
 			Readier:  readier,
 			ICGV:     icgv,
+			SupportsEndpointSlice: supportsEndpointSlice,
 		},
 		&controller.ApisixUpstreamReconciler{
 			Client:  mgr.GetClient(),

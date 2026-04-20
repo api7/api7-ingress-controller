@@ -47,6 +47,7 @@ type IngressClassV1beta1Reconciler struct {
 	Log    logr.Logger
 
 	Provider provider.Provider
+	SupportsEndpointSlice bool // cache capability 
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -239,7 +240,7 @@ func (r *IngressClassV1beta1Reconciler) processInfrastructure(tctx *provider.Tra
 		if err := addProviderEndpointsToTranslateContext(tctx, r.Client, r.Log, types.NamespacedName{
 			Namespace: gatewayProxy.GetNamespace(),
 			Name:      service.Name,
-		}); err != nil {
+		}, r.SupportsEndpointSlice); err != nil {
 			return err
 		}
 	}

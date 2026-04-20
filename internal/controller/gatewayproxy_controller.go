@@ -54,14 +54,14 @@ type GatewayProxyController struct {
 	Provider provider.Provider
 
 	ICGV schema.GroupVersion
-	// supportsEndpointSlice indicates whether the cluster supports EndpointSlice API
-	supportsEndpointSlice bool
+	// SupportsEndpointSlice indicates whether the cluster supports EndpointSlice API
+	SupportsEndpointSlice bool
 	supportsGateway       bool
 }
 
 func (r *GatewayProxyController) SetupWithManager(mrg ctrl.Manager) error {
 	// Check and store EndpointSlice API support
-	r.supportsEndpointSlice = pkgutils.HasAPIResource(mrg, &discoveryv1.EndpointSlice{})
+	r.SupportsEndpointSlice = pkgutils.HasAPIResource(mrg, &discoveryv1.EndpointSlice{})
 	r.supportsGateway = pkgutils.HasAPIResource(mrg, &gatewayv1.Gateway{}) && !config.ControllerConfig.DisableGatewayAPI
 	var icWatch client.Object
 	switch r.ICGV.String() {
@@ -76,7 +76,7 @@ func (r *GatewayProxyController) SetupWithManager(mrg ctrl.Manager) error {
 		predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
 	}
 
-	if !r.supportsEndpointSlice {
+	if !r.SupportsEndpointSlice {
 		eventFilters = append(eventFilters, predicate.NewPredicateFuncs(TypePredicate[*corev1.Endpoints]()))
 	}
 
@@ -95,7 +95,7 @@ func (r *GatewayProxyController) SetupWithManager(mrg ctrl.Manager) error {
 		)
 
 	// Conditionally watch EndpointSlice or Endpoints based on cluster API support
-	bdr = watchEndpointSliceOrEndpoints(bdr, r.supportsEndpointSlice,
+	bdr = watchEndpointSliceOrEndpoints(bdr, r.SupportsEndpointSlice,
 		r.listGatewayProxiesForProviderEndpointSlice,
 		r.listGatewayProxiesForProviderEndpoints,
 		r.Log)
@@ -145,7 +145,7 @@ func (r *GatewayProxyController) Reconcile(ctx context.Context, req ctrl.Request
 			return reconcile.Result{}, err
 		}
 		tctx.Services[serviceNN] = service
-		if err := resolveServiceEndpoints(tctx, r.Client, serviceNN, r.supportsEndpointSlice, nil); err != nil {
+		if err := resolveServiceEndpoints(tctx, r.Client, serviceNN, r.SupportsEndpointSlice, nil); err != nil {
 			return reconcile.Result{}, err
 		}
 	}

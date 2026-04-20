@@ -64,8 +64,8 @@ type IngressReconciler struct { //nolint:revive
 	Updater status.Updater
 	Readier readiness.ReadinessManager
 
-	// supportsEndpointSlice indicates whether the cluster supports EndpointSlice API
-	supportsEndpointSlice bool
+	// SupportsEndpointSlice indicates whether the cluster supports EndpointSlice API
+	SupportsEndpointSlice bool
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -73,7 +73,7 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.genericEvent = make(chan event.GenericEvent, 100)
 
 	// Check and store EndpointSlice API support
-	r.supportsEndpointSlice = pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
+	r.SupportsEndpointSlice = pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
 
 	eventFilters := []predicate.Predicate{
 		predicate.GenerationChangedPredicate{},
@@ -81,7 +81,7 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
 	}
 
-	if !r.supportsEndpointSlice {
+	if !r.SupportsEndpointSlice {
 		eventFilters = append(eventFilters, predicate.NewPredicateFuncs(TypePredicate[*corev1.Endpoints]()))
 	}
 
@@ -101,7 +101,7 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		)
 
 	// Conditionally watch EndpointSlice or Endpoints based on cluster API support
-	bdr = watchEndpointSliceOrEndpoints(bdr, r.supportsEndpointSlice,
+	bdr = watchEndpointSliceOrEndpoints(bdr, r.SupportsEndpointSlice,
 		r.listIngressesByService,
 		r.listIngressesByEndpoints,
 		r.Log)
@@ -186,7 +186,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	})
 
 	// process IngressClass parameters if they reference GatewayProxy
-	if err := ProcessIngressClassParameters(tctx, r.Client, r.Log, ingress, ingressClass); err != nil {
+	if err := ProcessIngressClassParameters(tctx, r.Client, r.Log, ingress, ingressClass, r.SupportsEndpointSlice); err != nil {
 		r.Log.Error(err, "failed to process IngressClass parameters", "ingressClass", ingressClass.Name)
 		return ctrl.Result{}, err
 	}
@@ -639,7 +639,7 @@ func (r *IngressReconciler) processBackendService(tctx *provider.TranslateContex
 	}
 
 	// Collect endpoints with EndpointSlice support
-	if err := resolveServiceEndpoints(tctx, r.Client, serviceNS, r.supportsEndpointSlice, nil); err != nil {
+	if err := resolveServiceEndpoints(tctx, r.Client, serviceNS, r.SupportsEndpointSlice, nil); err != nil {
 		r.Log.Error(err, "failed to collect endpoints", "namespace", namespace, "name", backendService.Name)
 		return err
 	}
