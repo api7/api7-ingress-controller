@@ -6,3 +6,6 @@ images:
 - name: controller
   newName: api7/api7-ingress-controller
   newTag: dev
+- name: sidecar
+  newName: ghcr.io/api7/adc
+  newTag: 0.23.1
