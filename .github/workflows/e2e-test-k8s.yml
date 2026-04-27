@@ -105,10 +105,14 @@ jobs:
         run: |
           make kind-load-images
           loaded_postgres_image=false
-          for image in bitnami/postgresql:15.4.0-debian-11-r45 docker.m.daocloud.io/bitnami/postgresql:15.4.0-debian-11-r45; do
+          for image in \
+            swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/bitnamilegacy/postgresql:15.4.0-debian-11-r45 \
+            docker.aityp.com/bitnamilegacy/postgresql:15.4.0-debian-11-r45 \
+            bitnamilegacy/postgresql:15.4.0-debian-11-r45 \
+            docker.m.daocloud.io/bitnamilegacy/postgresql:15.4.0-debian-11-r45; do
             if docker pull "${image}"; then
-              docker tag "${image}" docker.io/bitnami/postgresql:15.4.0-debian-11-r45
-              kind load docker-image docker.io/bitnami/postgresql:15.4.0-debian-11-r45 --name apisix-ingress-cluster
+              docker tag "${image}" docker.io/bitnamilegacy/postgresql:15.4.0-debian-11-r45
+              kind load docker-image docker.io/bitnamilegacy/postgresql:15.4.0-debian-11-r45 --name apisix-ingress-cluster
               loaded_postgres_image=true
               break
             fi
@@ -139,7 +143,7 @@ jobs:
           INGRESS_VERSION: v1beta1
           TEST_ENV: CI
           POSTGRESQL_IMAGE_REGISTRY: docker.io
-          POSTGRESQL_IMAGE_REPOSITORY: bitnami/postgresql
+          POSTGRESQL_IMAGE_REPOSITORY: bitnamilegacy/postgresql
           POSTGRESQL_IMAGE_TAG: 15.4.0-debian-11-r45
         run: |
           make e2e-test
