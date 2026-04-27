@@ -56,11 +56,11 @@ jobs:
           ./get_helm.sh
 
       - name: Login to Private Registry
-        uses: docker/login-action@v3
-        with:
-          registry: hkccr.ccs.tencentyun.com
-          username: ${{ secrets.PRIVATE_DOCKER_USERNAME }}
-          password: ${{ secrets.PRIVATE_DOCKER_PASSWORD }}
+        run: |
+          echo "${{ secrets.PRIVATE_DOCKER_PASSWORD }}" | docker login \
+            hkccr.ccs.tencentyun.com \
+            --username "${{ secrets.PRIVATE_DOCKER_USERNAME }}" \
+            --password-stdin
 
       - name: Launch Kind Cluster
         env:
