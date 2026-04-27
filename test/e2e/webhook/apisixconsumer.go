@@ -143,15 +143,12 @@ metadata:
 spec:
   ingressClassName: %s
   authParameter:
-    jwtAuth:
+    keyAuth:
       value:
-        key: consumer-b-key
-        algorithm: RS256
-        private_key: |
-%s
-`, s.Namespace(), s.Namespace(), privateKeyYAML)
+        key: consumer-b-corrected-key
+`, s.Namespace(), s.Namespace())
 
-		By("creating corrected ApisixConsumer with a valid algorithm")
+		By("creating corrected ApisixConsumer with valid auth config")
 		err = s.CreateResourceFromString(correctedConsumer)
 		Expect(err).NotTo(HaveOccurred(), "creating corrected ApisixConsumer")
 	})
