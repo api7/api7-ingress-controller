@@ -101,14 +101,12 @@ metadata:
 spec:
   ingressClassName: %s
   authParameter:
-    jwtAuth:
+    keyAuth:
       value:
         key: consumer-a-key
-        algorithm: HS256
-        secret: consumer-a-secret
 `, s.Namespace(), s.Namespace())
 
-		By("creating the first ApisixConsumer with valid jwt-auth config")
+		By("creating the first ApisixConsumer with valid key-auth config")
 		err := s.CreateResourceFromString(firstConsumer)
 		Expect(err).NotTo(HaveOccurred(), "creating first ApisixConsumer")
 
