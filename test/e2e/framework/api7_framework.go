@@ -35,6 +35,7 @@ import (
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/kube"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var (
@@ -156,7 +157,12 @@ func (f *Framework) deploy() {
 	_, err = k8s.GetServiceE(GinkgoT(), f.kubectlOpts, "api7ee3-dashboard")
 	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "ensuring dashboard service")
 
-	err = f.ensureService("api7-postgresql", _namespace, 1)
+	err = WaitPodsAvailableWithTimeout(f.GinkgoT, f.kubectlOpts, metav1.ListOptions{
+		LabelSelector: "app.kubernetes.io/instance=api7ee3,app.kubernetes.io/name=postgresql,app.kubernetes.io/component=primary",
+	}, 5*time.Minute)
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "waiting for postgres pod ready")
+
+	err = f.ensureServiceWithTimeout("api7-postgresql", _namespace, 1, 300)
 	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "ensuring postgres service")
 }
 
