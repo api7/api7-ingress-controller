@@ -421,8 +421,12 @@ $(ADC_BIN):
 ifeq ($(ADC_VERSION),dev)
 	@echo "ADC_VERSION=dev, skip download"
 else
-	curl -sSfL https://github.com/api7/adc/releases/download/v${ADC_VERSION}/adc_${ADC_VERSION}_${GOOS}_${GOARCH}.tar.gz \
-		| tar -xz -C $(LOCALBIN)
+	tmp_archive=$$(mktemp); \
+	trap 'rm -f "$$tmp_archive"' EXIT; \
+	curl --retry 5 --retry-delay 2 --retry-connrefused -sSfL \
+		-o "$$tmp_archive" \
+		https://github.com/api7/adc/releases/download/v${ADC_VERSION}/adc_${ADC_VERSION}_${GOOS}_${GOARCH}.tar.gz; \
+	tar -xzf "$$tmp_archive" -C $(LOCALBIN)
 endif
 
 gofmt: ## Apply go fmt

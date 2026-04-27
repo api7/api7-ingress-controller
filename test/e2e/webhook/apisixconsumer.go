@@ -19,6 +19,7 @@ package webhook
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -92,6 +93,8 @@ stringData:
 			Skip("ADC validation requires apisix-standalone backend")
 		}
 
+		privateKeyYAML := "          " + strings.ReplaceAll(framework.TestKey, "\n", "\n          ")
+
 		firstConsumer := fmt.Sprintf(`
 apiVersion: apisix.apache.org/v2
 kind: ApisixConsumer
@@ -123,7 +126,9 @@ spec:
       value:
         key: consumer-b-key
         algorithm: INVALID_ALGO
-`, s.Namespace(), s.Namespace())
+        private_key: |
+%s
+`, s.Namespace(), s.Namespace(), privateKeyYAML)
 
 		By("creating ApisixConsumer with an invalid jwt-auth algorithm")
 		err = s.CreateResourceFromString(invalidConsumer)
@@ -141,9 +146,10 @@ spec:
     jwtAuth:
       value:
         key: consumer-b-key
-        algorithm: HS256
-        secret: consumer-b-secret
-`, s.Namespace(), s.Namespace())
+        algorithm: RS256
+        private_key: |
+%s
+`, s.Namespace(), s.Namespace(), privateKeyYAML)
 
 		By("creating corrected ApisixConsumer with a valid algorithm")
 		err = s.CreateResourceFromString(correctedConsumer)
