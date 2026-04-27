@@ -209,6 +209,9 @@ postgresql:
 {{- if ne .DB "postgres" }}
   builtin: false
 {{- end }}
+  image:
+    registry: docker.m.daocloud.io
+    repository: bitnami/postgresql
   primary:
     containerSecurityContext:
       enabled: false
