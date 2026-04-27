@@ -104,6 +104,15 @@ jobs:
       - name: Loading Docker Image to Kind Cluster
         run: |
           make kind-load-images
+          for attempt in 1 2 3; do
+            docker pull docker.m.daocloud.io/bitnami/postgresql:15.4.0-debian-11-r45 && break
+            if [ "${attempt}" -eq 3 ]; then
+              echo "failed to pull postgres image for kind preload" >&2
+              exit 1
+            fi
+            sleep 5
+          done
+          kind load docker-image docker.m.daocloud.io/bitnami/postgresql:15.4.0-debian-11-r45 --name apisix-ingress-cluster
 
       - name: Extract adc binary
         if: ${{ env.ADC_VERSION == 'dev' }}
@@ -127,5 +136,6 @@ jobs:
           TEST_ENV: CI
           POSTGRESQL_IMAGE_REGISTRY: docker.m.daocloud.io
           POSTGRESQL_IMAGE_REPOSITORY: bitnami/postgresql
+          POSTGRESQL_IMAGE_TAG: 15.4.0-debian-11-r45
         run: |
           make e2e-test

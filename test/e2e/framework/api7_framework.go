@@ -143,6 +143,7 @@ func (f *Framework) deploy() {
 		"Tag":                     dashboardVersion,
 		"PostgresImageRegistry":   postgresImageRegistry,
 		"PostgresImageRepository": postgresImageRepository,
+		"PostgresImageTag":        postgresImageTag,
 	})
 
 	f.Logf("values: %s", buf.String())

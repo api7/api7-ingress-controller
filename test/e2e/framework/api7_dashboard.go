@@ -37,6 +37,7 @@ var (
 	_db                     string
 	postgresImageRegistry   string
 	postgresImageRepository string
+	postgresImageTag        string
 )
 
 func init() {
@@ -47,6 +48,7 @@ func init() {
 
 	postgresImageRegistry = os.Getenv("POSTGRESQL_IMAGE_REGISTRY")
 	postgresImageRepository = os.Getenv("POSTGRESQL_IMAGE_REPOSITORY")
+	postgresImageTag = os.Getenv("POSTGRESQL_IMAGE_TAG")
 	if postgresImageRegistry != "" && postgresImageRepository == "" {
 		postgresImageRepository = "bitnami/postgresql"
 	}
@@ -222,6 +224,9 @@ postgresql:
   image:
     registry: {{ .PostgresImageRegistry }}
     repository: {{ .PostgresImageRepository }}
+{{- if .PostgresImageTag }}
+    tag: {{ .PostgresImageTag }}
+{{- end }}
 {{- end }}
   primary:
     containerSecurityContext:

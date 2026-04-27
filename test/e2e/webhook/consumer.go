@@ -152,6 +152,7 @@ spec:
     config:
       key: consumer-b-key
       algorithm: HS256
+      secret: consumer-b-secret
 `, gatewayName)
 
 		By("creating corrected Consumer with a valid algorithm")

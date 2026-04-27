@@ -105,6 +105,7 @@ spec:
       value:
         key: consumer-a-key
         algorithm: HS256
+        secret: consumer-a-secret
 `, s.Namespace(), s.Namespace())
 
 		By("creating the first ApisixConsumer with valid jwt-auth config")
@@ -143,6 +144,7 @@ spec:
       value:
         key: consumer-b-key
         algorithm: HS256
+        secret: consumer-b-secret
 `, s.Namespace(), s.Namespace())
 
 		By("creating corrected ApisixConsumer with a valid algorithm")
