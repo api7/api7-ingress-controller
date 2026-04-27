@@ -33,8 +33,10 @@ import (
 )
 
 var (
-	valuesTemplate *template.Template
-	_db            string
+	valuesTemplate          *template.Template
+	_db                     string
+	postgresImageRegistry   string
+	postgresImageRepository string
 )
 
 func init() {
@@ -42,6 +44,13 @@ func init() {
 	if _db == "" {
 		_db = postgres
 	}
+
+	postgresImageRegistry = os.Getenv("POSTGRESQL_IMAGE_REGISTRY")
+	postgresImageRepository = os.Getenv("POSTGRESQL_IMAGE_REPOSITORY")
+	if postgresImageRegistry != "" && postgresImageRepository == "" {
+		postgresImageRepository = "bitnami/postgresql"
+	}
+
 	tmpl, err := template.New("values.yaml").Parse(`
 dashboard:
   image:
@@ -209,9 +218,11 @@ postgresql:
 {{- if ne .DB "postgres" }}
   builtin: false
 {{- end }}
+{{- if .PostgresImageRegistry }}
   image:
-    registry: docker.m.daocloud.io
-    repository: bitnami/postgresql
+    registry: {{ .PostgresImageRegistry }}
+    repository: {{ .PostgresImageRepository }}
+{{- end }}
   primary:
     containerSecurityContext:
       enabled: false

@@ -125,5 +125,7 @@ jobs:
           TEST_LABEL: ${{ matrix.cases_subset }}
           INGRESS_VERSION: v1beta1
           TEST_ENV: CI
+          POSTGRESQL_IMAGE_REGISTRY: docker.m.daocloud.io
+          POSTGRESQL_IMAGE_REPOSITORY: bitnami/postgresql
         run: |
           make e2e-test

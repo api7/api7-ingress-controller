@@ -138,9 +138,11 @@ func (f *Framework) deploy() {
 
 	buf := bytes.NewBuffer(nil)
 	_ = valuesTemplate.Execute(buf, map[string]any{
-		"DB":  _db,
-		"DSN": getDSN(),
-		"Tag": dashboardVersion,
+		"DB":                      _db,
+		"DSN":                     getDSN(),
+		"Tag":                     dashboardVersion,
+		"PostgresImageRegistry":   postgresImageRegistry,
+		"PostgresImageRepository": postgresImageRepository,
 	})
 
 	f.Logf("values: %s", buf.String())
