@@ -403,6 +403,27 @@ func buildAPISIXValidatePayload(resources *adctypes.Resources) (*apisixValidateR
 		body.SSLs = append(body.SSLs, sslMap)
 	}
 
+	if len(resources.GlobalRules) > 0 {
+		globalRuleMap, err := toMap(&adctypes.GlobalRuleItem{
+			Metadata: adctypes.Metadata{ID: "validation-global-rule"},
+			Plugins:  adctypes.Plugins(resources.GlobalRules),
+		})
+		if err != nil {
+			return nil, err
+		}
+		body.GlobalRules = append(body.GlobalRules, globalRuleMap)
+	}
+
+	for pluginName, pluginConfig := range resources.PluginMetadata {
+		m := map[string]any{"id": pluginName}
+		if cfg, ok := pluginConfig.(map[string]any); ok {
+			for k, v := range cfg {
+				m[k] = v
+			}
+		}
+		body.PluginMetadata = append(body.PluginMetadata, m)
+	}
+
 	return body, nil
 }
 
