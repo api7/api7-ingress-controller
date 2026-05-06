@@ -30,6 +30,7 @@ import (
 
 	apisixv1alpha1 "github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
+	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 )
 
 func buildConsumerValidator(t *testing.T, objects ...runtime.Object) *ConsumerCustomValidator {
@@ -55,7 +56,10 @@ func buildConsumerValidator(t *testing.T, objects ...runtime.Object) *ConsumerCu
 		},
 	}
 	allObjects := append(managed, objects...)
-	builder := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(allObjects...)
+	builder := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithRuntimeObjects(allObjects...).
+		WithIndex(&apisixv1alpha1.Consumer{}, indexer.ConsumerGatewayRef, indexer.ConsumerGatewayRefIndexFunc)
 
 	return NewConsumerCustomValidator(builder.Build())
 }

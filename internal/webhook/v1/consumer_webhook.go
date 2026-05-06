@@ -32,6 +32,7 @@ import (
 
 	apisixv1alpha1 "github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller"
+	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/webhook/v1/reference"
 )
 
@@ -151,17 +152,21 @@ func (v *ConsumerCustomValidator) validateDuplicateKeyAuthCredentials(ctx contex
 		return nil
 	}
 
+	// Use the consumerGatewayRef field index to list only Consumers sharing the same gateway.
+	ns := consumer.Namespace
+	if consumer.Spec.GatewayRef.Namespace != nil && *consumer.Spec.GatewayRef.Namespace != "" {
+		ns = *consumer.Spec.GatewayRef.Namespace
+	}
+	indexKey := indexer.GenIndexKey(ns, consumer.Spec.GatewayRef.Name)
+
 	var consumers apisixv1alpha1.ConsumerList
-	if err := v.Client.List(ctx, &consumers); err != nil {
+	if err := v.Client.List(ctx, &consumers, client.MatchingFields{indexer.ConsumerGatewayRef: indexKey}); err != nil {
 		return err
 	}
 
 	for i := range consumers.Items {
 		existing := &consumers.Items[i]
 		if existing.Namespace == consumer.Namespace && existing.Name == consumer.Name {
-			continue
-		}
-		if !sameConsumerGatewayRef(existing, consumer) {
 			continue
 		}
 
@@ -231,16 +236,3 @@ func (v *ConsumerCustomValidator) extractCredentialKey(ctx context.Context, cons
 	return cfg.Key, nil
 }
 
-func sameConsumerGatewayRef(left, right *apisixv1alpha1.Consumer) bool {
-	leftNamespace := left.Namespace
-	if left.Spec.GatewayRef.Namespace != nil && *left.Spec.GatewayRef.Namespace != "" {
-		leftNamespace = *left.Spec.GatewayRef.Namespace
-	}
-
-	rightNamespace := right.Namespace
-	if right.Spec.GatewayRef.Namespace != nil && *right.Spec.GatewayRef.Namespace != "" {
-		rightNamespace = *right.Spec.GatewayRef.Namespace
-	}
-
-	return left.Spec.GatewayRef.Name == right.Spec.GatewayRef.Name && leftNamespace == rightNamespace
-}
