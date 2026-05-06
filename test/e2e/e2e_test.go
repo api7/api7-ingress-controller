@@ -42,8 +42,13 @@ func TestE2E(t *testing.T) {
 	// init newDeployer function
 	scaffold.NewDeployer = scaffold.NewAPI7Deployer
 
-	BeforeSuite(f.BeforeSuite)
-	AfterSuite(f.AfterSuite)
+	// DeployAPI7EE runs only on ginkgo node 1 and deploys the shared API7EE control plane.
+	// InitNodeConnections runs on every node to set up per-node dashboard connections.
+	SynchronizedBeforeSuite(f.DeployAPI7EE, f.InitNodeConnections)
+
+	// CloseNodeConnections runs on every node to close per-node dashboard tunnels.
+	// TeardownInfrastructure runs only on node 1 for any suite-level cleanup.
+	SynchronizedAfterSuite(f.CloseNodeConnections, f.TeardownInfrastructure)
 
 	_, _ = fmt.Fprintf(GinkgoWriter, "Starting apisix-ingress suite\n")
 	RunSpecs(t, "e2e suite")
