@@ -194,7 +194,7 @@ kind-down:
 		|| echo "kind cluster does not exist"
 
 .PHONY: kind-load-images
-kind-load-images: pull-infra-images build-e2e-echo-server-image kind-load-ingress-image kind-load-adc-image
+kind-load-images: pull-infra-images kind-load-ingress-image kind-load-adc-image
 	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev --name $(KIND_NAME)
 	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
 	@kind load docker-image hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
@@ -222,17 +222,13 @@ kind-load-adc-image:
 	@docker tag ghcr.io/api7/adc:$(ADC_VERSION) ghcr.io/api7/adc:dev
 	@kind load docker-image ghcr.io/api7/adc:dev --name $(KIND_NAME)
 
-.PHONY: build-e2e-echo-server-image
-build-e2e-echo-server-image:
-	@CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bin/e2e-echo-server ./cmd/e2e-echo-server
-	@docker build -f test/e2e/images/echo-server.Dockerfile -t jmalloc/echo-server:latest .
-
 .PHONY: pull-infra-images
 pull-infra-images:
 	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev
 	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION)
 	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)
 	@docker pull kennethreitz/httpbin:latest
+	@docker pull jmalloc/echo-server:latest
 	@docker pull ghcr.io/api7/adc:dev
 	@docker pull apache/apisix:dev
 	@docker pull openresty/openresty:1.27.1.2-4-bullseye-fat
