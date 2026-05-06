@@ -35,7 +35,6 @@ import (
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/kube"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const defaultDashboardVersion = "dev"
@@ -78,10 +77,7 @@ func (f *Framework) BeforeSuite() {
 	f.DeployComponents()
 
 	time.Sleep(1 * time.Minute)
-	err := f.ensureServiceWithTimeout("api7ee3-dashboard", _namespace, 1, 300)
-	Expect(err).ShouldNot(HaveOccurred(), "ensuring dashboard service")
-
-	err = f.newDashboardTunnel()
+	err := f.newDashboardTunnel()
 	f.Logf("Dashboard HTTP Tunnel:" + _dashboardHTTPTunnel.Endpoint())
 	Expect(err).ShouldNot(HaveOccurred(), "creating dashboard tunnel")
 
@@ -200,12 +196,9 @@ func (f *Framework) deploy() {
 
 	buf := bytes.NewBuffer(nil)
 	_ = valuesTemplate.Execute(buf, map[string]any{
-		"DB":                      _db,
-		"DSN":                     getDSN(),
-		"Tag":                     dashboardVersion,
-		"PostgresImageRegistry":   postgresImageRegistry,
-		"PostgresImageRepository": postgresImageRepository,
-		"PostgresImageTag":        postgresImageTag,
+		"DB":  _db,
+		"DSN": getDSN(),
+		"Tag": dashboardVersion,
 	})
 
 	f.Logf("values: %s", buf.String())
@@ -219,15 +212,10 @@ func (f *Framework) deploy() {
 	}
 	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "install dashboard")
 
-	_, err = k8s.GetServiceE(GinkgoT(), f.kubectlOpts, "api7ee3-dashboard")
+	err = f.ensureService("api7ee3-dashboard", _namespace, 1)
 	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "ensuring dashboard service")
 
-	err = WaitPodsAvailableWithTimeout(f.GinkgoT, f.kubectlOpts, metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/instance=api7ee3,app.kubernetes.io/name=postgresql,app.kubernetes.io/component=primary",
-	}, 5*time.Minute)
-	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "waiting for postgres pod ready")
-
-	err = f.ensureServiceWithTimeout("api7-postgresql", _namespace, 1, 300)
+	err = f.ensureService("api7-postgresql", _namespace, 1)
 	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "ensuring postgres service")
 }
 

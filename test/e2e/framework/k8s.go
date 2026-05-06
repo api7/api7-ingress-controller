@@ -261,19 +261,12 @@ func (f *Framework) applySSLSecret(namespace, name string, cert, pkey, caCert []
 }
 
 func WaitPodsAvailable(t testing.TestingT, kubeOps *k8s.KubectlOptions, opts metav1.ListOptions) error {
-	return WaitPodsAvailableWithTimeout(t, kubeOps, opts, 2*time.Minute)
-}
-
-func WaitPodsAvailableWithTimeout(t testing.TestingT, kubeOps *k8s.KubectlOptions, opts metav1.ListOptions, timeout time.Duration) error {
-	var lastErr error
 	condFunc := func() (bool, error) {
 		items, err := k8s.ListPodsE(t, kubeOps, opts)
 		if err != nil {
-			lastErr = err
 			return false, err
 		}
 		if len(items) == 0 {
-			lastErr = fmt.Errorf("no pods found for selector %q", opts.LabelSelector)
 			return false, nil
 		}
 		for _, item := range items {
@@ -284,60 +277,23 @@ func WaitPodsAvailableWithTimeout(t testing.TestingT, kubeOps *k8s.KubectlOption
 				}
 				foundPodReady = true
 				if cond.Status != "True" {
-					lastErr = fmt.Errorf("pod %s is not ready: %s", item.Name, describePodStatus(item))
 					return false, nil
 				}
 			}
 			if !foundPodReady {
-				lastErr = fmt.Errorf("pod %s has no Ready condition: %s", item.Name, describePodStatus(item))
 				return false, nil
 			}
 		}
 		return true, nil
 	}
-	err := waitConstantIntervalWithTimeout(condFunc, timeout)
-	if err != nil && lastErr != nil {
-		return lastErr
-	}
-	return err
+	return waitExponentialBackoff(condFunc)
 }
 
-func describePodStatus(pod corev1.Pod) string {
-	conditions := make([]string, 0, len(pod.Status.Conditions))
-	for _, cond := range pod.Status.Conditions {
-		conditions = append(conditions, fmt.Sprintf("%s=%s", cond.Type, cond.Status))
-	}
-
-	containerStates := make([]string, 0, len(pod.Status.ContainerStatuses))
-	for _, status := range pod.Status.ContainerStatuses {
-		state := "unknown"
-		switch {
-		case status.State.Waiting != nil:
-			state = fmt.Sprintf("waiting(%s:%s)", status.State.Waiting.Reason, status.State.Waiting.Message)
-		case status.State.Terminated != nil:
-			state = fmt.Sprintf("terminated(%s:%s)", status.State.Terminated.Reason, status.State.Terminated.Message)
-		case status.State.Running != nil:
-			state = "running"
-		}
-		containerStates = append(containerStates, fmt.Sprintf("%s=%s", status.Name, state))
-	}
-
-	return fmt.Sprintf("phase=%s conditions=[%s] containers=[%s]",
-		pod.Status.Phase,
-		strings.Join(conditions, ", "),
-		strings.Join(containerStates, ", "),
-	)
-}
-
-func waitConstantIntervalWithTimeout(condFunc func() (bool, error), timeout time.Duration) error {
-	steps := int(timeout / (2 * time.Second))
-	if steps < 1 {
-		steps = 1
-	}
+func waitExponentialBackoff(condFunc func() (bool, error)) error {
 	backoff := wait.Backoff{
-		Duration: 2 * time.Second,
-		Factor:   1,
-		Steps:    steps,
+		Duration: 500 * time.Millisecond,
+		Factor:   2,
+		Steps:    8,
 	}
 	return wait.ExponentialBackoff(backoff, condFunc)
 }

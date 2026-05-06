@@ -33,11 +33,8 @@ import (
 )
 
 var (
-	valuesTemplate          *template.Template
-	_db                     string
-	postgresImageRegistry   string
-	postgresImageRepository string
-	postgresImageTag        string
+	valuesTemplate *template.Template
+	_db            string
 )
 
 func init() {
@@ -45,14 +42,6 @@ func init() {
 	if _db == "" {
 		_db = postgres
 	}
-
-	postgresImageRegistry = os.Getenv("POSTGRESQL_IMAGE_REGISTRY")
-	postgresImageRepository = os.Getenv("POSTGRESQL_IMAGE_REPOSITORY")
-	postgresImageTag = os.Getenv("POSTGRESQL_IMAGE_TAG")
-	if postgresImageRegistry != "" && postgresImageRepository == "" {
-		postgresImageRepository = "bitnami/postgresql"
-	}
-
 	tmpl, err := template.New("values.yaml").Parse(`
 dashboard:
   image:
@@ -219,14 +208,6 @@ jaeger:
 postgresql:
 {{- if ne .DB "postgres" }}
   builtin: false
-{{- end }}
-{{- if .PostgresImageRegistry }}
-  image:
-    registry: {{ .PostgresImageRegistry }}
-    repository: {{ .PostgresImageRepository }}
-{{- if .PostgresImageTag }}
-    tag: {{ .PostgresImageTag }}
-{{- end }}
 {{- end }}
   primary:
     containerSecurityContext:
