@@ -179,4 +179,90 @@ spec:
 		err = s.CreateResourceFromString(validRouteYAML)
 		Expect(err).NotTo(HaveOccurred(), "creating corrected ApisixRoute")
 	})
+
+	It("should reject route update that fails ADC validation", func() {
+		if framework.ProviderType != framework.ProviderTypeAPISIXStandalone {
+			Skip("ADC validation requires apisix-standalone backend")
+		}
+
+		backendService := "webhook-route-update-backend"
+		routeName := "webhook-apisixroute-update"
+
+		By("creating referenced Service")
+		serviceYAML := fmt.Sprintf(`
+apiVersion: v1
+kind: Service
+metadata:
+  name: %s
+spec:
+  selector:
+    app: placeholder
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+  type: ClusterIP
+`, backendService)
+		err := s.CreateResourceFromString(serviceYAML)
+		Expect(err).NotTo(HaveOccurred(), "creating backend service")
+
+		validRouteYAML := fmt.Sprintf(`
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  ingressClassName: %s
+  http:
+  - name: rule-update
+    match:
+      hosts:
+      - webhook-update.example.com
+      paths:
+      - /update
+    backends:
+    - serviceName: %s
+      servicePort: 80
+      resolveGranularity: service
+`, routeName, s.Namespace(), s.Namespace(), backendService)
+
+		By("creating valid ApisixRoute")
+		err = s.CreateResourceFromString(validRouteYAML)
+		Expect(err).NotTo(HaveOccurred(), "creating initial valid ApisixRoute")
+
+		invalidRouteYAML := fmt.Sprintf(`
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  ingressClassName: %s
+  http:
+  - name: rule-update
+    match:
+      hosts:
+      - webhook-update.example.com
+      paths:
+      - /update
+    backends:
+    - serviceName: %s
+      servicePort: 80
+      resolveGranularity: service
+    plugins:
+    - name: response-rewrite
+      enable: true
+      config:
+        status_code: "500"
+`, routeName, s.Namespace(), s.Namespace(), backendService)
+
+		By("updating ApisixRoute with invalid plugin config")
+		err = s.CreateResourceFromString(invalidRouteYAML)
+		expectAdmissionDenied(s, "apisixroute", routeName, err)
+
+		By("updating ApisixRoute with corrected config")
+		err = s.CreateResourceFromString(validRouteYAML)
+		Expect(err).NotTo(HaveOccurred(), "updating ApisixRoute with corrected config")
+	})
 })

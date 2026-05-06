@@ -47,7 +47,7 @@ var _ = Describe("Test ApisixConsumer Webhook", Label("webhook"), func() {
 		time.Sleep(5 * time.Second)
 	})
 
-	It("should reject missing authentication secrets", func() {
+	It("should warn on missing authentication secrets", func() {
 		missingSecret := "missing-basic-secret"
 		consumerName := "webhook-apisixconsumer"
 		consumerYAML := `
@@ -65,7 +65,7 @@ spec:
 `
 
 		output, err := s.CreateResourceFromStringAndGetOutput(fmt.Sprintf(consumerYAML, consumerName, s.Namespace(), s.Namespace(), missingSecret))
-		expectAdmissionDenied(s, "apisixconsumer", consumerName, err, fmt.Sprintf("%s/%s", s.Namespace(), missingSecret))
+		Expect(err).ShouldNot(HaveOccurred())
 		Expect(output).To(ContainSubstring(fmt.Sprintf("Warning: Referenced Secret '%s/%s' not found", s.Namespace(), missingSecret)))
 
 		By("creating referenced secret")
@@ -151,5 +151,57 @@ spec:
 		By("creating corrected ApisixConsumer with valid auth config")
 		err = s.CreateResourceFromString(correctedConsumer)
 		Expect(err).NotTo(HaveOccurred(), "creating corrected ApisixConsumer")
+	})
+
+	It("should reject consumer update that fails ADC validation", func() {
+		if framework.ProviderType != framework.ProviderTypeAPISIXStandalone {
+			Skip("ADC validation requires apisix-standalone backend")
+		}
+
+		consumerName := "webhook-apisixconsumer-update"
+
+		validConsumer := fmt.Sprintf(`
+apiVersion: apisix.apache.org/v2
+kind: ApisixConsumer
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  ingressClassName: %s
+  authParameter:
+    keyAuth:
+      value:
+        key: update-test-key
+`, consumerName, s.Namespace(), s.Namespace())
+
+		By("creating valid ApisixConsumer")
+		err := s.CreateResourceFromString(validConsumer)
+		Expect(err).NotTo(HaveOccurred(), "creating initial valid ApisixConsumer")
+
+		privateKeyYAML := "          " + strings.ReplaceAll(framework.TestKey, "\n", "\n          ")
+		invalidConsumer := fmt.Sprintf(`
+apiVersion: apisix.apache.org/v2
+kind: ApisixConsumer
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  ingressClassName: %s
+  authParameter:
+    jwtAuth:
+      value:
+        key: update-test-jwt-key
+        algorithm: INVALID_ALGO
+        private_key: |
+%s
+`, consumerName, s.Namespace(), s.Namespace(), privateKeyYAML)
+
+		By("updating ApisixConsumer with invalid jwt-auth algorithm")
+		err = s.CreateResourceFromString(invalidConsumer)
+		expectAdmissionDenied(s, "apisixconsumer", consumerName, err)
+
+		By("updating ApisixConsumer with corrected config")
+		err = s.CreateResourceFromString(validConsumer)
+		Expect(err).NotTo(HaveOccurred(), "updating ApisixConsumer with corrected config")
 	})
 })

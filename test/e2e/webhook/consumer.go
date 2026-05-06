@@ -159,4 +159,73 @@ spec:
 		err = s.CreateResourceFromString(correctedConsumer)
 		Expect(err).NotTo(HaveOccurred(), "creating corrected Consumer")
 	})
+
+	It("should reject consumer update that fails ADC validation", func() {
+		if framework.ProviderType != framework.ProviderTypeAPISIXStandalone {
+			Skip("ADC validation requires apisix-standalone backend")
+		}
+
+		gatewayName := s.Namespace()
+		consumerName := "webhook-consumer-update"
+
+		validConsumer := fmt.Sprintf(`
+apiVersion: apisix.apache.org/v1alpha1
+kind: Consumer
+metadata:
+  name: %s
+spec:
+  gatewayRef:
+    name: %s
+  credentials:
+  - type: key-auth
+    name: key-auth-update
+    config:
+      key: update-consumer-key
+`, consumerName, gatewayName)
+
+		By("creating valid Consumer")
+		err := s.CreateResourceFromString(validConsumer)
+		Expect(err).NotTo(HaveOccurred(), "creating initial valid Consumer")
+
+		invalidConsumer := fmt.Sprintf(`
+apiVersion: apisix.apache.org/v1alpha1
+kind: Consumer
+metadata:
+  name: %s
+spec:
+  gatewayRef:
+    name: %s
+  credentials:
+  - type: jwt-auth
+    name: jwt-cred-update
+    config:
+      key: update-consumer-jwt-key
+      algorithm: INVALID_ALGO
+`, consumerName, gatewayName)
+
+		By("updating Consumer with an invalid jwt-auth algorithm")
+		err = s.CreateResourceFromString(invalidConsumer)
+		expectAdmissionDenied(s, "consumer", consumerName, err)
+
+		correctedConsumer := fmt.Sprintf(`
+apiVersion: apisix.apache.org/v1alpha1
+kind: Consumer
+metadata:
+  name: %s
+spec:
+  gatewayRef:
+    name: %s
+  credentials:
+  - type: jwt-auth
+    name: jwt-cred-update
+    config:
+      key: update-consumer-jwt-key
+      algorithm: HS256
+      secret: update-consumer-secret
+`, consumerName, gatewayName)
+
+		By("updating Consumer with a valid algorithm")
+		err = s.CreateResourceFromString(correctedConsumer)
+		Expect(err).NotTo(HaveOccurred(), "updating Consumer with corrected config")
+	})
 })
