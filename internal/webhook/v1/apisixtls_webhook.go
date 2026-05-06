@@ -80,8 +80,11 @@ func (v *ApisixTlsCustomValidator) ValidateCreate(ctx context.Context, obj runti
 	}
 
 	warnings := v.collectWarnings(ctx, tls)
-	if v.initErr != nil {
-		return warnings, v.initErr
+	// Skip ADC validation when secrets are missing: the translator cannot
+	// load cert/key material, so validation would always fail. The missing-
+	// secret warnings are sufficient to inform the user.
+	if v.initErr != nil || len(warnings) > 0 {
+		return warnings, nil
 	}
 
 	return warnings, v.adcValidator.Validate(ctx, tls)
@@ -104,8 +107,8 @@ func (v *ApisixTlsCustomValidator) ValidateUpdate(ctx context.Context, oldObj, n
 	}
 
 	warnings := v.collectWarnings(ctx, tls)
-	if v.initErr != nil {
-		return warnings, v.initErr
+	if v.initErr != nil || len(warnings) > 0 {
+		return warnings, nil
 	}
 
 	return warnings, v.adcValidator.Validate(ctx, tls)
