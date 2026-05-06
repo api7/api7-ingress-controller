@@ -244,3 +244,11 @@ func expectAdmissionDenied(s *scaffold.Scaffold, resourceType, resourceName stri
 	Expect(getErr).To(HaveOccurred(), fmt.Sprintf("resource %s/%s should not exist after admission rejection", resourceType, resourceName))
 	Expect(getErr.Error()).To(ContainSubstring("not found"), fmt.Sprintf("expected NotFound error for %s/%s", resourceType, resourceName))
 }
+
+// expectUpdateDenied verifies that an UPDATE admission was rejected. Unlike
+// expectAdmissionDenied it does not check resource non-existence, because the
+// resource remains in its previous valid state after a denied update.
+func expectUpdateDenied(err error) {
+	Expect(err).To(HaveOccurred(), "expecting update to be rejected by admission webhook")
+	Expect(err.Error()).To(ContainSubstring("denied the request"))
+}
