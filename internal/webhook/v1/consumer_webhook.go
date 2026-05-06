@@ -231,7 +231,11 @@ func (v *ConsumerCustomValidator) extractCredentialKey(ctx context.Context, cons
 		Key string `json:"key"`
 	}
 	if err := json.Unmarshal(credential.Config.Raw, &cfg); err != nil {
-		return "", err
+		// Malformed JSON is not a hard error: skip duplicate detection for this
+		// credential so existing consumers with bad config are not suddenly denied.
+		consumerLog.V(1).Info("skipping duplicate key-auth check: malformed credential config",
+			"consumer", consumer.Name, "error", err)
+		return "", nil
 	}
 	return cfg.Key, nil
 }
