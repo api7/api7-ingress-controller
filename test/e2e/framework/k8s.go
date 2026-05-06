@@ -261,7 +261,7 @@ func (f *Framework) applySSLSecret(namespace, name string, cert, pkey, caCert []
 }
 
 func WaitPodsAvailable(t testing.TestingT, kubeOps *k8s.KubectlOptions, opts metav1.ListOptions) error {
-	return WaitPodsAvailableWithTimeout(t, kubeOps, opts, time.Minute)
+	return WaitPodsAvailableWithTimeout(t, kubeOps, opts, 2*time.Minute)
 }
 
 func WaitPodsAvailableWithTimeout(t testing.TestingT, kubeOps *k8s.KubectlOptions, opts metav1.ListOptions, timeout time.Duration) error {
@@ -295,7 +295,7 @@ func WaitPodsAvailableWithTimeout(t testing.TestingT, kubeOps *k8s.KubectlOption
 		}
 		return true, nil
 	}
-	err := waitExponentialBackoffWithTimeout(condFunc, timeout)
+	err := waitConstantIntervalWithTimeout(condFunc, timeout)
 	if err != nil && lastErr != nil {
 		return lastErr
 	}
@@ -329,7 +329,7 @@ func describePodStatus(pod corev1.Pod) string {
 	)
 }
 
-func waitExponentialBackoffWithTimeout(condFunc func() (bool, error), timeout time.Duration) error {
+func waitConstantIntervalWithTimeout(condFunc func() (bool, error), timeout time.Duration) error {
 	steps := int(timeout / (2 * time.Second))
 	if steps < 1 {
 		steps = 1

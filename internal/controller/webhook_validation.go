@@ -45,7 +45,7 @@ func PrepareApisixRouteForValidation(ctx context.Context, c client.Client, log l
 		Client:                c,
 		Log:                   log,
 		ICGV:                  networkingv1.SchemeGroupVersion,
-		supportsEndpointSlice: true,
+		supportsEndpointSlice: false,
 	}
 	if err := reconciler.processApisixRoute(tctx, route); err != nil {
 		return nil, err

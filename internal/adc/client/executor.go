@@ -312,7 +312,7 @@ func (e *HTTPADCExecutor) buildAPISIXValidateRequest(ctx context.Context, server
 		"url", validateURL,
 		"server", serverAddr,
 		"cacheKey", config.Name,
-		"body", body,
+		"bodyLen", len(jsonData),
 	)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, validateURL, bytes.NewBuffer(jsonData))
@@ -327,10 +327,11 @@ func (e *HTTPADCExecutor) buildAPISIXValidateRequest(ctx context.Context, server
 
 func (e *HTTPADCExecutor) newBackendHTTPClient(config adctypes.Config) *http.Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if transport.TLSClientConfig == nil {
+		transport.TLSClientConfig = &tls.Config{}
+	}
+	transport.TLSClientConfig.MinVersion = tls.VersionTLS12
 	if !config.TlsVerify {
-		if transport.TLSClientConfig == nil {
-			transport.TLSClientConfig = &tls.Config{}
-		}
 		transport.TLSClientConfig.InsecureSkipVerify = true
 	}
 

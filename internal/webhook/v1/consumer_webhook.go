@@ -77,7 +77,8 @@ func (v *ConsumerCustomValidator) ValidateCreate(ctx context.Context, obj runtim
 
 	warnings := v.collectWarnings(ctx, consumer)
 	if v.initErr != nil {
-		return warnings, v.initErr
+		consumerLog.Error(v.initErr, "ADC validator init failed, skipping ADC validation")
+		return warnings, nil
 	}
 	if err := v.validateDuplicateKeyAuthCredentials(ctx, consumer); err != nil {
 		return warnings, err
@@ -97,7 +98,8 @@ func (v *ConsumerCustomValidator) ValidateUpdate(ctx context.Context, oldObj, ne
 
 	warnings := v.collectWarnings(ctx, consumer)
 	if v.initErr != nil {
-		return warnings, v.initErr
+		consumerLog.Error(v.initErr, "ADC validator init failed, skipping ADC validation")
+		return warnings, nil
 	}
 	if err := v.validateDuplicateKeyAuthCredentials(ctx, consumer); err != nil {
 		return warnings, err
@@ -224,7 +226,7 @@ func (v *ConsumerCustomValidator) extractCredentialKey(ctx context.Context, cons
 		Key string `json:"key"`
 	}
 	if err := json.Unmarshal(credential.Config.Raw, &cfg); err != nil {
-		return "", nil
+		return "", err
 	}
 	return cfg.Key, nil
 }

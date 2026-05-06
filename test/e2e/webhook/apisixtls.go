@@ -142,6 +142,9 @@ spec:
 		err = s.NewKubeTlsSecret(serverSecret, serverCert.String(), serverKey.String())
 		Expect(err).NotTo(HaveOccurred(), "creating valid server TLS secret")
 
+		// Wait for the webhook cache to reflect the recreated Secret before submitting ApisixTls.
+		time.Sleep(2 * time.Second)
+
 		By("creating corrected ApisixTls")
 		err = s.CreateResourceFromString(tlsYAML)
 		Expect(err).NotTo(HaveOccurred(), "creating corrected ApisixTls")
