@@ -59,32 +59,23 @@ jobs:
           ./get_helm.sh
 
       - name: Login to Private Registry
-        run: |
-          echo "${{ secrets.PRIVATE_DOCKER_PASSWORD }}" | docker login \
-            hkccr.ccs.tencentyun.com \
-            --username "${{ secrets.PRIVATE_DOCKER_USERNAME }}" \
-            --password-stdin
+        uses: docker/login-action@v3
+        with:
+          registry: hkccr.ccs.tencentyun.com
+          username: ${{ secrets.PRIVATE_DOCKER_USERNAME }}
+          password: ${{ secrets.PRIVATE_DOCKER_PASSWORD }}
 
       - name: Launch Kind Cluster
         env:
           KIND_NODE_IMAGE: kindest/node:v1.18.15
         run: |
-          make kind-down
           make kind-up
-          mkdir -p "${HOME}/.kube"
-          kind get kubeconfig --name apisix-ingress-cluster --internal > "${HOME}/.kube/config"
-          kubectl config use-context kind-apisix-ingress-cluster
-          for attempt in {1..30}; do
-            if kubectl cluster-info >/dev/null 2>&1; then
-              break
-            fi
-            if [ "${attempt}" -eq 30 ]; then
-              echo "kind apiserver did not become reachable in time" >&2
-              exit 1
-            fi
-            sleep 2
-          done
-          kubectl wait --for=condition=Ready nodes --all --timeout=120s
+          KIND_NODE_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' apisix-ingress-cluster-control-plane)
+          echo $KIND_NODE_IP
+
+          kubectl config get-clusters
+          kubectl config set-cluster kind-apisix-ingress-cluster --server=https://$KIND_NODE_IP:6443
+          kubectl wait --for=condition=Ready nodes --all
 
       - name: Build images
         env:
@@ -107,23 +98,6 @@ jobs:
       - name: Loading Docker Image to Kind Cluster
         run: |
           make kind-load-images
-          loaded_postgres_image=false
-          for image in \
-            swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/bitnamilegacy/postgresql:15.4.0-debian-11-r45 \
-            docker.aityp.com/bitnamilegacy/postgresql:15.4.0-debian-11-r45 \
-            bitnamilegacy/postgresql:15.4.0-debian-11-r45 \
-            docker.m.daocloud.io/bitnamilegacy/postgresql:15.4.0-debian-11-r45; do
-            if docker pull "${image}"; then
-              docker tag "${image}" docker.io/bitnamilegacy/postgresql:15.4.0-debian-11-r45
-              kind load docker-image docker.io/bitnamilegacy/postgresql:15.4.0-debian-11-r45 --name apisix-ingress-cluster
-              loaded_postgres_image=true
-              break
-            fi
-          done
-          if [ "${loaded_postgres_image}" != "true" ]; then
-            echo "failed to preload postgres image for kind" >&2
-            exit 1
-          fi
 
       - name: Extract adc binary
         if: ${{ env.ADC_VERSION == 'dev' }}
@@ -145,8 +119,5 @@ jobs:
           TEST_LABEL: ${{ matrix.cases_subset }}
           INGRESS_VERSION: v1beta1
           TEST_ENV: CI
-          POSTGRESQL_IMAGE_REGISTRY: docker.io
-          POSTGRESQL_IMAGE_REPOSITORY: bitnamilegacy/postgresql
-          POSTGRESQL_IMAGE_TAG: 15.4.0-debian-11-r45
         run: |
           make e2e-test

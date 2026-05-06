@@ -229,32 +229,13 @@ build-e2e-echo-server-image:
 
 .PHONY: pull-infra-images
 pull-infra-images:
-	@retry_pull() { \
-		source="$$1"; \
-		target="$$2"; \
-		for attempt in 1 2 3; do \
-			if docker pull "$$source"; then \
-				if [ "$$source" != "$$target" ]; then \
-					docker tag "$$source" "$$target"; \
-				fi; \
-				return 0; \
-			fi; \
-			if [ $$attempt -eq 3 ]; then \
-				echo "failed to pull $$source after $$attempt attempts" >&2; \
-				exit 1; \
-			fi; \
-			echo "retrying docker pull for $$source (attempt $$((attempt + 1))/3)..." >&2; \
-			sleep 5; \
-		done; \
-	}; \
-	retry_pull "hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev" "hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev"; \
-	retry_pull "hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION)" "hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION)"; \
-	retry_pull "hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)" "hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)"; \
-	dockerhub_proxy="$${DOCKERHUB_PROXY:-docker.m.daocloud.io}"; \
-	retry_pull "$$dockerhub_proxy/kennethreitz/httpbin:latest" "kennethreitz/httpbin:latest"; \
-	retry_pull "ghcr.io/api7/adc:dev" "ghcr.io/api7/adc:dev"; \
-	retry_pull "$$dockerhub_proxy/apache/apisix:dev" "apache/apisix:dev"; \
-	retry_pull "$$dockerhub_proxy/openresty/openresty:1.27.1.2-4-bullseye-fat" "openresty/openresty:1.27.1.2-4-bullseye-fat"
+	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev
+	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager:$(DASHBOARD_VERSION)
+	@docker pull hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated:$(DASHBOARD_VERSION)
+	@docker pull kennethreitz/httpbin:latest
+	@docker pull ghcr.io/api7/adc:dev
+	@docker pull apache/apisix:dev
+	@docker pull openresty/openresty:1.27.1.2-4-bullseye-fat
 
 ##@ Build
 
@@ -421,12 +402,8 @@ $(ADC_BIN):
 ifeq ($(ADC_VERSION),dev)
 	@echo "ADC_VERSION=dev, skip download"
 else
-	tmp_archive=$$(mktemp); \
-	trap 'rm -f "$$tmp_archive"' EXIT; \
-	curl --retry 5 --retry-delay 2 --retry-connrefused -sSfL \
-		-o "$$tmp_archive" \
-		https://github.com/api7/adc/releases/download/v${ADC_VERSION}/adc_${ADC_VERSION}_${GOOS}_${GOARCH}.tar.gz; \
-	tar -xzf "$$tmp_archive" -C $(LOCALBIN)
+	curl -sSfL https://github.com/api7/adc/releases/download/v${ADC_VERSION}/adc_${ADC_VERSION}_${GOOS}_${GOARCH}.tar.gz \
+		| tar -xz -C $(LOCALBIN)
 endif
 
 gofmt: ## Apply go fmt
