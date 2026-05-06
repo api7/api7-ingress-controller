@@ -34,7 +34,7 @@ ADC_VERSION ?= 0.22.1
 
 DIR := $(shell pwd)
 
-GINKGO_VERSION ?= 2.20.0
+GINKGO_VERSION ?= 2.22.0
 TEST_TIMEOUT ?= 80m
 TEST_DIR ?= ./test/e2e/
 E2E_NODES ?= 4
@@ -153,6 +153,13 @@ download-api7ee3-chart:
 .PHONY: ginkgo-e2e-test
 ginkgo-e2e-test: adc
 	@ginkgo -cover -coverprofile=coverage.txt -r --randomize-all --randomize-suites --trace --focus=$(E2E_FOCUS) --nodes=$(E2E_NODES) --label-filter="$(TEST_LABEL)" $(TEST_DIR)
+
+.PHONY: ginkgo-api7ee-e2e-test
+ginkgo-api7ee-e2e-test: adc
+	@DASHBOARD_VERSION=$(DASHBOARD_VERSION) ginkgo -cover -coverprofile=coverage.txt \
+		--randomize-all --randomize-suites --trace \
+		--timeout=$(TEST_TIMEOUT) --nodes=$(E2E_NODES) \
+		--label-filter="$(TEST_LABEL)" ./test/e2e/
 
 .PHONY: install-ginkgo
 install-ginkgo:
