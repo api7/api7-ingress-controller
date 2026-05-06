@@ -239,4 +239,3 @@ func (v *ConsumerCustomValidator) extractCredentialKey(ctx context.Context, cons
 	}
 	return cfg.Key, nil
 }
-
