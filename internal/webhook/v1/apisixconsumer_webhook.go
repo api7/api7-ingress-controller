@@ -42,7 +42,7 @@ func SetupApisixConsumerWebhookWithManager(mgr ctrl.Manager) error {
 		Complete()
 }
 
-// +kubebuilder:webhook:path=/validate-apisix-apache-org-v2-apisixconsumer,mutating=false,failurePolicy=fail,sideEffects=None,groups=apisix.apache.org,resources=apisixconsumers,verbs=create;update,versions=v2,name=vapisixconsumer-v2.kb.io,admissionReviewVersions=v1,failurePolicy=Ignore
+// +kubebuilder:webhook:path=/validate-apisix-apache-org-v2-apisixconsumer,mutating=false,failurePolicy=Ignore,sideEffects=None,groups=apisix.apache.org,resources=apisixconsumers,verbs=create;update,versions=v2,name=vapisixconsumer-v2.kb.io,admissionReviewVersions=v1
 
 type ApisixConsumerCustomValidator struct {
 	Client       client.Client
@@ -75,7 +75,8 @@ func (v *ApisixConsumerCustomValidator) ValidateCreate(ctx context.Context, obj 
 	}
 
 	warnings := v.collectWarnings(ctx, consumer)
-	if v.initErr != nil || len(warnings) > 0 {
+	if v.initErr != nil {
+		apisixConsumerLog.Error(v.initErr, "ADC validator init failed, skipping ADC validation")
 		return warnings, nil
 	}
 	return warnings, v.adcValidator.Validate(ctx, consumer)
@@ -92,7 +93,8 @@ func (v *ApisixConsumerCustomValidator) ValidateUpdate(ctx context.Context, oldO
 	}
 
 	warnings := v.collectWarnings(ctx, consumer)
-	if v.initErr != nil || len(warnings) > 0 {
+	if v.initErr != nil {
+		apisixConsumerLog.Error(v.initErr, "ADC validator init failed, skipping ADC validation")
 		return warnings, nil
 	}
 	return warnings, v.adcValidator.Validate(ctx, consumer)
