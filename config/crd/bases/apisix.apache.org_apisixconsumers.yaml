@@ -214,10 +214,10 @@ spec:
                         x-kubernetes-validations:
                         - message: asymmetric JWT algorithms (RS*/ES*/PS*/EdDSA) require
                             at least one of public_key or private_key
-                          rule: '!has(self.algorithm) || self.algorithm in [''HS256'',''HS384'',''HS512'']
-                            || (has(self.public_key) && size(self.public_key) > 0)
-                            || (has(self.private_key) && size(self.private_key) >
-                            0)'
+                          rule: '!has(self.algorithm) || size(self.algorithm) == 0
+                            || self.algorithm in [''HS256'',''HS384'',''HS512''] ||
+                            (has(self.public_key) && size(self.public_key) > 0) ||
+                            (has(self.private_key) && size(self.private_key) > 0)'
                     type: object
                   keyAuth:
                     description: KeyAuth configures the key authentication details.

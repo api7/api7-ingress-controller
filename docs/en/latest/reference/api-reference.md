@@ -781,9 +781,9 @@ _Appears in:_
 
 
 ApisixConsumerJwtAuthValue defines configuration for JWT authentication.
-Exactly one of the following must be provided depending on the algorithm:
-  - For symmetric algorithms (HS256, HS384, HS512): use secret. private_key and public_key are not required.
-  - For asymmetric algorithms (RS*, ES*, PS*, EdDSA): at least one of public_key or private_key must be provided.
+For asymmetric algorithms (RS*, ES*, PS*, EdDSA), at least one of public_key
+or private_key must be provided. Symmetric algorithms (HS256, HS384, HS512)
+and unset algorithm do not require any key field.
 
 
 

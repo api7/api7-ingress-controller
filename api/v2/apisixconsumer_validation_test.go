@@ -184,7 +184,7 @@ func TestApisixConsumer_JwtAuth_AsymmetricRS256WithPublicKey(t *testing.T) {
 				JwtAuth: &apisixv2.ApisixConsumerJwtAuth{
 					Value: &apisixv2.ApisixConsumerJwtAuthValue{
 						Key:       "my-key",
-						PublicKey: "-----BEGIN PUBLIC KEY-----\nMFww\n-----END PUBLIC KEY-----",
+						PublicKey: "test-public-key",
 						Algorithm: "RS256",
 					},
 				},
@@ -202,7 +202,7 @@ func TestApisixConsumer_JwtAuth_AsymmetricRS256WithPrivateKey(t *testing.T) {
 				JwtAuth: &apisixv2.ApisixConsumerJwtAuth{
 					Value: &apisixv2.ApisixConsumerJwtAuthValue{
 						Key:        "my-key",
-						PrivateKey: "-----BEGIN RSA PRIVATE KEY-----\nMIIE\n-----END RSA PRIVATE KEY-----",
+						PrivateKey: "test-private-key",
 						Algorithm:  "RS256",
 					},
 				},
@@ -220,8 +220,8 @@ func TestApisixConsumer_JwtAuth_AsymmetricRS256WithBothKeys(t *testing.T) {
 				JwtAuth: &apisixv2.ApisixConsumerJwtAuth{
 					Value: &apisixv2.ApisixConsumerJwtAuthValue{
 						Key:        "my-key",
-						PublicKey:  "-----BEGIN PUBLIC KEY-----\nMFww\n-----END PUBLIC KEY-----",
-						PrivateKey: "-----BEGIN RSA PRIVATE KEY-----\nMIIE\n-----END RSA PRIVATE KEY-----",
+						PublicKey:  "test-public-key",
+						PrivateKey: "test-private-key",
 						Algorithm:  "RS256",
 					},
 				},
@@ -307,4 +307,26 @@ func TestApisixConsumer_JwtAuth_AsymmetricWithEmptyPublicKey(t *testing.T) {
 	err := v.Validate(t, ac)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "asymmetric JWT algorithms")
+}
+
+// TestApisixConsumer_JwtAuth_EmptyAlgorithmTreatedAsSymmetric verifies that an
+// explicitly empty algorithm string is treated the same as an unset algorithm
+// (defaults to HS256) and does not require public_key or private_key.
+func TestApisixConsumer_JwtAuth_EmptyAlgorithmTreatedAsSymmetric(t *testing.T) {
+	v := loadApisixConsumerSchema(t)
+	ac := &apisixv2.ApisixConsumer{
+		Spec: apisixv2.ApisixConsumerSpec{
+			AuthParameter: apisixv2.ApisixConsumerAuthParameter{
+				JwtAuth: &apisixv2.ApisixConsumerJwtAuth{
+					Value: &apisixv2.ApisixConsumerJwtAuthValue{
+						Key:    "my-key",
+						Secret: "my-secret",
+						// Algorithm is explicitly empty string — should be treated as
+						// unset and not require asymmetric keys.
+					},
+				},
+			},
+		},
+	}
+	assert.NoError(t, v.Validate(t, ac))
 }
