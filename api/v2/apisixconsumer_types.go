@@ -134,7 +134,7 @@ type ApisixConsumerJwtAuth struct {
 //   - For symmetric algorithms (HS256, HS384, HS512): use secret. private_key and public_key are not required.
 //   - For asymmetric algorithms (RS*, ES*, PS*, EdDSA): at least one of public_key or private_key must be provided.
 //
-// +kubebuilder:validation:XValidation:rule="!has(self.algorithm) || self.algorithm in ['HS256','HS384','HS512'] || (has(self.public_key) && self.public_key != ”) || (has(self.private_key) && self.private_key != ”)",message="asymmetric JWT algorithms (RS*/ES*/PS*/EdDSA) require at least one of public_key or private_key"
+// +kubebuilder:validation:XValidation:rule="!has(self.algorithm) || self.algorithm in ['HS256','HS384','HS512'] || (has(self.public_key) && self.public_key != '') || (has(self.private_key) && self.private_key != '')",message="asymmetric JWT algorithms (RS*/ES*/PS*/EdDSA) require at least one of public_key or private_key"
 type ApisixConsumerJwtAuthValue struct {
 	// Key is the unique identifier for the JWT credential.
 	Key string `json:"key" yaml:"key"`
