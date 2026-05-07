@@ -45,7 +45,7 @@ func init() {
 	tmpl, err := template.New("values.yaml").Parse(`
 dashboard:
   image:
-    repository: hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-integrated
+    repository: ghcr.io/api7/api7-ee-3-integrated
     pullPolicy: IfNotPresent
     tag: {{ .Tag }}
   extraEnvVars:
@@ -61,7 +61,7 @@ dashboard:
       mountPath: /app/covdatafiles
 dp_manager:
   image:
-    repository: hkccr.ccs.tencentyun.com/api7-dev/api7-ee-dp-manager
+    repository: ghcr.io/api7/api7-ee-dp-manager
     pullPolicy: IfNotPresent
     tag: {{ .Tag }}
   extraEnvVars:

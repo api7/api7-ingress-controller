@@ -35,6 +35,9 @@ jobs:
       CONFORMANCE_TEST_REPORT_OUTPUT: /tmp/api7-ingress-controller-conformance-report.yaml
     timeout-minutes: 60
     runs-on: ubuntu-latest
+    permissions:
+      packages: read
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,19 +59,12 @@ jobs:
           chmod 700 get_helm.sh
           ./get_helm.sh
 
-      - name: Login to Registry
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ${{ secrets.DOCKER_REGISTRY }}
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Login to Private Registry
-        uses: docker/login-action@v3
-        with:
-          registry: hkccr.ccs.tencentyun.com
-          username: ${{ secrets.PRIVATE_DOCKER_USERNAME }}
-          password: ${{ secrets.PRIVATE_DOCKER_PASSWORD }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build images
         env:

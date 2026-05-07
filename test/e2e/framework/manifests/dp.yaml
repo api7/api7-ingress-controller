@@ -181,7 +181,7 @@ spec:
     spec:
       #serviceAccountName: ginkgo
       containers:
-      - image: hkccr.ccs.tencentyun.com/api7-dev/api7-ee-3-gateway:dev
+      - image: ghcr.io/api7/api7-ee-3-gateway:dev
         imagePullPolicy: IfNotPresent
         env:
     {{- if not .TLSEnabled }}
