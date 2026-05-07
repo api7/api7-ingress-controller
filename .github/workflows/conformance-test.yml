@@ -36,7 +36,6 @@ jobs:
     timeout-minutes: 60
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       packages: read
     steps:
       - name: Checkout
