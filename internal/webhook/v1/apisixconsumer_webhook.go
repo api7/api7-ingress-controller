@@ -75,8 +75,7 @@ func (v *ApisixConsumerCustomValidator) ValidateCreate(ctx context.Context, obj 
 	}
 
 	warnings := v.collectWarnings(ctx, consumer)
-	if v.initErr != nil {
-		apisixConsumerLog.Error(v.initErr, "ADC validator init failed, skipping ADC validation")
+	if v.initErr != nil || len(warnings) > 0 {
 		return warnings, nil
 	}
 	return warnings, v.adcValidator.Validate(ctx, consumer)
@@ -93,8 +92,7 @@ func (v *ApisixConsumerCustomValidator) ValidateUpdate(ctx context.Context, oldO
 	}
 
 	warnings := v.collectWarnings(ctx, consumer)
-	if v.initErr != nil {
-		apisixConsumerLog.Error(v.initErr, "ADC validator init failed, skipping ADC validation")
+	if v.initErr != nil || len(warnings) > 0 {
 		return warnings, nil
 	}
 	return warnings, v.adcValidator.Validate(ctx, consumer)
