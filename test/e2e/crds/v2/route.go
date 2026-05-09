@@ -291,6 +291,99 @@ spec:
 			s.NewAPISIXClient().GET("/get").Expect().Status(http.StatusNotFound)
 		})
 
+		It("Test ApisixRoute match by body vars (urlencoded)", func() {
+			const apisixRouteSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: default
+  namespace: %s
+spec:
+  ingressClassName: %s
+  http:
+  - name: rule0
+    match:
+      paths:
+      - /*
+      methods:
+      - POST
+      exprs:
+      - subject:
+          scope: Body
+          name: action
+        op: Equal
+        value: login
+    backends:
+    - serviceName: httpbin-service-e2e-test
+      servicePort: 80
+`
+			By("apply ApisixRoute with Body scope expr")
+			var apisixRoute apiv2.ApisixRoute
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"},
+				&apisixRoute, fmt.Sprintf(apisixRouteSpec, s.Namespace(), s.Namespace()))
+
+			By("verify matching POST with form field action=login returns 200")
+			request := func() int {
+				return s.NewAPISIXClient().POST("/post").
+					WithFormField("action", "login").
+					Expect().Raw().StatusCode
+			}
+			Eventually(request).WithTimeout(20 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+
+			By("verify non-matching POST without action field returns 404")
+			s.NewAPISIXClient().POST("/post").
+				WithFormField("action", "logout").
+				Expect().Status(http.StatusNotFound)
+
+			By("verify GET request (no body) returns 404")
+			s.NewAPISIXClient().GET("/get").Expect().Status(http.StatusNotFound)
+		})
+
+		It("Test ApisixRoute match by body vars (JSON path)", func() {
+			const apisixRouteSpec = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: default
+  namespace: %s
+spec:
+  ingressClassName: %s
+  http:
+  - name: rule0
+    match:
+      paths:
+      - /*
+      methods:
+      - POST
+      exprs:
+      - subject:
+          scope: Body
+          name: model
+        op: Equal
+        value: gpt-4
+    backends:
+    - serviceName: httpbin-service-e2e-test
+      servicePort: 80
+`
+			By("apply ApisixRoute with Body scope JSON path expr")
+			var apisixRoute apiv2.ApisixRoute
+			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"},
+				&apisixRoute, fmt.Sprintf(apisixRouteSpec, s.Namespace(), s.Namespace()))
+
+			By("verify matching POST with JSON body model=gpt-4 returns 200")
+			request := func() int {
+				return s.NewAPISIXClient().POST("/post").
+					WithJSON(map[string]string{"model": "gpt-4"}).
+					Expect().Raw().StatusCode
+			}
+			Eventually(request).WithTimeout(20 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+
+			By("verify non-matching JSON body returns 404")
+			s.NewAPISIXClient().POST("/post").
+				WithJSON(map[string]string{"model": "gpt-3"}).
+				Expect().Status(http.StatusNotFound)
+		})
+
 		It("Test ApisixRoute filterFunc", func() {
 			if s.Deployer.Name() == framework.ProviderTypeAPI7EE {
 				Skip("filterFunc is not supported in api7ee")

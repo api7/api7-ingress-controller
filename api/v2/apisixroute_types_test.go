@@ -20,9 +20,51 @@ package v2
 import (
 	"testing"
 
+	"github.com/google/cel-go/cel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// celSubjectRule is the CEL expression embedded via +kubebuilder:validation:XValidation
+// on ApisixRouteHTTPMatchExprSubject. This test validates its correctness.
+const celSubjectRule = "self.scope == 'Path' || self.name != ''"
+
+// evalCELSubjectRule evaluates celSubjectRule against a fake subject object.
+func evalCELSubjectRule(t *testing.T, scope, name string) bool {
+	t.Helper()
+	env, err := cel.NewEnv(
+		cel.Variable("self", cel.MapType(cel.StringType, cel.StringType)),
+	)
+	require.NoError(t, err)
+
+	ast, issues := env.Compile(celSubjectRule)
+	require.NoError(t, issues.Err())
+
+	prg, err := env.Program(ast)
+	require.NoError(t, err)
+
+	out, _, err := prg.Eval(map[string]any{
+		"self": map[string]any{"scope": scope, "name": name},
+	})
+	require.NoError(t, err)
+	return out.Value().(bool)
+}
+
+func TestCEL_SubjectRule_ValidScopes(t *testing.T) {
+	// All non-Path scopes with a non-empty name must pass.
+	for _, scope := range []string{ScopeHeader, ScopeQuery, ScopeCookie, ScopeVariable, ScopeBody} {
+		assert.True(t, evalCELSubjectRule(t, scope, "field"), "scope=%s with name should pass", scope)
+	}
+	// Path scope with empty name must pass (name is ignored for Path).
+	assert.True(t, evalCELSubjectRule(t, ScopePath, ""), "Path with empty name should pass")
+}
+
+func TestCEL_SubjectRule_InvalidEmptyName(t *testing.T) {
+	// Non-Path scopes with empty name must fail.
+	for _, scope := range []string{ScopeHeader, ScopeQuery, ScopeCookie, ScopeVariable, ScopeBody} {
+		assert.False(t, evalCELSubjectRule(t, scope, ""), "scope=%s with empty name should fail", scope)
+	}
+}
 
 func strPtr(s string) *string { return &s }
 

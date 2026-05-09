@@ -412,6 +412,7 @@ type ApisixRouteAuthenticationLDAPAuth struct {
 }
 
 // ApisixRouteHTTPMatchExprSubject describes the subject of a route matching expression.
+// +kubebuilder:validation:XValidation:rule="self.scope == 'Path' || self.name != ”",message="name is required when scope is not Path"
 type ApisixRouteHTTPMatchExprSubject struct {
 	// Scope specifies the subject scope.
 	// Supported values: `Header`, `Query`, `Path`, `Cookie`, `Variable`, `Body`.
@@ -419,8 +420,10 @@ type ApisixRouteHTTPMatchExprSubject struct {
 	// When Scope is `Body`, Name supports dot-notation JSON path (e.g., "model.version",
 	// "messages[*].role") and maps to APISIX's post_arg.* variable, which works with
 	// application/json, application/x-www-form-urlencoded, and multipart/form-data.
+	// +kubebuilder:validation:Enum=Header;Query;Path;Cookie;Variable;Body
 	Scope string `json:"scope" yaml:"scope"`
-	// Name is the name of the header or query parameter.
+	// Name is the name of the header, query parameter, cookie, variable, or body field.
+	// Required for all scopes except Path.
 	Name string `json:"name" yaml:"name"`
 }
 
