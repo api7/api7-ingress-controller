@@ -1119,8 +1119,8 @@ ApisixRouteHTTPMatchExprSubject describes the subject of a route matching expres
 
 | Field | Description |
 | --- | --- |
-| `scope` _string_ | Scope specifies the subject scope and can be `Header`, `Query`, or `Path`. When Scope is `Path`, Name will be ignored. |
-| `name` _string_ | Name is the name of the header or query parameter. |
+| `scope` _string_ | Scope specifies the subject scope. Supported values: `Header`, `Query`, `Path`, `Cookie`, `Variable`, `Body`. When Scope is `Path`, Name will be ignored. When Scope is `Body`, Name supports dot-notation JSON path (e.g., "model.version", "messages[*].role") and maps to APISIX's post_arg.<name> variable, which works with application/json, application/x-www-form-urlencoded, and multipart/form-data. |
+| `name` _string_ | Name is the name of the subject within the given scope: the header name, query parameter name, cookie name, Nginx variable name, or body field name (dot-notation JSON path supported for Body scope). Optional when Scope is Path. |
 
 
 _Appears in:_

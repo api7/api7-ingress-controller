@@ -18,13 +18,72 @@
 package v2
 
 import (
+	"os"
 	"testing"
 
+	"github.com/google/cel-go/cel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"sigs.k8s.io/yaml"
 )
 
 func strPtr(s string) *string { return &s }
+
+// celSubjectRule is the CEL expression used in the +kubebuilder:validation:XValidation
+// marker on ApisixRouteHTTPMatchExprSubject.
+const celSubjectRule = `self.scope == 'Path' || self.name != ''`
+
+func evalCELSubjectRule(t *testing.T, scope, name string) bool {
+	t.Helper()
+	env, err := cel.NewEnv(
+		cel.Variable("self", cel.MapType(cel.StringType, cel.StringType)),
+	)
+	require.NoError(t, err)
+	ast, issues := env.Compile(celSubjectRule)
+	require.NoError(t, issues.Err())
+	prg, err := env.Program(ast)
+	require.NoError(t, err)
+	out, _, err := prg.Eval(map[string]any{
+		"self": map[string]any{"scope": scope, "name": name},
+	})
+	require.NoError(t, err)
+	return out.Value().(bool)
+}
+
+// TestCEL_SubjectRule_Logic verifies the CEL expression used in the XValidation marker.
+func TestCEL_SubjectRule_Logic(t *testing.T) {
+	// Non-Path scopes with a non-empty name must pass.
+	for _, scope := range []string{ScopeHeader, ScopeQuery, ScopeCookie, ScopeVariable, ScopeBody} {
+		assert.True(t, evalCELSubjectRule(t, scope, "field"), "scope=%s with name should pass", scope)
+	}
+	// Path scope with empty name must pass (name is ignored for Path).
+	assert.True(t, evalCELSubjectRule(t, ScopePath, ""), "Path with empty name should pass")
+	// Non-Path scopes with empty name must fail.
+	for _, scope := range []string{ScopeHeader, ScopeQuery, ScopeCookie, ScopeVariable, ScopeBody} {
+		assert.False(t, evalCELSubjectRule(t, scope, ""), "scope=%s with empty name should fail", scope)
+	}
+}
+
+// TestCEL_SubjectRule_InCRD verifies the generated CRD YAML contains the XValidation rule
+// with correct (ASCII) quote characters and not typographic quotes.
+func TestCEL_SubjectRule_InCRD(t *testing.T) {
+	const crdPath = "../../config/crd/bases/apisix.apache.org_apisixroutes.yaml"
+	data, err := os.ReadFile(crdPath)
+	require.NoError(t, err, "CRD file should exist; run 'make manifests' if missing")
+
+	var crd map[string]any
+	require.NoError(t, yaml.Unmarshal(data, &crd))
+
+	raw := string(data)
+	// The CEL rule must appear with ASCII single-quotes only.
+	assert.Contains(t, raw, `self.scope == 'Path' || self.name != ''`,
+		"CRD should contain the XValidation rule with ASCII quotes")
+	// Ensure no typographic/smart quotes crept in.
+	assert.NotContains(t, raw, "\u2018", "CRD must not contain left single quotation mark \u2018")
+	assert.NotContains(t, raw, "\u2019", "CRD must not contain right single quotation mark \u2019")
+	assert.NotContains(t, raw, "\u201c", "CRD must not contain left double quotation mark \u201c")
+	assert.NotContains(t, raw, "\u201d", "CRD must not contain right double quotation mark \u201d")
+}
 
 func TestToVars_ScopeBody_SimpleField(t *testing.T) {
 	exprs := ApisixRouteHTTPMatchExprs{
