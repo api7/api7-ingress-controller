@@ -88,7 +88,7 @@ const (
 	ScopeVariable = "Variable"
 	// ScopeBody means the route match expression subject is in the request body.
 	// Name supports dot-notation JSON path (e.g., "model.version", "messages[*].role"),
-	// and maps to APISIX's post_arg.* variable, which supports application/json,
+	// and maps to APISIX's post_arg.<name> variable, which supports application/json,
 	// application/x-www-form-urlencoded, and multipart/form-data content types.
 	ScopeBody = "Body"
 )

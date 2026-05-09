@@ -313,7 +313,7 @@ func (exprs ApisixRouteHTTPMatchExprs) ToVars() (result adc.Vars, err error) {
 		case ScopeBody:
 			subj = "post_arg." + expr.Subject.Name
 		default:
-			return result, errors.New("invalid http match expr: subject.scope should be one of [query, header, cookie, path, variable, body]")
+			return result, errors.New("invalid http match expr: subject.scope should be one of [Query, Header, Cookie, Path, Variable, Body]")
 		}
 		this.SliceVal = append(this.SliceVal, adc.StringOrSlice{StrVal: subj})
 
@@ -417,13 +417,15 @@ type ApisixRouteHTTPMatchExprSubject struct {
 	// Supported values: `Header`, `Query`, `Path`, `Cookie`, `Variable`, `Body`.
 	// When Scope is `Path`, Name will be ignored.
 	// When Scope is `Body`, Name supports dot-notation JSON path (e.g., "model.version",
-	// "messages[*].role") and maps to APISIX's post_arg.* variable, which works with
+	// "messages[*].role") and maps to APISIX's post_arg.<name> variable, which works with
 	// application/json, application/x-www-form-urlencoded, and multipart/form-data.
 	// +kubebuilder:validation:Enum=Header;Query;Path;Cookie;Variable;Body
 	Scope string `json:"scope" yaml:"scope"`
-	// Name is the name of the header, query parameter, cookie, variable, or body field.
-	// Required for all scopes except Path.
-	Name string `json:"name" yaml:"name"`
+	// Name is the name of the subject within the given scope: the header name, query
+	// parameter name, cookie name, Nginx variable name, or body field name (dot-notation
+	// JSON path supported for Body scope). Optional when Scope is Path.
+	// +kubebuilder:validation:Optional
+	Name string `json:"name,omitempty" yaml:"name,omitempty"`
 }
 
 func init() {
