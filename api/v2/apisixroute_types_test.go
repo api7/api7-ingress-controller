@@ -31,7 +31,7 @@ func strPtr(s string) *string { return &s }
 
 // celSubjectRule is the CEL expression used in the +kubebuilder:validation:XValidation
 // marker on ApisixRouteHTTPMatchExprSubject.
-const celSubjectRule = `self.scope == 'Path' || self.name != ''`
+const celSubjectRule = `self.scope == 'Path' || size(self.name) > 0`
 
 func evalCELSubjectRule(t *testing.T, scope, name string) bool {
 	t.Helper()
@@ -74,15 +74,53 @@ func TestCEL_SubjectRule_InCRD(t *testing.T) {
 	var crd map[string]any
 	require.NoError(t, yaml.Unmarshal(data, &crd))
 
+	// Ensure no typographic/smart quotes crept in anywhere in the file.
 	raw := string(data)
-	// The CEL rule must appear with ASCII single-quotes only.
-	assert.Contains(t, raw, `self.scope == 'Path' || self.name != ''`,
-		"CRD should contain the XValidation rule with ASCII quotes")
-	// Ensure no typographic/smart quotes crept in.
 	assert.NotContains(t, raw, "\u2018", "CRD must not contain left single quotation mark \u2018")
 	assert.NotContains(t, raw, "\u2019", "CRD must not contain right single quotation mark \u2019")
 	assert.NotContains(t, raw, "\u201c", "CRD must not contain left double quotation mark \u201c")
 	assert.NotContains(t, raw, "\u201d", "CRD must not contain right double quotation mark \u201d")
+
+	// Walk the parsed CRD to extract the x-kubernetes-validations rule string directly,
+	// which is more robust than substring matching against the raw YAML (line-wrapping safe).
+	rule := extractXValidationRule(t, crd)
+	assert.Equal(t, celSubjectRule, rule,
+		"XValidation rule in CRD must match the expected CEL expression")
+}
+
+// extractXValidationRule walks the parsed CRD map to find the first
+// x-kubernetes-validations rule on the subject property of HTTP match exprs.
+func extractXValidationRule(t *testing.T, crd map[string]any) string {
+	t.Helper()
+	// Path: spec.versions[0].schema.openAPIV3Schema
+	//   .properties.spec.properties.http.items
+	//   .properties.match.properties.exprs.items
+	//   .properties.subject.x-kubernetes-validations[0].rule
+	get := func(m map[string]any, key string) map[string]any {
+		v, ok := m[key]
+		require.True(t, ok, "key %q not found", key)
+		mv, ok := v.(map[string]any)
+		require.True(t, ok, "key %q is not a map", key)
+		return mv
+	}
+	spec := get(crd, "spec")
+	versions := spec["versions"].([]any)
+	require.NotEmpty(t, versions)
+	schema := get(versions[0].(map[string]any), "schema")
+	root := get(schema, "openAPIV3Schema")
+	props := get(root, "properties")
+	specProps := get(get(props, "spec"), "properties")
+	httpItems := get(get(specProps, "http"), "items")
+	matchProps := get(get(get(httpItems, "properties"), "match"), "properties")
+	exprsItems := get(get(matchProps, "exprs"), "items")
+	subject := get(get(exprsItems, "properties"), "subject")
+	validations, ok := subject["x-kubernetes-validations"].([]any)
+	require.True(t, ok, "x-kubernetes-validations not found or not a list")
+	require.NotEmpty(t, validations)
+	first := validations[0].(map[string]any)
+	rule, ok := first["rule"].(string)
+	require.True(t, ok, "rule field not found or not a string")
+	return rule
 }
 
 func TestToVars_ScopeBody_SimpleField(t *testing.T) {

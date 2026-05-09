@@ -412,7 +412,7 @@ type ApisixRouteAuthenticationLDAPAuth struct {
 }
 
 // ApisixRouteHTTPMatchExprSubject describes the subject of a route matching expression.
-// +kubebuilder:validation:XValidation:rule="self.scope == 'Path' || self.name != ''",message="name is required when scope is not Path"
+// +kubebuilder:validation:XValidation:rule="self.scope == 'Path' || size(self.name) > 0",message="name is required when scope is not Path"
 type ApisixRouteHTTPMatchExprSubject struct {
 	// Scope specifies the subject scope.
 	// Supported values: `Header`, `Query`, `Path`, `Cookie`, `Variable`, `Body`.
