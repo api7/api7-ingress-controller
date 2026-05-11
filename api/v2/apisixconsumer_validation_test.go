@@ -49,7 +49,30 @@ func TestApisixConsumer_JwtAuth_SymmetricHS256(t *testing.T) {
 			},
 		},
 	}
-	assert.NoError(t, v.validateObject(t, ac))
+	assert.NoError(t, v.Validate(t, ac))
+}
+
+// TestApisixConsumer_JwtAuth_AsymmetricWithWhitespaceOnlyPublicKey verifies
+// that a whitespace-only public_key is treated as absent and rejected for
+// asymmetric algorithms.
+func TestApisixConsumer_JwtAuth_AsymmetricWithWhitespaceOnlyPublicKey(t *testing.T) {
+	v := loadApisixConsumerSchema(t)
+	ac := &apisixv2.ApisixConsumer{
+		Spec: apisixv2.ApisixConsumerSpec{
+			AuthParameter: apisixv2.ApisixConsumerAuthParameter{
+				JwtAuth: &apisixv2.ApisixConsumerJwtAuth{
+					Value: &apisixv2.ApisixConsumerJwtAuthValue{
+						Key:       "my-key",
+						Algorithm: "RS256",
+						PublicKey: "   ",
+					},
+				},
+			},
+		},
+	}
+	err := v.Validate(t, ac)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "algorithms other than HS256/HS384/HS512")
 }
 
 func TestApisixConsumer_JwtAuth_SymmetricHS512(t *testing.T) {
@@ -67,7 +90,7 @@ func TestApisixConsumer_JwtAuth_SymmetricHS512(t *testing.T) {
 			},
 		},
 	}
-	assert.NoError(t, v.validateObject(t, ac))
+	assert.NoError(t, v.Validate(t, ac))
 }
 
 func TestApisixConsumer_JwtAuth_NoAlgorithmDefaultsToSymmetric(t *testing.T) {
@@ -84,7 +107,7 @@ func TestApisixConsumer_JwtAuth_NoAlgorithmDefaultsToSymmetric(t *testing.T) {
 			},
 		},
 	}
-	assert.NoError(t, v.validateObject(t, ac))
+	assert.NoError(t, v.Validate(t, ac))
 }
 
 func TestApisixConsumer_JwtAuth_AsymmetricRS256WithPublicKey(t *testing.T) {
@@ -102,7 +125,7 @@ func TestApisixConsumer_JwtAuth_AsymmetricRS256WithPublicKey(t *testing.T) {
 			},
 		},
 	}
-	assert.NoError(t, v.validateObject(t, ac))
+	assert.NoError(t, v.Validate(t, ac))
 }
 
 func TestApisixConsumer_JwtAuth_AsymmetricRS256WithPrivateKey(t *testing.T) {
@@ -120,7 +143,7 @@ func TestApisixConsumer_JwtAuth_AsymmetricRS256WithPrivateKey(t *testing.T) {
 			},
 		},
 	}
-	assert.NoError(t, v.validateObject(t, ac))
+	assert.NoError(t, v.Validate(t, ac))
 }
 
 func TestApisixConsumer_JwtAuth_AsymmetricRS256WithBothKeys(t *testing.T) {
@@ -139,7 +162,7 @@ func TestApisixConsumer_JwtAuth_AsymmetricRS256WithBothKeys(t *testing.T) {
 			},
 		},
 	}
-	assert.NoError(t, v.validateObject(t, ac))
+	assert.NoError(t, v.Validate(t, ac))
 }
 
 // TestApisixConsumer_JwtAuth_AsymmetricRS256WithoutAnyKey verifies that RS256
@@ -158,7 +181,66 @@ func TestApisixConsumer_JwtAuth_AsymmetricRS256WithoutAnyKey(t *testing.T) {
 			},
 		},
 	}
-	err := v.validateObject(t, ac)
+	err := v.Validate(t, ac)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "algorithms other than HS256/HS384/HS512")
+}
+
+func TestApisixConsumer_JwtAuth_AsymmetricES256WithoutAnyKey(t *testing.T) {
+	v := loadApisixConsumerSchema(t)
+	ac := &apisixv2.ApisixConsumer{
+		Spec: apisixv2.ApisixConsumerSpec{
+			AuthParameter: apisixv2.ApisixConsumerAuthParameter{
+				JwtAuth: &apisixv2.ApisixConsumerJwtAuth{
+					Value: &apisixv2.ApisixConsumerJwtAuthValue{
+						Key:       "my-key",
+						Algorithm: "ES256",
+					},
+				},
+			},
+		},
+	}
+	err := v.Validate(t, ac)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "algorithms other than HS256/HS384/HS512")
+}
+
+func TestApisixConsumer_JwtAuth_AsymmetricEdDSAWithoutAnyKey(t *testing.T) {
+	v := loadApisixConsumerSchema(t)
+	ac := &apisixv2.ApisixConsumer{
+		Spec: apisixv2.ApisixConsumerSpec{
+			AuthParameter: apisixv2.ApisixConsumerAuthParameter{
+				JwtAuth: &apisixv2.ApisixConsumerJwtAuth{
+					Value: &apisixv2.ApisixConsumerJwtAuthValue{
+						Key:       "my-key",
+						Algorithm: "EdDSA",
+					},
+				},
+			},
+		},
+	}
+	err := v.Validate(t, ac)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "algorithms other than HS256/HS384/HS512")
+}
+
+func TestApisixConsumer_JwtAuth_AsymmetricWithEmptyPublicKey(t *testing.T) {
+	v := loadApisixConsumerSchema(t)
+	ac := &apisixv2.ApisixConsumer{
+		Spec: apisixv2.ApisixConsumerSpec{
+			AuthParameter: apisixv2.ApisixConsumerAuthParameter{
+				JwtAuth: &apisixv2.ApisixConsumerJwtAuth{
+					Value: &apisixv2.ApisixConsumerJwtAuthValue{
+						Key:       "my-key",
+						Algorithm: "RS256",
+						// PublicKey is empty string — omitempty means it won't appear
+						// in the serialized JSON, same effect as not set
+					},
+				},
+			},
+		},
+	}
+	err := v.Validate(t, ac)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "algorithms other than HS256/HS384/HS512")
 }
@@ -182,5 +264,5 @@ func TestApisixConsumer_JwtAuth_EmptyAlgorithmTreatedAsSymmetric(t *testing.T) {
 			},
 		},
 	}
-	assert.NoError(t, v.validateObject(t, ac))
+	assert.NoError(t, v.Validate(t, ac))
 }
