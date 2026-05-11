@@ -418,7 +418,7 @@ type ApisixRouteHTTPMatchExprSubject struct {
 	// Supported values: `Header`, `Query`, `Path`, `Cookie`, `Variable`, `Body`.
 	// When Scope is `Path`, Name will be ignored.
 	// When Scope is `Body`, Name supports dot-notation JSON path (e.g., "model.version",
-	// "messages[*].role") and maps to APISIX's post_arg.<name> variable, which works with
+	// "messages[*].role") and maps to APISIX's `post_arg.<name>` variable, which works with
 	// application/json, application/x-www-form-urlencoded, and multipart/form-data.
 	// +kubebuilder:validation:Enum=Header;Query;Path;Cookie;Variable;Body
 	Scope string `json:"scope" yaml:"scope"`
