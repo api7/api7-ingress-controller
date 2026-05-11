@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	apisixv2 "github.com/apache/apisix-ingress-controller/api/v2"
 )
@@ -142,7 +143,7 @@ func TestApisixConsumer_JwtAuth_AsymmetricRS256WithBothKeys(t *testing.T) {
 }
 
 // TestApisixConsumer_JwtAuth_AsymmetricRS256WithoutAnyKey verifies that RS256
-// without any key is allowed in API7 Enterprise (supports all algorithms without key constraints).
+// without any key is rejected by the CRD validation rule.
 func TestApisixConsumer_JwtAuth_AsymmetricRS256WithoutAnyKey(t *testing.T) {
 	v := loadApisixConsumerSchema(t)
 	ac := &apisixv2.ApisixConsumer{
@@ -157,8 +158,9 @@ func TestApisixConsumer_JwtAuth_AsymmetricRS256WithoutAnyKey(t *testing.T) {
 			},
 		},
 	}
-	// API7 Enterprise supports all algorithms; no key constraint enforced by CRD.
-	assert.NoError(t, v.validateObject(t, ac))
+	err := v.validateObject(t, ac)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "algorithms other than HS256/HS384/HS512")
 }
 
 // TestApisixConsumer_JwtAuth_EmptyAlgorithmTreatedAsSymmetric verifies that an

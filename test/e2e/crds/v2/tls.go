@@ -424,22 +424,25 @@ spec:
 			assert.True(GinkgoT(), sniFound["api7.com"], "api7.com should be in SNIs")
 
 			By("test HTTPS request to api6.com")
-			Eventually(func() int {
-				return s.NewAPISIXHttpsClient("api6.com").
-					GET("/get").
-					WithHost("api6.com").
-					Expect().
-					Raw().StatusCode
-			}).WithTimeout(30 * time.Second).ProbeEvery(1 * time.Second).Should(Equal(http.StatusOK))
+			s.RequestAssert(&scaffold.RequestAssert{
+				Client:  s.NewAPISIXHttpsClient("api6.com"),
+				Path:    "/get",
+				Host:    "api6.com",
+				Checks:  []scaffold.ResponseCheckFunc{scaffold.WithExpectedStatus(http.StatusOK)},
+				Timeout: 30 * time.Second,
+			})
 
 			By("test HTTPS request to api7.com")
-			Eventually(func() int {
-				return s.NewAPISIXHttpsClient("api7.com").
-					GET("/get").
-					WithHost("api7.com").
-					Expect().
-					Raw().StatusCode
-			}).WithTimeout(30 * time.Second).ProbeEvery(1 * time.Second).Should(Equal(http.StatusOK))
+			// Use RequestAssert so that transient TLS errors while the data plane
+			// is loading the freshly-created SSL object are retried via ErrorReporter
+			// instead of causing an immediate fatal failure through GinkgoT().
+			s.RequestAssert(&scaffold.RequestAssert{
+				Client:  s.NewAPISIXHttpsClient("api7.com"),
+				Path:    "/get",
+				Host:    "api7.com",
+				Checks:  []scaffold.ResponseCheckFunc{scaffold.WithExpectedStatus(http.StatusOK)},
+				Timeout: 30 * time.Second,
+			})
 		})
 
 	})
