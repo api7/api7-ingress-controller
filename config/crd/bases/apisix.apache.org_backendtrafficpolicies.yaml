@@ -144,7 +144,7 @@ spec:
                             maximum: 254
                             minimum: 0
                             type: integer
-                          timeout:
+                          timeouts:
                             description: Timeouts is the number of timeouts to mark
                               a node unhealthy.
                             maximum: 254
@@ -206,7 +206,7 @@ spec:
                             maximum: 254
                             minimum: 0
                             type: integer
-                          timeout:
+                          timeouts:
                             description: Timeouts is the number of timeouts to mark
                               a node unhealthy.
                             maximum: 254

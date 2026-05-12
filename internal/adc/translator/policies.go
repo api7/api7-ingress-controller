@@ -18,6 +18,8 @@
 package translator
 
 import (
+	"time"
+
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -25,6 +27,8 @@ import (
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 )
+
+const _minHealthCheckInterval = time.Second
 
 func convertBackendRef(namespace, name, kind string) gatewayv1.BackendRef {
 	backendRef := gatewayv1.BackendRef{}
@@ -114,8 +118,12 @@ func translateBTPActiveHealthCheck(config *v1alpha1.ActiveHealthCheck) *adctypes
 		HTTPRequestHeaders:     config.RequestHeaders,
 	}
 	if config.Healthy != nil {
+		interval := config.Healthy.Interval.Duration
+		if interval < _minHealthCheckInterval {
+			interval = _minHealthCheckInterval
+		}
 		active.Healthy = adctypes.UpstreamActiveHealthCheckHealthy{
-			Interval: int(config.Healthy.Interval.Seconds()),
+			Interval: int(interval.Seconds()),
 			UpstreamPassiveHealthCheckHealthy: adctypes.UpstreamPassiveHealthCheckHealthy{
 				HTTPStatuses: config.Healthy.HTTPCodes,
 				Successes:    config.Healthy.Successes,
@@ -123,8 +131,12 @@ func translateBTPActiveHealthCheck(config *v1alpha1.ActiveHealthCheck) *adctypes
 		}
 	}
 	if config.Unhealthy != nil {
+		interval := config.Unhealthy.Interval.Duration
+		if interval < _minHealthCheckInterval {
+			interval = _minHealthCheckInterval
+		}
 		active.Unhealthy = adctypes.UpstreamActiveHealthCheckUnhealthy{
-			Interval: int(config.Unhealthy.Interval.Seconds()),
+			Interval: int(interval.Seconds()),
 			UpstreamPassiveHealthCheckUnhealthy: adctypes.UpstreamPassiveHealthCheckUnhealthy{
 				HTTPStatuses: config.Unhealthy.HTTPCodes,
 				HTTPFailures: config.Unhealthy.HTTPFailures,

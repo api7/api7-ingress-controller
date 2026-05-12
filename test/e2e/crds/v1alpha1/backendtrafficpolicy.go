@@ -20,6 +20,7 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -240,7 +241,7 @@ spec:
 
 			var target *adctypes.Upstream
 			for _, u := range ups {
-				if u.Checks != nil {
+				if strings.Contains(u.Name, "httpbin-service-e2e-test") && u.Checks != nil {
 					target = u
 					break
 				}
@@ -276,7 +277,7 @@ spec:
 
 			var target *adctypes.Upstream
 			for _, u := range ups {
-				if u.Checks != nil && u.Checks.Passive != nil {
+				if strings.Contains(u.Name, "httpbin-service-e2e-test") && u.Checks != nil && u.Checks.Passive != nil {
 					target = u
 					break
 				}
@@ -309,12 +310,12 @@ spec:
 			})
 			time.Sleep(2 * time.Second)
 
-			// Verify health check is present
+			// Verify health check is present on the target upstream
 			ups, err := s.DefaultDataplaneResource().Upstream().List(context.Background())
 			Expect(err).ToNot(HaveOccurred())
 			hasHealthCheck := false
 			for _, u := range ups {
-				if u.Checks != nil {
+				if strings.Contains(u.Name, "httpbin-service-e2e-test") && u.Checks != nil {
 					hasHealthCheck = true
 					break
 				}
@@ -326,11 +327,13 @@ spec:
 			Expect(err).NotTo(HaveOccurred(), "deleting BackendTrafficPolicy")
 			time.Sleep(3 * time.Second)
 
-			// Verify health check is removed
+			// Verify health check is removed from the target upstream
 			ups, err = s.DefaultDataplaneResource().Upstream().List(context.Background())
 			Expect(err).ToNot(HaveOccurred())
 			for _, u := range ups {
-				Expect(u.Checks).To(BeNil(), "upstream should not have health check after policy deletion")
+				if strings.Contains(u.Name, "httpbin-service-e2e-test") {
+					Expect(u.Checks).To(BeNil(), "upstream should not have health check after policy deletion")
+				}
 			}
 		})
 	})

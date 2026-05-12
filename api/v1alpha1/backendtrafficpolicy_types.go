@@ -262,7 +262,7 @@ type PassiveHealthCheckUnhealthy struct {
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=254
 	// +optional
-	Timeouts int `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	Timeouts int `json:"timeouts,omitempty" yaml:"timeouts,omitempty"`
 }
 
 func init() {
