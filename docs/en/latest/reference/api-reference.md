@@ -1089,7 +1089,7 @@ ApisixRouteHTTPMatch defines the conditions used to match incoming HTTP requests
 | `hosts` _string array_ | Hosts specifies Host header values to match. Supports exact and wildcard domains. Only one level of wildcard is allowed (e.g., `*.example.com` is valid, but `*.*.example.com` is not). |
 | `remoteAddrs` _string array_ | RemoteAddrs is a list of source IP addresses or CIDR ranges to match. Supports both IPv4 and IPv6 formats. |
 | `exprs` _[ApisixRouteHTTPMatchExprs](#apisixroutehttpmatchexprs)_ | NginxVars defines match conditions based on Nginx variables. |
-| `filter_func` _string_ | FilterFunc is a user-defined function for advanced request filtering. The function can use Nginx variables through the `vars` parameter. This field is supported in APISIX but not in API7 Enterprise. |
+| `filter_func` _string_ | FilterFunc is a user-defined function for advanced request filtering. The function can use Nginx variables through the `vars` parameter. |
 
 
 _Appears in:_
@@ -1104,7 +1104,7 @@ ApisixRouteHTTPMatchExpr represents a binary expression used to match requests b
 
 | Field | Description |
 | --- | --- |
-| `subject` _[ApisixRouteHTTPMatchExprSubject](#apisixroutehttpmatchexprsubject)_ | Subject defines the left-hand side of the expression. It can be any [built-in variable](/apisix/reference/built-in-variables) or string literal. |
+| `subject` _[ApisixRouteHTTPMatchExprSubject](#apisixroutehttpmatchexprsubject)_ | Subject defines the left-hand side of the expression. It can be any [APISIX variable](https://apisix.apache.org/docs/apisix/apisix-variable) or string literal. |
 | `op` _string_ | Op specifies the operator used in the expression. Can be `Equal`, `NotEqual`, `GreaterThan`, `GreaterThanEqual`, `LessThan`, `LessThanEqual`, `RegexMatch`, `RegexNotMatch`, `RegexMatchCaseInsensitive`, `RegexNotMatchCaseInsensitive`, `In`, or `NotIn`. |
 | `set` _string array_ | Set provides a list of acceptable values for the expression. This should be used when Op is `In` or `NotIn`. |
 | `value` _string_ | Value defines a single value to compare against the subject. This should be used when Op is not `In` or `NotIn`. Set and Value are mutually exclusive—only one should be set at a time. |
@@ -1122,8 +1122,8 @@ ApisixRouteHTTPMatchExprSubject describes the subject of a route matching expres
 
 | Field | Description |
 | --- | --- |
-| `scope` _string_ | Scope specifies the subject scope and can be `Header`, `Query`, or `Path`. When Scope is `Path`, Name will be ignored. |
-| `name` _string_ | Name is the name of the header or query parameter. |
+| `scope` _string_ | Scope specifies the subject scope. Supported values: `Header`, `Query`, `Path`, `Cookie`, `Variable`, `Body`. When Scope is `Path`, Name will be ignored. When Scope is `Body`, Name supports dot-notation JSON path (e.g., "model.version", "messages[*].role") and maps to APISIX's `post_arg.<name>` variable, which works with application/json, application/x-www-form-urlencoded, and multipart/form-data. |
+| `name` _string_ | Name is the name of the subject within the given scope: the header name, query parameter name, cookie name, Nginx variable name, or body field name (dot-notation JSON path supported for Body scope). Optional when Scope is Path. |
 
 
 _Appears in:_
@@ -1138,7 +1138,7 @@ _Base type:_ `[ApisixRouteHTTPMatchExpr](#apisixroutehttpmatchexpr)`
 
 | Field | Description |
 | --- | --- |
-| `subject` _[ApisixRouteHTTPMatchExprSubject](#apisixroutehttpmatchexprsubject)_ | Subject defines the left-hand side of the expression. It can be any [built-in variable](/apisix/reference/built-in-variables) or string literal. |
+| `subject` _[ApisixRouteHTTPMatchExprSubject](#apisixroutehttpmatchexprsubject)_ | Subject defines the left-hand side of the expression. It can be any [APISIX variable](https://apisix.apache.org/docs/apisix/apisix-variable) or string literal. |
 | `op` _string_ | Op specifies the operator used in the expression. Can be `Equal`, `NotEqual`, `GreaterThan`, `GreaterThanEqual`, `LessThan`, `LessThanEqual`, `RegexMatch`, `RegexNotMatch`, `RegexMatchCaseInsensitive`, `RegexNotMatchCaseInsensitive`, `In`, or `NotIn`. |
 | `set` _string array_ | Set provides a list of acceptable values for the expression. This should be used when Op is `In` or `NotIn`. |
 | `value` _string_ | Value defines a single value to compare against the subject. This should be used when Op is not `In` or `NotIn`. Set and Value are mutually exclusive—only one should be set at a time. |
