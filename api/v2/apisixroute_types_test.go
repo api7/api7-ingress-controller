@@ -90,7 +90,16 @@ func TestApisixRoute_BodyScope_EmptyName(t *testing.T) {
 	v := loadApisixRouteSchema(t)
 	err := v.Validate(t, newRouteWithBodyExpr("apisix", "", "login"))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "name is required when scope is not Path")
+	assert.Contains(t, err.Error(), "name is required and must not be blank when scope is not Path")
+}
+
+// TestApisixRoute_BodyScope_WhitespaceName verifies that a Body scope expr with
+// a whitespace-only name is rejected (trim() prevents blank names from passing).
+func TestApisixRoute_BodyScope_WhitespaceName(t *testing.T) {
+	v := loadApisixRouteSchema(t)
+	err := v.Validate(t, newRouteWithBodyExpr("apisix", "   ", "login"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "name is required and must not be blank when scope is not Path")
 }
 
 // TestApisixRoute_PathScope_EmptyName verifies that Path scope without a name

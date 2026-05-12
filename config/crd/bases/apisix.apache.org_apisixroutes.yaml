@@ -231,9 +231,10 @@ spec:
                                 - scope
                                 type: object
                                 x-kubernetes-validations:
-                                - message: name is required when scope is not Path
-                                  rule: self.scope == 'Path' || size(self.name) >
-                                    0
+                                - message: name is required and must not be blank
+                                    when scope is not Path
+                                  rule: self.scope == 'Path' || size(self.name.trim())
+                                    > 0
                               value:
                                 description: |-
                                   Value defines a single value to compare against the subject.
