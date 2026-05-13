@@ -329,6 +329,7 @@ spec:
 			// Verify health check is removed from the target upstream
 			ups, err = s.DefaultDataplaneResource().Upstream().List(context.Background())
 			Expect(err).ToNot(HaveOccurred())
+			Expect(ups).NotTo(BeEmpty(), "upstreams should still exist after policy deletion")
 			for _, u := range ups {
 				Expect(u.Checks).To(BeNil(), "upstream should not have health check after policy deletion")
 			}

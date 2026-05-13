@@ -18,17 +18,14 @@
 package translator
 
 import (
-	"time"
-
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
+	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 )
-
-const _minHealthCheckInterval = time.Second
 
 func convertBackendRef(namespace, name, kind string) gatewayv1.BackendRef {
 	backendRef := gatewayv1.BackendRef{}
@@ -119,8 +116,8 @@ func translateBTPActiveHealthCheck(config *v1alpha1.ActiveHealthCheck) *adctypes
 	}
 	if config.Healthy != nil {
 		interval := config.Healthy.Interval.Duration
-		if interval < _minHealthCheckInterval {
-			interval = _minHealthCheckInterval
+		if interval < apiv2.ActiveHealthCheckMinInterval {
+			interval = apiv2.ActiveHealthCheckMinInterval
 		}
 		active.Healthy = adctypes.UpstreamActiveHealthCheckHealthy{
 			Interval: int(interval.Seconds()),
@@ -132,8 +129,8 @@ func translateBTPActiveHealthCheck(config *v1alpha1.ActiveHealthCheck) *adctypes
 	}
 	if config.Unhealthy != nil {
 		interval := config.Unhealthy.Interval.Duration
-		if interval < _minHealthCheckInterval {
-			interval = _minHealthCheckInterval
+		if interval < apiv2.ActiveHealthCheckMinInterval {
+			interval = apiv2.ActiveHealthCheckMinInterval
 		}
 		active.Unhealthy = adctypes.UpstreamActiveHealthCheckUnhealthy{
 			Interval: int(interval.Seconds()),
