@@ -18,7 +18,9 @@
 package controller
 
 import (
+	"context"
 	"fmt"
+	"sort"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -223,4 +225,106 @@ func parentRefValueEqual(a, b gatewayv1.ParentReference) bool {
 		ptr.Equal(a.Kind, b.Kind) &&
 		ptr.Equal(a.Namespace, b.Namespace) &&
 		a.Name == b.Name
+}
+
+// ProcessL4RoutePolicy finds L4RoutePolicy resources that target the given L4 route
+// (identified by namespace, name, and kind), resolves conflicts deterministically,
+// populates tctx.L4RoutePolicies with the winning policy, and queues status updates.
+func ProcessL4RoutePolicy(
+	c client.Client,
+	log logr.Logger,
+	tctx *provider.TranslateContext,
+	routeNamespace, routeName, routeKind string,
+) {
+	var list v1alpha1.L4RoutePolicyList
+	key := indexer.GenIndexKeyWithGK(gatewayv1alpha2.GroupName, routeKind, routeNamespace, routeName)
+	if err := c.List(context.Background(), &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
+		log.Error(err, "failed to list L4RoutePolicy", "namespace", routeNamespace, "name", routeName, "kind", routeKind)
+		return
+	}
+	if len(list.Items) == 0 {
+		return
+	}
+
+	// Deterministic conflict resolution: oldest creationTimestamp wins; tie-break by namespace/name.
+	sort.Slice(list.Items, func(i, j int) bool {
+		ti := list.Items[i].CreationTimestamp.Time
+		tj := list.Items[j].CreationTimestamp.Time
+		if ti.Equal(tj) {
+			ki := list.Items[i].Namespace + "/" + list.Items[i].Name
+			kj := list.Items[j].Namespace + "/" + list.Items[j].Name
+			return ki < kj
+		}
+		return ti.Before(tj)
+	})
+
+	winner := list.Items[0].DeepCopy()
+	tctx.L4RoutePolicies[types.NamespacedName{Namespace: winner.Namespace, Name: winner.Name}] = winner
+
+	for i := range list.Items {
+		policy := list.Items[i]
+		var condition metav1.Condition
+		if i == 0 {
+			condition = metav1.Condition{
+				Type:               string(gatewayv1alpha2.PolicyConditionAccepted),
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: policy.GetGeneration(),
+				LastTransitionTime: metav1.Now(),
+				Reason:             string(gatewayv1alpha2.PolicyReasonAccepted),
+				Message:            "Policy has been accepted",
+			}
+		} else {
+			condition = metav1.Condition{
+				Type:               string(gatewayv1alpha2.PolicyConditionAccepted),
+				Status:             metav1.ConditionFalse,
+				ObservedGeneration: policy.GetGeneration(),
+				LastTransitionTime: metav1.Now(),
+				Reason:             string(gatewayv1alpha2.PolicyReasonConflicted),
+				Message:            fmt.Sprintf("Conflicts with L4RoutePolicy %s/%s which was created earlier", winner.Namespace, winner.Name),
+			}
+		}
+
+		if updated := SetAncestors(&policy.Status, tctx.RouteParentRefs, condition); updated {
+			policyCopy := policy.DeepCopy()
+			tctx.StatusUpdaters = append(tctx.StatusUpdaters, status.Update{
+				NamespacedName: utils.NamespacedName(policyCopy),
+				Resource:       policyCopy,
+				Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
+					cp := obj.(*v1alpha1.L4RoutePolicy).DeepCopy()
+					cp.Status = policyCopy.Status
+					return cp
+				}),
+			})
+		}
+	}
+}
+
+// updateL4RoutePolicyStatusOnDeleting clears ancestor status entries for L4RoutePolicy
+// resources that target the deleted route.
+func updateL4RoutePolicyStatusOnDeleting(ctx context.Context, c client.Client, updater status.Updater, log logr.Logger, nn types.NamespacedName, routeKind string) {
+	var list v1alpha1.L4RoutePolicyList
+	key := indexer.GenIndexKeyWithGK(gatewayv1alpha2.GroupName, routeKind, nn.Namespace, nn.Name)
+	if err := c.List(ctx, &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
+		log.Error(err, "failed to list L4RoutePolicy on route deletion", "namespace", nn.Namespace, "name", nn.Name)
+		return
+	}
+	for _, policy := range list.Items {
+		updateL4RoutePolicyDeleteAncestors(updater, policy)
+	}
+}
+
+func updateL4RoutePolicyDeleteAncestors(updater status.Updater, policy v1alpha1.L4RoutePolicy) {
+	if len(policy.Status.Ancestors) == 0 {
+		return
+	}
+	policy.Status.Ancestors = nil
+	updater.Update(status.Update{
+		NamespacedName: utils.NamespacedName(&policy),
+		Resource:       policy.DeepCopy(),
+		Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
+			cp := obj.(*v1alpha1.L4RoutePolicy).DeepCopy()
+			cp.Status = policy.Status
+			return cp
+		}),
+	})
 }
