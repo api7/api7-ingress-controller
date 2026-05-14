@@ -18,9 +18,12 @@
 package translator
 
 import (
+	"encoding/json"
+
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
@@ -168,4 +171,48 @@ func translateBTPPassiveHealthCheck(config *v1alpha1.PassiveHealthCheck) *adctyp
 		}
 	}
 	return passive
+}
+
+// AttachL4RoutePolicyPlugins merges plugins from the matching L4RoutePolicy (if any) into the
+// provided plugins map. It looks up policies targeting the route identified by routeNamespace,
+// routeName, and routeKind.
+func (t *Translator) AttachL4RoutePolicyPlugins(
+	policies map[types.NamespacedName]*v1alpha1.L4RoutePolicy,
+	routeNamespace, routeName, routeKind string,
+	plugins adctypes.Plugins,
+) {
+	if len(policies) == 0 {
+		return
+	}
+	for _, policy := range policies {
+		if policy.Namespace != routeNamespace {
+			continue
+		}
+		for _, ref := range policy.Spec.TargetRefs {
+			if string(ref.Group) != gatewayv1alpha2.GroupName {
+				continue
+			}
+			if string(ref.Kind) != routeKind {
+				continue
+			}
+			if string(ref.Name) != routeName {
+				continue
+			}
+			t.mergeL4PolicyPlugins(policy, plugins)
+			return
+		}
+	}
+}
+
+func (t *Translator) mergeL4PolicyPlugins(policy *v1alpha1.L4RoutePolicy, plugins adctypes.Plugins) {
+	for _, plugin := range policy.Spec.Plugins {
+		cfg := make(map[string]any)
+		if len(plugin.Config.Raw) > 0 {
+			if err := json.Unmarshal(plugin.Config.Raw, &cfg); err != nil {
+				t.Log.Error(err, "failed to unmarshal L4RoutePolicy plugin config", "plugin", plugin.Name, "policy", policy.Name)
+				continue
+			}
+		}
+		plugins[plugin.Name] = cfg
+	}
 }

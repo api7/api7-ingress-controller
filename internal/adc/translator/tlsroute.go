@@ -153,6 +153,12 @@ func (t *Translator) TranslateTLSRoute(tctx *provider.TranslateContext, tlsRoute
 			streamRoute.Labels = labels
 			service.StreamRoutes = append(service.StreamRoutes, streamRoute)
 		}
+
+		if service.Plugins == nil {
+			service.Plugins = make(adctypes.Plugins)
+		}
+		t.AttachL4RoutePolicyPlugins(tctx.L4RoutePolicies, tlsRoute.Namespace, tlsRoute.Name, "TLSRoute", service.Plugins)
+
 		result.Services = append(result.Services, service)
 	}
 	return result, nil
