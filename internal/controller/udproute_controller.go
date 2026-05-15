@@ -515,7 +515,7 @@ func (r *UDPRouteReconciler) listUDPRoutesForL4RoutePolicy(ctx context.Context, 
 		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to L4RoutePolicy")
 		return nil
 	}
-	var requests []reconcile.Request
+	requests := make([]reconcile.Request, 0, len(policy.Spec.TargetRefs))
 	seen := make(map[k8stypes.NamespacedName]struct{})
 	for _, ref := range policy.Spec.TargetRefs {
 		if string(ref.Kind) != KindUDPRoute {
