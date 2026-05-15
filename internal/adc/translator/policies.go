@@ -102,7 +102,7 @@ func translateBTPHealthCheck(hc *v1alpha1.HealthCheck) *adctypes.UpstreamHealthC
 func translateBTPActiveHealthCheck(config *v1alpha1.ActiveHealthCheck) *adctypes.UpstreamActiveHealthCheck {
 	t := config.Type
 	if t == "" {
-		t = "http"
+		t = apiv2.HealthCheckHTTP
 	}
 	active := &adctypes.UpstreamActiveHealthCheck{
 		Type:                   t,
