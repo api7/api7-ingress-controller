@@ -93,6 +93,9 @@ func (r *UDPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Watches(&v1alpha1.GatewayProxy{},
 			handler.EnqueueRequestsFromMapFunc(r.listUDPRoutesForGatewayProxy),
+		).
+		Watches(&v1alpha1.L4RoutePolicy{},
+			handler.EnqueueRequestsFromMapFunc(r.listUDPRoutesForL4RoutePolicy),
 		)
 
 	if GetEnableReferenceGrant() {
@@ -240,6 +243,7 @@ func (r *UDPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 				r.Log.Error(err, "failed to delete udproute", "udproute", tr)
 				return ctrl.Result{}, err
 			}
+			updateL4RoutePolicyStatusOnDeleting(ctx, r.Client, r.Updater, r.Log, req.NamespacedName, KindUDPRoute)
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
@@ -293,6 +297,7 @@ func (r *UDPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	ProcessBackendTrafficPolicy(r.Client, r.Log, tctx)
+	ProcessL4RoutePolicy(r.Client, r.Log, tctx, tr.Namespace, tr.Name, KindUDPRoute)
 	tr.Status.Parents = make([]gatewayv1.RouteParentStatus, 0, len(gateways))
 	for _, gateway := range gateways {
 		parentStatus := gatewayv1.RouteParentStatus{}
@@ -500,6 +505,31 @@ func (r *UDPRouteReconciler) listUDPRoutesByServiceRef(ctx context.Context, obj 
 				Name:      tr.Name,
 			},
 		})
+	}
+	return requests
+}
+
+func (r *UDPRouteReconciler) listUDPRoutesForL4RoutePolicy(ctx context.Context, obj client.Object) []reconcile.Request {
+	policy, ok := obj.(*v1alpha1.L4RoutePolicy)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to L4RoutePolicy")
+		return nil
+	}
+	requests := make([]reconcile.Request, 0, len(policy.Spec.TargetRefs))
+	seen := make(map[k8stypes.NamespacedName]struct{})
+	for _, ref := range policy.Spec.TargetRefs {
+		if string(ref.Kind) != KindUDPRoute {
+			continue
+		}
+		nn := k8stypes.NamespacedName{
+			Namespace: policy.Namespace,
+			Name:      string(ref.Name),
+		}
+		if _, ok := seen[nn]; ok {
+			continue
+		}
+		seen[nn] = struct{}{}
+		requests = append(requests, reconcile.Request{NamespacedName: nn})
 	}
 	return requests
 }
