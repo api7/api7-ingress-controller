@@ -911,7 +911,6 @@ func L4RoutePolicyIndexFunc(rawObj client.Object) []string {
 	return keys
 }
 
-
 func IngressClassParametersRefIndexFunc(rawObj client.Object) []string {
 	ingressClass := rawObj.(*networkingv1.IngressClass)
 	// check if the IngressClass references this gateway proxy
