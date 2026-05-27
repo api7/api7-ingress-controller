@@ -372,6 +372,10 @@ func ParseRouteParentRefs(
 		reason := gatewayv1.RouteReasonNoMatchingParent
 		var listenerName string
 		var matchedListener gatewayv1.Listener
+		var matchedListeners []gatewayv1.Listener
+
+		// Track if sectionName was explicitly specified
+		sectionNameSpecified := parentRef.SectionName != nil && *parentRef.SectionName != ""
 
 		for _, listener := range gateway.Spec.Listeners {
 			if parentRef.SectionName != nil {
@@ -395,7 +399,6 @@ func ParseRouteParentRefs(
 				continue
 			}
 
-			listenerName = string(listener.Name)
 			ok, err := routeMatchesListenerAllowedRoutes(ctx, mgrc, route, listener.AllowedRoutes, gateway.Namespace, parentRef.Namespace)
 			if err != nil {
 				log.Error(err, "failed matching listener to a route for gateway",
@@ -410,9 +413,23 @@ func ParseRouteParentRefs(
 
 			// TODO: check if the listener status is programmed
 
+			if sectionNameSpecified {
+				listenerName = string(listener.Name)
+			}
+
+			if !matched {
+				// First match - store for backward compatibility
+				matchedListener = listener
+			}
+
+			// Always add to the list of matched listeners
+			matchedListeners = append(matchedListeners, listener)
 			matched = true
-			matchedListener = listener
-			break
+
+			// Only break if sectionName was explicitly specified
+			if sectionNameSpecified {
+				break
+			}
 		}
 
 		if matched {
@@ -420,6 +437,7 @@ func ParseRouteParentRefs(
 				Gateway:      &gateway,
 				ListenerName: listenerName,
 				Listener:     &matchedListener,
+				Listeners:    matchedListeners,
 				Conditions: []metav1.Condition{{
 					Type:               string(gatewayv1.RouteConditionAccepted),
 					Status:             metav1.ConditionTrue,
@@ -431,7 +449,8 @@ func ParseRouteParentRefs(
 			gateways = append(gateways, RouteParentRefContext{
 				Gateway:      &gateway,
 				ListenerName: listenerName,
-				Listener:     &matchedListener,
+				Listener:     nil,
+				Listeners:    matchedListeners,
 				Conditions: []metav1.Condition{{
 					Type:               string(gatewayv1.RouteConditionAccepted),
 					Status:             metav1.ConditionFalse,
@@ -1113,33 +1132,49 @@ func getUnionOfGatewayHostnames(gateways []RouteParentRefContext) ([]gatewayv1.H
 	hostnames := make([]gatewayv1.Hostname, 0)
 
 	for _, gateway := range gateways {
-		if gateway.ListenerName != "" {
-			// If a listener name is specified, only check that listener
-			for _, listener := range gateway.Gateway.Spec.Listeners {
-				if string(listener.Name) == gateway.ListenerName {
-					// If a listener does not specify a hostname, it can match any hostname
-					if listener.Hostname == nil {
-						return nil, true
-					}
-					hostnames = append(hostnames, *listener.Hostname)
-					break
-				}
+		for _, listener := range listenersForGatewayContext(gateway) {
+			// Only consider listeners that can effectively configure hostnames (HTTP, HTTPS, or TLS).
+			if !isListenerHostnameEffective(listener) {
+				continue
 			}
-		} else {
-			// Otherwise, check all listeners
-			for _, listener := range gateway.Gateway.Spec.Listeners {
-				// Only consider listeners that can effectively configure hostnames (HTTP, HTTPS, or TLS)
-				if isListenerHostnameEffective(listener) {
-					if listener.Hostname == nil {
-						return nil, true
-					}
-					hostnames = append(hostnames, *listener.Hostname)
-				}
+			if listener.Hostname == nil {
+				return nil, true
 			}
+			hostnames = append(hostnames, *listener.Hostname)
 		}
 	}
 
 	return hostnames, false
+}
+
+// listenersForGatewayContext returns the listeners relevant for hostname resolution.
+// When a specific listener was matched by sectionName, only that listener is returned.
+// Otherwise, all gateway spec listeners are considered.
+func listenersForGatewayContext(gateway RouteParentRefContext) []gatewayv1.Listener {
+	if gateway.ListenerName != "" {
+		for _, listener := range gateway.Gateway.Spec.Listeners {
+			if string(listener.Name) == gateway.ListenerName {
+				return []gatewayv1.Listener{listener}
+			}
+		}
+		return nil
+	}
+	return gateway.Gateway.Spec.Listeners
+}
+
+// appendListeners appends listeners to the slice, avoiding duplicates by port+name.
+func appendListeners(existing []gatewayv1.Listener, toAdd ...gatewayv1.Listener) []gatewayv1.Listener {
+	seen := make(map[string]struct{}, len(existing))
+	for _, l := range existing {
+		seen[string(l.Name)] = struct{}{}
+	}
+	for _, l := range toAdd {
+		if _, ok := seen[string(l.Name)]; !ok {
+			existing = append(existing, l)
+			seen[string(l.Name)] = struct{}{}
+		}
+	}
+	return existing
 }
 
 // getMinimumHostnameIntersection returns the smallest intersection hostname

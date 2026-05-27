@@ -31,7 +31,7 @@ import (
 )
 
 func TestTranslateApisixConsumer_UsesMetadataLabelsWithoutOverwritingControllerLabels(t *testing.T) {
-	translator := NewTranslator(logr.Discard())
+	translator := NewTranslator(logr.Discard(), "")
 	tctx := provider.NewDefaultTranslateContext(context.Background())
 
 	consumer := &apiv2.ApisixConsumer{
@@ -49,7 +49,7 @@ func TestTranslateApisixConsumer_UsesMetadataLabelsWithoutOverwritingControllerL
 			},
 		},
 		Spec: apiv2.ApisixConsumerSpec{
-			AuthParameter: apiv2.ApisixConsumerAuthParameter{
+			AuthParameter: &apiv2.ApisixConsumerAuthParameter{
 				BasicAuth: &apiv2.ApisixConsumerBasicAuth{
 					Value: &apiv2.ApisixConsumerBasicAuthValue{
 						Username: "demo",

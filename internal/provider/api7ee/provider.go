@@ -85,7 +85,7 @@ func New(log logr.Logger, updater status.Updater, readier readiness.ReadinessMan
 	return &api7eeProvider{
 		client:     cli,
 		Options:    o,
-		translator: &translator.Translator{},
+		translator: translator.NewTranslator(log, o.ListenerPortMatchMode),
 		updater:    updater,
 		readier:    readier,
 		syncCh:     make(chan struct{}, 1),
