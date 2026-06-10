@@ -285,13 +285,15 @@ func ProcessL4RoutePolicy(
 		}
 
 		if updated := SetAncestors(&policy.Status, tctx.RouteParentRefs, condition); updated {
-			policyCopy := policy.DeepCopy()
+			// Resource must be a separate copy from the object captured by the Mutator:
+			// the status updater calls client.Get into Resource, overwriting it with the
+			// server state. The Mutator reads policy.Status, which keeps the ancestors set above.
 			tctx.StatusUpdaters = append(tctx.StatusUpdaters, status.Update{
-				NamespacedName: utils.NamespacedName(policyCopy),
-				Resource:       policyCopy,
+				NamespacedName: utils.NamespacedName(&policy),
+				Resource:       policy.DeepCopy(),
 				Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
 					cp := obj.(*v1alpha1.L4RoutePolicy).DeepCopy()
-					cp.Status = policyCopy.Status
+					cp.Status = policy.Status
 					return cp
 				}),
 			})
@@ -317,7 +319,9 @@ func updateL4RoutePolicyDeleteAncestors(updater status.Updater, policy v1alpha1.
 	if len(policy.Status.Ancestors) == 0 {
 		return
 	}
-	policy.Status.Ancestors = nil
+	// status.ancestors is a required field; use an empty slice (serializes to [])
+	// rather than nil (serializes to null), which the CRD schema rejects.
+	policy.Status.Ancestors = []gatewayv1alpha2.PolicyAncestorStatus{}
 	updater.Update(status.Update{
 		NamespacedName: utils.NamespacedName(&policy),
 		Resource:       policy.DeepCopy(),
