@@ -518,7 +518,7 @@ func (r *TCPRouteReconciler) listTCPRoutesForL4RoutePolicy(ctx context.Context, 
 	requests := make([]reconcile.Request, 0, len(policy.Spec.TargetRefs))
 	seen := make(map[k8stypes.NamespacedName]struct{})
 	for _, ref := range policy.Spec.TargetRefs {
-		if string(ref.Kind) != KindTCPRoute {
+		if string(ref.Group) != gatewayv1.GroupName || string(ref.Kind) != KindTCPRoute {
 			continue
 		}
 		nn := k8stypes.NamespacedName{

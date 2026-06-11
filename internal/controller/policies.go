@@ -20,6 +20,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/go-logr/logr"
@@ -238,7 +239,7 @@ func ProcessL4RoutePolicy(
 ) {
 	var list v1alpha1.L4RoutePolicyList
 	key := indexer.GenIndexKeyWithGK(gatewayv1alpha2.GroupName, routeKind, routeNamespace, routeName)
-	if err := c.List(context.Background(), &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
+	if err := c.List(tctx, &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
 		log.Error(err, "failed to list L4RoutePolicy", "namespace", routeNamespace, "name", routeName, "kind", routeKind)
 		return
 	}
@@ -301,8 +302,10 @@ func ProcessL4RoutePolicy(
 	}
 }
 
-// updateL4RoutePolicyStatusOnDeleting clears ancestor status entries for L4RoutePolicy
-// resources that target the deleted route.
+// updateL4RoutePolicyStatusOnDeleting removes the deleted route's ancestor status entries
+// from L4RoutePolicy resources that target it. A single policy may target multiple routes,
+// so the still-existing target routes' parentRefs are recomputed and only ancestor entries
+// no longer referenced by any of them are removed.
 func updateL4RoutePolicyStatusOnDeleting(ctx context.Context, c client.Client, updater status.Updater, log logr.Logger, nn types.NamespacedName, routeKind string) {
 	var list v1alpha1.L4RoutePolicyList
 	key := indexer.GenIndexKeyWithGK(gatewayv1alpha2.GroupName, routeKind, nn.Namespace, nn.Name)
@@ -310,18 +313,66 @@ func updateL4RoutePolicyStatusOnDeleting(ctx context.Context, c client.Client, u
 		log.Error(err, "failed to list L4RoutePolicy on route deletion", "namespace", nn.Namespace, "name", nn.Name)
 		return
 	}
-	for _, policy := range list.Items {
-		updateL4RoutePolicyDeleteAncestors(updater, policy)
+	for i := range list.Items {
+		policy := list.Items[i]
+		var parentRefs []gatewayv1.ParentReference
+		for _, ref := range policy.Spec.TargetRefs {
+			if string(ref.Group) != gatewayv1alpha2.GroupName {
+				continue
+			}
+			// The deleted route returns NotFound here and is naturally skipped.
+			refs, ok := l4RouteParentRefs(ctx, c, string(ref.Kind), types.NamespacedName{Namespace: policy.Namespace, Name: string(ref.Name)})
+			if !ok {
+				continue
+			}
+			parentRefs = append(parentRefs, refs...)
+		}
+		updateL4RoutePolicyDeleteAncestors(updater, policy, parentRefs)
 	}
 }
 
-func updateL4RoutePolicyDeleteAncestors(updater status.Updater, policy v1alpha1.L4RoutePolicy) {
-	if len(policy.Status.Ancestors) == 0 {
+// l4RouteParentRefs returns the parentRefs of the L4 route identified by kind/nn,
+// or ok=false if the route kind is unsupported or the route no longer exists.
+func l4RouteParentRefs(ctx context.Context, c client.Client, kind string, nn types.NamespacedName) ([]gatewayv1.ParentReference, bool) {
+	switch kind {
+	case internaltypes.KindTCPRoute:
+		var route gatewayv1alpha2.TCPRoute
+		if err := c.Get(ctx, nn, &route); err != nil {
+			return nil, false
+		}
+		return route.Spec.ParentRefs, true
+	case internaltypes.KindUDPRoute:
+		var route gatewayv1alpha2.UDPRoute
+		if err := c.Get(ctx, nn, &route); err != nil {
+			return nil, false
+		}
+		return route.Spec.ParentRefs, true
+	case internaltypes.KindTLSRoute:
+		var route gatewayv1alpha2.TLSRoute
+		if err := c.Get(ctx, nn, &route); err != nil {
+			return nil, false
+		}
+		return route.Spec.ParentRefs, true
+	default:
+		return nil, false
+	}
+}
+
+func updateL4RoutePolicyDeleteAncestors(updater status.Updater, policy v1alpha1.L4RoutePolicy, parentRefs []gatewayv1.ParentReference) {
+	length := len(policy.Status.Ancestors)
+	policy.Status.Ancestors = slices.DeleteFunc(policy.Status.Ancestors, func(ancestor gatewayv1alpha2.PolicyAncestorStatus) bool {
+		return !slices.ContainsFunc(parentRefs, func(ref gatewayv1.ParentReference) bool {
+			return parentRefValueEqual(ancestor.AncestorRef, ref)
+		})
+	})
+	if length == len(policy.Status.Ancestors) {
 		return
 	}
-	// status.ancestors is a required field; use an empty slice (serializes to [])
-	// rather than nil (serializes to null), which the CRD schema rejects.
-	policy.Status.Ancestors = []gatewayv1alpha2.PolicyAncestorStatus{}
+	// status.ancestors is a required field; ensure a fully-cleared list serializes to []
+	// rather than null, which the CRD schema rejects.
+	if policy.Status.Ancestors == nil {
+		policy.Status.Ancestors = []gatewayv1alpha2.PolicyAncestorStatus{}
+	}
 	updater.Update(status.Update{
 		NamespacedName: utils.NamespacedName(&policy),
 		Resource:       policy.DeepCopy(),

@@ -213,6 +213,11 @@ func (t *Translator) mergeL4PolicyPlugins(policy *v1alpha1.L4RoutePolicy, plugin
 				continue
 			}
 		}
+		// A literal `config: null` unmarshals to a nil map, which serializes back to
+		// null and is rejected by most APISIX plugins; normalize it to an empty object.
+		if cfg == nil {
+			cfg = map[string]any{}
+		}
 		plugins[plugin.Name] = cfg
 	}
 }
