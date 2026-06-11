@@ -149,10 +149,7 @@ type Timeout struct {
 type StreamRoute struct {
 	Metadata `json:",inline" yaml:",inline"`
 
-	// Plugins is intentionally not omitempty: an empty object ("plugins": {}) must be
-	// emitted so that removing all plugins is detected as a change by the api7ee ADC
-	// backend (an omitted field is treated as "no change" and would leave stale plugins).
-	Plugins    Plugins `json:"plugins"`
+	Plugins    Plugins `json:"plugins,omitempty"`
 	RemoteAddr string  `json:"remote_addr,omitempty"`
 	ServerAddr string  `json:"server_addr,omitempty"`
 	ServerPort int32   `json:"server_port,omitempty"`
@@ -626,8 +623,6 @@ func NewDefaultStreamRoute() *StreamRoute {
 				"managed-by": "apisix-ingress-controller",
 			},
 		},
-		// Non-nil so the now-required plugins field serializes as {} rather than null.
-		Plugins: Plugins{},
 	}
 }
 
