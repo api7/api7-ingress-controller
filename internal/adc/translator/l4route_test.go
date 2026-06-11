@@ -93,8 +93,9 @@ func TestTranslateTCPRouteWithL4RoutePolicy(t *testing.T) {
 			result, err := translator.TranslateTCPRoute(tctx, route)
 			require.NoError(t, err)
 			require.Len(t, result.Services, 1)
+			require.NotEmpty(t, result.Services[0].StreamRoutes)
 
-			plugins := result.Services[0].Plugins
+			plugins := result.Services[0].StreamRoutes[0].Plugins
 			if tt.wantNoPlugins {
 				assert.Empty(t, plugins)
 			} else {
@@ -159,8 +160,9 @@ func TestTranslateUDPRouteWithL4RoutePolicy(t *testing.T) {
 			result, err := translator.TranslateUDPRoute(tctx, route)
 			require.NoError(t, err)
 			require.Len(t, result.Services, 1)
+			require.NotEmpty(t, result.Services[0].StreamRoutes)
 
-			plugins := result.Services[0].Plugins
+			plugins := result.Services[0].StreamRoutes[0].Plugins
 			if tt.wantNoPlugins {
 				assert.Empty(t, plugins)
 			} else {
@@ -249,15 +251,18 @@ func TestTranslateTLSRouteWithL4RoutePolicy(t *testing.T) {
 				assert.Len(t, result.Services[0].StreamRoutes, len(tt.hostnames))
 			}
 
-			plugins := result.Services[0].Plugins
+			// Plugins are attached at the stream_route level so the APISIX stream proxy
+			// applies them; with multiple SNIs each stream_route carries its own copy.
+			require.NotEmpty(t, result.Services[0].StreamRoutes)
+			plugins := result.Services[0].StreamRoutes[0].Plugins
 			if tt.wantNoPlugins {
 				assert.Empty(t, plugins)
 			} else {
-				for _, name := range tt.wantPlugins {
-					assert.Contains(t, plugins, name, "expected plugin %q to be attached", name)
+				for _, streamRoute := range result.Services[0].StreamRoutes {
+					for _, name := range tt.wantPlugins {
+						assert.Contains(t, streamRoute.Plugins, name, "expected plugin %q to be attached", name)
+					}
 				}
-				// Plugins are on the service, not duplicated per stream route
-				assert.Len(t, result.Services, 1, "plugins should be on service level, not duplicated")
 			}
 		})
 	}
