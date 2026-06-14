@@ -198,6 +198,11 @@ func (t *Translator) AttachL4RoutePolicyPlugins(
 			if string(ref.Name) != routeName {
 				continue
 			}
+			// sectionName targeting is not supported for L4 routes; skip such refs
+			// so plugins are not attached for an attachment that cannot be honored.
+			if ref.SectionName != nil && *ref.SectionName != "" {
+				continue
+			}
 			t.mergeL4PolicyPlugins(policy, plugins)
 			return
 		}

@@ -119,6 +119,8 @@ spec:
                 - message: targetRefs kind must be TCPRoute, UDPRoute, or TLSRoute
                   rule: self.all(r, r.kind == 'TCPRoute' || r.kind == 'UDPRoute' ||
                     r.kind == 'TLSRoute')
+                - message: targetRefs group must be gateway.networking.k8s.io
+                  rule: self.all(r, r.group == 'gateway.networking.k8s.io')
             required:
             - targetRefs
             type: object

@@ -30,6 +30,7 @@ type L4RoutePolicySpec struct {
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=16
 	// +kubebuilder:validation:XValidation:rule="self.all(r, r.kind == 'TCPRoute' || r.kind == 'UDPRoute' || r.kind == 'TLSRoute')",message="targetRefs kind must be TCPRoute, UDPRoute, or TLSRoute"
+	// +kubebuilder:validation:XValidation:rule="self.all(r, r.group == 'gateway.networking.k8s.io')",message="targetRefs group must be gateway.networking.k8s.io"
 	TargetRefs []gatewayv1alpha2.LocalPolicyTargetReferenceWithSectionName `json:"targetRefs"`
 
 	// Plugins is the list of APISIX stream plugins to attach to the targeted L4 routes.

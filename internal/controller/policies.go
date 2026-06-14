@@ -228,6 +228,31 @@ func parentRefValueEqual(a, b gatewayv1.ParentReference) bool {
 		a.Name == b.Name
 }
 
+// l4RoutePolicyMatchesRoute reports whether the policy has a targetRef that matches the
+// given L4 route. A ref matches only when its group/kind/name equal the route and it does
+// not pin a sectionName, since L4 routes expose no addressable sections to attach to.
+func l4RoutePolicyMatchesRoute(policy v1alpha1.L4RoutePolicy, routeKind, routeNamespace, routeName string) bool {
+	if policy.Namespace != routeNamespace {
+		return false
+	}
+	for _, ref := range policy.Spec.TargetRefs {
+		if string(ref.Group) != gatewayv1alpha2.GroupName {
+			continue
+		}
+		if string(ref.Kind) != routeKind {
+			continue
+		}
+		if string(ref.Name) != routeName {
+			continue
+		}
+		if ref.SectionName != nil && *ref.SectionName != "" {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
 // ProcessL4RoutePolicy finds L4RoutePolicy resources that target the given L4 route
 // (identified by namespace, name, and kind), resolves conflicts deterministically,
 // populates tctx.L4RoutePolicies with the winning policy, and queues status updates.
@@ -243,6 +268,15 @@ func ProcessL4RoutePolicy(
 		log.Error(err, "failed to list L4RoutePolicy", "namespace", routeNamespace, "name", routeName, "kind", routeKind)
 		return
 	}
+	if len(list.Items) == 0 {
+		return
+	}
+
+	// L4 routes have no addressable sections; a targetRef that specifies a sectionName
+	// cannot be honored, so ignore policies that only match this route via such a ref.
+	list.Items = slices.DeleteFunc(list.Items, func(p v1alpha1.L4RoutePolicy) bool {
+		return !l4RoutePolicyMatchesRoute(p, routeKind, routeNamespace, routeName)
+	})
 	if len(list.Items) == 0 {
 		return
 	}
