@@ -45,6 +45,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
+	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
 // TLSRouteReconciler reconciles a TLSRoute object.
@@ -93,10 +94,15 @@ func (r *TLSRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Watches(&v1alpha1.GatewayProxy{},
 			handler.EnqueueRequestsFromMapFunc(r.listTLSRoutesForGatewayProxy),
-		).
-		Watches(&v1alpha1.L4RoutePolicy{},
+		)
+
+	// L4RoutePolicy is an optional CRD. Only watch it when installed so the
+	// controller still starts if the CRD has not been applied yet (e.g. upgrades).
+	if pkgutils.HasAPIResource(mgr, &v1alpha1.L4RoutePolicy{}) {
+		bdr.Watches(&v1alpha1.L4RoutePolicy{},
 			handler.EnqueueRequestsFromMapFunc(r.listTLSRoutesForL4RoutePolicy),
 		)
+	}
 
 	if GetEnableReferenceGrant() {
 		bdr.Watches(&v1beta1.ReferenceGrant{},
