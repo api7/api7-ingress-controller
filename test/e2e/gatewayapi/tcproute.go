@@ -84,7 +84,6 @@ spec:
 			By("creating TCPRoute")
 			Expect(s.CreateResourceFromString(fmt.Sprintf(tcpRoute, s.Namespace()))).
 				NotTo(HaveOccurred(), "creating TCPRoute")
-			time.Sleep(2 * time.Second)
 
 			By("verifying TCPRoute is functional")
 			s.HTTPOverTCPConnectAssert(true, time.Minute*3) // should be able to connect
