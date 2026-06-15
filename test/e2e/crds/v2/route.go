@@ -2201,9 +2201,19 @@ spec:
 				&apiv2.ApisixRoute{}, fmt.Sprintf(apisixRouteSpec, s.Namespace()))
 
 			By("check upstreams")
-			upstreams, err := s.DefaultDataplaneResource().Upstream().List(context.Background())
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(upstreams).Should(HaveLen(4))
+			// Poll instead of asserting once: the controller syncs the four
+			// upstreams to the data plane asynchronously after the ApisixRoute is
+			// applied, so a single immediate check can race and observe fewer.
+			s.RetryAssertion(func() error {
+				upstreams, err := s.DefaultDataplaneResource().Upstream().List(context.Background())
+				if err != nil {
+					return err
+				}
+				if len(upstreams) != 4 {
+					return fmt.Errorf("expected 4 upstreams, got %d", len(upstreams))
+				}
+				return nil
+			}).ShouldNot(HaveOccurred(), "waiting for 4 upstreams to be synced")
 
 			By("verify ApisixRoute works")
 			s.RequestAssert(&scaffold.RequestAssert{
