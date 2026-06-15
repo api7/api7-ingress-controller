@@ -54,6 +54,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	sslutils "github.com/apache/apisix-ingress-controller/internal/ssl"
 	"github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
 	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
@@ -70,6 +71,7 @@ const (
 	KindIngressClass       = "IngressClass"
 	KindGatewayProxy       = "GatewayProxy"
 	KindSecret             = "Secret"
+	KindConfigMap          = "ConfigMap"
 	KindService            = "Service"
 	KindApisixRoute        = "ApisixRoute"
 	KindApisixGlobalRule   = "ApisixGlobalRule"
@@ -936,6 +938,69 @@ func getListenerStatus(
 					conditionProgrammed.Status = metav1.ConditionFalse
 					conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
 					break
+				}
+			}
+
+			if listener.TLS.FrontendValidation != nil {
+				var configMap corev1.ConfigMap
+				for _, ref := range listener.TLS.FrontendValidation.CACertificateRefs {
+					if ref.Group != "" && string(ref.Group) != corev1.GroupName {
+						conditionResolvedRefs.Status = metav1.ConditionFalse
+						conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonInvalidCertificateRef)
+						conditionResolvedRefs.Message = fmt.Sprintf(`Invalid Group for caCertificateRef, expect "", got "%s"`, ref.Group)
+						conditionProgrammed.Status = metav1.ConditionFalse
+						conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
+						break
+					}
+					if ref.Kind != "" && string(ref.Kind) != KindConfigMap {
+						conditionResolvedRefs.Status = metav1.ConditionFalse
+						conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonInvalidCertificateRef)
+						conditionResolvedRefs.Message = fmt.Sprintf(`Invalid Kind for caCertificateRef, expect "ConfigMap", got "%s"`, ref.Kind)
+						conditionProgrammed.Status = metav1.ConditionFalse
+						conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
+						break
+					}
+					if permitted := checkReferenceGrant(ctx,
+						mrgc,
+						v1beta1.ReferenceGrantFrom{
+							Group:     gatewayv1.GroupName,
+							Kind:      KindGateway,
+							Namespace: v1beta1.Namespace(gateway.Namespace),
+						},
+						gatewayv1.ObjectReference{
+							Group:     corev1.GroupName,
+							Kind:      KindConfigMap,
+							Name:      ref.Name,
+							Namespace: ref.Namespace,
+						},
+					); !permitted {
+						conditionResolvedRefs.Status = metav1.ConditionFalse
+						conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonRefNotPermitted)
+						conditionResolvedRefs.Message = "caCertificateRefs cross namespaces is not permitted"
+						conditionProgrammed.Status = metav1.ConditionFalse
+						conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
+						break
+					}
+					configMapNN := k8stypes.NamespacedName{
+						Namespace: string(*cmp.Or(ref.Namespace, (*gatewayv1.Namespace)(&gateway.Namespace))),
+						Name:      string(ref.Name),
+					}
+					if err := mrgc.Get(ctx, configMapNN, &configMap); err != nil {
+						conditionResolvedRefs.Status = metav1.ConditionFalse
+						conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonInvalidCertificateRef)
+						conditionResolvedRefs.Message = err.Error()
+						conditionProgrammed.Status = metav1.ConditionFalse
+						conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
+						break
+					}
+					if _, err := sslutils.ExtractCAFromConfigMap(&configMap); err != nil {
+						conditionResolvedRefs.Status = metav1.ConditionFalse
+						conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonInvalidCertificateRef)
+						conditionResolvedRefs.Message = fmt.Sprintf("Malformed CA ConfigMap referenced: %s", err.Error())
+						conditionProgrammed.Status = metav1.ConditionFalse
+						conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
+						break
+					}
 				}
 			}
 		}

@@ -83,6 +83,23 @@ func ExtractCertificate(secret *corev1.Secret) ([]byte, error) {
 	return cert, err
 }
 
+// ExtractCAFromConfigMap extracts the CA certificate from a ConfigMap.
+//
+// Following the Gateway API conformance for frontendValidation, the CA certificate
+// is read from the `ca.crt` key. Both Data and BinaryData are supported.
+func ExtractCAFromConfigMap(cm *corev1.ConfigMap) ([]byte, error) {
+	if cm == nil {
+		return nil, ErrMissingCert
+	}
+	if ca, ok := cm.Data[corev1.ServiceAccountRootCAKey]; ok && ca != "" {
+		return []byte(ca), nil
+	}
+	if ca, ok := cm.BinaryData[corev1.ServiceAccountRootCAKey]; ok && len(ca) > 0 {
+		return ca, nil
+	}
+	return nil, ErrMissingCert
+}
+
 // ExtractHostsFromCertificate parses the certificate PEM block and returns the DNS names.
 func ExtractHostsFromCertificate(certPEM []byte) ([]string, error) {
 	block, _ := pem.Decode(certPEM)

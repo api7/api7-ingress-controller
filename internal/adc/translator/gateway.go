@@ -20,6 +20,7 @@ package translator
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -76,6 +77,12 @@ func (t *Translator) translateSecret(tctx *provider.TranslateContext, listener g
 	sslObjs := make([]*adctypes.SSL, 0)
 	switch *listener.TLS.Mode {
 	case gatewayv1.TLSModeTerminate:
+		// frontendValidation configures downstream mTLS: clients must present a
+		// certificate signed by one of the referenced CAs during the TLS handshake.
+		client, err := t.translateFrontendValidation(tctx, listener, obj)
+		if err != nil {
+			return nil, err
+		}
 		for refIndex, ref := range listener.TLS.CertificateRefs {
 			ns := obj.GetNamespace()
 			if ref.Namespace != nil {
@@ -118,6 +125,7 @@ func (t *Translator) translateSecret(tctx *provider.TranslateContext, listener g
 					}
 					sslObj.Snis = append(sslObj.Snis, hosts...)
 				}
+				sslObj.Client = client
 				sslObj.ID = id.GenID(fmt.Sprintf("%s_%s_%d", adctypes.ComposeSSLName(internaltypes.KindGateway, obj.Namespace, obj.Name), listener.Name, refIndex))
 				t.Log.V(1).Info("generated ssl id", "ssl id", sslObj.ID, "secret", secretNN.String())
 				sslObj.Labels = label.GenLabel(obj)
@@ -133,6 +141,42 @@ func (t *Translator) translateSecret(tctx *provider.TranslateContext, listener g
 	}
 
 	return sslObjs, nil
+}
+
+// translateFrontendValidation builds the downstream mTLS client configuration from a
+// listener's frontendValidation. The referenced CA certificates (ConfigMap, key `ca.crt`)
+// are bundled into a single trust anchor used to validate client certificates.
+func (t *Translator) translateFrontendValidation(tctx *provider.TranslateContext, listener gatewayv1.Listener, obj *gatewayv1.Gateway) (*adctypes.ClientClass, error) {
+	if listener.TLS.FrontendValidation == nil || len(listener.TLS.FrontendValidation.CACertificateRefs) == 0 {
+		return nil, nil
+	}
+
+	cas := make([]string, 0, len(listener.TLS.FrontendValidation.CACertificateRefs))
+	for _, ref := range listener.TLS.FrontendValidation.CACertificateRefs {
+		// Core support is limited to ConfigMap references.
+		if ref.Kind != "" && string(ref.Kind) != internaltypes.KindConfigMap {
+			return nil, fmt.Errorf("unsupported frontendValidation caCertificateRef kind %q in listener %s, only ConfigMap is supported", ref.Kind, listener.Name)
+		}
+		ns := obj.GetNamespace()
+		if ref.Namespace != nil {
+			ns = string(*ref.Namespace)
+		}
+		cmNN := types.NamespacedName{Namespace: ns, Name: string(ref.Name)}
+		cm := tctx.ConfigMaps[cmNN]
+		if cm == nil {
+			return nil, fmt.Errorf("frontendValidation CA ConfigMap %s not found", cmNN.String())
+		}
+		ca, err := sslutils.ExtractCAFromConfigMap(cm)
+		if err != nil {
+			t.Log.Error(err, "failed to extract CA from configmap", "configmap", cmNN.String())
+			return nil, fmt.Errorf("failed to extract CA from ConfigMap %s: %w", cmNN.String(), err)
+		}
+		cas = append(cas, strings.TrimSpace(string(ca)))
+	}
+
+	return &adctypes.ClientClass{
+		CA: strings.Join(cas, "\n"),
+	}, nil
 }
 
 // fillPluginsFromGatewayProxy fill plugins from GatewayProxy to given plugins

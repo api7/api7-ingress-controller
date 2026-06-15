@@ -47,6 +47,7 @@ const (
 	ParentRefs                = "parentRefs"
 	IngressClass              = "ingressClass"
 	SecretIndexRef            = "secretRefs"
+	ConfigMapIndexRef         = "configMapRefs"
 	IngressClassRef           = "ingressClassRef"
 	IngressClassParametersRef = "ingressClassParametersRef"
 	ConsumerGatewayRef        = "consumerGatewayRef"
@@ -141,6 +142,15 @@ func setupGatewayIndexer(mgr ctrl.Manager) error {
 		&gatewayv1.Gateway{},
 		SecretIndexRef,
 		GatewaySecretIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&gatewayv1.Gateway{},
+		ConfigMapIndexRef,
+		GatewayConfigMapIndexFunc,
 	); err != nil {
 		return err
 	}
@@ -584,6 +594,33 @@ func GatewaySecretIndexFunc(rawObj client.Object) (keys []string) {
 		}
 		for _, ref := range listener.TLS.CertificateRefs {
 			if ref.Kind == nil || *ref.Kind != internaltypes.KindSecret {
+				continue
+			}
+			namespace := gateway.GetNamespace()
+			if ref.Namespace != nil {
+				namespace = string(*ref.Namespace)
+			}
+			key := GenIndexKey(namespace, string(ref.Name))
+			if _, ok := m[key]; !ok {
+				m[key] = struct{}{}
+				keys = append(keys, key)
+			}
+		}
+	}
+	return keys
+}
+
+// GatewayConfigMapIndexFunc indexes Gateways by the CA ConfigMaps referenced via
+// listener TLS frontendValidation, so that ConfigMap changes can trigger reconciliation.
+func GatewayConfigMapIndexFunc(rawObj client.Object) (keys []string) {
+	gateway := rawObj.(*gatewayv1.Gateway)
+	var m = make(map[string]struct{})
+	for _, listener := range gateway.Spec.Listeners {
+		if listener.TLS == nil || listener.TLS.FrontendValidation == nil {
+			continue
+		}
+		for _, ref := range listener.TLS.FrontendValidation.CACertificateRefs {
+			if ref.Kind != "" && string(ref.Kind) != internaltypes.KindConfigMap {
 				continue
 			}
 			namespace := gateway.GetNamespace()
