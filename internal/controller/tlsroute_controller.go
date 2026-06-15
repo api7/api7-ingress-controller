@@ -59,6 +59,9 @@ type TLSRouteReconciler struct { //nolint:revive
 
 	Updater status.Updater
 	Readier readiness.ReadinessManager
+
+	// supportsL4RoutePolicy indicates whether the L4RoutePolicy CRD is installed.
+	supportsL4RoutePolicy bool
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -98,7 +101,8 @@ func (r *TLSRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	// L4RoutePolicy is an optional CRD. Only watch it when installed so the
 	// controller still starts if the CRD has not been applied yet (e.g. upgrades).
-	if pkgutils.HasAPIResource(mgr, &v1alpha1.L4RoutePolicy{}) {
+	r.supportsL4RoutePolicy = pkgutils.HasAPIResource(mgr, &v1alpha1.L4RoutePolicy{})
+	if r.supportsL4RoutePolicy {
 		bdr.Watches(&v1alpha1.L4RoutePolicy{},
 			handler.EnqueueRequestsFromMapFunc(r.listTLSRoutesForL4RoutePolicy),
 		)
@@ -249,7 +253,9 @@ func (r *TLSRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 				r.Log.Error(err, "failed to delete tlsroute", "tlsroute", tr)
 				return ctrl.Result{}, err
 			}
-			updateL4RoutePolicyStatusOnDeleting(ctx, r.Client, r.Updater, r.Log, req.NamespacedName, types.KindTLSRoute)
+			if r.supportsL4RoutePolicy {
+				updateL4RoutePolicyStatusOnDeleting(ctx, r.Client, r.Updater, r.Log, req.NamespacedName, types.KindTLSRoute)
+			}
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
@@ -303,7 +309,9 @@ func (r *TLSRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	ProcessBackendTrafficPolicy(r.Client, r.Log, tctx)
-	ProcessL4RoutePolicy(r.Client, r.Log, tctx, tr.Namespace, tr.Name, types.KindTLSRoute)
+	if r.supportsL4RoutePolicy {
+		ProcessL4RoutePolicy(r.Client, r.Log, tctx, tr.Namespace, tr.Name, types.KindTLSRoute)
+	}
 	tr.Status.Parents = make([]gatewayv1.RouteParentStatus, 0, len(gateways))
 	for _, gateway := range gateways {
 		parentStatus := gatewayv1.RouteParentStatus{}
