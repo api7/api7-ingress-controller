@@ -393,11 +393,17 @@ spec:
 				Interval: time.Second * 10,
 				Timeout:  3 * time.Minute,
 			})
-			s.NewAPISIXClient().
-				GET("/get").
-				WithHost("default.example.com").
-				Expect().
-				Status(404)
+			// The deleted Ingress is reconciled away asynchronously after the
+			// controller is scaled back up, so poll until the route is gone
+			// instead of checking once.
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method:   "GET",
+				Path:     "/get",
+				Host:     "default.example.com",
+				Check:    scaffold.WithExpectedStatus(http.StatusNotFound),
+				Interval: time.Second * 2,
+				Timeout:  time.Minute,
+			})
 		})
 
 		It("IngressClassName Change", func() {
