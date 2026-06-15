@@ -36,6 +36,8 @@ import (
 
 const _secretName = "test-apisix-tls"
 
+const _hostAPI6 = "api6.com"
+
 var Cert = strings.TrimSpace(framework.TestServerCert)
 
 var Key = strings.TrimSpace(framework.TestServerKey)
@@ -176,7 +178,7 @@ spec:
 
 			By("create secret")
 			secretName := _secretName
-			host := "api6.com"
+			host := _hostAPI6
 			createSecret(s, secretName)
 			gatewayClassName := s.Namespace()
 			var defaultGatewayClass = `
@@ -238,7 +240,7 @@ spec:
 
 			By("create server cert secret")
 			secretName := _secretName
-			host := "api6.com"
+			host := _hostAPI6
 			createSecret(s, secretName)
 
 			By("create CA ConfigMap for frontendValidation")
