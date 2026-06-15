@@ -145,7 +145,7 @@ spec:
 					And(
 						ContainSubstring(`status: "False"`),
 						ContainSubstring(`reason: SyncFailed`),
-						ContainSubstring(`(non-existent-plugin) not found`),
+						MatchRegexp(`(?s)\(non-existent-plugin\)\s+not found`),
 					),
 				)
 			}

@@ -33,7 +33,15 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 )
 
-const testCACert = "-----BEGIN CERTIFICATE-----\nMIIBCA-test-ca\n-----END CERTIFICATE-----"
+const testCACert = `-----BEGIN CERTIFICATE-----
+MIIBQzCB6qADAgECAgEBMAoGCCqGSM49BAMCMBIxEDAOBgNVBAMTB3Rlc3QtY2Ew
+HhcNNzAwMTAxMDAwMDAwWhcNMzgwMTE5MDMxNDA4WjASMRAwDgYDVQQDEwd0ZXN0
+LWNhMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEJo4AsM30ZHN+mYeHjqwceGBz
+V2bMz1+OyNXuaPYVrSF7HShZhanOYNHb6QLNhjGxMsBDQHVLolPjyTQJp9R5GqMx
+MC8wDgYDVR0PAQH/BAQDAgIEMB0GA1UdDgQWBBRzjh0YVmnpN/cFJziO0aYySuti
+4DAKBggqhkjOPQQDAgNIADBFAiEA7fEGiQA7wX0LrrkRH4KplAPOgVV5Kvm/1dv1
+3TLq9ssCIHKkv2dhydRvv36KC1WsRDcrl7W+7YmEnCS9PZfb8agM
+-----END CERTIFICATE-----`
 
 func newTLSGateway(frontendValidation *gatewayv1.FrontendTLSValidation) *gatewayv1.Gateway {
 	return &gatewayv1.Gateway{
@@ -132,6 +140,35 @@ func TestTranslateSecret_FrontendValidation(t *testing.T) {
 			},
 		})
 		tctx := newTranslateContextWithTLS()
+
+		_, err := tr.translateSecret(tctx, gateway.Spec.Listeners[0], gateway)
+		require.Error(t, err)
+	})
+
+	t.Run("unsupported CA ref group returns error", func(t *testing.T) {
+		tr := &Translator{Log: logr.Discard()}
+		gateway := newTLSGateway(&gatewayv1.FrontendTLSValidation{
+			CACertificateRefs: []gatewayv1.ObjectReference{
+				{Group: "example.com", Kind: "ConfigMap", Name: "ca-cm"},
+			},
+		})
+		tctx := newTranslateContextWithTLS()
+
+		_, err := tr.translateSecret(tctx, gateway.Spec.Listeners[0], gateway)
+		require.Error(t, err)
+	})
+
+	t.Run("malformed CA data returns error", func(t *testing.T) {
+		tr := &Translator{Log: logr.Discard()}
+		gateway := newTLSGateway(&gatewayv1.FrontendTLSValidation{
+			CACertificateRefs: []gatewayv1.ObjectReference{
+				{Kind: "ConfigMap", Name: "ca-cm"},
+			},
+		})
+		tctx := newTranslateContextWithTLS()
+		tctx.ConfigMaps[types.NamespacedName{Namespace: "default", Name: "ca-cm"}] = &corev1.ConfigMap{
+			Data: map[string]string{corev1.ServiceAccountRootCAKey: "   not a pem cert   "},
+		}
 
 		_, err := tr.translateSecret(tctx, gateway.Spec.Listeners[0], gateway)
 		require.Error(t, err)

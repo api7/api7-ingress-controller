@@ -91,13 +91,36 @@ func ExtractCAFromConfigMap(cm *corev1.ConfigMap) ([]byte, error) {
 	if cm == nil {
 		return nil, ErrMissingCert
 	}
-	if ca, ok := cm.Data[corev1.ServiceAccountRootCAKey]; ok && ca != "" {
-		return []byte(ca), nil
+	var ca []byte
+	if v, ok := cm.Data[corev1.ServiceAccountRootCAKey]; ok && v != "" {
+		ca = []byte(v)
+	} else if v, ok := cm.BinaryData[corev1.ServiceAccountRootCAKey]; ok && len(v) > 0 {
+		ca = v
 	}
-	if ca, ok := cm.BinaryData[corev1.ServiceAccountRootCAKey]; ok && len(ca) > 0 {
-		return ca, nil
+	if len(ca) == 0 {
+		return nil, ErrMissingCert
 	}
-	return nil, ErrMissingCert
+	// Reject whitespace-only or otherwise malformed data so an invalid trust
+	// anchor never reaches the downstream mTLS configuration.
+	if !hasCertificatePEMBlock(ca) {
+		return nil, ErrInvalidPEM
+	}
+	return ca, nil
+}
+
+// hasCertificatePEMBlock reports whether data contains at least one PEM-encoded
+// CERTIFICATE block.
+func hasCertificatePEMBlock(data []byte) bool {
+	for {
+		var block *pem.Block
+		block, data = pem.Decode(data)
+		if block == nil {
+			return false
+		}
+		if block.Type == "CERTIFICATE" {
+			return true
+		}
+	}
 }
 
 // ExtractHostsFromCertificate parses the certificate PEM block and returns the DNS names.

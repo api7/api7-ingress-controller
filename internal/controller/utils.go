@@ -941,7 +941,9 @@ func getListenerStatus(
 				}
 			}
 
-			if listener.TLS.FrontendValidation != nil {
+			// frontendValidation (downstream mTLS) only applies to Terminate listeners.
+			if listener.TLS.FrontendValidation != nil &&
+				(listener.TLS.Mode == nil || *listener.TLS.Mode == gatewayv1.TLSModeTerminate) {
 				validateListenerFrontendValidation(ctx, mrgc, gateway, listener.TLS.FrontendValidation, &conditionResolvedRefs, &conditionProgrammed)
 			}
 		}

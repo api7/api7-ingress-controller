@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -153,7 +154,10 @@ func (t *Translator) translateFrontendValidation(tctx *provider.TranslateContext
 
 	cas := make([]string, 0, len(listener.TLS.FrontendValidation.CACertificateRefs))
 	for _, ref := range listener.TLS.FrontendValidation.CACertificateRefs {
-		// Core support is limited to ConfigMap references.
+		// Core support is limited to ConfigMap references in the core API group.
+		if ref.Group != "" && string(ref.Group) != corev1.GroupName {
+			return nil, fmt.Errorf("unsupported frontendValidation caCertificateRef group %q in listener %s, only the core group is supported", ref.Group, listener.Name)
+		}
 		if ref.Kind != "" && string(ref.Kind) != internaltypes.KindConfigMap {
 			return nil, fmt.Errorf("unsupported frontendValidation caCertificateRef kind %q in listener %s, only ConfigMap is supported", ref.Kind, listener.Name)
 		}
