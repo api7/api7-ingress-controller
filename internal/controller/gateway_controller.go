@@ -489,28 +489,40 @@ func (r *GatewayReconciler) processListenerConfig(tctx *provider.TranslateContex
 				tctx.Secrets[types.NamespacedName{Namespace: ns, Name: string(ref.Name)}] = &secret
 			}
 		}
-		// frontendValidation references CA ConfigMaps used for downstream mTLS.
+		// frontendValidation references CA ConfigMaps or Secrets used for downstream mTLS.
 		if listener.TLS.FrontendValidation != nil {
 			for _, ref := range listener.TLS.FrontendValidation.CACertificateRefs {
-				if ref.Kind != "" && string(ref.Kind) != KindConfigMap {
-					continue
-				}
 				ns := gateway.GetNamespace()
 				if ref.Namespace != nil {
 					ns = string(*ref.Namespace)
 				}
-				configMap := corev1.ConfigMap{}
-				if err := r.Get(context.Background(), client.ObjectKey{
-					Namespace: ns,
-					Name:      string(ref.Name),
-				}, &configMap); err != nil {
-					r.Log.Error(err, "failed to get CA configmap", "namespace", ns, "name", ref.Name)
-					SetGatewayListenerConditionProgrammed(gateway, string(listener.Name), false, err.Error())
-					SetGatewayListenerConditionResolvedRefs(gateway, string(listener.Name), false, err.Error())
-					continue
+				nn := types.NamespacedName{Namespace: ns, Name: string(ref.Name)}
+				kind := KindConfigMap
+				if ref.Kind != "" {
+					kind = string(ref.Kind)
 				}
-				r.Log.Info("Setting CA configmap for listener", "listener", listener.Name, "configmap", configMap.Name, "namespace", ns)
-				tctx.ConfigMaps[types.NamespacedName{Namespace: ns, Name: string(ref.Name)}] = &configMap
+				switch kind {
+				case KindConfigMap:
+					configMap := corev1.ConfigMap{}
+					if err := r.Get(context.Background(), nn, &configMap); err != nil {
+						r.Log.Error(err, "failed to get CA configmap", "namespace", ns, "name", ref.Name)
+						SetGatewayListenerConditionProgrammed(gateway, string(listener.Name), false, err.Error())
+						SetGatewayListenerConditionResolvedRefs(gateway, string(listener.Name), false, err.Error())
+						continue
+					}
+					r.Log.Info("Setting CA configmap for listener", "listener", listener.Name, "configmap", configMap.Name, "namespace", ns)
+					tctx.ConfigMaps[nn] = &configMap
+				case KindSecret:
+					caSecret := corev1.Secret{}
+					if err := r.Get(context.Background(), nn, &caSecret); err != nil {
+						r.Log.Error(err, "failed to get CA secret", "namespace", ns, "name", ref.Name)
+						SetGatewayListenerConditionProgrammed(gateway, string(listener.Name), false, err.Error())
+						SetGatewayListenerConditionResolvedRefs(gateway, string(listener.Name), false, err.Error())
+						continue
+					}
+					r.Log.Info("Setting CA secret for listener", "listener", listener.Name, "secret", caSecret.Name, "namespace", ns)
+					tctx.Secrets[nn] = &caSecret
+				}
 			}
 		}
 	}

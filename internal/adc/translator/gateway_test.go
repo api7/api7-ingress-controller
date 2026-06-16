@@ -83,6 +83,11 @@ func newTranslateContextWithTLS() *provider.TranslateContext {
 			corev1.ServiceAccountRootCAKey: testCACert,
 		},
 	}
+	tctx.Secrets[types.NamespacedName{Namespace: "default", Name: "ca-secret"}] = &corev1.Secret{
+		Data: map[string][]byte{
+			corev1.ServiceAccountRootCAKey: []byte(testCACert),
+		},
+	}
 	return tctx
 }
 
@@ -106,6 +111,35 @@ func TestTranslateSecret_FrontendValidation(t *testing.T) {
 		require.NotNil(t, sslObjs[0].Client, "client mTLS config should be set")
 		assert.Equal(t, testCACert, sslObjs[0].Client.CA)
 		assert.Equal(t, []string{"example.com"}, sslObjs[0].Snis)
+	})
+
+	t.Run("with Secret CA ref sets downstream mTLS client CA", func(t *testing.T) {
+		tr := &Translator{Log: logr.Discard()}
+		gateway := newTLSGateway(&gatewayv1.FrontendTLSValidation{
+			CACertificateRefs: []gatewayv1.ObjectReference{
+				{Group: "", Kind: "Secret", Name: "ca-secret"},
+			},
+		})
+		tctx := newTranslateContextWithTLS()
+
+		sslObjs, err := tr.translateSecret(tctx, gateway.Spec.Listeners[0], gateway)
+		require.NoError(t, err)
+		require.Len(t, sslObjs, 1)
+		require.NotNil(t, sslObjs[0].Client, "client mTLS config should be set")
+		assert.Equal(t, testCACert, sslObjs[0].Client.CA)
+	})
+
+	t.Run("missing CA Secret returns error", func(t *testing.T) {
+		tr := &Translator{Log: logr.Discard()}
+		gateway := newTLSGateway(&gatewayv1.FrontendTLSValidation{
+			CACertificateRefs: []gatewayv1.ObjectReference{
+				{Kind: "Secret", Name: "missing"},
+			},
+		})
+		tctx := newTranslateContextWithTLS()
+
+		_, err := tr.translateSecret(tctx, gateway.Spec.Listeners[0], gateway)
+		require.Error(t, err)
 	})
 
 	t.Run("without frontendValidation leaves client nil", func(t *testing.T) {
@@ -136,7 +170,7 @@ func TestTranslateSecret_FrontendValidation(t *testing.T) {
 		tr := &Translator{Log: logr.Discard()}
 		gateway := newTLSGateway(&gatewayv1.FrontendTLSValidation{
 			CACertificateRefs: []gatewayv1.ObjectReference{
-				{Kind: "Secret", Name: "ca-cm"},
+				{Kind: "Pod", Name: "ca-cm"},
 			},
 		})
 		tctx := newTranslateContextWithTLS()

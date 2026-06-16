@@ -1001,16 +1001,19 @@ func validateListenerFrontendValidation(
 		conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
 	}
 
-	var configMap corev1.ConfigMap
 	for _, ref := range frontendValidation.CACertificateRefs {
 		if ref.Group != "" && string(ref.Group) != corev1.GroupName {
 			setInvalid(gatewayv1.ListenerReasonInvalidCertificateRef,
 				fmt.Sprintf(`Invalid Group for caCertificateRef, expect "", got "%s"`, ref.Group))
 			return
 		}
-		if ref.Kind != "" && string(ref.Kind) != KindConfigMap {
+		kind := KindConfigMap
+		if ref.Kind != "" {
+			kind = string(ref.Kind)
+		}
+		if kind != KindConfigMap && kind != KindSecret {
 			setInvalid(gatewayv1.ListenerReasonInvalidCertificateRef,
-				fmt.Sprintf(`Invalid Kind for caCertificateRef, expect "ConfigMap", got "%s"`, ref.Kind))
+				fmt.Sprintf(`Invalid Kind for caCertificateRef, expect "ConfigMap" or "Secret", got "%s"`, ref.Kind))
 			return
 		}
 		if permitted := checkReferenceGrant(ctx,
@@ -1022,7 +1025,7 @@ func validateListenerFrontendValidation(
 			},
 			gatewayv1.ObjectReference{
 				Group:     corev1.GroupName,
-				Kind:      KindConfigMap,
+				Kind:      gatewayv1.Kind(kind),
 				Name:      ref.Name,
 				Namespace: ref.Namespace,
 			},
@@ -1030,18 +1033,33 @@ func validateListenerFrontendValidation(
 			setInvalid(gatewayv1.ListenerReasonRefNotPermitted, "caCertificateRefs cross namespaces is not permitted")
 			return
 		}
-		configMapNN := k8stypes.NamespacedName{
+		nn := k8stypes.NamespacedName{
 			Namespace: string(*cmp.Or(ref.Namespace, (*gatewayv1.Namespace)(&gateway.Namespace))),
 			Name:      string(ref.Name),
 		}
-		if err := mrgc.Get(ctx, configMapNN, &configMap); err != nil {
-			setInvalid(gatewayv1.ListenerReasonInvalidCertificateRef, err.Error())
-			return
-		}
-		if _, err := sslutils.ExtractCAFromConfigMap(&configMap); err != nil {
-			setInvalid(gatewayv1.ListenerReasonInvalidCertificateRef,
-				fmt.Sprintf("Malformed CA ConfigMap referenced: %s", err.Error()))
-			return
+		switch kind {
+		case KindConfigMap:
+			var configMap corev1.ConfigMap
+			if err := mrgc.Get(ctx, nn, &configMap); err != nil {
+				setInvalid(gatewayv1.ListenerReasonInvalidCertificateRef, err.Error())
+				return
+			}
+			if _, err := sslutils.ExtractCAFromConfigMap(&configMap); err != nil {
+				setInvalid(gatewayv1.ListenerReasonInvalidCertificateRef,
+					fmt.Sprintf("Malformed CA ConfigMap referenced: %s", err.Error()))
+				return
+			}
+		case KindSecret:
+			var secret corev1.Secret
+			if err := mrgc.Get(ctx, nn, &secret); err != nil {
+				setInvalid(gatewayv1.ListenerReasonInvalidCertificateRef, err.Error())
+				return
+			}
+			if _, err := sslutils.ExtractCAFromSecret(&secret); err != nil {
+				setInvalid(gatewayv1.ListenerReasonInvalidCertificateRef,
+					fmt.Sprintf("Malformed CA Secret referenced: %s", err.Error()))
+				return
+			}
 		}
 	}
 }

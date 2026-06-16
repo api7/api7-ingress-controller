@@ -108,6 +108,23 @@ func ExtractCAFromConfigMap(cm *corev1.ConfigMap) ([]byte, error) {
 	return ca, nil
 }
 
+// ExtractCAFromSecret extracts the CA certificate from a Secret's `ca.crt` key
+// (e.g. a cert-manager-issued TLS Secret) and validates it contains a PEM
+// CERTIFICATE block.
+func ExtractCAFromSecret(secret *corev1.Secret) ([]byte, error) {
+	if secret == nil {
+		return nil, ErrMissingCert
+	}
+	ca, ok := secret.Data[corev1.ServiceAccountRootCAKey]
+	if !ok || len(ca) == 0 {
+		return nil, ErrMissingCert
+	}
+	if !hasCertificatePEMBlock(ca) {
+		return nil, ErrInvalidPEM
+	}
+	return ca, nil
+}
+
 // hasCertificatePEMBlock reports whether data contains at least one PEM-encoded
 // CERTIFICATE block.
 func hasCertificatePEMBlock(data []byte) bool {

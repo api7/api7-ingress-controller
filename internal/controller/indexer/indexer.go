@@ -601,8 +601,15 @@ func IngressSecretIndexFunc(rawObj client.Object) []string {
 func GatewaySecretIndexFunc(rawObj client.Object) (keys []string) {
 	gateway := rawObj.(*gatewayv1.Gateway)
 	var m = make(map[string]struct{})
+	add := func(namespace, name string) {
+		key := GenIndexKey(namespace, name)
+		if _, ok := m[key]; !ok {
+			m[key] = struct{}{}
+			keys = append(keys, key)
+		}
+	}
 	for _, listener := range gateway.Spec.Listeners {
-		if listener.TLS == nil || len(listener.TLS.CertificateRefs) == 0 {
+		if listener.TLS == nil {
 			continue
 		}
 		for _, ref := range listener.TLS.CertificateRefs {
@@ -613,10 +620,19 @@ func GatewaySecretIndexFunc(rawObj client.Object) (keys []string) {
 			if ref.Namespace != nil {
 				namespace = string(*ref.Namespace)
 			}
-			key := GenIndexKey(namespace, string(ref.Name))
-			if _, ok := m[key]; !ok {
-				m[key] = struct{}{}
-				keys = append(keys, key)
+			add(namespace, string(ref.Name))
+		}
+		// frontendValidation CA references that are Secrets.
+		if listener.TLS.FrontendValidation != nil {
+			for _, ref := range listener.TLS.FrontendValidation.CACertificateRefs {
+				if string(ref.Kind) != internaltypes.KindSecret {
+					continue
+				}
+				namespace := gateway.GetNamespace()
+				if ref.Namespace != nil {
+					namespace = string(*ref.Namespace)
+				}
+				add(namespace, string(ref.Name))
 			}
 		}
 	}

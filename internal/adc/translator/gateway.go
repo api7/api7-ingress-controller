@@ -154,26 +154,46 @@ func (t *Translator) translateFrontendValidation(tctx *provider.TranslateContext
 
 	cas := make([]string, 0, len(listener.TLS.FrontendValidation.CACertificateRefs))
 	for _, ref := range listener.TLS.FrontendValidation.CACertificateRefs {
-		// Core support is limited to ConfigMap references in the core API group.
+		// caCertificateRefs must be in the core API group. ConfigMap is the
+		// Gateway API Core support; Secret is an implementation-specific extension.
 		if ref.Group != "" && string(ref.Group) != corev1.GroupName {
 			return nil, fmt.Errorf("unsupported frontendValidation caCertificateRef group %q in listener %s, only the core group is supported", ref.Group, listener.Name)
-		}
-		if ref.Kind != "" && string(ref.Kind) != internaltypes.KindConfigMap {
-			return nil, fmt.Errorf("unsupported frontendValidation caCertificateRef kind %q in listener %s, only ConfigMap is supported", ref.Kind, listener.Name)
 		}
 		ns := obj.GetNamespace()
 		if ref.Namespace != nil {
 			ns = string(*ref.Namespace)
 		}
-		cmNN := types.NamespacedName{Namespace: ns, Name: string(ref.Name)}
-		cm := tctx.ConfigMaps[cmNN]
-		if cm == nil {
-			return nil, fmt.Errorf("frontendValidation CA ConfigMap %s not found", cmNN.String())
+		nn := types.NamespacedName{Namespace: ns, Name: string(ref.Name)}
+
+		kind := internaltypes.KindConfigMap
+		if ref.Kind != "" {
+			kind = string(ref.Kind)
 		}
-		ca, err := sslutils.ExtractCAFromConfigMap(cm)
-		if err != nil {
-			t.Log.Error(err, "failed to extract CA from configmap", "configmap", cmNN.String())
-			return nil, fmt.Errorf("failed to extract CA from ConfigMap %s: %w", cmNN.String(), err)
+		var (
+			ca  []byte
+			err error
+		)
+		switch kind {
+		case internaltypes.KindConfigMap:
+			cm := tctx.ConfigMaps[nn]
+			if cm == nil {
+				return nil, fmt.Errorf("frontendValidation CA ConfigMap %s not found", nn.String())
+			}
+			if ca, err = sslutils.ExtractCAFromConfigMap(cm); err != nil {
+				t.Log.Error(err, "failed to extract CA from configmap", "configmap", nn.String())
+				return nil, fmt.Errorf("failed to extract CA from ConfigMap %s: %w", nn.String(), err)
+			}
+		case internaltypes.KindSecret:
+			secret := tctx.Secrets[nn]
+			if secret == nil {
+				return nil, fmt.Errorf("frontendValidation CA Secret %s not found", nn.String())
+			}
+			if ca, err = sslutils.ExtractCAFromSecret(secret); err != nil {
+				t.Log.Error(err, "failed to extract CA from secret", "secret", nn.String())
+				return nil, fmt.Errorf("failed to extract CA from Secret %s: %w", nn.String(), err)
+			}
+		default:
+			return nil, fmt.Errorf("unsupported frontendValidation caCertificateRef kind %q in listener %s, only ConfigMap and Secret are supported", ref.Kind, listener.Name)
 		}
 		cas = append(cas, strings.TrimSpace(string(ca)))
 	}
