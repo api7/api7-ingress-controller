@@ -2159,7 +2159,6 @@ spec:
 		})
 		It("HTTPRoute Canary", func() {
 			s.ResourceApplied("HTTPRoute", "httpbin", fmt.Sprintf(sameWeiht, s.Namespace()), 1)
-			time.Sleep(5 * time.Second)
 
 			s.RetryAssertion(func() int {
 				var (
@@ -2368,7 +2367,6 @@ spec:
 			By("apply services and HTTPRoute")
 			err := s.CreateResourceFromStringWithNamespace(fmt.Sprintf(servicesSpec, s.Namespace()), s.Namespace())
 			Expect(err).ShouldNot(HaveOccurred(), "apply services and HTTPRoute")
-			time.Sleep(10 * time.Second)
 
 			By("verify load balancing works")
 			s.RequestAssert(&scaffold.RequestAssert{
@@ -2392,7 +2390,6 @@ spec:
 				case http.StatusMovedPermanently:
 					upstreamHosts["mock.api7.ai"]++
 				}
-				time.Sleep(100 * time.Millisecond) // Small delay between requests
 			}
 
 			By("verify both upstreams received requests")
