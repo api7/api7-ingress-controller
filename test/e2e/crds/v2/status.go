@@ -145,7 +145,9 @@ spec:
 					And(
 						ContainSubstring(`status: "False"`),
 						ContainSubstring(`reason: SyncFailed`),
-						ContainSubstring(`(non-existent-plugin) not found`),
+						// The dashboard error message can be wrapped across lines in the
+						// YAML output, so match the substring tolerant of whitespace.
+						MatchRegexp(`(?s)\(non-existent-plugin\)\s+not found`),
 					),
 				)
 			}
