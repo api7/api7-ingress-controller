@@ -102,6 +102,7 @@ rules:
   - consumers
   - gatewayproxies
   - httproutepolicies
+  - l4routepolicies
   - pluginconfigs
   verbs:
   - get
@@ -119,6 +120,7 @@ rules:
   - backendtrafficpolicies/status
   - consumers/status
   - httproutepolicies/status
+  - l4routepolicies/status
   verbs:
   - get
   - update
