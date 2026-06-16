@@ -4,21 +4,23 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.17.2
-  name: backendtrafficpolicies.apisix.apache.org
+  name: l4routepolicies.apisix.apache.org
 spec:
   group: apisix.apache.org
   names:
-    kind: BackendTrafficPolicy
-    listKind: BackendTrafficPolicyList
-    plural: backendtrafficpolicies
-    singular: backendtrafficpolicy
+    kind: L4RoutePolicy
+    listKind: L4RoutePolicyList
+    plural: l4routepolicies
+    singular: l4routepolicy
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: BackendTrafficPolicy defines configuration for traffic handling
-          policies applied to backend services.
+        description: |-
+          L4RoutePolicy defines plugin configuration for Gateway API L4 routes (TCPRoute, UDPRoute, TLSRoute).
+          It follows the Gateway API Policy Attachment pattern and attaches APISIX stream plugins
+          to the targeted L4 route resources.
         properties:
           apiVersion:
             description: |-
@@ -38,265 +40,28 @@ spec:
           metadata:
             type: object
           spec:
-            description: |-
-              BackendTrafficPolicySpec defines traffic handling policies applied to backend services,
-              such as load balancing strategy, connection settings, and failover behavior.
+            description: Spec defines the desired state of L4RoutePolicy.
             properties:
-              healthCheck:
+              plugins:
                 description: |-
-                  HealthCheck defines active and passive health check configuration for
-                  the upstream backends. When configured, APISIX will probe backends
-                  (active) or monitor live traffic (passive) to detect and bypass
-                  unhealthy nodes.
-                properties:
-                  active:
-                    description: Active health checks proactively send requests to
-                      upstream nodes to determine their availability.
-                    properties:
-                      concurrency:
-                        description: Concurrency sets the number of targets to be
-                          checked at the same time.
-                        minimum: 0
-                        type: integer
-                      healthy:
-                        description: Healthy configures the thresholds for marking
-                          a node healthy.
-                        properties:
-                          httpCodes:
-                            description: HTTPCodes is the list of HTTP status codes
-                              considered healthy.
-                            items:
-                              type: integer
-                            minItems: 1
-                            type: array
-                          interval:
-                            description: |-
-                              Interval defines the time between health check probes.
-                              Minimum is 1s.
-                            type: string
-                          successes:
-                            description: Successes is the number of consecutive successful
-                              responses required to mark a node healthy.
-                            maximum: 254
-                            minimum: 0
-                            type: integer
-                        type: object
-                      host:
-                        description: Host sets the upstream host used in the health
-                          check request.
-                        type: string
-                      httpPath:
-                        description: HTTPPath sets the HTTP path for the probe request.
-                        type: string
-                      port:
-                        description: Port sets the port on the upstream node to probe.
-                        format: int32
-                        maximum: 65535
-                        minimum: 1
-                        type: integer
-                      requestHeaders:
-                        description: RequestHeaders sets additional HTTP request headers
-                          for the probe.
-                        items:
-                          type: string
-                        type: array
-                      strictTLS:
-                        description: StrictTLS controls whether TLS certificate validation
-                          is enforced.
-                        type: boolean
-                      timeout:
-                        description: Timeout sets health check timeout.
-                        type: string
-                      type:
-                        default: http
-                        description: Type is the health check type. Can be `http`,
-                          `https`, or `tcp`.
-                        enum:
-                        - http
-                        - https
-                        - tcp
-                        type: string
-                      unhealthy:
-                        description: Unhealthy configures the thresholds for marking
-                          a node unhealthy.
-                        properties:
-                          httpCodes:
-                            description: HTTPCodes is the list of HTTP status codes
-                              considered unhealthy.
-                            items:
-                              type: integer
-                            minItems: 1
-                            type: array
-                          httpFailures:
-                            description: HTTPFailures is the number of HTTP failures
-                              to mark a node unhealthy.
-                            maximum: 254
-                            minimum: 0
-                            type: integer
-                          interval:
-                            description: |-
-                              Interval defines the time between health check probes.
-                              Minimum is 1s.
-                            type: string
-                          tcpFailures:
-                            description: TCPFailures is the number of TCP failures
-                              to mark a node unhealthy.
-                            maximum: 254
-                            minimum: 0
-                            type: integer
-                          timeouts:
-                            description: Timeouts is the number of timeouts to mark
-                              a node unhealthy.
-                            maximum: 254
-                            minimum: 1
-                            type: integer
-                        type: object
-                    type: object
-                  passive:
-                    description: Passive health checks evaluate upstream health based
-                      on observed traffic (timeouts, errors).
-                    properties:
-                      healthy:
-                        description: Healthy defines conditions under which a node
-                          is considered healthy.
-                        properties:
-                          httpCodes:
-                            description: HTTPCodes is the list of HTTP status codes
-                              considered healthy.
-                            items:
-                              type: integer
-                            minItems: 1
-                            type: array
-                          successes:
-                            description: Successes is the number of consecutive successful
-                              responses required to mark a node healthy.
-                            maximum: 254
-                            minimum: 0
-                            type: integer
-                        type: object
-                      type:
-                        default: http
-                        description: Type is the passive health check type. Can be
-                          `http`, `https`, or `tcp`.
-                        enum:
-                        - http
-                        - https
-                        - tcp
-                        type: string
-                      unhealthy:
-                        description: Unhealthy defines conditions under which a node
-                          is considered unhealthy.
-                        properties:
-                          httpCodes:
-                            description: HTTPCodes is the list of HTTP status codes
-                              considered unhealthy.
-                            items:
-                              type: integer
-                            minItems: 1
-                            type: array
-                          httpFailures:
-                            description: HTTPFailures is the number of HTTP failures
-                              to mark a node unhealthy.
-                            maximum: 254
-                            minimum: 0
-                            type: integer
-                          tcpFailures:
-                            description: TCPFailures is the number of TCP failures
-                              to mark a node unhealthy.
-                            maximum: 254
-                            minimum: 0
-                            type: integer
-                          timeouts:
-                            description: Timeouts is the number of timeouts to mark
-                              a node unhealthy.
-                            maximum: 254
-                            minimum: 1
-                            type: integer
-                        type: object
-                    type: object
-                required:
-                - active
-                type: object
-              loadbalancer:
-                description: |-
-                  LoadBalancer represents the load balancer configuration for Kubernetes Service.
-                  The default strategy is round robin.
-                properties:
-                  hashOn:
-                    default: vars
-                    description: |-
-                      HashOn specified the type of field used for hashing, required when type is `chash`.
-                      Default is `vars`.
-                      Can be `vars`, `header`, `cookie`, `consumer`, or `vars_combinations`.
-                    enum:
-                    - vars
-                    - header
-                    - cookie
-                    - consumer
-                    - vars_combinations
-                    type: string
-                  key:
-                    description: |-
-                      Key is used with HashOn, generally required when type is `chash`.
-                      When HashOn is `header` or `cookie`, specifies the name of the header or cookie.
-                      When HashOn is `consumer`, key is not required, as the consumer name is used automatically.
-                      When HashOn is `vars` or `vars_combinations`, key refers to one or a combination of
-                      [built-in variables](/enterprise/reference/built-in-variables).
-                    type: string
-                  type:
-                    default: roundrobin
-                    description: |-
-                      Type specifies the load balancing algorithms to route traffic to the backend.
-                      Default is `roundrobin`.
-                      Can be `roundrobin`, `chash`, `ewma`, or `least_conn`.
-                    enum:
-                    - roundrobin
-                    - chash
-                    - ewma
-                    - least_conn
-                    type: string
-                required:
-                - type
-                type: object
-                x-kubernetes-validations:
-                - rule: '!(has(self.key) && self.type != ''chash'')'
-              passHost:
-                default: pass
-                description: |-
-                  PassHost configures how the host header should be determined when a
-                  request is forwarded to the upstream.
-                  Default is `pass`. Can be `pass`, `node` or `rewrite`:
-                  * `pass`: preserve the original Host header
-                  * `node`: use the upstream node’s host
-                  * `rewrite`: set to a custom host via `upstreamHost`
-                enum:
-                - pass
-                - node
-                - rewrite
-                type: string
-              retries:
-                description: |-
-                  Retries specify the number of times the gateway should retry sending
-                  requests when errors such as timeouts or 502 errors occur.
-                type: integer
-              scheme:
-                default: http
-                description: |-
-                  Scheme is the protocol used to communicate with the upstream.
-                  Default is `http`.
-                  Can be `http`, `https`, `grpc`, or `grpcs`.
-                enum:
-                - http
-                - https
-                - grpc
-                - grpcs
-                type: string
+                  Plugins is the list of APISIX stream plugins to attach to the targeted L4 routes.
+                  Plugin names should be valid APISIX stream plugin names (e.g., limit-conn, ip-restriction).
+                items:
+                  properties:
+                    config:
+                      description: Config is plugin configuration details.
+                      x-kubernetes-preserve-unknown-fields: true
+                    name:
+                      description: Name is the name of the plugin.
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
               targetRefs:
                 description: |-
-                  TargetRef identifies an API object to apply policy to.
-                  Currently, Backends (i.e. Service, ServiceImport, or any
-                  implementation-specific backendRef) are the only valid API
-                  target references.
+                  TargetRefs identifies the L4 route resources (TCPRoute, UDPRoute, or TLSRoute)
+                  to which this policy applies. Only same-namespace targets are supported.
                 items:
                   description: |-
                     LocalPolicyTargetReferenceWithSectionName identifies an API object to apply a
@@ -347,39 +112,15 @@ spec:
                   - kind
                   - name
                   type: object
-                  x-kubernetes-validations:
-                  - rule: self.kind == 'Service' && self.group == ""
                 maxItems: 16
                 minItems: 1
                 type: array
-              timeout:
-                description: Timeout sets the read, send, and connect timeouts to
-                  the upstream.
-                properties:
-                  connect:
-                    default: 60s
-                    description: Connection timeout. Default is `60s`.
-                    pattern: ^[0-9]+s$
-                    type: string
-                  read:
-                    default: 60s
-                    description: Read timeout. Default is `60s`.
-                    pattern: ^[0-9]+s$
-                    type: string
-                  send:
-                    default: 60s
-                    description: Send timeout. Default is `60s`.
-                    pattern: ^[0-9]+s$
-                    type: string
-                type: object
-              upstreamHost:
-                description: |-
-                  UpstreamHost specifies the host of the Upstream request. Used only if
-                  passHost is set to `rewrite`.
-                maxLength: 253
-                minLength: 1
-                pattern: ^(\*\.)?[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
-                type: string
+                x-kubernetes-validations:
+                - message: targetRefs kind must be TCPRoute, UDPRoute, or TLSRoute
+                  rule: self.all(r, r.kind == 'TCPRoute' || r.kind == 'UDPRoute' ||
+                    r.kind == 'TLSRoute')
+                - message: targetRefs group must be gateway.networking.k8s.io
+                  rule: self.all(r, r.group == 'gateway.networking.k8s.io')
             required:
             - targetRefs
             type: object

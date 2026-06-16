@@ -19,6 +19,7 @@ Package v1alpha1 contains API Schema definitions for the apisix.apache.org v1alp
 - [Consumer](#consumer)
 - [GatewayProxy](#gatewayproxy)
 - [HTTPRoutePolicy](#httproutepolicy)
+- [L4RoutePolicy](#l4routepolicy)
 - [PluginConfig](#pluginconfig)
 ### BackendTrafficPolicy
 
@@ -84,6 +85,24 @@ HTTPRoutePolicy defines configuration of traffic policies.
 
 
 
+### L4RoutePolicy
+
+
+L4RoutePolicy defines plugin configuration for Gateway API L4 routes (TCPRoute, UDPRoute, TLSRoute).
+It follows the Gateway API Policy Attachment pattern and attaches APISIX stream plugins
+to the targeted L4 route resources.
+
+<!-- L4RoutePolicy resource -->
+
+| Field | Description |
+| --- | --- |
+| `apiVersion` _string_ | `apisix.apache.org/v1alpha1`
+| `kind` _string_ | `L4RoutePolicy`
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#objectmeta-v1-meta)_ | Please refer to the Kubernetes API documentation for details on the `metadata` field. |
+| `spec` _[L4RoutePolicySpec](#l4routepolicyspec)_ | Spec defines the desired state of L4RoutePolicy. |
+
+
+
 ### PluginConfig
 
 
@@ -103,6 +122,66 @@ PluginConfig defines plugin configuration.
 ### Types
 
 This section describes the types used by the CRDs.
+#### ActiveHealthCheck
+
+
+ActiveHealthCheck defines the active upstream health check configuration.
+
+
+
+| Field | Description |
+| --- | --- |
+| `type` _string_ | Type is the health check type. Can be `http`, `https`, or `tcp`. |
+| `timeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#duration-v1-meta)_ | Timeout sets health check timeout. |
+| `concurrency` _integer_ | Concurrency sets the number of targets to be checked at the same time. |
+| `host` _string_ | Host sets the upstream host used in the health check request. |
+| `port` _integer_ | Port sets the port on the upstream node to probe. |
+| `httpPath` _string_ | HTTPPath sets the HTTP path for the probe request. |
+| `strictTLS` _boolean_ | StrictTLS controls whether TLS certificate validation is enforced. |
+| `requestHeaders` _string array_ | RequestHeaders sets additional HTTP request headers for the probe. |
+| `healthy` _[ActiveHealthCheckHealthy](#activehealthcheckhealthy)_ | Healthy configures the thresholds for marking a node healthy. |
+| `unhealthy` _[ActiveHealthCheckUnhealthy](#activehealthcheckunhealthy)_ | Unhealthy configures the thresholds for marking a node unhealthy. |
+
+
+_Appears in:_
+- [HealthCheck](#healthcheck)
+
+#### ActiveHealthCheckHealthy
+
+
+ActiveHealthCheckHealthy defines thresholds for actively marking an upstream node healthy.
+
+
+
+| Field | Description |
+| --- | --- |
+| `httpCodes` _integer array_ | HTTPCodes is the list of HTTP status codes considered healthy. |
+| `successes` _integer_ | Successes is the number of consecutive successful responses required to mark a node healthy. |
+| `interval` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#duration-v1-meta)_ | Interval defines the time between health check probes. Minimum is 1s. |
+
+
+_Appears in:_
+- [ActiveHealthCheck](#activehealthcheck)
+
+#### ActiveHealthCheckUnhealthy
+
+
+ActiveHealthCheckUnhealthy defines thresholds for actively marking an upstream node unhealthy.
+
+
+
+| Field | Description |
+| --- | --- |
+| `httpCodes` _integer array_ | HTTPCodes is the list of HTTP status codes considered unhealthy. |
+| `httpFailures` _integer_ | HTTPFailures is the number of HTTP failures to mark a node unhealthy. |
+| `tcpFailures` _integer_ | TCPFailures is the number of TCP failures to mark a node unhealthy. |
+| `timeouts` _integer_ | Timeouts is the number of timeouts to mark a node unhealthy. |
+| `interval` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#duration-v1-meta)_ | Interval defines the time between health check probes. Minimum is 1s. |
+
+
+_Appears in:_
+- [ActiveHealthCheck](#activehealthcheck)
+
 #### AdminKeyAuth
 
 
@@ -180,6 +259,7 @@ _Appears in:_
 | `timeout` _[Timeout](#timeout)_ | Timeout sets the read, send, and connect timeouts to the upstream. |
 | `passHost` _string_ | PassHost configures how the host header should be determined when a request is forwarded to the upstream. Default is `pass`. Can be `pass`, `node` or `rewrite`:<br /> • `pass`: preserve the original Host header<br /> • `node`: use the upstream node’s host<br /> • `rewrite`: set to a custom host via `upstreamHost` |
 | `upstreamHost` _[Hostname](#hostname)_ | UpstreamHost specifies the host of the Upstream request. Used only if passHost is set to `rewrite`. |
+| `healthCheck` _[HealthCheck](#healthcheck)_ | HealthCheck defines active and passive health check configuration for the upstream backends. When configured, APISIX will probe backends (active) or monitor live traffic (passive) to detect and bypass unhealthy nodes. |
 
 
 _Appears in:_
@@ -344,6 +424,22 @@ HTTPRoutePolicySpec defines the desired state of HTTPRoutePolicy.
 _Appears in:_
 - [HTTPRoutePolicy](#httproutepolicy)
 
+#### HealthCheck
+
+
+HealthCheck defines the active and passive health check configuration for upstream nodes.
+
+
+
+| Field | Description |
+| --- | --- |
+| `active` _[ActiveHealthCheck](#activehealthcheck)_ | Active health checks proactively send requests to upstream nodes to determine their availability. |
+| `passive` _[PassiveHealthCheck](#passivehealthcheck)_ | Passive health checks evaluate upstream health based on observed traffic (timeouts, errors). |
+
+
+_Appears in:_
+- [BackendTrafficPolicySpec](#backendtrafficpolicyspec)
+
 #### Hostname
 _Base type:_ `string`
 
@@ -355,6 +451,22 @@ _Base type:_ `string`
 
 _Appears in:_
 - [BackendTrafficPolicySpec](#backendtrafficpolicyspec)
+
+#### L4RoutePolicySpec
+
+
+L4RoutePolicySpec defines the desired state of L4RoutePolicy.
+
+
+
+| Field | Description |
+| --- | --- |
+| `targetRefs` _LocalPolicyTargetReferenceWithSectionName array_ | TargetRefs identifies the L4 route resources (TCPRoute, UDPRoute, or TLSRoute) to which this policy applies. Only same-namespace targets are supported. |
+| `plugins` _[Plugin](#plugin) array_ | Plugins is the list of APISIX stream plugins to attach to the targeted L4 routes. Plugin names should be valid APISIX stream plugin names (e.g., limit-conn, ip-restriction). |
+
+
+_Appears in:_
+- [L4RoutePolicy](#l4routepolicy)
 
 #### LoadBalancer
 
@@ -373,6 +485,59 @@ LoadBalancer describes the load balancing parameters.
 _Appears in:_
 - [BackendTrafficPolicySpec](#backendtrafficpolicyspec)
 
+#### PassiveHealthCheck
+
+
+PassiveHealthCheck defines passive health check configuration based on observed traffic.
+
+
+
+| Field | Description |
+| --- | --- |
+| `type` _string_ | Type is the passive health check type. Can be `http`, `https`, or `tcp`. |
+| `healthy` _[PassiveHealthCheckHealthy](#passivehealthcheckhealthy)_ | Healthy defines conditions under which a node is considered healthy. |
+| `unhealthy` _[PassiveHealthCheckUnhealthy](#passivehealthcheckunhealthy)_ | Unhealthy defines conditions under which a node is considered unhealthy. |
+
+
+_Appears in:_
+- [HealthCheck](#healthcheck)
+
+#### PassiveHealthCheckHealthy
+
+
+PassiveHealthCheckHealthy defines conditions for passively marking a node healthy.
+
+
+
+| Field | Description |
+| --- | --- |
+| `httpCodes` _integer array_ | HTTPCodes is the list of HTTP status codes considered healthy. |
+| `successes` _integer_ | Successes is the number of consecutive successful responses required to mark a node healthy. |
+
+
+_Appears in:_
+- [ActiveHealthCheckHealthy](#activehealthcheckhealthy)
+- [PassiveHealthCheck](#passivehealthcheck)
+
+#### PassiveHealthCheckUnhealthy
+
+
+PassiveHealthCheckUnhealthy defines conditions for passively marking a node unhealthy.
+
+
+
+| Field | Description |
+| --- | --- |
+| `httpCodes` _integer array_ | HTTPCodes is the list of HTTP status codes considered unhealthy. |
+| `httpFailures` _integer_ | HTTPFailures is the number of HTTP failures to mark a node unhealthy. |
+| `tcpFailures` _integer_ | TCPFailures is the number of TCP failures to mark a node unhealthy. |
+| `timeouts` _integer_ | Timeouts is the number of timeouts to mark a node unhealthy. |
+
+
+_Appears in:_
+- [ActiveHealthCheckUnhealthy](#activehealthcheckunhealthy)
+- [PassiveHealthCheck](#passivehealthcheck)
+
 #### Plugin
 
 
@@ -388,6 +553,7 @@ _Appears in:_
 
 _Appears in:_
 - [ConsumerSpec](#consumerspec)
+- [L4RoutePolicySpec](#l4routepolicyspec)
 - [PluginConfigSpec](#pluginconfigspec)
 
 #### PluginConfigSpec
@@ -780,7 +946,10 @@ _Appears in:_
 #### ApisixConsumerJwtAuthValue
 
 
-ApisixConsumerJwtAuthValue defines configuration for JWT authentication.
+ApisixConsumerJwtAuthValue defines configuration for JWT authentication.<br /><br />
+For asymmetric algorithms (RS*, ES*, PS*, EdDSA), at least one of public_key
+or private_key must be provided. Symmetric algorithms (HS256, HS384, HS512)
+and unset algorithm do not require any key field.
 
 
 
@@ -790,7 +959,7 @@ ApisixConsumerJwtAuthValue defines configuration for JWT authentication.
 | `secret` _string_ | Secret is the shared secret used to sign the JWT (for symmetric algorithms). |
 | `public_key` _string_ | PublicKey is the public key used to verify JWT signatures (for asymmetric algorithms). |
 | `private_key` _string_ | PrivateKey is the private key used to sign the JWT (for asymmetric algorithms). |
-| `algorithm` _string_ | Algorithm specifies the signing algorithm. Can be `HS256`, `HS384`, `HS512`, `RS256`, `RS384`, `RS512`, `ES256`, `ES384`, `ES512`, `PS256`, `PS384`, `PS512`, or `EdDSA`. Currently APISIX only supports `HS256`, `HS512`, `RS256`, and `ES256`. API7 Enterprise supports all algorithms. |
+| `algorithm` _string_ | Algorithm specifies the signing algorithm. Can be `HS256`, `HS384`, `HS512`, `RS256`, `RS384`, `RS512`, `ES256`, `ES384`, `ES512`, `PS256`, `PS384`, `PS512`, or `EdDSA`. |
 | `exp` _integer_ | Exp is the token expiration period in seconds. |
 | `base64_secret` _boolean_ | Base64Secret indicates whether the secret is base64-encoded. |
 | `lifetime_grace_period` _integer_ | LifetimeGracePeriod is the allowed clock skew in seconds for token expiration. |
@@ -872,6 +1041,7 @@ ApisixConsumerSpec defines the desired state of ApisixConsumer.
 | --- | --- |
 | `ingressClassName` _string_ | IngressClassName is the name of an IngressClass cluster resource. The controller uses this field to decide whether the resource should be managed. |
 | `authParameter` _[ApisixConsumerAuthParameter](#apisixconsumerauthparameter)_ | AuthParameter defines the authentication credentials and configuration for this consumer. |
+| `plugins` _[ApisixRoutePlugin](#apisixrouteplugin) array_ | Plugins lists additional consumer-scoped plugins to attach to this consumer. These plugins are applied alongside any authentication plugin derived from AuthParameter. An enabled plugin with the same name as the auth plugin derived from AuthParameter takes precedence. |
 
 
 _Appears in:_
@@ -1086,7 +1256,7 @@ ApisixRouteHTTPMatch defines the conditions used to match incoming HTTP requests
 | `hosts` _string array_ | Hosts specifies Host header values to match. Supports exact and wildcard domains. Only one level of wildcard is allowed (e.g., `*.example.com` is valid, but `*.*.example.com` is not). |
 | `remoteAddrs` _string array_ | RemoteAddrs is a list of source IP addresses or CIDR ranges to match. Supports both IPv4 and IPv6 formats. |
 | `exprs` _[ApisixRouteHTTPMatchExprs](#apisixroutehttpmatchexprs)_ | NginxVars defines match conditions based on Nginx variables. |
-| `filter_func` _string_ | FilterFunc is a user-defined function for advanced request filtering. The function can use Nginx variables through the `vars` parameter. This field is supported in APISIX but not in API7 Enterprise. |
+| `filter_func` _string_ | FilterFunc is a user-defined function for advanced request filtering. The function can use Nginx variables through the `vars` parameter. |
 
 
 _Appears in:_
@@ -1101,7 +1271,7 @@ ApisixRouteHTTPMatchExpr represents a binary expression used to match requests b
 
 | Field | Description |
 | --- | --- |
-| `subject` _[ApisixRouteHTTPMatchExprSubject](#apisixroutehttpmatchexprsubject)_ | Subject defines the left-hand side of the expression. It can be any [built-in variable](/apisix/reference/built-in-variables) or string literal. |
+| `subject` _[ApisixRouteHTTPMatchExprSubject](#apisixroutehttpmatchexprsubject)_ | Subject defines the left-hand side of the expression. It can be any [APISIX variable](https://apisix.apache.org/docs/apisix/apisix-variable) or string literal. |
 | `op` _string_ | Op specifies the operator used in the expression. Can be `Equal`, `NotEqual`, `GreaterThan`, `GreaterThanEqual`, `LessThan`, `LessThanEqual`, `RegexMatch`, `RegexNotMatch`, `RegexMatchCaseInsensitive`, `RegexNotMatchCaseInsensitive`, `In`, or `NotIn`. |
 | `set` _string array_ | Set provides a list of acceptable values for the expression. This should be used when Op is `In` or `NotIn`. |
 | `value` _string_ | Value defines a single value to compare against the subject. This should be used when Op is not `In` or `NotIn`. Set and Value are mutually exclusive—only one should be set at a time. |
@@ -1119,8 +1289,8 @@ ApisixRouteHTTPMatchExprSubject describes the subject of a route matching expres
 
 | Field | Description |
 | --- | --- |
-| `scope` _string_ | Scope specifies the subject scope and can be `Header`, `Query`, or `Path`. When Scope is `Path`, Name will be ignored. |
-| `name` _string_ | Name is the name of the header or query parameter. |
+| `scope` _string_ | Scope specifies the subject scope. Supported values: `Header`, `Query`, `Path`, `Cookie`, `Variable`, `Body`. When Scope is `Path`, Name will be ignored. When Scope is `Body`, Name supports dot-notation JSON path (e.g., "model.version", "messages[*].role") and maps to APISIX's `post_arg.<name>` variable, which works with application/json, application/x-www-form-urlencoded, and multipart/form-data. |
+| `name` _string_ | Name is the name of the subject within the given scope: the header name, query parameter name, cookie name, Nginx variable name, or body field name (dot-notation JSON path supported for Body scope). Optional when Scope is Path. |
 
 
 _Appears in:_
@@ -1135,7 +1305,7 @@ _Base type:_ `[ApisixRouteHTTPMatchExpr](#apisixroutehttpmatchexpr)`
 
 | Field | Description |
 | --- | --- |
-| `subject` _[ApisixRouteHTTPMatchExprSubject](#apisixroutehttpmatchexprsubject)_ | Subject defines the left-hand side of the expression. It can be any [built-in variable](/apisix/reference/built-in-variables) or string literal. |
+| `subject` _[ApisixRouteHTTPMatchExprSubject](#apisixroutehttpmatchexprsubject)_ | Subject defines the left-hand side of the expression. It can be any [APISIX variable](https://apisix.apache.org/docs/apisix/apisix-variable) or string literal. |
 | `op` _string_ | Op specifies the operator used in the expression. Can be `Equal`, `NotEqual`, `GreaterThan`, `GreaterThanEqual`, `LessThan`, `LessThanEqual`, `RegexMatch`, `RegexNotMatch`, `RegexMatchCaseInsensitive`, `RegexNotMatchCaseInsensitive`, `In`, or `NotIn`. |
 | `set` _string array_ | Set provides a list of acceptable values for the expression. This should be used when Op is `In` or `NotIn`. |
 | `value` _string_ | Value defines a single value to compare against the subject. This should be used when Op is not `In` or `NotIn`. Set and Value are mutually exclusive—only one should be set at a time. |
@@ -1160,6 +1330,7 @@ ApisixRoutePlugin represents an APISIX plugin.
 
 
 _Appears in:_
+- [ApisixConsumerSpec](#apisixconsumerspec)
 - [ApisixGlobalRuleSpec](#apisixglobalrulespec)
 - [ApisixPluginConfigSpec](#apisixpluginconfigspec)
 - [ApisixRouteHTTP](#apisixroutehttp)

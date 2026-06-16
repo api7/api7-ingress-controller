@@ -173,6 +173,7 @@ spec:
 					And(
 						ContainSubstring(`status: "True"`),
 						ContainSubstring(`reason: Accepted`),
+						ContainSubstring(`observedGeneration: 1`),
 					),
 				)
 

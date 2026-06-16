@@ -89,6 +89,7 @@ func SetupIndexer(mgr ctrl.Manager) error {
 		&networkingv1beta1.IngressClass{}: setupIngressClassV1beta1Indexer,
 		&v1alpha1.BackendTrafficPolicy{}:  setupBackendTrafficPolicyIndexer,
 		&v1alpha1.HTTPRoutePolicy{}:       setHTTPRoutePolicyIndexer,
+		&v1alpha1.L4RoutePolicy{}:         setupL4RoutePolicyIndexer,
 	} {
 		if utils.HasAPIResource(mgr, resource) {
 			if err := setup(mgr); err != nil {
@@ -518,6 +519,18 @@ func IngressClassV1beta1IndexFunc(rawObj client.Object) []string {
 	return []string{controllerName}
 }
 
+func setupL4RoutePolicyIndexer(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.L4RoutePolicy{},
+		PolicyTargetRefs,
+		L4RoutePolicyIndexFunc,
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
 func IngressClassIndexFunc(rawObj client.Object) []string {
 	ingressClass := rawObj.(*networkingv1.IngressClass)
 	if ingressClass.Spec.Controller == "" {
@@ -884,6 +897,20 @@ func BackendTrafficPolicyIndexFunc(rawObj client.Object) []string {
 	return keys
 }
 
+func L4RoutePolicyIndexFunc(rawObj client.Object) []string {
+	lrp := rawObj.(*v1alpha1.L4RoutePolicy)
+	keys := make([]string, 0, len(lrp.Spec.TargetRefs))
+	m := make(map[string]struct{})
+	for _, ref := range lrp.Spec.TargetRefs {
+		key := GenIndexKeyWithGK(string(ref.Group), string(ref.Kind), lrp.GetNamespace(), string(ref.Name))
+		if _, ok := m[key]; !ok {
+			m[key] = struct{}{}
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
 func IngressClassParametersRefIndexFunc(rawObj client.Object) []string {
 	ingressClass := rawObj.(*networkingv1.IngressClass)
 	// check if the IngressClass references this gateway proxy
@@ -923,21 +950,28 @@ func ApisixPluginConfigSecretIndexFunc(obj client.Object) (keys []string) {
 func ApisixConsumerSecretIndexFunc(rawObj client.Object) (keys []string) {
 	ac := rawObj.(*apiv2.ApisixConsumer)
 	var secretRef *corev1.LocalObjectReference
-	if ac.Spec.AuthParameter.KeyAuth != nil {
-		secretRef = ac.Spec.AuthParameter.KeyAuth.SecretRef
-	} else if ac.Spec.AuthParameter.BasicAuth != nil {
-		secretRef = ac.Spec.AuthParameter.BasicAuth.SecretRef
-	} else if ac.Spec.AuthParameter.JwtAuth != nil {
-		secretRef = ac.Spec.AuthParameter.JwtAuth.SecretRef
-	} else if ac.Spec.AuthParameter.WolfRBAC != nil {
-		secretRef = ac.Spec.AuthParameter.WolfRBAC.SecretRef
-	} else if ac.Spec.AuthParameter.HMACAuth != nil {
-		secretRef = ac.Spec.AuthParameter.HMACAuth.SecretRef
-	} else if ac.Spec.AuthParameter.LDAPAuth != nil {
-		secretRef = ac.Spec.AuthParameter.LDAPAuth.SecretRef
+	if ap := ac.Spec.AuthParameter; ap != nil {
+		if ap.KeyAuth != nil {
+			secretRef = ap.KeyAuth.SecretRef
+		} else if ap.BasicAuth != nil {
+			secretRef = ap.BasicAuth.SecretRef
+		} else if ap.JwtAuth != nil {
+			secretRef = ap.JwtAuth.SecretRef
+		} else if ap.WolfRBAC != nil {
+			secretRef = ap.WolfRBAC.SecretRef
+		} else if ap.HMACAuth != nil {
+			secretRef = ap.HMACAuth.SecretRef
+		} else if ap.LDAPAuth != nil {
+			secretRef = ap.LDAPAuth.SecretRef
+		}
 	}
-	if secretRef != nil {
+	if secretRef != nil && secretRef.Name != "" {
 		keys = append(keys, GenIndexKey(ac.GetNamespace(), secretRef.Name))
+	}
+	for _, plugin := range ac.Spec.Plugins {
+		if plugin.Enable && plugin.SecretRef != "" {
+			keys = append(keys, GenIndexKey(ac.GetNamespace(), plugin.SecretRef))
+		}
 	}
 	return
 }

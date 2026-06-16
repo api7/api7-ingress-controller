@@ -20,6 +20,7 @@ package translator
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
@@ -32,6 +33,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
@@ -145,6 +147,165 @@ func TestTranslateHTTPRouteUpstreamScheme(t *testing.T) {
 
 			assert.Equal(t, tt.wantScheme, result.Services[0].Upstream.Scheme)
 			assert.Equal(t, "10.0.0.1", result.Services[0].Upstream.Nodes[0].Host)
+		})
+	}
+}
+
+func TestAttachBackendTrafficPolicyHealthCheck(t *testing.T) {
+	trueVal := true
+	falseVal := false
+
+	tests := []struct {
+		name       string
+		policy     *v1alpha1.BackendTrafficPolicy
+		wantChecks *adctypes.UpstreamHealthCheck
+	}{
+		{
+			name:       "nil health check produces no checks",
+			policy:     &v1alpha1.BackendTrafficPolicy{},
+			wantChecks: nil,
+		},
+		{
+			name: "active health check with all fields",
+			policy: &v1alpha1.BackendTrafficPolicy{
+				Spec: v1alpha1.BackendTrafficPolicySpec{
+					HealthCheck: &v1alpha1.HealthCheck{
+						Active: &v1alpha1.ActiveHealthCheck{
+							Type:           "http",
+							Timeout:        metav1.Duration{Duration: 3 * time.Second},
+							HTTPPath:       "/healthz",
+							Concurrency:    10,
+							Host:           "example.com",
+							Port:           8080,
+							StrictTLS:      &trueVal,
+							RequestHeaders: []string{"X-Custom: value"},
+							Healthy: &v1alpha1.ActiveHealthCheckHealthy{
+								Interval: metav1.Duration{Duration: 5 * time.Second},
+								PassiveHealthCheckHealthy: v1alpha1.PassiveHealthCheckHealthy{
+									HTTPCodes: []int{200, 201},
+									Successes: 3,
+								},
+							},
+							Unhealthy: &v1alpha1.ActiveHealthCheckUnhealthy{
+								Interval: metav1.Duration{Duration: 2 * time.Second},
+								PassiveHealthCheckUnhealthy: v1alpha1.PassiveHealthCheckUnhealthy{
+									HTTPCodes:    []int{500, 503},
+									HTTPFailures: 5,
+									TCPFailures:  2,
+									Timeouts:     3,
+								},
+							},
+						},
+					},
+				},
+			},
+			wantChecks: &adctypes.UpstreamHealthCheck{
+				Active: &adctypes.UpstreamActiveHealthCheck{
+					Type:                   "http",
+					Timeout:                3,
+					HTTPPath:               "/healthz",
+					Concurrency:            10,
+					Host:                   "example.com",
+					Port:                   8080,
+					HTTPSVerifyCertificate: true,
+					HTTPRequestHeaders:     []string{"X-Custom: value"},
+					Healthy: adctypes.UpstreamActiveHealthCheckHealthy{
+						Interval: 5,
+						UpstreamPassiveHealthCheckHealthy: adctypes.UpstreamPassiveHealthCheckHealthy{
+							HTTPStatuses: []int{200, 201},
+							Successes:    3,
+						},
+					},
+					Unhealthy: adctypes.UpstreamActiveHealthCheckUnhealthy{
+						Interval: 2,
+						UpstreamPassiveHealthCheckUnhealthy: adctypes.UpstreamPassiveHealthCheckUnhealthy{
+							HTTPStatuses: []int{500, 503},
+							HTTPFailures: 5,
+							TCPFailures:  2,
+							Timeouts:     3,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "strictTLS false disables certificate verification",
+			policy: &v1alpha1.BackendTrafficPolicy{
+				Spec: v1alpha1.BackendTrafficPolicySpec{
+					HealthCheck: &v1alpha1.HealthCheck{
+						Active: &v1alpha1.ActiveHealthCheck{
+							StrictTLS: &falseVal,
+							Healthy: &v1alpha1.ActiveHealthCheckHealthy{
+								Interval: metav1.Duration{Duration: 1 * time.Second},
+							},
+						},
+					},
+				},
+			},
+			wantChecks: &adctypes.UpstreamHealthCheck{
+				Active: &adctypes.UpstreamActiveHealthCheck{
+					Type:                   "http",
+					HTTPSVerifyCertificate: false,
+					Healthy: adctypes.UpstreamActiveHealthCheckHealthy{
+						Interval: 1,
+					},
+				},
+			},
+		},
+		{
+			name: "active and passive health checks together",
+			policy: &v1alpha1.BackendTrafficPolicy{
+				Spec: v1alpha1.BackendTrafficPolicySpec{
+					HealthCheck: &v1alpha1.HealthCheck{
+						Active: &v1alpha1.ActiveHealthCheck{
+							Type: "tcp",
+							Healthy: &v1alpha1.ActiveHealthCheckHealthy{
+								Interval: metav1.Duration{Duration: 1 * time.Second},
+							},
+						},
+						Passive: &v1alpha1.PassiveHealthCheck{
+							Type: "http",
+							Healthy: &v1alpha1.PassiveHealthCheckHealthy{
+								HTTPCodes: []int{200},
+								Successes: 2,
+							},
+							Unhealthy: &v1alpha1.PassiveHealthCheckUnhealthy{
+								HTTPCodes:    []int{500},
+								HTTPFailures: 3,
+							},
+						},
+					},
+				},
+			},
+			wantChecks: &adctypes.UpstreamHealthCheck{
+				Active: &adctypes.UpstreamActiveHealthCheck{
+					Type:                   "tcp",
+					HTTPSVerifyCertificate: true,
+					Healthy: adctypes.UpstreamActiveHealthCheckHealthy{
+						Interval: 1,
+					},
+				},
+				Passive: &adctypes.UpstreamPassiveHealthCheck{
+					Type: "http",
+					Healthy: adctypes.UpstreamPassiveHealthCheckHealthy{
+						HTTPStatuses: []int{200},
+						Successes:    2,
+					},
+					Unhealthy: adctypes.UpstreamPassiveHealthCheckUnhealthy{
+						HTTPStatuses: []int{500},
+						HTTPFailures: 3,
+					},
+				},
+			},
+		},
+	}
+
+	translator := &Translator{Log: logr.Discard()}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ups := adctypes.NewDefaultUpstream()
+			translator.attachBackendTrafficPolicyToUpstream(tt.policy, ups)
+			assert.Equal(t, tt.wantChecks, ups.Checks)
 		})
 	}
 }

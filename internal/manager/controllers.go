@@ -79,6 +79,8 @@ import (
 // +kubebuilder:rbac:groups=apisix.apache.org,resources=backendtrafficpolicies/status,verbs=get;update
 // +kubebuilder:rbac:groups=apisix.apache.org,resources=httproutepolicies,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apisix.apache.org,resources=httproutepolicies/status,verbs=get;update
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=l4routepolicies,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apisix.apache.org,resources=l4routepolicies/status,verbs=get;update
 
 // GatewayAPI
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses,verbs=get;list;watch;update
@@ -308,16 +310,13 @@ func registerV2ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessM
 		icgv = netv1beta1.SchemeGroupVersion
 	}
 
-	gvks := []schema.GroupVersionKind{
-		types.GvkOf(&apiv2.ApisixRoute{}),
-		types.GvkOf(&apiv2.ApisixGlobalRule{}),
-		types.GvkOf(&apiv2.ApisixPluginConfig{}),
-		types.GvkOf(&apiv2.ApisixTls{}),
-		types.GvkOf(&apiv2.ApisixConsumer{}),
-		types.GvkOf(&apiv2.ApisixUpstream{}),
-	}
-	if utils.HasAPIResource(mgr, &netv1.Ingress{}) {
-		gvks = append(gvks, types.GvkOf(&netv1.Ingress{}))
+	resources := v2ReadinessResources()
+	gvks := make([]schema.GroupVersionKind, 0, len(resources))
+	for _, resource := range resources {
+		if _, ok := resource.(*netv1.Ingress); ok && !utils.HasAPIResource(mgr, resource) {
+			continue
+		}
+		gvks = append(gvks, types.GvkOf(resource))
 	}
 
 	c := mgr.GetClient()
@@ -330,6 +329,16 @@ func registerV2ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessM
 		}),
 	})
 	log.Info("Registered v2 GVKs for readiness checks", "gvks", gvks)
+}
+
+func v2ReadinessResources() []client.Object {
+	return []client.Object{
+		&netv1.Ingress{},
+		&apiv2.ApisixRoute{},
+		&apiv2.ApisixGlobalRule{},
+		&apiv2.ApisixTls{},
+		&apiv2.ApisixConsumer{},
+	}
 }
 
 func registerGatewayAPIForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManager, log logr.Logger) {
