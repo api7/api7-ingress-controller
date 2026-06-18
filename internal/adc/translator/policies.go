@@ -20,6 +20,7 @@ package translator
 import (
 	"encoding/json"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -38,26 +39,58 @@ func convertBackendRef(namespace, name, kind string) gatewayv1.BackendRef {
 	return backendRef
 }
 
-func (t *Translator) AttachBackendTrafficPolicyToUpstream(ref gatewayv1.BackendRef, policies map[types.NamespacedName]*v1alpha1.BackendTrafficPolicy, upstream *adctypes.Upstream) {
+func (t *Translator) AttachBackendTrafficPolicyToUpstream(ref gatewayv1.BackendRef, policies map[types.NamespacedName]*v1alpha1.BackendTrafficPolicy, upstream *adctypes.Upstream, services map[types.NamespacedName]*corev1.Service) {
 	if len(policies) == 0 {
 		return
 	}
-	var policy *v1alpha1.BackendTrafficPolicy
+	// A targetRef with sectionName scopes the policy to a specific Service port
+	// (matched by port name). It takes precedence over a whole-Service targetRef
+	// (no sectionName) that matches the same backend.
+	var genericPolicy, specificPolicy *v1alpha1.BackendTrafficPolicy
 	for _, po := range policies {
 		if ref.Namespace != nil && string(*ref.Namespace) != po.Namespace {
 			continue
 		}
 		for _, targetRef := range po.Spec.TargetRefs {
-			if ref.Name == targetRef.Name {
-				policy = po
-				break
+			if ref.Name != targetRef.Name {
+				continue
 			}
+			if targetRef.SectionName != nil && *targetRef.SectionName != "" {
+				if backendRefMatchesSectionName(ref, po.Namespace, string(*targetRef.SectionName), services) {
+					specificPolicy = po
+				}
+				continue
+			}
+			genericPolicy = po
 		}
+	}
+	policy := specificPolicy
+	if policy == nil {
+		policy = genericPolicy
 	}
 	if policy == nil {
 		return
 	}
 	t.attachBackendTrafficPolicyToUpstream(policy, upstream)
+}
+
+// backendRefMatchesSectionName reports whether the backend ref resolves to the
+// Service port named sectionName. Per the Gateway API policy semantics, when a
+// sectionName is specified but cannot be resolved, the policy must not attach.
+func backendRefMatchesSectionName(ref gatewayv1.BackendRef, namespace, sectionName string, services map[types.NamespacedName]*corev1.Service) bool {
+	if ref.Port == nil {
+		return false
+	}
+	svc, ok := services[types.NamespacedName{Namespace: namespace, Name: string(ref.Name)}]
+	if !ok || svc == nil {
+		return false
+	}
+	for _, port := range svc.Spec.Ports {
+		if port.Port == int32(*ref.Port) {
+			return port.Name == sectionName
+		}
+	}
+	return false
 }
 
 func (t *Translator) attachBackendTrafficPolicyToUpstream(policy *v1alpha1.BackendTrafficPolicy, upstream *adctypes.Upstream) {
