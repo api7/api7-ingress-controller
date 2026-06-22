@@ -206,34 +206,67 @@ spec:
 			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin-v2"}, fmt.Sprintf(routeToHTTPV2Port, s.Namespace(), s.Namespace()))
 		})
 
+		const rewrittenHost = "httpbin.section-v2.example.com"
+
 		It("should only attach to the backend matching sectionName", func() {
 			s.ResourceApplied("BackendTrafficPolicy", "httpbin", policyScopedToHTTPV2, 1)
 
-			By("policy applies to the http-v2 (8080) backend")
+			// Drive traffic to both hosts so both per-port upstreams are registered
+			// in the dataplane.
 			s.RequestAssert(&scaffold.RequestAssert{
-				Method: "GET",
-				Path:   "/headers",
-				Host:   "httpbin-v2.org",
-				Headers: map[string]string{
-					"Host": "httpbin-v2.org",
-				},
+				Method:  "GET",
+				Path:    "/headers",
+				Host:    "httpbin-v2.org",
+				Headers: map[string]string{"Host": "httpbin-v2.org"},
+				Checks:  []scaffold.ResponseCheckFunc{scaffold.WithExpectedStatus(200)},
+			})
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method:  "GET",
+				Path:    "/headers",
+				Host:    "httpbin.org",
+				Headers: map[string]string{"Host": "httpbin.org"},
+				Checks:  []scaffold.ResponseCheckFunc{scaffold.WithExpectedStatus(200)},
+			})
+
+			// The Service is split into two per-port upstreams (http/80 and
+			// http-v2/8080) with identical nodes. The sectionName-scoped policy must
+			// attach to exactly one of them; under name-only matching it would attach
+			// to both (the whole Service), which this assertion rejects.
+			Eventually(func(g Gomega) {
+				ups, err := s.DefaultDataplaneResource().Upstream().List(context.Background())
+				g.Expect(err).ToNot(HaveOccurred(), "listing upstreams")
+				g.Expect(ups).To(HaveLen(2), "two per-port upstreams should exist")
+
+				var rewritten []*adctypes.Upstream
+				for _, u := range ups {
+					if u.PassHost == "rewrite" && u.UpstreamHost == rewrittenHost {
+						rewritten = append(rewritten, u)
+					}
+				}
+				g.Expect(rewritten).To(HaveLen(1), "policy must attach to exactly the sectionName-matched port, not the whole Service")
+			}).WithTimeout(scaffold.DefaultTimeout).ProbeEvery(scaffold.DefaultInterval).Should(Succeed())
+
+			By("the matched backend (httpbin-v2.org -> 8080) reflects the rewritten host")
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method:  "GET",
+				Path:    "/headers",
+				Host:    "httpbin-v2.org",
+				Headers: map[string]string{"Host": "httpbin-v2.org"},
 				Checks: []scaffold.ResponseCheckFunc{
 					scaffold.WithExpectedStatus(200),
-					scaffold.WithExpectedBodyContains("httpbin.section-v2.example.com"),
+					scaffold.WithExpectedBodyContains(rewrittenHost),
 				},
 			})
 
-			By("policy does not apply to the http (80) backend")
+			By("the unmatched backend (httpbin.org -> 80) keeps the original host")
 			s.RequestAssert(&scaffold.RequestAssert{
-				Method: "GET",
-				Path:   "/headers",
-				Host:   "httpbin.org",
-				Headers: map[string]string{
-					"Host": "httpbin.org",
-				},
+				Method:  "GET",
+				Path:    "/headers",
+				Host:    "httpbin.org",
+				Headers: map[string]string{"Host": "httpbin.org"},
 				Checks: []scaffold.ResponseCheckFunc{
 					scaffold.WithExpectedStatus(200),
-					scaffold.WithExpectedBodyNotContains("httpbin.section-v2.example.com"),
+					scaffold.WithExpectedBodyNotContains(rewrittenHost),
 				},
 			})
 		})
