@@ -160,6 +160,85 @@ spec:
 		})
 	})
 
+	Context("Section Name", func() {
+		// httpbin-service-e2e-test exposes two named ports backed by the same pod:
+		// "http" (80) and "http-v2" (8080). Routing one host to each port lets us
+		// assert that a sectionName-scoped policy only attaches to the matching port.
+		var routeToHTTPV2Port = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin-v2
+  namespace: %s
+spec:
+  parentRefs:
+  - name: %s
+  hostnames:
+  - "httpbin-v2.org"
+  rules:
+  - matches:
+    - path:
+        type: Exact
+        value: /headers
+    backendRefs:
+    - name: httpbin-service-e2e-test
+      port: 8080
+`
+
+		var policyScopedToHTTPV2 = `
+apiVersion: apisix.apache.org/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: httpbin
+spec:
+  targetRefs:
+  - name: httpbin-service-e2e-test
+    kind: Service
+    group: ""
+    sectionName: http-v2
+  passHost: rewrite
+  upstreamHost: httpbin.section-v2.example.com
+`
+
+		BeforeEach(func() {
+			gatewayBeforeEach()
+			By("create HTTPRoute routing to the http-v2 (8080) port")
+			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin-v2"}, fmt.Sprintf(routeToHTTPV2Port, s.Namespace(), s.Namespace()))
+		})
+
+		It("should only attach to the backend matching sectionName", func() {
+			s.ResourceApplied("BackendTrafficPolicy", "httpbin", policyScopedToHTTPV2, 1)
+
+			By("policy applies to the http-v2 (8080) backend")
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/headers",
+				Host:   "httpbin-v2.org",
+				Headers: map[string]string{
+					"Host": "httpbin-v2.org",
+				},
+				Checks: []scaffold.ResponseCheckFunc{
+					scaffold.WithExpectedStatus(200),
+					scaffold.WithExpectedBodyContains("httpbin.section-v2.example.com"),
+				},
+			})
+
+			By("policy does not apply to the http (80) backend")
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/headers",
+				Host:   "httpbin.org",
+				Headers: map[string]string{
+					"Host": "httpbin.org",
+				},
+				Checks: []scaffold.ResponseCheckFunc{
+					scaffold.WithExpectedStatus(200),
+					scaffold.WithExpectedBodyNotContains("httpbin.section-v2.example.com"),
+				},
+			})
+		})
+	})
+
 	Context("Health Check", func() {
 		var policyWithActiveHealthCheck = `
 apiVersion: apisix.apache.org/v1alpha1
