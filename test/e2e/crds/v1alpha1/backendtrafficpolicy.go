@@ -185,7 +185,7 @@ spec:
       port: 8080
 `
 
-		var policyScopedToHTTPV2 = `
+		var policyTmpl = `
 apiVersion: apisix.apache.org/v1alpha1
 kind: BackendTrafficPolicy
 metadata:
@@ -195,9 +195,9 @@ spec:
   - name: httpbin-service-e2e-test
     kind: Service
     group: ""
-    sectionName: http-v2
+    sectionName: %s
   passHost: rewrite
-  upstreamHost: httpbin.section-v2.example.com
+  upstreamHost: %s
 `
 
 		BeforeEach(func() {
@@ -206,27 +206,24 @@ spec:
 			s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin-v2"}, fmt.Sprintf(routeToHTTPV2Port, s.Namespace(), s.Namespace()))
 		})
 
-		const rewrittenHost = "httpbin.section-v2.example.com"
+		// assertScopedToPort applies a policy targeting the given port name and
+		// asserts it attaches to exactly that port: the host routed to the matched
+		// port gets the rewritten upstreamHost, while the host routed to the other
+		// port keeps the original host. matchedHost routes to the port named by
+		// sectionName; otherHost routes to the other port.
+		assertScopedToPort := func(sectionName, rewriteHost, matchedHost, otherHost string) {
+			s.ResourceApplied("BackendTrafficPolicy", "httpbin", fmt.Sprintf(policyTmpl, sectionName, rewriteHost), 1)
 
-		It("should only attach to the backend matching sectionName", func() {
-			s.ResourceApplied("BackendTrafficPolicy", "httpbin", policyScopedToHTTPV2, 1)
-
-			// Drive traffic to both hosts so both per-port upstreams are registered
-			// in the dataplane.
-			s.RequestAssert(&scaffold.RequestAssert{
-				Method:  "GET",
-				Path:    "/headers",
-				Host:    "httpbin-v2.org",
-				Headers: map[string]string{"Host": "httpbin-v2.org"},
-				Checks:  []scaffold.ResponseCheckFunc{scaffold.WithExpectedStatus(200)},
-			})
-			s.RequestAssert(&scaffold.RequestAssert{
-				Method:  "GET",
-				Path:    "/headers",
-				Host:    "httpbin.org",
-				Headers: map[string]string{"Host": "httpbin.org"},
-				Checks:  []scaffold.ResponseCheckFunc{scaffold.WithExpectedStatus(200)},
-			})
+			// Drive traffic to both hosts so both per-port upstreams are registered.
+			for _, host := range []string{matchedHost, otherHost} {
+				s.RequestAssert(&scaffold.RequestAssert{
+					Method:  "GET",
+					Path:    "/headers",
+					Host:    host,
+					Headers: map[string]string{"Host": host},
+					Checks:  []scaffold.ResponseCheckFunc{scaffold.WithExpectedStatus(200)},
+				})
+			}
 
 			// The Service is split into two per-port upstreams (http/80 and
 			// http-v2/8080) with identical nodes. The sectionName-scoped policy must
@@ -239,36 +236,44 @@ spec:
 
 				var rewritten []*adctypes.Upstream
 				for _, u := range ups {
-					if u.PassHost == "rewrite" && u.UpstreamHost == rewrittenHost {
+					if u.PassHost == "rewrite" && u.UpstreamHost == rewriteHost {
 						rewritten = append(rewritten, u)
 					}
 				}
 				g.Expect(rewritten).To(HaveLen(1), "policy must attach to exactly the sectionName-matched port, not the whole Service")
 			}).WithTimeout(scaffold.DefaultTimeout).ProbeEvery(scaffold.DefaultInterval).Should(Succeed())
 
-			By("the matched backend (httpbin-v2.org -> 8080) reflects the rewritten host")
+			By("the matched port reflects the rewritten host")
 			s.RequestAssert(&scaffold.RequestAssert{
 				Method:  "GET",
 				Path:    "/headers",
-				Host:    "httpbin-v2.org",
-				Headers: map[string]string{"Host": "httpbin-v2.org"},
+				Host:    matchedHost,
+				Headers: map[string]string{"Host": matchedHost},
 				Checks: []scaffold.ResponseCheckFunc{
 					scaffold.WithExpectedStatus(200),
-					scaffold.WithExpectedBodyContains(rewrittenHost),
+					scaffold.WithExpectedBodyContains(rewriteHost),
 				},
 			})
 
-			By("the unmatched backend (httpbin.org -> 80) keeps the original host")
+			By("the other port keeps the original host")
 			s.RequestAssert(&scaffold.RequestAssert{
 				Method:  "GET",
 				Path:    "/headers",
-				Host:    "httpbin.org",
-				Headers: map[string]string{"Host": "httpbin.org"},
+				Host:    otherHost,
+				Headers: map[string]string{"Host": otherHost},
 				Checks: []scaffold.ResponseCheckFunc{
 					scaffold.WithExpectedStatus(200),
-					scaffold.WithExpectedBodyNotContains(rewrittenHost),
+					scaffold.WithExpectedBodyNotContains(rewriteHost),
 				},
 			})
+		}
+
+		It("attaches the policy to the http-v2 (8080) port when sectionName is http-v2", func() {
+			assertScopedToPort("http-v2", "httpbin.section-v2.example.com", "httpbin-v2.org", "httpbin.org")
+		})
+
+		It("attaches the policy to the http (80) port when sectionName is http", func() {
+			assertScopedToPort("http", "httpbin.section-http.example.com", "httpbin.org", "httpbin-v2.org")
 		})
 	})
 
