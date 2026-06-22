@@ -29,6 +29,7 @@ import (
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	internaltypes "github.com/apache/apisix-ingress-controller/internal/types"
 )
 
 func convertBackendRef(namespace, name, kind string) gatewayv1.BackendRef {
@@ -43,6 +44,17 @@ func (t *Translator) AttachBackendTrafficPolicyToUpstream(ref gatewayv1.BackendR
 	if len(policies) == 0 {
 		return
 	}
+	// Resolve the backend ref group/kind, applying the Gateway API defaults
+	// (empty group = core, Service kind) so a targetRef is only matched against
+	// a backend of the same resource type.
+	refGroup := ""
+	if ref.Group != nil {
+		refGroup = string(*ref.Group)
+	}
+	refKind := internaltypes.KindService
+	if ref.Kind != nil {
+		refKind = string(*ref.Kind)
+	}
 	// A targetRef with sectionName scopes the policy to a specific Service port
 	// (matched by port name). It takes precedence over a whole-Service targetRef
 	// (no sectionName) that matches the same backend.
@@ -53,6 +65,12 @@ func (t *Translator) AttachBackendTrafficPolicyToUpstream(ref gatewayv1.BackendR
 		}
 		for _, targetRef := range po.Spec.TargetRefs {
 			if ref.Name != targetRef.Name {
+				continue
+			}
+			if targetRef.Group != "" && string(targetRef.Group) != refGroup {
+				continue
+			}
+			if targetRef.Kind != "" && string(targetRef.Kind) != refKind {
 				continue
 			}
 			if targetRef.SectionName != nil && *targetRef.SectionName != "" {

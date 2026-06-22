@@ -401,6 +401,25 @@ func TestAttachBackendTrafficPolicyToUpstreamSectionName(t *testing.T) {
 			},
 			wantScheme: apiv2.SchemeHTTPS,
 		},
+		{
+			name: "targetRef kind mismatch does not attach to a same-named service",
+			ref:  newRef(webPort),
+			policies: map[types.NamespacedName]*v1alpha1.BackendTrafficPolicy{
+				{Namespace: namespace, Name: "p"}: {
+					ObjectMeta: metav1.ObjectMeta{Name: "p", Namespace: namespace},
+					Spec: v1alpha1.BackendTrafficPolicySpec{
+						TargetRefs: []v1alpha1.BackendPolicyTargetReferenceWithSectionName{{
+							LocalPolicyTargetReference: gatewayv1alpha2.LocalPolicyTargetReference{
+								Name: gatewayv1alpha2.ObjectName(serviceName),
+								Kind: gatewayv1alpha2.Kind("ServiceImport"),
+							},
+						}},
+						Scheme: apiv2.SchemeHTTPS,
+					},
+				},
+			},
+			wantScheme: "",
+		},
 	}
 
 	translator := NewTranslator(logr.Discard())
