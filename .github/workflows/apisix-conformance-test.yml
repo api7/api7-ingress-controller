@@ -55,7 +55,7 @@ jobs:
           go-version: "1.26"
       - name: Install kind
         run: |
-          go install sigs.k8s.io/kind@v0.23.0
+          go install sigs.k8s.io/kind@v0.27.0
 
       - name: Login to Registry
         uses: docker/login-action@v3
