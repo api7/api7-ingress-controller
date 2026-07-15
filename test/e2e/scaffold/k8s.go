@@ -282,7 +282,7 @@ func (s *Scaffold) ApplyHTTPRoutePolicy(refNN, hrpNN types.NamespacedName, spec 
 	if len(conditions) == 0 {
 		conditions = []metav1.Condition{
 			{
-				Type:   string(v1alpha2.PolicyConditionAccepted),
+				Type:   string(gatewayv1.PolicyConditionAccepted),
 				Status: metav1.ConditionTrue,
 			},
 		}
@@ -298,7 +298,7 @@ func (s *Scaffold) ApplyL4RoutePolicy(refNN, policyNN types.NamespacedName, spec
 	if len(conditions) == 0 {
 		conditions = []metav1.Condition{
 			{
-				Type:   string(v1alpha2.PolicyConditionAccepted),
+				Type:   string(gatewayv1.PolicyConditionAccepted),
 				Status: metav1.ConditionTrue,
 			},
 		}
