@@ -27,7 +27,7 @@ IMG ?= api7/api7-ingress-controller:$(IMAGE_TAG)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.30.0
 KIND_NAME ?= apisix-ingress-cluster
-KIND_NODE_IMAGE ?= kindest/node:v1.30.0@sha256:047357ac0cfea04663786a612ba1eaba9702bef25227a794b52890dd8bcd692e
+KIND_NODE_IMAGE ?= kindest/node:v1.32.2@sha256:f226345927d7e348497136874b6d207e0b32cc52154ad8323129352923a3142f
 
 DASHBOARD_VERSION ?= dev
 ADC_VERSION ?= 0.22.1
