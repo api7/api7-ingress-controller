@@ -86,11 +86,11 @@ type Scaffold struct {
 }
 
 type Tunnels struct {
-	HTTP  *k8s.Tunnel
-	HTTPS *k8s.Tunnel
-	TCP   *k8s.Tunnel
-	HTTP2 *k8s.Tunnel
-	TLS   *k8s.Tunnel
+	HTTP  Tunnel
+	HTTPS Tunnel
+	TCP   Tunnel
+	HTTP2 Tunnel
+	TLS   Tunnel
 }
 
 func (t *Tunnels) Close() {
@@ -441,8 +441,6 @@ func (s *Scaffold) createDataplaneTunnels(
 		0, httpPort)
 	httpsTunnel := k8s.NewTunnel(kubectlOpts, k8s.ResourceTypeService, serviceName,
 		0, httpsPort)
-	tcpTunnel := k8s.NewTunnel(kubectlOpts, k8s.ResourceTypeService, serviceName,
-		0, tcpPort)
 	http2Tunnel := k8s.NewTunnel(kubectlOpts, k8s.ResourceTypeService, serviceName,
 		0, http2Port)
 	tlsTunnel := k8s.NewTunnel(kubectlOpts, k8s.ResourceTypeService, serviceName,
@@ -458,7 +456,9 @@ func (s *Scaffold) createDataplaneTunnels(
 	}
 	tunnels.HTTPS = httpsTunnel
 
-	if err := tcpTunnel.ForwardPortE(s.t); err != nil {
+	// The raw-TCP stream port uses a WebSocket-capable tunnel; see wsTunnel.
+	tcpTunnel, err := newWebsocketServiceTunnel(s.t, kubectlOpts, serviceName, tcpPort)
+	if err != nil {
 		return nil, err
 	}
 	tunnels.TCP = tcpTunnel
