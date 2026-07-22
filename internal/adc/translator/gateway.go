@@ -49,6 +49,7 @@ func (t *Translator) TranslateGateway(tctx *provider.TranslateContext, obj *gate
 			result.SSL = append(result.SSL, ssl...)
 		}
 	}
+	result.SSL = dedupGatewaySSLSNIs(result.SSL)
 
 	rk := utils.NamespacedNameKind(obj)
 	gatewayProxy, ok := tctx.GatewayProxies[rk]
@@ -66,6 +67,39 @@ func (t *Translator) TranslateGateway(tctx *provider.TranslateContext, obj *gate
 	result.PluginMetadata = pluginMetadata
 
 	return result, nil
+}
+
+// dedupGatewaySSLSNIs enforces global SNI uniqueness across a Gateway's SSL objects.
+// Several HTTPS listeners may share one certificate: a listener without a hostname
+// derives its SNIs from the certificate SANs (e.g. "*.wildcard.org"), which can then
+// collide with another listener that pins that hostname explicitly. The api7ee data
+// plane keys SSL objects by SNI and rejects the whole sync with "SNI already exists"
+// when the same SNI appears on two objects, leaving the Gateway (and every Gateway
+// sharing its GatewayProxy) permanently un-Accepted. Keep each SNI on the first SSL
+// that claims it (listener order) and drop any SSL left without SNIs, since its shared
+// certificate is already served by the SSL that owns the SNI.
+func dedupGatewaySSLSNIs(ssls []*adctypes.SSL) []*adctypes.SSL {
+	if len(ssls) == 0 {
+		return ssls
+	}
+	seen := make(map[string]struct{})
+	deduped := ssls[:0]
+	for _, ssl := range ssls {
+		kept := ssl.Snis[:0]
+		for _, sni := range ssl.Snis {
+			if _, ok := seen[sni]; ok {
+				continue
+			}
+			seen[sni] = struct{}{}
+			kept = append(kept, sni)
+		}
+		ssl.Snis = kept
+		if len(ssl.Snis) == 0 {
+			continue
+		}
+		deduped = append(deduped, ssl)
+	}
+	return deduped
 }
 
 func (t *Translator) translateSecret(tctx *provider.TranslateContext, listener gatewayv1.Listener, obj *gatewayv1.Gateway) ([]*adctypes.SSL, error) {

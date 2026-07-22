@@ -98,6 +98,87 @@ func newTranslateContextWithTLS() *provider.TranslateContext {
 	return tctx
 }
 
+// wildcardSANCert has SubjectAltName DNS entries "*", "*.org" and "*.wildcard.org",
+// mirroring the Gateway API conformance "tls-validity-checks-certificate".
+const wildcardSANCert = `-----BEGIN CERTIFICATE-----
+MIIBdzCCAR6gAwIBAgIUbQBIRhcj+CxDYVUGRnyjp1U3aOIwCgYIKoZIzj0EAwIw
+GDEWMBQGA1UEAwwNd2lsZGNhcmQtdGVzdDAeFw0yNjA3MjIyMDAzMzNaFw0zNjA3
+MTkyMDAzMzNaMBgxFjAUBgNVBAMMDXdpbGRjYXJkLXRlc3QwWTATBgcqhkjOPQIB
+BggqhkjOPQMBBwNCAARODu9OY/689fZmpgEJoUWVvjy7kjhkspOw6kb47oNscy7P
+QsHrHpIIffRZhPHMmz2wzI14ESdTH6GwZO9uatNfo0YwRDAjBgNVHREEHDAaggEq
+ggUqLm9yZ4IOKi53aWxkY2FyZC5vcmcwHQYDVR0OBBYEFBFwpVJptvLRFA6DCf7B
+houdxXdoMAoGCCqGSM49BAMCA0cAMEQCIC8nLcK2Cpd9OB/P/phcIf8/ugeGetar
+vy5jpEgv0MmVAiB4Mhxjtl3b3r1JNUXpqyUes/h1qlGJLh7vMUvZUEBocQ==
+-----END CERTIFICATE-----`
+
+const wildcardSANKey = `-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQghT8xLzsTLnWeNEv1
+iUOosi/kieSfR2owSGL4BV1vAV+hRANCAARODu9OY/689fZmpgEJoUWVvjy7kjhk
+spOw6kb47oNscy7PQsHrHpIIffRZhPHMmz2wzI14ESdTH6GwZO9uatNf
+-----END PRIVATE KEY-----`
+
+// TestTranslateGateway_DuplicateSNIAcrossListeners reproduces the Gateway API 1.6
+// conformance base gateway "same-namespace-with-https-listener": several HTTPS
+// listeners share one wildcard certificate. The listener without a hostname derives
+// its SNIs from the certificate SANs (here "*.org", "*.wildcard.org"), which then
+// collides with the explicit "*.wildcard.org" listener. The api7ee data plane
+// enforces global SNI uniqueness and rejects the sync ("SNI already exists"), so the
+// translator must not emit the same SNI on more than one SSL object.
+func TestTranslateGateway_DuplicateSNIAcrossListeners(t *testing.T) {
+	tr := &Translator{Log: logr.Discard()}
+	tctx := provider.NewDefaultTranslateContext(context.Background())
+	tctx.Secrets[types.NamespacedName{Namespace: "default", Name: "wildcard-cert"}] = &corev1.Secret{
+		Data: map[string][]byte{
+			"cert": []byte(wildcardSANCert),
+			"key":  []byte(wildcardSANKey),
+		},
+	}
+
+	certRef := []gatewayv1.SecretObjectReference{{
+		Kind: ptr.To(gatewayv1.Kind("Secret")),
+		Name: gatewayv1.ObjectName("wildcard-cert"),
+	}}
+	gateway := &gatewayv1.Gateway{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "gw"},
+		Spec: gatewayv1.GatewaySpec{
+			Listeners: []gatewayv1.Listener{
+				{
+					Name:     "https",
+					Port:     443,
+					Protocol: gatewayv1.HTTPSProtocolType,
+					TLS: &gatewayv1.ListenerTLSConfig{
+						Mode:            ptr.To(gatewayv1.TLSModeTerminate),
+						CertificateRefs: certRef,
+					},
+				},
+				{
+					Name:     "https-with-wildcard-hostname",
+					Port:     443,
+					Hostname: ptr.To(gatewayv1.Hostname("*.wildcard.org")),
+					Protocol: gatewayv1.HTTPSProtocolType,
+					TLS: &gatewayv1.ListenerTLSConfig{
+						Mode:            ptr.To(gatewayv1.TLSModeTerminate),
+						CertificateRefs: certRef,
+					},
+				},
+			},
+		},
+	}
+
+	result, err := tr.TranslateGateway(tctx, gateway)
+	require.NoError(t, err)
+
+	seen := map[string]string{}
+	for _, ssl := range result.SSL {
+		for _, sni := range ssl.Snis {
+			if prev, ok := seen[sni]; ok {
+				t.Errorf("SNI %q appears on more than one SSL object (%s and %s); the api7ee data plane rejects duplicate SNIs", sni, prev, ssl.ID)
+			}
+			seen[sni] = ssl.ID
+		}
+	}
+}
+
 func TestTranslateSecret_Passthrough(t *testing.T) {
 	// A TLS passthrough listener does not terminate TLS, so it carries no
 	// certificateRefs; translating it must not error, otherwise the whole Gateway
