@@ -46,6 +46,7 @@ const (
 	KindGRPCRoute            = "GRPCRoute"
 	KindTLSRoute             = "TLSRoute"
 	KindGatewayClass         = "GatewayClass"
+	KindReferenceGrant       = "ReferenceGrant"
 	KindIngress              = "Ingress"
 	KindIngressClass         = "IngressClass"
 	KindGatewayProxy         = "GatewayProxy"
@@ -89,6 +90,8 @@ func KindOf(obj any) string {
 		return KindTLSRoute
 	case *gatewayv1.GatewayClass:
 		return KindGatewayClass
+	case *gatewayv1beta1.ReferenceGrant:
+		return KindReferenceGrant
 	case *netv1.Ingress:
 		return KindIngress
 	case *netv1.IngressClass, *netv1beta1.IngressClass:

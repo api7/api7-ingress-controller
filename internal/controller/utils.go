@@ -459,6 +459,11 @@ func reuseUnchangedListenerStatus(gateway *gatewayv1.Gateway, i int, status gate
 		return status
 	}
 	previous := gateway.Status.Listeners[i]
+	// Listener status is keyed by name, not position: if the spec listeners were
+	// reordered, index i now points at a different listener, so never reuse it.
+	if previous.Name != status.Name {
+		return status
+	}
 	if previous.AttachedRoutes != status.AttachedRoutes {
 		return status
 	}
