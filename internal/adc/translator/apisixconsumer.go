@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/pkg/errors"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -313,21 +314,18 @@ func (t *Translator) translateConsumerHMACAuthPlugin(tctx *provider.TranslateCon
 		var err error
 		clockSkew, err = strconv.ParseInt(string(clockSkewRaw), 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("hmac-auth: invalid clock_skew %q in secret: %w", string(clockSkewRaw), err)
+			return nil, fmt.Errorf("hmac-auth: invalid clock_skew %q in secret %s/%s: %w", string(clockSkewRaw), consumerNamespace, cfg.SecretRef.Name, err)
 		}
 	}
 	if clockSkew < 0 {
 		clockSkew = _hmacAuthClockSkewDefaultValue
 	}
 
-	// comma-separated header names, not raw bytes
+	// header names are RFC 7230 tokens, so a comma or any space is always a separator
 	signedHeadersRaw := sec.Data["signed_headers"]
-	var signedHeaders []string
-	for _, h := range strings.Split(string(signedHeadersRaw), ",") {
-		if h = strings.TrimSpace(h); h != "" {
-			signedHeaders = append(signedHeaders, h)
-		}
-	}
+	signedHeaders := strings.FieldsFunc(string(signedHeadersRaw), func(r rune) bool {
+		return r == ',' || unicode.IsSpace(r)
+	})
 
 	var keepHeader bool
 	keepHeaderRaw, ok := sec.Data["keep_headers"]
@@ -371,7 +369,7 @@ func (t *Translator) translateConsumerHMACAuthPlugin(tctx *provider.TranslateCon
 		var err error
 		maxReqBody, err = strconv.ParseInt(string(maxReqBodyRaw), 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("hmac-auth: invalid max_req_body %q in secret: %w", string(maxReqBodyRaw), err)
+			return nil, fmt.Errorf("hmac-auth: invalid max_req_body %q in secret %s/%s: %w", string(maxReqBodyRaw), consumerNamespace, cfg.SecretRef.Name, err)
 		}
 	}
 	if maxReqBody < 0 {
