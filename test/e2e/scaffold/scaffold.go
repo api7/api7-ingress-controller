@@ -145,7 +145,7 @@ func (s *Scaffold) AdminKey() string {
 // NewScaffold creates an e2e test scaffold.
 func NewScaffold(o Options) *Scaffold {
 	if o.Name == "" {
-		o.Name = "default"
+		o.Name = defaultProfileName
 	}
 	if o.Kubeconfig == "" {
 		o.Kubeconfig = GetKubeconfig()

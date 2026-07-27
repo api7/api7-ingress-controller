@@ -47,6 +47,7 @@ const (
 	ParentRefs                = "parentRefs"
 	IngressClass              = "ingressClass"
 	SecretIndexRef            = "secretRefs"
+	ConfigMapIndexRef         = "configMapRefs"
 	IngressClassRef           = "ingressClassRef"
 	IngressClassParametersRef = "ingressClassParametersRef"
 	ConsumerGatewayRef        = "consumerGatewayRef"
@@ -89,6 +90,7 @@ func SetupIndexer(mgr ctrl.Manager) error {
 		&networkingv1beta1.IngressClass{}: setupIngressClassV1beta1Indexer,
 		&v1alpha1.BackendTrafficPolicy{}:  setupBackendTrafficPolicyIndexer,
 		&v1alpha1.HTTPRoutePolicy{}:       setHTTPRoutePolicyIndexer,
+		&v1alpha1.L4RoutePolicy{}:         setupL4RoutePolicyIndexer,
 	} {
 		if utils.HasAPIResource(mgr, resource) {
 			if err := setup(mgr); err != nil {
@@ -141,6 +143,15 @@ func setupGatewayIndexer(mgr ctrl.Manager) error {
 		&gatewayv1.Gateway{},
 		SecretIndexRef,
 		GatewaySecretIndexFunc,
+	); err != nil {
+		return err
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&gatewayv1.Gateway{},
+		ConfigMapIndexRef,
+		GatewayConfigMapIndexFunc,
 	); err != nil {
 		return err
 	}
@@ -518,6 +529,18 @@ func IngressClassV1beta1IndexFunc(rawObj client.Object) []string {
 	return []string{controllerName}
 }
 
+func setupL4RoutePolicyIndexer(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.L4RoutePolicy{},
+		PolicyTargetRefs,
+		L4RoutePolicyIndexFunc,
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
 func IngressClassIndexFunc(rawObj client.Object) []string {
 	ingressClass := rawObj.(*networkingv1.IngressClass)
 	if ingressClass.Spec.Controller == "" {
@@ -578,12 +601,55 @@ func IngressSecretIndexFunc(rawObj client.Object) []string {
 func GatewaySecretIndexFunc(rawObj client.Object) (keys []string) {
 	gateway := rawObj.(*gatewayv1.Gateway)
 	var m = make(map[string]struct{})
+	add := func(namespace, name string) {
+		key := GenIndexKey(namespace, name)
+		if _, ok := m[key]; !ok {
+			m[key] = struct{}{}
+			keys = append(keys, key)
+		}
+	}
 	for _, listener := range gateway.Spec.Listeners {
-		if listener.TLS == nil || len(listener.TLS.CertificateRefs) == 0 {
+		if listener.TLS == nil {
 			continue
 		}
 		for _, ref := range listener.TLS.CertificateRefs {
 			if ref.Kind == nil || *ref.Kind != internaltypes.KindSecret {
+				continue
+			}
+			namespace := gateway.GetNamespace()
+			if ref.Namespace != nil {
+				namespace = string(*ref.Namespace)
+			}
+			add(namespace, string(ref.Name))
+		}
+		// frontendValidation CA references that are Secrets.
+		if listener.TLS.FrontendValidation != nil {
+			for _, ref := range listener.TLS.FrontendValidation.CACertificateRefs {
+				if string(ref.Kind) != internaltypes.KindSecret {
+					continue
+				}
+				namespace := gateway.GetNamespace()
+				if ref.Namespace != nil {
+					namespace = string(*ref.Namespace)
+				}
+				add(namespace, string(ref.Name))
+			}
+		}
+	}
+	return keys
+}
+
+// GatewayConfigMapIndexFunc indexes Gateways by the CA ConfigMaps referenced via
+// listener TLS frontendValidation, so that ConfigMap changes can trigger reconciliation.
+func GatewayConfigMapIndexFunc(rawObj client.Object) (keys []string) {
+	gateway := rawObj.(*gatewayv1.Gateway)
+	var m = make(map[string]struct{})
+	for _, listener := range gateway.Spec.Listeners {
+		if listener.TLS == nil || listener.TLS.FrontendValidation == nil {
+			continue
+		}
+		for _, ref := range listener.TLS.FrontendValidation.CACertificateRefs {
+			if ref.Kind != "" && string(ref.Kind) != internaltypes.KindConfigMap {
 				continue
 			}
 			namespace := gateway.GetNamespace()
@@ -880,6 +946,20 @@ func BackendTrafficPolicyIndexFunc(rawObj client.Object) []string {
 				string(ref.Name),
 			),
 		)
+	}
+	return keys
+}
+
+func L4RoutePolicyIndexFunc(rawObj client.Object) []string {
+	lrp := rawObj.(*v1alpha1.L4RoutePolicy)
+	keys := make([]string, 0, len(lrp.Spec.TargetRefs))
+	m := make(map[string]struct{})
+	for _, ref := range lrp.Spec.TargetRefs {
+		key := GenIndexKeyWithGK(string(ref.Group), string(ref.Kind), lrp.GetNamespace(), string(ref.Name))
+		if _, ok := m[key]; !ok {
+			m[key] = struct{}{}
+			keys = append(keys, key)
+		}
 	}
 	return keys
 }

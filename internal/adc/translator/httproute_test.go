@@ -20,6 +20,7 @@ package translator
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
@@ -32,6 +33,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
@@ -145,6 +147,287 @@ func TestTranslateHTTPRouteUpstreamScheme(t *testing.T) {
 
 			assert.Equal(t, tt.wantScheme, result.Services[0].Upstream.Scheme)
 			assert.Equal(t, "10.0.0.1", result.Services[0].Upstream.Nodes[0].Host)
+		})
+	}
+}
+
+func TestAttachBackendTrafficPolicyHealthCheck(t *testing.T) {
+	trueVal := true
+	falseVal := false
+
+	tests := []struct {
+		name       string
+		policy     *v1alpha1.BackendTrafficPolicy
+		wantChecks *adctypes.UpstreamHealthCheck
+	}{
+		{
+			name:       "nil health check produces no checks",
+			policy:     &v1alpha1.BackendTrafficPolicy{},
+			wantChecks: nil,
+		},
+		{
+			name: "active health check with all fields",
+			policy: &v1alpha1.BackendTrafficPolicy{
+				Spec: v1alpha1.BackendTrafficPolicySpec{
+					HealthCheck: &v1alpha1.HealthCheck{
+						Active: &v1alpha1.ActiveHealthCheck{
+							Type:           "http",
+							Timeout:        metav1.Duration{Duration: 3 * time.Second},
+							HTTPPath:       "/healthz",
+							Concurrency:    10,
+							Host:           "example.com",
+							Port:           8080,
+							StrictTLS:      &trueVal,
+							RequestHeaders: []string{"X-Custom: value"},
+							Healthy: &v1alpha1.ActiveHealthCheckHealthy{
+								Interval: metav1.Duration{Duration: 5 * time.Second},
+								PassiveHealthCheckHealthy: v1alpha1.PassiveHealthCheckHealthy{
+									HTTPCodes: []int{200, 201},
+									Successes: 3,
+								},
+							},
+							Unhealthy: &v1alpha1.ActiveHealthCheckUnhealthy{
+								Interval: metav1.Duration{Duration: 2 * time.Second},
+								PassiveHealthCheckUnhealthy: v1alpha1.PassiveHealthCheckUnhealthy{
+									HTTPCodes:    []int{500, 503},
+									HTTPFailures: 5,
+									TCPFailures:  2,
+									Timeouts:     3,
+								},
+							},
+						},
+					},
+				},
+			},
+			wantChecks: &adctypes.UpstreamHealthCheck{
+				Active: &adctypes.UpstreamActiveHealthCheck{
+					Type:                   "http",
+					Timeout:                3,
+					HTTPPath:               "/healthz",
+					Concurrency:            10,
+					Host:                   "example.com",
+					Port:                   8080,
+					HTTPSVerifyCertificate: true,
+					HTTPRequestHeaders:     []string{"X-Custom: value"},
+					Healthy: adctypes.UpstreamActiveHealthCheckHealthy{
+						Interval: 5,
+						UpstreamPassiveHealthCheckHealthy: adctypes.UpstreamPassiveHealthCheckHealthy{
+							HTTPStatuses: []int{200, 201},
+							Successes:    3,
+						},
+					},
+					Unhealthy: adctypes.UpstreamActiveHealthCheckUnhealthy{
+						Interval: 2,
+						UpstreamPassiveHealthCheckUnhealthy: adctypes.UpstreamPassiveHealthCheckUnhealthy{
+							HTTPStatuses: []int{500, 503},
+							HTTPFailures: 5,
+							TCPFailures:  2,
+							Timeouts:     3,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "strictTLS false disables certificate verification",
+			policy: &v1alpha1.BackendTrafficPolicy{
+				Spec: v1alpha1.BackendTrafficPolicySpec{
+					HealthCheck: &v1alpha1.HealthCheck{
+						Active: &v1alpha1.ActiveHealthCheck{
+							StrictTLS: &falseVal,
+							Healthy: &v1alpha1.ActiveHealthCheckHealthy{
+								Interval: metav1.Duration{Duration: 1 * time.Second},
+							},
+						},
+					},
+				},
+			},
+			wantChecks: &adctypes.UpstreamHealthCheck{
+				Active: &adctypes.UpstreamActiveHealthCheck{
+					Type:                   "http",
+					HTTPSVerifyCertificate: false,
+					Healthy: adctypes.UpstreamActiveHealthCheckHealthy{
+						Interval: 1,
+					},
+				},
+			},
+		},
+		{
+			name: "active and passive health checks together",
+			policy: &v1alpha1.BackendTrafficPolicy{
+				Spec: v1alpha1.BackendTrafficPolicySpec{
+					HealthCheck: &v1alpha1.HealthCheck{
+						Active: &v1alpha1.ActiveHealthCheck{
+							Type: "tcp",
+							Healthy: &v1alpha1.ActiveHealthCheckHealthy{
+								Interval: metav1.Duration{Duration: 1 * time.Second},
+							},
+						},
+						Passive: &v1alpha1.PassiveHealthCheck{
+							Type: "http",
+							Healthy: &v1alpha1.PassiveHealthCheckHealthy{
+								HTTPCodes: []int{200},
+								Successes: 2,
+							},
+							Unhealthy: &v1alpha1.PassiveHealthCheckUnhealthy{
+								HTTPCodes:    []int{500},
+								HTTPFailures: 3,
+							},
+						},
+					},
+				},
+			},
+			wantChecks: &adctypes.UpstreamHealthCheck{
+				Active: &adctypes.UpstreamActiveHealthCheck{
+					Type:                   "tcp",
+					HTTPSVerifyCertificate: true,
+					Healthy: adctypes.UpstreamActiveHealthCheckHealthy{
+						Interval: 1,
+					},
+				},
+				Passive: &adctypes.UpstreamPassiveHealthCheck{
+					Type: "http",
+					Healthy: adctypes.UpstreamPassiveHealthCheckHealthy{
+						HTTPStatuses: []int{200},
+						Successes:    2,
+					},
+					Unhealthy: adctypes.UpstreamPassiveHealthCheckUnhealthy{
+						HTTPStatuses: []int{500},
+						HTTPFailures: 3,
+					},
+				},
+			},
+		},
+	}
+
+	translator := &Translator{Log: logr.Discard()}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ups := adctypes.NewDefaultUpstream()
+			translator.attachBackendTrafficPolicyToUpstream(tt.policy, ups)
+			assert.Equal(t, tt.wantChecks, ups.Checks)
+		})
+	}
+}
+
+func TestAttachBackendTrafficPolicyToUpstreamSectionName(t *testing.T) {
+	const (
+		namespace   = "default"
+		serviceName = "backend"
+		webPort     = int32(80)
+		webName     = "web"
+		adminPort   = int32(9000)
+		adminName   = "admin"
+	)
+
+	serviceKey := types.NamespacedName{Namespace: namespace, Name: serviceName}
+	services := map[types.NamespacedName]*corev1.Service{
+		serviceKey: {
+			ObjectMeta: metav1.ObjectMeta{Name: serviceName, Namespace: namespace},
+			Spec: corev1.ServiceSpec{
+				Ports: []corev1.ServicePort{
+					{Name: webName, Port: webPort},
+					{Name: adminName, Port: adminPort},
+				},
+			},
+		},
+	}
+
+	newRef := func(port int32) gatewayv1.BackendRef {
+		return gatewayv1.BackendRef{
+			BackendObjectReference: gatewayv1.BackendObjectReference{
+				Name:      gatewayv1.ObjectName(serviceName),
+				Namespace: ptr.To(gatewayv1.Namespace(namespace)),
+				Port:      ptr.To(gatewayv1.PortNumber(port)),
+			},
+		}
+	}
+
+	newPolicy := func(name, sectionName, scheme string) *v1alpha1.BackendTrafficPolicy {
+		targetRef := v1alpha1.BackendPolicyTargetReferenceWithSectionName{
+			LocalPolicyTargetReference: gatewayv1alpha2.LocalPolicyTargetReference{
+				Name: gatewayv1alpha2.ObjectName(serviceName),
+				Kind: gatewayv1alpha2.Kind(internaltypes.KindService),
+			},
+		}
+		if sectionName != "" {
+			targetRef.SectionName = ptr.To(gatewayv1alpha2.SectionName(sectionName))
+		}
+		return &v1alpha1.BackendTrafficPolicy{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+			Spec: v1alpha1.BackendTrafficPolicySpec{
+				TargetRefs: []v1alpha1.BackendPolicyTargetReferenceWithSectionName{targetRef},
+				Scheme:     scheme,
+			},
+		}
+	}
+
+	tests := []struct {
+		name       string
+		ref        gatewayv1.BackendRef
+		policies   map[types.NamespacedName]*v1alpha1.BackendTrafficPolicy
+		wantScheme string
+	}{
+		{
+			name: "sectionName matches the backend port name",
+			ref:  newRef(webPort),
+			policies: map[types.NamespacedName]*v1alpha1.BackendTrafficPolicy{
+				{Namespace: namespace, Name: "p"}: newPolicy("p", webName, apiv2.SchemeHTTPS),
+			},
+			wantScheme: apiv2.SchemeHTTPS,
+		},
+		{
+			name: "sectionName does not match the backend port name",
+			ref:  newRef(adminPort),
+			policies: map[types.NamespacedName]*v1alpha1.BackendTrafficPolicy{
+				{Namespace: namespace, Name: "p"}: newPolicy("p", webName, apiv2.SchemeHTTPS),
+			},
+			wantScheme: "",
+		},
+		{
+			name: "no sectionName applies to the whole service",
+			ref:  newRef(adminPort),
+			policies: map[types.NamespacedName]*v1alpha1.BackendTrafficPolicy{
+				{Namespace: namespace, Name: "p"}: newPolicy("p", "", apiv2.SchemeHTTPS),
+			},
+			wantScheme: apiv2.SchemeHTTPS,
+		},
+		{
+			name: "port-specific policy takes precedence over whole-service policy",
+			ref:  newRef(adminPort),
+			policies: map[types.NamespacedName]*v1alpha1.BackendTrafficPolicy{
+				{Namespace: namespace, Name: "generic"}:  newPolicy("generic", "", apiv2.SchemeHTTP),
+				{Namespace: namespace, Name: "specific"}: newPolicy("specific", adminName, apiv2.SchemeHTTPS),
+			},
+			wantScheme: apiv2.SchemeHTTPS,
+		},
+		{
+			name: "targetRef kind mismatch does not attach to a same-named service",
+			ref:  newRef(webPort),
+			policies: map[types.NamespacedName]*v1alpha1.BackendTrafficPolicy{
+				{Namespace: namespace, Name: "p"}: {
+					ObjectMeta: metav1.ObjectMeta{Name: "p", Namespace: namespace},
+					Spec: v1alpha1.BackendTrafficPolicySpec{
+						TargetRefs: []v1alpha1.BackendPolicyTargetReferenceWithSectionName{{
+							LocalPolicyTargetReference: gatewayv1alpha2.LocalPolicyTargetReference{
+								Name: gatewayv1alpha2.ObjectName(serviceName),
+								Kind: gatewayv1alpha2.Kind("ServiceImport"),
+							},
+						}},
+						Scheme: apiv2.SchemeHTTPS,
+					},
+				},
+			},
+			wantScheme: "",
+		},
+	}
+
+	translator := NewTranslator(logr.Discard(), "")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			upstream := adctypes.NewDefaultUpstream()
+			translator.AttachBackendTrafficPolicyToUpstream(tt.ref, tt.policies, upstream, services)
+			assert.Equal(t, tt.wantScheme, upstream.Scheme)
 		})
 	}
 }

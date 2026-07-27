@@ -88,24 +88,23 @@ spec:
 			By("create GatewayProxy")
 			err := s.CreateResourceFromString(s.GetGatewayProxySpec())
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
-			time.Sleep(5 * time.Second)
 
 			By("create GatewayClass")
 			gatewayClassName := s.Namespace()
 			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(gatewayClass, gatewayClassName, s.GetControllerName()), "")
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
-			time.Sleep(5 * time.Second)
 
 			By("create Gateway")
 			err = s.CreateResourceFromStringWithNamespace(fmt.Sprintf(defaultGateway, gatewayClassName), s.Namespace())
 			Expect(err).NotTo(HaveOccurred(), "creating Gateway")
-			time.Sleep(5 * time.Second)
 
 			By("check Gateway condition")
-			gwyaml, err := s.GetResourceYaml("Gateway", "apisix")
-			Expect(err).NotTo(HaveOccurred(), "getting Gateway yaml")
-			Expect(gwyaml).To(ContainSubstring(`status: "True"`), "checking Gateway condition status")
-			Expect(gwyaml).To(ContainSubstring("message: the gateway has been accepted by the apisix-ingress-controller"), "checking Gateway condition message")
+			s.RetryAssertion(func() (string, error) {
+				return s.GetResourceYaml("Gateway", "apisix")
+			}).Should(And(
+				ContainSubstring(`status: "True"`),
+				ContainSubstring("message: the gateway has been accepted by the apisix-ingress-controller"),
+			), "checking Gateway condition")
 		})
 
 		It("dataplane unavailable", func() {

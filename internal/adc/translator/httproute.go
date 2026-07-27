@@ -556,7 +556,7 @@ func (t *Translator) translateBackendsToUpstreams(
 			enableWebsocket = ptr.To(true)
 		}
 
-		t.AttachBackendTrafficPolicyToUpstream(backend.BackendRef, tctx.BackendTrafficPolicies, upstream)
+		t.AttachBackendTrafficPolicyToUpstream(backend.BackendRef, tctx.BackendTrafficPolicies, upstream, tctx.Services)
 		upstream.Nodes = upNodes
 		if upstream.Scheme == "" {
 			upstream.Scheme = appProtocolToUpstreamScheme(protocol)
@@ -797,6 +797,10 @@ func (t *Translator) translateGatewayHTTPRouteMatch(match *gatewayv1.HTTPRouteMa
 			})
 
 			route.Vars = append(route.Vars, this)
+			// APISIX Admin API requires uris to be a non-null array. Use "/*"
+			// as a catch-all so APISIX accepts the route; the vars entry above
+			// performs the actual regex filtering.
+			route.Uris = []string{"/*"}
 		default:
 			return nil, errors.New("unknown path match type " + string(*match.Path.Type))
 		}
