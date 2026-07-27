@@ -88,3 +88,30 @@ func TestListenersForGatewayContext(t *testing.T) {
 		require.Equal(t, all, got)
 	})
 }
+
+// TestGetMinimumHostnameIntersectionUsesMatchedListeners pins the intersection to
+// the listeners the parentRef actually selected. A parentRef selecting by port
+// leaves ListenerName empty, so filtering by name alone would let a route keep a
+// hostname that only a listener on a different port serves.
+func TestGetMinimumHostnameIntersectionUsesMatchedListeners(t *testing.T) {
+	gateway := &gatewayv1.Gateway{}
+	gateway.Spec.Listeners = []gatewayv1.Listener{
+		listener("http-a", 80, "a.example.com"),
+		listener("http-b", 8080, "b.example.com"),
+	}
+	portSelected := []RouteParentRefContext{{
+		Gateway:   gateway,
+		Listeners: []gatewayv1.Listener{gateway.Spec.Listeners[0]},
+	}}
+
+	require.Equal(t, gatewayv1.Hostname("a.example.com"),
+		getMinimumHostnameIntersection(portSelected, "a.example.com"))
+	require.Empty(t, getMinimumHostnameIntersection(portSelected, "b.example.com"),
+		"a hostname served only by the untargeted listener must not survive")
+
+	// Without a matched listener the whole spec is still considered, so both
+	// hostnames intersect as before.
+	whole := []RouteParentRefContext{{Gateway: gateway}}
+	require.Equal(t, gatewayv1.Hostname("b.example.com"),
+		getMinimumHostnameIntersection(whole, "b.example.com"))
+}

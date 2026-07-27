@@ -1288,19 +1288,19 @@ func appendListeners(existing []gatewayv1.Listener, toAdd ...gatewayv1.Listener)
 // - If none of the above, return an empty string
 func getMinimumHostnameIntersection(gateways []RouteParentRefContext, hostname gatewayv1.Hostname) gatewayv1.Hostname {
 	for _, gateway := range gateways {
-		for _, listener := range gateway.Gateway.Spec.Listeners {
-			// If a listener name is specified, only check that listener
-			// If the listener name is not specified, check all listeners
-			if gateway.ListenerName == "" || gateway.ListenerName == string(listener.Name) {
-				if listener.Hostname == nil || *listener.Hostname == "" {
-					return hostname
-				}
-				if HostnamesMatch(string(*listener.Hostname), string(hostname)) {
-					return hostname
-				}
-				if HostnamesMatch(string(hostname), string(*listener.Hostname)) {
-					return *listener.Hostname
-				}
+		// Only the listeners the parentRef actually matched: a parentRef selecting
+		// by port alone leaves ListenerName empty, and intersecting against the
+		// whole spec would keep a hostname served only by a listener on another
+		// port.
+		for _, listener := range listenersForGatewayContext(gateway) {
+			if listener.Hostname == nil || *listener.Hostname == "" {
+				return hostname
+			}
+			if HostnamesMatch(string(*listener.Hostname), string(hostname)) {
+				return hostname
+			}
+			if HostnamesMatch(string(hostname), string(*listener.Hostname)) {
+				return *listener.Hostname
 			}
 		}
 	}
