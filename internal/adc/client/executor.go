@@ -79,7 +79,11 @@ type ADCServerOpts struct {
 	LabelSelector       map[string]string `json:"labelSelector,omitempty"`
 	IncludeResourceType []string          `json:"includeResourceType,omitempty"`
 	TlsSkipVerify       *bool             `json:"tlsSkipVerify,omitempty"`
-	CacheKey            string            `json:"cacheKey"`
+	// CaCert is the PEM-encoded CA certificate (or bundle) the ADC server verifies
+	// the control plane against. Older ADC servers ignore it, and omitempty keeps
+	// requests without a CA bundle byte for byte what they were.
+	CaCert   string `json:"caCert,omitempty"`
+	CacheKey string `json:"cacheKey"`
 }
 
 // MarshalLog implements logr.Marshaler so logging the request body redacts the
@@ -93,6 +97,7 @@ func (r ADCServerRequest) MarshalLog() any {
 		"labelSelector":       r.Task.Opts.LabelSelector,
 		"includeResourceType": r.Task.Opts.IncludeResourceType,
 		"tlsSkipVerify":       r.Task.Opts.TlsSkipVerify,
+		"hasCaCert":           r.Task.Opts.CaCert != "",
 		"cacheKey":            r.Task.Opts.CacheKey,
 		"config":              r.Task.Config.MarshalLog(),
 	}
@@ -351,6 +356,7 @@ func (e *HTTPADCExecutor) buildHTTPRequest(ctx context.Context, serverAddr strin
 				LabelSelector:       labels,
 				IncludeResourceType: types,
 				TlsSkipVerify:       ptr.To(!tlsVerify),
+				CaCert:              config.CaBundle,
 				CacheKey:            config.Name,
 			},
 			Config: *resources,
@@ -372,6 +378,7 @@ func (e *HTTPADCExecutor) buildHTTPRequest(ctx context.Context, serverAddr strin
 		"labelSelector", labels,
 		"includeResourceType", types,
 		"tlsSkipVerify", !tlsVerify,
+		"hasCaCert", config.CaBundle != "",
 	)
 
 	// Create HTTP request

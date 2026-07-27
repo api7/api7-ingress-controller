@@ -806,6 +806,11 @@ type Config struct {
 	Token       string
 	TlsVerify   bool
 	BackendType string
+
+	// CaBundle is a PEM-encoded CA certificate (or bundle) used to verify the
+	// control plane, in place of the system trust store. Only meaningful when
+	// TlsVerify is true.
+	CaBundle string
 }
 
 // MarshalJSON implements custom JSON marshaling for adcConfig
@@ -815,10 +820,12 @@ func (c Config) MarshalJSON() ([]byte, error) {
 		Name        string   `json:"name"`
 		ServerAddrs []string `json:"serverAddrs"`
 		TlsVerify   bool     `json:"tlsVerify"`
+		HasCaBundle bool     `json:"hasCaBundle"`
 	}{
 		Name:        c.Name,
 		ServerAddrs: c.ServerAddrs,
 		TlsVerify:   c.TlsVerify,
+		HasCaBundle: c.CaBundle != "",
 	})
 }
 
