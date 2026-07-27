@@ -937,9 +937,11 @@ func getListenerStatus(
 				LastTransitionTime: now,
 				Reason:             string(gatewayv1.ListenerReasonAccepted),
 			}
+			// A listener is not conflicted until something below says so: the
+			// NoConflicts reason is only valid on Status=False.
 			conditionConflicted = metav1.Condition{
 				Type:               string(gatewayv1.ListenerConditionConflicted),
-				Status:             metav1.ConditionTrue,
+				Status:             metav1.ConditionFalse,
 				ObservedGeneration: gateway.GetGeneration(),
 				LastTransitionTime: now,
 				Reason:             string(gatewayv1.ListenerReasonNoConflicts),

@@ -20,6 +20,8 @@ package translator
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -49,7 +51,11 @@ func (t *Translator) TranslateGateway(tctx *provider.TranslateContext, obj *gate
 			result.SSL = append(result.SSL, ssl...)
 		}
 	}
-	result.SSL = dedupGatewaySSLSNIs(result.SSL)
+	ssls, err := dedupGatewaySSLSNIs(result.SSL)
+	if err != nil {
+		return nil, err
+	}
+	result.SSL = ssls
 
 	rk := utils.NamespacedNameKind(obj)
 	gatewayProxy, ok := tctx.GatewayProxies[rk]
@@ -70,28 +76,67 @@ func (t *Translator) TranslateGateway(tctx *provider.TranslateContext, obj *gate
 }
 
 // dedupGatewaySSLSNIs enforces global SNI uniqueness across a Gateway's SSL objects.
+//
 // Several HTTPS listeners may share one certificate: a listener without a hostname
 // derives its SNIs from the certificate SANs (e.g. "*.wildcard.org"), which can then
 // collide with another listener that pins that hostname explicitly. The api7ee data
 // plane keys SSL objects by SNI and rejects the whole sync with "SNI already exists"
 // when the same SNI appears on two objects, leaving the Gateway (and every Gateway
-// sharing its GatewayProxy) permanently un-Accepted. Keep each SNI on the first SSL
-// that claims it (listener order) and drop any SSL left without SNIs, since its shared
-// certificate is already served by the SSL that owns the SNI.
-func dedupGatewaySSLSNIs(ssls []*adctypes.SSL) []*adctypes.SSL {
+// sharing its GatewayProxy) permanently un-Accepted.
+//
+// A collision may only be collapsed when both objects would serve the same TLS
+// configuration, because the surviving object decides what every client connecting
+// with that SNI is handed:
+//
+//   - the later object brings no certificate the owner does not already have, and
+//     agrees on client validation: the SNI is simply dropped from it;
+//   - both objects claim exactly the same SNIs and agree on client validation: their
+//     certificate arrays are merged, so a listener pairing an RSA with an ECDSA
+//     certificate keeps both. Merging is confined to this case: extending the owner's
+//     certificates when it claims SNIs the other does not would serve those SNIs a
+//     certificate that was never meant for them.
+//
+// Anything else asks for one SNI to be served with two different certificates or two
+// different client policies, which the data plane cannot express. Keeping the first
+// listener would hand the Gateway an arbitrary TLS configuration while its status
+// still reports Accepted, so the conflict is reported instead and surfaces as
+// Accepted=False on the Gateway.
+func dedupGatewaySSLSNIs(ssls []*adctypes.SSL) ([]*adctypes.SSL, error) {
 	if len(ssls) == 0 {
-		return ssls
+		return ssls, nil
 	}
-	seen := make(map[string]struct{})
+	// Claimed SNI sets are read after the owner has been trimmed, so the original
+	// sets are captured up front.
+	claims := make([]map[string]struct{}, len(ssls))
+	for i, ssl := range ssls {
+		claims[i] = sniSet(ssl.Snis)
+	}
+
+	owners := make(map[string]int)
 	deduped := ssls[:0]
-	for _, ssl := range ssls {
+	for i, ssl := range ssls {
 		kept := ssl.Snis[:0]
 		for _, sni := range ssl.Snis {
-			if _, ok := seen[sni]; ok {
+			owner, claimed := owners[sni]
+			if !claimed {
+				owners[sni] = i
+				kept = append(kept, sni)
 				continue
 			}
-			seen[sni] = struct{}{}
-			kept = append(kept, sni)
+			if !clientClassEqual(ssls[owner].Client, ssl.Client) {
+				return nil, fmt.Errorf("listeners disagree on the client certificate validation of SNI %q; "+
+					"one SNI can only be served with a single TLS configuration", sni)
+			}
+			switch {
+			// Nothing to carry over: the owner already serves these certificates.
+			case certificatesContain(ssls[owner].Certificates, ssl.Certificates):
+			// Same SNIs on both sides, so extra certificates are safe to merge.
+			case sniSetEqual(claims[owner], claims[i]):
+				ssls[owner].Certificates = mergeCertificates(ssls[owner].Certificates, ssl.Certificates)
+			default:
+				return nil, fmt.Errorf("listeners disagree on the certificate of SNI %q; "+
+					"one SNI can only be served with a single TLS configuration", sni)
+			}
 		}
 		ssl.Snis = kept
 		if len(ssl.Snis) == 0 {
@@ -99,7 +144,53 @@ func dedupGatewaySSLSNIs(ssls []*adctypes.SSL) []*adctypes.SSL {
 		}
 		deduped = append(deduped, ssl)
 	}
-	return deduped
+	return deduped, nil
+}
+
+func sniSet(snis []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(snis))
+	for _, sni := range snis {
+		set[sni] = struct{}{}
+	}
+	return set
+}
+
+func sniSetEqual(a, b map[string]struct{}) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for sni := range a {
+		if _, ok := b[sni]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func clientClassEqual(a, b *adctypes.ClientClass) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return reflect.DeepEqual(*a, *b)
+}
+
+// certificatesContain reports whether every certificate of sub is already in super.
+func certificatesContain(super, sub []adctypes.Certificate) bool {
+	for _, cert := range sub {
+		if !slices.Contains(super, cert) {
+			return false
+		}
+	}
+	return true
+}
+
+func mergeCertificates(into, extra []adctypes.Certificate) []adctypes.Certificate {
+	for _, cert := range extra {
+		if !slices.Contains(into, cert) {
+			into = append(into, cert)
+		}
+	}
+	return into
 }
 
 func (t *Translator) translateSecret(tctx *provider.TranslateContext, listener gatewayv1.Listener, obj *gatewayv1.Gateway) ([]*adctypes.SSL, error) {
