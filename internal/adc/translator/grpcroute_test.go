@@ -174,7 +174,7 @@ func TestTranslateGRPCRouteServerPortVarsByMode(t *testing.T) {
 			expected: nil,
 		},
 		{
-			name: "empty mode normalizes to auto",
+			name: "empty mode normalizes to off",
 			mode: "",
 			parentRefs: []gatewayv1.ParentReference{
 				{Name: "gw", Port: &parentPort},
@@ -182,7 +182,18 @@ func TestTranslateGRPCRouteServerPortVarsByMode(t *testing.T) {
 			listeners: []gatewayv1.Listener{
 				{Name: "grpc-main", Protocol: gatewayv1.HTTPProtocolType, Port: gatewayv1.PortNumber(9080)},
 			},
-			expected: singlePortVars,
+			expected: nil,
+		},
+		{
+			name: "unknown mode normalizes to off",
+			mode: "bogus",
+			parentRefs: []gatewayv1.ParentReference{
+				{Name: "gw", SectionName: &sectionName},
+			},
+			listeners: []gatewayv1.Listener{
+				{Name: "grpc-main", Protocol: gatewayv1.HTTPProtocolType, Port: gatewayv1.PortNumber(9080)},
+			},
+			expected: nil,
 		},
 	}
 

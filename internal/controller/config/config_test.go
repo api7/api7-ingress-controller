@@ -13,7 +13,7 @@ func TestNewDefaultConfig(t *testing.T) {
 	assert.Equal(t, DefaultLogLevel, cfg.LogLevel)
 	assert.Equal(t, DefaultControllerName, cfg.ControllerName)
 	assert.Equal(t, DefaultLeaderElectionID, cfg.LeaderElectionID)
-	assert.Equal(t, ListenerPortMatchModeAuto, cfg.ListenerPortMatchMode)
+	assert.Equal(t, ListenerPortMatchModeOff, cfg.ListenerPortMatchMode)
 }
 
 func TestConfigValidateListenerPortMatchMode(t *testing.T) {

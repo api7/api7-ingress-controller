@@ -30,14 +30,16 @@ type Translator struct {
 	ListenerPortMatchMode config.ListenerPortMatchMode
 }
 
+// normalizeMode resolves unset and unrecognized values to the default mode.
+// server_port carries the port the data plane accepted the connection on
+// (node_listen), not the port declared on the Gateway listener, so matching on
+// it is only correct where the two coincide. That makes it opt-in.
 func normalizeMode(mode config.ListenerPortMatchMode) config.ListenerPortMatchMode {
 	switch mode {
-	case "", config.ListenerPortMatchModeAuto:
-		return config.ListenerPortMatchModeAuto
-	case config.ListenerPortMatchModeExplicit, config.ListenerPortMatchModeOff:
+	case config.ListenerPortMatchModeAuto, config.ListenerPortMatchModeExplicit, config.ListenerPortMatchModeOff:
 		return mode
 	default:
-		return config.ListenerPortMatchModeAuto
+		return config.ListenerPortMatchModeOff
 	}
 }
 
@@ -74,17 +76,15 @@ func (t *Translator) shouldInjectServerPortVars(parentRefs []gatewayv1.ParentRef
 	explicit := hasExplicitListenerTarget(parentRefs)
 
 	switch t.ListenerPortMatchMode {
-	case config.ListenerPortMatchModeOff:
-		if explicit {
-			t.Log.V(1).Info("listener_port_match_mode is 'off'; ignoring explicit listener targeting", "parent_refs", len(parentRefs))
-		}
-		return false
 	case config.ListenerPortMatchModeExplicit:
 		return explicit
 	case config.ListenerPortMatchModeAuto:
 		return explicit || len(ports) > 1
-	default:
-		return explicit || len(ports) > 1
+	default: // off, including anything normalizeMode resolved to it
+		if explicit {
+			t.Log.V(1).Info("listener_port_match_mode is 'off'; ignoring explicit listener targeting", "parent_refs", len(parentRefs))
+		}
+		return false
 	}
 }
 
