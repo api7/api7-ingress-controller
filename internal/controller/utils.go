@@ -1236,9 +1236,16 @@ func getUnionOfGatewayHostnames(gateways []RouteParentRefContext) ([]gatewayv1.H
 }
 
 // listenersForGatewayContext returns the listeners relevant for hostname resolution.
-// When a specific listener was matched by sectionName, only that listener is returned.
-// Otherwise, all gateway spec listeners are considered.
+// The listeners actually matched by the parentRef are preferred, so a parentRef that
+// selects by port alone does not pull in hostnames from listeners it never targeted.
+// Only when nothing matched do we fall back to the gateway spec.
 func listenersForGatewayContext(gateway RouteParentRefContext) []gatewayv1.Listener {
+	if len(gateway.Listeners) > 0 {
+		return gateway.Listeners
+	}
+	if gateway.Listener != nil {
+		return []gatewayv1.Listener{*gateway.Listener}
+	}
 	if gateway.ListenerName != "" {
 		for _, listener := range gateway.Gateway.Spec.Listeners {
 			if string(listener.Name) == gateway.ListenerName {
@@ -1252,14 +1259,22 @@ func listenersForGatewayContext(gateway RouteParentRefContext) []gatewayv1.Liste
 
 // appendListeners appends listeners to the slice, avoiding duplicates by port+name.
 func appendListeners(existing []gatewayv1.Listener, toAdd ...gatewayv1.Listener) []gatewayv1.Listener {
-	seen := make(map[string]struct{}, len(existing))
+	// Listener names are only unique within a Gateway, while this slice is
+	// aggregated across every Gateway the route attaches to, so the name alone
+	// would collapse distinct listeners such as two "http" on different ports.
+	type listenerKey struct {
+		name string
+		port gatewayv1.PortNumber
+	}
+	seen := make(map[listenerKey]struct{}, len(existing))
 	for _, l := range existing {
-		seen[string(l.Name)] = struct{}{}
+		seen[listenerKey{name: string(l.Name), port: l.Port}] = struct{}{}
 	}
 	for _, l := range toAdd {
-		if _, ok := seen[string(l.Name)]; !ok {
+		key := listenerKey{name: string(l.Name), port: l.Port}
+		if _, ok := seen[key]; !ok {
 			existing = append(existing, l)
-			seen[string(l.Name)] = struct{}{}
+			seen[key] = struct{}{}
 		}
 	}
 	return existing

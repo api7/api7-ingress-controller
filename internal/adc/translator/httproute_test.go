@@ -431,3 +431,74 @@ func TestAttachBackendTrafficPolicyToUpstreamSectionName(t *testing.T) {
 		})
 	}
 }
+
+func TestTranslateHTTPRouteTrafficSplitWeightsSkipUnresolvedBackends(t *testing.T) {
+	const namespace = "default"
+
+	translator := NewTranslator(logr.Discard(), "")
+	tctx := provider.NewDefaultTranslateContext(context.Background())
+
+	// "empty" resolves to zero nodes and is skipped, so the weights of the two
+	// remaining backends must not shift onto the wrong upstream.
+	for _, name := range []string{"empty", "first", "second"} {
+		key := types.NamespacedName{Namespace: namespace, Name: name}
+		tctx.Services[key] = &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+			Spec: corev1.ServiceSpec{
+				Ports: []corev1.ServicePort{{Name: "web", Port: 80}},
+			},
+		}
+		if name == "empty" {
+			continue
+		}
+		tctx.EndpointSlices[key] = []discoveryv1.EndpointSlice{{
+			ObjectMeta: metav1.ObjectMeta{Name: name + "-1", Namespace: namespace},
+			Ports:      []discoveryv1.EndpointPort{{Name: ptr.To("web"), Port: ptr.To(int32(80))}},
+			Endpoints: []discoveryv1.Endpoint{{
+				Addresses:  []string{"10.0.0.1"},
+				Conditions: discoveryv1.EndpointConditions{Ready: ptr.To(true)},
+			}},
+		}}
+	}
+
+	backendRef := func(name string, weight int32) gatewayv1.HTTPBackendRef {
+		return gatewayv1.HTTPBackendRef{
+			BackendRef: gatewayv1.BackendRef{
+				BackendObjectReference: gatewayv1.BackendObjectReference{
+					Name: gatewayv1.ObjectName(name),
+					Port: ptr.To(gatewayv1.PortNumber(80)),
+				},
+				Weight: ptr.To(weight),
+			},
+		}
+	}
+
+	route := &gatewayv1.HTTPRoute{
+		ObjectMeta: metav1.ObjectMeta{Name: "demo", Namespace: namespace},
+		Spec: gatewayv1.HTTPRouteSpec{
+			Rules: []gatewayv1.HTTPRouteRule{{
+				BackendRefs: []gatewayv1.HTTPBackendRef{
+					backendRef("empty", 10),
+					backendRef("first", 20),
+					backendRef("second", 30),
+				},
+			}},
+		},
+	}
+
+	result, err := translator.TranslateHTTPRoute(tctx, route)
+	require.NoError(t, err)
+	require.Len(t, result.Services, 1)
+
+	svc := result.Services[0]
+	require.Len(t, svc.Upstreams, 1)
+
+	cfg, ok := svc.Plugins["traffic-split"].(*adctypes.TrafficSplitConfig)
+	require.True(t, ok, "traffic-split plugin should be configured")
+	require.Len(t, cfg.Rules, 1)
+	require.Len(t, cfg.Rules[0].WeightedUpstreams, 2)
+
+	assert.Equal(t, 20, cfg.Rules[0].WeightedUpstreams[0].Weight, "default upstream keeps its own weight")
+	assert.Equal(t, 30, cfg.Rules[0].WeightedUpstreams[1].Weight)
+	assert.Equal(t, svc.Upstreams[0].ID, cfg.Rules[0].WeightedUpstreams[1].UpstreamID)
+}

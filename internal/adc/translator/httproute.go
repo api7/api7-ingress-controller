@@ -537,6 +537,9 @@ func (t *Translator) translateBackendsToUpstreams(
 ) (enableWebsocket *bool, backendErr error) {
 	upstreams := make([]*adctypes.Upstream, 0)
 	weightedUpstreams := make([]adctypes.TrafficSplitConfigRuleWeightedUpstream, 0)
+	// backendRefs of the upstreams above, kept in sync so traffic-split weights
+	// stay bound to their own backend when some backendRefs are skipped.
+	validBackends := make([]gatewayv1.HTTPBackendRef, 0)
 
 	for _, backend := range rule.BackendRefs {
 		if backend.Namespace == nil {
@@ -580,6 +583,7 @@ func (t *Translator) translateBackendsToUpstreams(
 		upstream.Scheme = cmp.Or(upstream.Scheme, apiv2.SchemeHTTP)
 		upstream.ID = id.GenID(upstreamName)
 		upstreams = append(upstreams, upstream)
+		validBackends = append(validBackends, backend)
 	}
 
 	// Handle multiple backends with traffic-split plugin
@@ -607,8 +611,8 @@ func (t *Translator) translateBackendsToUpstreams(
 
 		// Set weight in traffic-split for the default upstream
 		weight := apiv2.DefaultWeight
-		if rule.BackendRefs[0].Weight != nil {
-			weight = int(*rule.BackendRefs[0].Weight)
+		if validBackends[0].Weight != nil {
+			weight = int(*validBackends[0].Weight)
 		}
 		weightedUpstreams = append(weightedUpstreams, adctypes.TrafficSplitConfigRuleWeightedUpstream{
 			Weight: weight,
@@ -618,8 +622,8 @@ func (t *Translator) translateBackendsToUpstreams(
 		for i, upstream := range upstreams {
 			weight := apiv2.DefaultWeight
 			// get weight from the backend refs starting from the second backend
-			if i+1 < len(rule.BackendRefs) && rule.BackendRefs[i+1].Weight != nil {
-				weight = int(*rule.BackendRefs[i+1].Weight)
+			if i+1 < len(validBackends) && validBackends[i+1].Weight != nil {
+				weight = int(*validBackends[i+1].Weight)
 			}
 			weightedUpstreams = append(weightedUpstreams, adctypes.TrafficSplitConfigRuleWeightedUpstream{
 				UpstreamID: upstream.ID,
@@ -707,6 +711,8 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 		service.ID = id.GenID(service.Name)
 		service.Hosts = hosts
 
+		// The backend error is already surfaced by the helper as a fault-injection
+		// plugin on the service, so it is deliberately not propagated here.
 		enableWebsocket, _ := t.translateBackendsToUpstreams(tctx, rule, httpRoute, service)
 
 		t.fillPluginsFromHTTPRouteFilters(service.Plugins, httpRoute.GetNamespace(), rule.Filters, rule.Matches, tctx)
