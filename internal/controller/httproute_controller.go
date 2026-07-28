@@ -75,7 +75,11 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.genericEvent = make(chan event.GenericEvent, 100)
 
 	// Check and store EndpointSlice API support
-	r.supportsEndpointSlice = pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
+	supportsEndpointSlice, err := pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
+	if err != nil {
+		return err
+	}
+	r.supportsEndpointSlice = supportsEndpointSlice
 
 	eventFilters := []predicate.Predicate{
 		predicate.GenerationChangedPredicate{},

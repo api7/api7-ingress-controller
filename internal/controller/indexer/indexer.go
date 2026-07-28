@@ -74,12 +74,16 @@ func SetupIndexer(mgr ctrl.Manager) error {
 			&gatewayv1.GatewayClass{}:   setupGatewayClassIndexer,
 			&v1alpha1.Consumer{}:        setupConsumerIndexer,
 		} {
-			if utils.HasAPIResource(mgr, resource) {
-				if err := setup(mgr); err != nil {
-					return err
-				}
-			} else {
+			installed, err := utils.HasAPIResource(mgr, resource)
+			if err != nil {
+				return err
+			}
+			if !installed {
 				setupLog.Info("Skipping indexer setup, API not found in cluster", "api", utils.FormatGVK(resource))
+				continue
+			}
+			if err := setup(mgr); err != nil {
+				return err
 			}
 		}
 	}
@@ -92,12 +96,16 @@ func SetupIndexer(mgr ctrl.Manager) error {
 		&v1alpha1.HTTPRoutePolicy{}:       setHTTPRoutePolicyIndexer,
 		&v1alpha1.L4RoutePolicy{}:         setupL4RoutePolicyIndexer,
 	} {
-		if utils.HasAPIResource(mgr, resource) {
-			if err := setup(mgr); err != nil {
-				return err
-			}
-		} else {
+		installed, err := utils.HasAPIResource(mgr, resource)
+		if err != nil {
+			return err
+		}
+		if !installed {
 			setupLog.Info("Skipping indexer setup, API not found in cluster", "api", utils.FormatGVK(resource))
+			continue
+		}
+		if err := setup(mgr); err != nil {
+			return err
 		}
 	}
 

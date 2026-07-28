@@ -71,7 +71,11 @@ type ApisixRouteReconciler struct {
 // SetupWithManager sets up the controller with the Manager.
 func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Check and store EndpointSlice API support
-	r.supportsEndpointSlice = pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
+	supportsEndpointSlice, err := pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
+	if err != nil {
+		return err
+	}
+	r.supportsEndpointSlice = supportsEndpointSlice
 	var icWatch client.Object
 	switch r.ICGV.String() {
 	case networkingv1beta1.SchemeGroupVersion.String():
