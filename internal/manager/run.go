@@ -25,7 +25,6 @@ import (
 	"github.com/go-logr/logr"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/utils/ptr"
@@ -48,6 +47,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	_ "github.com/apache/apisix-ingress-controller/internal/provider/init"
 	_ "github.com/apache/apisix-ingress-controller/pkg/metrics"
+	"github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
 var (
@@ -82,6 +82,11 @@ func Run(ctx context.Context, logger logr.Logger) error {
 	cfg := config.ControllerConfig
 
 	setupLog := ctrl.LoggerFrom(ctx).WithName("setup")
+
+	// SetupSignalHandler must be called exactly once. Install it before setup
+	// starts so that a shutdown signal is honored while waiting for the API
+	// server, not only once the manager is running.
+	signalCtx := ctrl.SetupSignalHandler()
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will
@@ -168,8 +173,37 @@ func Run(ctx context.Context, logger logr.Logger) error {
 		return err
 	}
 
+	// Which API resources are installed is detected once, below, and gates the
+	// registration of field indexes, controllers and readiness checks for the
+	// whole lifetime of the process. Detecting them against an unreachable API
+	// server would silently classify everything as "not installed" and leave the
+	// controller permanently degraded until it is restarted, so wait for the API
+	// server to answer first.
+	if err := utils.WaitForAPIServer(signalCtx, mgr.GetConfig(), setupLog); err != nil {
+		setupLog.Error(err, "unable to reach the Kubernetes API server")
+		return err
+	}
+
+	// API resource detection runs outside the manager and does not observe
+	// signalCtx, so check between setup phases: now that the signal handler is
+	// installed this early, a shutdown signal would otherwise be swallowed until
+	// mgr.Start.
+	checkShutdown := func() error {
+		if err := signalCtx.Err(); err != nil {
+			setupLog.Info("shutdown requested during setup, stopping", "reason", err)
+			return err
+		}
+		return nil
+	}
+
 	readier := readiness.NewReadinessManager(mgr.GetClient(), logger)
-	registerReadinessGVK(mgr, readier)
+	if err := registerReadinessGVK(mgr, readier); err != nil {
+		setupLog.Error(err, "unable to register readiness checks")
+		return err
+	}
+	if err := checkShutdown(); err != nil {
+		return err
+	}
 
 	if err := mgr.Add(readier); err != nil {
 		setupLog.Error(err, "unable to add readiness manager")
@@ -208,16 +242,26 @@ func Run(ctx context.Context, logger logr.Logger) error {
 		return err
 	}
 
-	setupLog.Info("check ReferenceGrants is enabled")
-	_, err = mgr.GetRESTMapper().KindsFor(schema.GroupVersionResource{
-		Group:    v1beta1.GroupVersion.Group,
-		Version:  v1beta1.GroupVersion.Version,
-		Resource: "referencegrants",
-	})
-	if err != nil {
-		setupLog.Info("CRD ReferenceGrants is not installed", "err", err)
+	// ReferenceGrant is a Gateway API kind and only consulted by Gateway API
+	// paths, so skip the detection entirely when Gateway API is disabled.
+	hasReferenceGrant := false
+	if config.ControllerConfig.DisableGatewayAPI {
+		setupLog.Info("Gateway API is disabled, skipping the ReferenceGrants check")
+	} else {
+		setupLog.Info("check ReferenceGrants is enabled")
+		if hasReferenceGrant, err = utils.HasAPIResource(mgr, &v1beta1.ReferenceGrant{}); err != nil {
+			setupLog.Error(err, "unable to detect whether ReferenceGrants is installed")
+			return err
+		}
+		if !hasReferenceGrant {
+			setupLog.Info("CRD ReferenceGrants is not installed, cross-namespace references will be rejected",
+				"gvk", utils.FormatGVK(&v1beta1.ReferenceGrant{}))
+		}
 	}
-	controller.SetEnableReferenceGrant(err == nil)
+	controller.SetEnableReferenceGrant(hasReferenceGrant)
+	if err := checkShutdown(); err != nil {
+		return err
+	}
 
 	setupLog.Info("setting up controllers")
 	controllers, err := setupControllers(ctx, mgr, provider, updater.Writer(), readier)
@@ -228,6 +272,9 @@ func Run(ctx context.Context, logger logr.Logger) error {
 
 	for _, c := range controllers {
 		if err := c.SetupWithManager(mgr); err != nil {
+			return err
+		}
+		if err := checkShutdown(); err != nil {
 			return err
 		}
 	}
@@ -257,5 +304,5 @@ func Run(ctx context.Context, logger logr.Logger) error {
 	}
 
 	setupLog.Info("starting controller manager")
-	return mgr.Start(ctrl.SetupSignalHandler())
+	return mgr.Start(signalCtx)
 }

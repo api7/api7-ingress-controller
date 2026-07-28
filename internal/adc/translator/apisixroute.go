@@ -463,7 +463,7 @@ func (t *Translator) translateApisixRouteBackendResolveGranularityEndpoint(tctx 
 			Kind:      (*gatewayv1.Kind)(ptr.To(internaltypes.KindService)),
 			Name:      gatewayv1.ObjectName(backend.ServiceName),
 			Namespace: (*gatewayv1.Namespace)(&arNN.Namespace),
-			Port:      (*gatewayv1.PortNumber)(&port),
+			Port:      &port,
 		},
 		Weight: &weight,
 	}

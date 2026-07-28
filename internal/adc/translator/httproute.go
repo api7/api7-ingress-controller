@@ -192,7 +192,9 @@ func (t *Translator) fillPluginFromHTTPCORSFilter(plugins adctypes.Plugins, cors
 		}
 		plugin.ExposeHeaders = strings.Join(exposeHeaders, ",")
 	}
-	plugin.AllowCredential = bool(cors.AllowCredentials)
+	if cors.AllowCredentials != nil {
+		plugin.AllowCredential = *cors.AllowCredentials
+	}
 }
 
 func (t *Translator) fillPluginFromHTTPRequestHeaderFilter(plugins adctypes.Plugins, reqHeaderModifier *gatewayv1.HTTPHeaderFilter) {
@@ -574,7 +576,7 @@ func (t *Translator) translateBackendsToUpstreams(
 			kind = string(*backend.Kind)
 		}
 		if backend.Port != nil {
-			port = int32(*backend.Port)
+			port = *backend.Port
 		}
 		namespace := string(*backend.Namespace)
 		name := string(backend.Name)
