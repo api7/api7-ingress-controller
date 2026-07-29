@@ -24,10 +24,10 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
-func listener(name string, port int32, hostname string) gatewayv1.Listener {
+func listener(name string, port gatewayv1.PortNumber, hostname string) gatewayv1.Listener {
 	l := gatewayv1.Listener{
 		Name: gatewayv1.SectionName(name),
-		Port: gatewayv1.PortNumber(port),
+		Port: port,
 	}
 	if hostname != "" {
 		h := gatewayv1.Hostname(hostname)

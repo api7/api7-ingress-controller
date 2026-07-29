@@ -756,7 +756,7 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 		// Collect unique listener ports for port-based routing.
 		listenerPorts := make(map[int32]struct{})
 		for _, listener := range tctx.Listeners {
-			listenerPorts[int32(listener.Port)] = struct{}{}
+			listenerPorts[listener.Port] = struct{}{}
 		}
 
 		// Add server_port matching only when a route explicitly targets a listener
