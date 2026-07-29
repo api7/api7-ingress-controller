@@ -21,7 +21,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"net/http"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -39,7 +38,7 @@ func TestHTTPADCExecutorBuildHTTPRequestCaCert(t *testing.T) {
 
 	build := func(config adctypes.Config) (ADCServerOpts, string) {
 		req, err := e.buildHTTPRequest(context.Background(), "https://apisix:9180", config, nil, nil,
-			&adctypes.Resources{}, http.MethodPut, "/sync")
+			&adctypes.Resources{}, "/sync")
 		require.NoError(t, err)
 		body, err := io.ReadAll(req.Body)
 		require.NoError(t, err)
