@@ -37,6 +37,16 @@ exec_adc_timeout: 15s                   # The timeout for the ADC to execute.
 disable_gateway_api: false               # Whether to disable the Gateway API support.
                                         # The default value is false.
 
+listener_port_match_mode: "off"         # Mode for injecting server_port route vars from Gateway listener ports.
+                                        # - "off": never inject server_port vars.
+                                        # - "auto": inject when parentRefs explicitly target listeners (sectionName/port) or when multiple listener ports are matched.
+                                        # - "explicit": inject only when parentRefs explicitly target listeners.
+                                        # The default value is "off".
+                                        # server_port is the port the data plane accepted the connection on
+                                        # (node_listen), not the port declared on the Gateway listener. Only enable
+                                        # "auto"/"explicit" when those two coincide, otherwise routes bound to a
+                                        # listener via sectionName/port will never match.
+
 provider:
   type: "api7ee"
 

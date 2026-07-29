@@ -66,7 +66,7 @@ func TestTranslateApisixConsumer_HMACAuthSignedHeadersFromSecret(t *testing.T) {
 		{name: "empty", raw: "", expected: []string{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			translator := NewTranslator(logr.Discard())
+			translator := NewTranslator(logr.Discard(), "")
 			tctx := provider.NewDefaultTranslateContext(context.Background())
 			tctx.Secrets[k8stypes.NamespacedName{Namespace: "default", Name: "hmac"}] = hmacSecret(map[string][]byte{
 				"signed_headers": []byte(tc.raw),
@@ -91,7 +91,7 @@ func TestTranslateApisixConsumer_HMACAuthRejectsUnparseableNumbers(t *testing.T)
 		{key: "max_req_body", raw: "invalid"},
 	} {
 		t.Run(tc.key, func(t *testing.T) {
-			translator := NewTranslator(logr.Discard())
+			translator := NewTranslator(logr.Discard(), "")
 			tctx := provider.NewDefaultTranslateContext(context.Background())
 			tctx.Secrets[k8stypes.NamespacedName{Namespace: "default", Name: "hmac"}] = hmacSecret(map[string][]byte{
 				tc.key: []byte(tc.raw),
@@ -106,7 +106,7 @@ func TestTranslateApisixConsumer_HMACAuthRejectsUnparseableNumbers(t *testing.T)
 }
 
 func TestTranslateApisixConsumer_UsesMetadataLabelsWithoutOverwritingControllerLabels(t *testing.T) {
-	translator := NewTranslator(logr.Discard())
+	translator := NewTranslator(logr.Discard(), "")
 	tctx := provider.NewDefaultTranslateContext(context.Background())
 
 	consumer := &apiv2.ApisixConsumer{

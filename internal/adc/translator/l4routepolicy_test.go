@@ -62,7 +62,7 @@ func mustJSON(v any) apiextensionsv1.JSON {
 }
 
 func TestAttachL4RoutePolicyPlugins_AttachesMatchingPolicy(t *testing.T) {
-	tr := NewTranslator(logr.Discard())
+	tr := NewTranslator(logr.Discard(), "")
 
 	policy := makeL4RoutePolicy("default", "my-policy", "TCPRoute", "my-tcp-route", []v1alpha1.Plugin{
 		{Name: "limit-conn", Config: mustJSON(map[string]any{"conn": 100, "burst": 50})},
@@ -85,7 +85,7 @@ func TestAttachL4RoutePolicyPlugins_AttachesMatchingPolicy(t *testing.T) {
 }
 
 func TestAttachL4RoutePolicyPlugins_NoMatchOnKind(t *testing.T) {
-	tr := NewTranslator(logr.Discard())
+	tr := NewTranslator(logr.Discard(), "")
 
 	policy := makeL4RoutePolicy("default", "udp-policy", "UDPRoute", "my-udp-route", []v1alpha1.Plugin{
 		{Name: "limit-conn", Config: mustJSON(map[string]any{"conn": 10})},
@@ -103,7 +103,7 @@ func TestAttachL4RoutePolicyPlugins_NoMatchOnKind(t *testing.T) {
 }
 
 func TestAttachL4RoutePolicyPlugins_NoMatchOnNamespace(t *testing.T) {
-	tr := NewTranslator(logr.Discard())
+	tr := NewTranslator(logr.Discard(), "")
 
 	policy := makeL4RoutePolicy("other-ns", "my-policy", "TCPRoute", "my-tcp-route", []v1alpha1.Plugin{
 		{Name: "limit-conn", Config: mustJSON(map[string]any{"conn": 10})},
@@ -121,7 +121,7 @@ func TestAttachL4RoutePolicyPlugins_NoMatchOnNamespace(t *testing.T) {
 }
 
 func TestAttachL4RoutePolicyPlugins_EmptyPlugins(t *testing.T) {
-	tr := NewTranslator(logr.Discard())
+	tr := NewTranslator(logr.Discard(), "")
 
 	policy := makeL4RoutePolicy("default", "empty-policy", "TCPRoute", "my-tcp-route", nil)
 
@@ -136,7 +136,7 @@ func TestAttachL4RoutePolicyPlugins_EmptyPlugins(t *testing.T) {
 }
 
 func TestAttachL4RoutePolicyPlugins_EmptyPolicies(t *testing.T) {
-	tr := NewTranslator(logr.Discard())
+	tr := NewTranslator(logr.Discard(), "")
 	plugins := adctypes.Plugins{}
 	tr.AttachL4RoutePolicyPlugins(nil, "default", "my-tcp-route", "TCPRoute", plugins)
 	assert.Empty(t, plugins)

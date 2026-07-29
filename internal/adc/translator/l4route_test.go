@@ -70,7 +70,7 @@ func TestTranslateTCPRouteWithL4RoutePolicy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			translator := NewTranslator(logr.Discard())
+			translator := NewTranslator(logr.Discard(), "")
 			tctx := provider.NewDefaultTranslateContext(context.Background())
 
 			if tt.policy != nil {
@@ -137,7 +137,7 @@ func TestTranslateUDPRouteWithL4RoutePolicy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			translator := NewTranslator(logr.Discard())
+			translator := NewTranslator(logr.Discard(), "")
 			tctx := provider.NewDefaultTranslateContext(context.Background())
 
 			if tt.policy != nil {
@@ -216,7 +216,7 @@ func TestTranslateTLSRouteWithL4RoutePolicy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			translator := NewTranslator(logr.Discard())
+			translator := NewTranslator(logr.Discard(), "")
 			tctx := provider.NewDefaultTranslateContext(context.Background())
 
 			if tt.policy != nil {
