@@ -43,7 +43,10 @@ spec:
   listeners:
   - name: tcp
     protocol: TCP
-    port: 80
+    # Must equal APISIX's physical stream_proxy TCP port so that when
+    # listener_port_match_mode=auto the injected server_port matches the port
+    # connections arrive on (see apache/apisix-ingress-controller#2818).
+    port: 9100
     allowedRoutes:
       kinds:
       - kind: TCPRoute
@@ -119,7 +122,10 @@ spec:
   listeners:
   - name: tcp
     protocol: TCP
-    port: 80
+    # Must equal APISIX's physical stream_proxy TCP port so that when
+    # listener_port_match_mode=auto the injected server_port matches the port
+    # connections arrive on (see apache/apisix-ingress-controller#2818).
+    port: 9100
     allowedRoutes:
       kinds:
       - kind: TCPRoute
