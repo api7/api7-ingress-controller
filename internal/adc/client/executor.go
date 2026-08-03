@@ -39,6 +39,11 @@ import (
 
 const (
 	defaultHTTPADCExecutorAddr = "http://127.0.0.1:3000"
+
+	pathSync     = "/sync"
+	pathValidate = "/validate"
+
+	backendAPISIXStandalone = "apisix-standalone"
 )
 
 type ADCExecutor interface {
@@ -80,6 +85,11 @@ type ADCServerOpts struct {
 	IncludeResourceType []string          `json:"includeResourceType,omitempty"`
 	TlsSkipVerify       *bool             `json:"tlsSkipVerify,omitempty"`
 	CacheKey            string            `json:"cacheKey"`
+	// BypassCache is only accepted by the /sync task of ADC >= 0.27.0. Both ADC task
+	// schemas reject unknown fields, so omitempty is what keeps every other request --
+	// /validate, and every sync that is not recovering from a rejection -- byte for byte
+	// what an older ADC server already accepts.
+	BypassCache bool `json:"bypassCache,omitempty"`
 }
 
 // MarshalLog implements logr.Marshaler so logging the request body redacts the
@@ -157,7 +167,7 @@ func (e *HTTPADCExecutor) runHTTPSync(ctx context.Context, config adctypes.Confi
 	}
 
 	serverAddrs := func() []string {
-		if config.BackendType == "apisix-standalone" {
+		if config.BackendType == backendAPISIXStandalone {
 			return []string{strings.Join(config.ServerAddrs, ",")}
 		}
 		return config.ServerAddrs
@@ -234,7 +244,7 @@ func (e *HTTPADCExecutor) runHTTPSyncForSingleServer(ctx context.Context, server
 	}
 
 	// Build HTTP request
-	req, err := e.buildHTTPRequest(ctx, serverAddr, config, labels, types, resources, http.MethodPut, "/sync")
+	req, err := e.buildHTTPRequest(ctx, serverAddr, config, labels, types, resources, http.MethodPut, pathSync)
 	if err != nil {
 		return fmt.Errorf("failed to build HTTP request: %w", err)
 	}
@@ -268,7 +278,7 @@ func (e *HTTPADCExecutor) runHTTPValidateForSingleServer(ctx context.Context, se
 		return fmt.Errorf("failed to load resources from file %s: %w", filePath, err)
 	}
 
-	req, err := e.buildHTTPRequest(ctx, serverAddr, config, labels, types, resources, http.MethodPut, "/validate")
+	req, err := e.buildHTTPRequest(ctx, serverAddr, config, labels, types, resources, http.MethodPut, pathValidate)
 	if err != nil {
 		return fmt.Errorf("failed to build validate request: %w", err)
 	}
@@ -342,6 +352,7 @@ func (e *HTTPADCExecutor) loadResourcesFromFile(filePath string) (*adctypes.Reso
 func (e *HTTPADCExecutor) buildHTTPRequest(ctx context.Context, serverAddr string, config adctypes.Config, labels map[string]string, types []string, resources *adctypes.Resources, method string, path string) (*http.Request, error) {
 	// Prepare request body
 	tlsVerify := config.TlsVerify
+	bypassCache := path == pathSync && config.BypassCache
 	reqBody := ADCServerRequest{
 		Task: ADCServerTask{
 			Opts: ADCServerOpts{
@@ -352,6 +363,7 @@ func (e *HTTPADCExecutor) buildHTTPRequest(ctx context.Context, serverAddr strin
 				IncludeResourceType: types,
 				TlsSkipVerify:       ptr.To(!tlsVerify),
 				CacheKey:            config.Name,
+				BypassCache:         bypassCache,
 			},
 			Config: *resources,
 		},
@@ -369,6 +381,7 @@ func (e *HTTPADCExecutor) buildHTTPRequest(ctx context.Context, serverAddr strin
 		"server", serverAddr,
 		"mode", config.BackendType,
 		"cacheKey", config.Name,
+		"bypassCache", bypassCache,
 		"labelSelector", labels,
 		"includeResourceType", types,
 		"tlsSkipVerify", !tlsVerify,
