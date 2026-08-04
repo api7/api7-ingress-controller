@@ -200,9 +200,15 @@ func (r *GRPCRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			acceptStatus.status = false
 			acceptStatus.msg = err.Error()
 		}
-		if gateway.Listener != nil {
-			tctx.Listeners = append(tctx.Listeners, *gateway.Listener)
+		// Populate listeners for port-based routing.
+		// Use Listeners slice if available (multiple listener support)
+		if len(gateway.Listeners) > 0 {
+			tctx.Listeners = appendListeners(tctx.Listeners, gateway.Listeners...)
+		} else if gateway.Listener != nil {
+			// Fallback for backward compatibility
+			tctx.Listeners = appendListeners(tctx.Listeners, *gateway.Listener)
 		}
+		tctx.HasExplicitListenerMatch = tctx.HasExplicitListenerMatch || gateway.ExplicitListenerMatch
 	}
 
 	var backendRefErr error
@@ -436,7 +442,7 @@ func (r *GRPCRouteReconciler) processGRPCRouteBackendRefs(tctx *provider.Transla
 
 		portExists := false
 		for _, port := range service.Spec.Ports {
-			if port.Port == int32(*backend.Port) {
+			if port.Port == *backend.Port {
 				portExists = true
 				break
 			}

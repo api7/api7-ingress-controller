@@ -811,6 +811,11 @@ type Config struct {
 	// control plane, in place of the system trust store. Only meaningful when
 	// TlsVerify is true.
 	CaBundle string
+
+	// BypassCache makes the ADC server drop the in-memory baseline it holds for this
+	// cacheKey and re-derive it from the data plane before computing the diff. It is a
+	// per-request flag set on the sync path, not part of the translated configuration.
+	BypassCache bool
 }
 
 // MarshalJSON implements custom JSON marshaling for adcConfig

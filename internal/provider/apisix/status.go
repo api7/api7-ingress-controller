@@ -267,6 +267,7 @@ func (d *apisixProvider) updateStatus(nnk types.NamespacedNameKind, condition me
 			Resource:       &gatewayv1alpha2.TLSRoute{},
 			Mutator: status.MutatorFunc(func(obj client.Object) client.Object {
 				cp := obj.(*gatewayv1alpha2.TLSRoute).DeepCopy()
+				condition.ObservedGeneration = cp.GetGeneration()
 				gatewayNs := cp.GetNamespace()
 				for i, ref := range cp.Status.Parents {
 					ns := gatewayNs

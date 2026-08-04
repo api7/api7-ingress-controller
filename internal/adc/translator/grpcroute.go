@@ -205,7 +205,7 @@ func (t *Translator) TranslateGRPCRoute(tctx *provider.TranslateContext, grpcRou
 				kind = string(*backend.Kind)
 			}
 			if backend.Port != nil {
-				port = int32(*backend.Port)
+				port = *backend.Port
 			}
 			namespace := string(*backend.Namespace)
 			name := string(backend.Name)
@@ -308,6 +308,19 @@ func (t *Translator) TranslateGRPCRoute(tctx *provider.TranslateContext, grpcRou
 
 			routes = append(routes, route)
 		}
+
+		// Collect unique listener ports for port-based routing.
+		listenerPorts := make(map[int32]struct{})
+		for _, listener := range tctx.Listeners {
+			listenerPorts[listener.Port] = struct{}{}
+		}
+
+		if t.shouldInjectServerPortVars(tctx.HasExplicitListenerMatch, listenerPorts) {
+			for _, route := range routes {
+				addServerPortVars(route, listenerPorts)
+			}
+		}
+
 		service.Routes = routes
 
 		result.Services = append(result.Services, service)

@@ -26,7 +26,7 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
@@ -39,12 +39,12 @@ func makeL4RoutePolicy(namespace, name, targetKind, targetName string, plugins [
 			Name:      name,
 		},
 		Spec: v1alpha1.L4RoutePolicySpec{
-			TargetRefs: []gatewayv1alpha2.LocalPolicyTargetReferenceWithSectionName{
+			TargetRefs: []gatewayv1.LocalPolicyTargetReferenceWithSectionName{
 				{
-					LocalPolicyTargetReference: gatewayv1alpha2.LocalPolicyTargetReference{
-						Group: gatewayv1alpha2.GroupName,
-						Kind:  gatewayv1alpha2.Kind(targetKind),
-						Name:  gatewayv1alpha2.ObjectName(targetName),
+					LocalPolicyTargetReference: gatewayv1.LocalPolicyTargetReference{
+						Group: gatewayv1.GroupName,
+						Kind:  gatewayv1.Kind(targetKind),
+						Name:  gatewayv1.ObjectName(targetName),
 					},
 				},
 			},
@@ -62,7 +62,7 @@ func mustJSON(v any) apiextensionsv1.JSON {
 }
 
 func TestAttachL4RoutePolicyPlugins_AttachesMatchingPolicy(t *testing.T) {
-	tr := NewTranslator(logr.Discard())
+	tr := NewTranslator(logr.Discard(), "")
 
 	policy := makeL4RoutePolicy("default", "my-policy", "TCPRoute", "my-tcp-route", []v1alpha1.Plugin{
 		{Name: "limit-conn", Config: mustJSON(map[string]any{"conn": 100, "burst": 50})},
@@ -85,7 +85,7 @@ func TestAttachL4RoutePolicyPlugins_AttachesMatchingPolicy(t *testing.T) {
 }
 
 func TestAttachL4RoutePolicyPlugins_NoMatchOnKind(t *testing.T) {
-	tr := NewTranslator(logr.Discard())
+	tr := NewTranslator(logr.Discard(), "")
 
 	policy := makeL4RoutePolicy("default", "udp-policy", "UDPRoute", "my-udp-route", []v1alpha1.Plugin{
 		{Name: "limit-conn", Config: mustJSON(map[string]any{"conn": 10})},
@@ -103,7 +103,7 @@ func TestAttachL4RoutePolicyPlugins_NoMatchOnKind(t *testing.T) {
 }
 
 func TestAttachL4RoutePolicyPlugins_NoMatchOnNamespace(t *testing.T) {
-	tr := NewTranslator(logr.Discard())
+	tr := NewTranslator(logr.Discard(), "")
 
 	policy := makeL4RoutePolicy("other-ns", "my-policy", "TCPRoute", "my-tcp-route", []v1alpha1.Plugin{
 		{Name: "limit-conn", Config: mustJSON(map[string]any{"conn": 10})},
@@ -121,7 +121,7 @@ func TestAttachL4RoutePolicyPlugins_NoMatchOnNamespace(t *testing.T) {
 }
 
 func TestAttachL4RoutePolicyPlugins_EmptyPlugins(t *testing.T) {
-	tr := NewTranslator(logr.Discard())
+	tr := NewTranslator(logr.Discard(), "")
 
 	policy := makeL4RoutePolicy("default", "empty-policy", "TCPRoute", "my-tcp-route", nil)
 
@@ -136,7 +136,7 @@ func TestAttachL4RoutePolicyPlugins_EmptyPlugins(t *testing.T) {
 }
 
 func TestAttachL4RoutePolicyPlugins_EmptyPolicies(t *testing.T) {
-	tr := NewTranslator(logr.Discard())
+	tr := NewTranslator(logr.Discard(), "")
 	plugins := adctypes.Plugins{}
 	tr.AttachL4RoutePolicyPlugins(nil, "default", "my-tcp-route", "TCPRoute", plugins)
 	assert.Empty(t, plugins)
