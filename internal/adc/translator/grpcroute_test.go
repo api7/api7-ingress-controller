@@ -22,6 +22,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
@@ -165,5 +166,38 @@ func TestTranslateGRPCRouteServerPortVarsByMode(t *testing.T) {
 				assert.Equal(t, tt.expected, got.Services[0].Routes[0].Vars)
 			}
 		})
+	}
+}
+
+func TestTranslateGRPCRoute_HostsDeduplicated(t *testing.T) {
+	tctx := provider.NewDefaultTranslateContext(context.Background())
+	tctx.Listeners = []gatewayv1.Listener{
+		{
+			Name:     "grpc",
+			Protocol: gatewayv1.HTTPProtocolType,
+			Port:     gatewayv1.PortNumber(80),
+			Hostname: ptr.To(gatewayv1.Hostname("example.com")),
+		},
+	}
+
+	grpcRoute := &gatewayv1.GRPCRoute{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "route",
+			Namespace: "default",
+		},
+		Spec: gatewayv1.GRPCRouteSpec{
+			Hostnames: []gatewayv1.Hostname{"example.com"},
+			Rules:     []gatewayv1.GRPCRouteRule{{}},
+		},
+	}
+
+	translator := NewTranslator(logr.Discard(), config.ListenerPortMatchModeOff)
+	got, err := translator.TranslateGRPCRoute(tctx, grpcRoute)
+	assert.NoError(t, err)
+
+	// The listener hostname repeats what the route already declares. The APISIX
+	// service schema requires unique hosts, so the duplicate has to collapse.
+	if assert.Len(t, got.Services, 1) {
+		assert.Equal(t, []string{"example.com"}, got.Services[0].Hosts)
 	}
 }
