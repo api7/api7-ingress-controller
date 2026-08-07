@@ -25,6 +25,7 @@ import (
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/internal/adc/translator/annotations"
 	"github.com/apache/apisix-ingress-controller/internal/adc/translator/annotations/upstream"
+	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 )
 
 type mockParser struct {
@@ -342,11 +343,197 @@ func TestTranslateIngressAnnotations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			translator := &Translator{}
+			translator := &Translator{ListenerPortMatchMode: config.ListenerPortMatchModeAuto}
 			result := translator.TranslateIngressAnnotations(tt.anno)
 
 			assert.NotNil(t, result)
 			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestAddServerPortVars(t *testing.T) {
+	tests := []struct {
+		name     string
+		route    *adctypes.Route
+		ports    map[int32]struct{}
+		expected adctypes.Vars
+	}{
+		{
+			name:     "empty ports map - no vars added",
+			route:    &adctypes.Route{},
+			ports:    map[int32]struct{}{},
+			expected: adctypes.Vars(nil),
+		},
+		{
+			name:  "single port - uses == operator",
+			route: &adctypes.Route{},
+			ports: map[int32]struct{}{
+				9080: {},
+			},
+			expected: adctypes.Vars{
+				{
+					{StrVal: "server_port"},
+					{StrVal: "=="},
+					{StrVal: "9080"},
+				},
+			},
+		},
+		{
+			name:  "two ports - uses 'in' operator",
+			route: &adctypes.Route{},
+			ports: map[int32]struct{}{
+				9080: {},
+				9081: {},
+			},
+			expected: adctypes.Vars{
+				{
+					{StrVal: "server_port"},
+					{StrVal: "in"},
+					{SliceVal: []adctypes.StringOrSlice{
+						{StrVal: "9080"},
+						{StrVal: "9081"},
+					}},
+				},
+			},
+		},
+		{
+			name:  "three ports - uses 'in' operator",
+			route: &adctypes.Route{},
+			ports: map[int32]struct{}{
+				80:   {},
+				443:  {},
+				9080: {},
+			},
+			expected: adctypes.Vars{
+				{
+					{StrVal: "server_port"},
+					{StrVal: "in"},
+					{SliceVal: []adctypes.StringOrSlice{
+						{StrVal: "80"},
+						{StrVal: "443"},
+						{StrVal: "9080"},
+					}},
+				},
+			},
+		},
+		{
+			name: "vars are appended - preserves existing vars",
+			route: &adctypes.Route{
+				Vars: adctypes.Vars{
+					{
+						{StrVal: "uri"},
+						{StrVal: "~~"},
+						{StrVal: "^/api"},
+					},
+				},
+			},
+			ports: map[int32]struct{}{
+				9080: {},
+			},
+			expected: adctypes.Vars{
+				{
+					{StrVal: "uri"},
+					{StrVal: "~~"},
+					{StrVal: "^/api"},
+				},
+				{
+					{StrVal: "server_port"},
+					{StrVal: "=="},
+					{StrVal: "9080"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			addServerPortVars(tt.route, tt.ports)
+			assert.Equal(t, tt.expected, tt.route.Vars)
+		})
+	}
+}
+
+func TestShouldInjectServerPortVars(t *testing.T) {
+	// explicit is the provenance-aware signal the controller derives from the
+	// matched RouteParentRefContext (TranslateContext.HasExplicitListenerMatch);
+	// here we exercise how each mode consumes it together with the port count.
+	tests := []struct {
+		name     string
+		mode     config.ListenerPortMatchMode
+		explicit bool
+		ports    map[int32]struct{}
+		expected bool
+	}{
+		{
+			name:     "empty listener ports",
+			mode:     config.ListenerPortMatchModeAuto,
+			explicit: true,
+			ports:    map[int32]struct{}{},
+			expected: false,
+		},
+		{
+			name:     "auto mode: single port without explicit target",
+			mode:     config.ListenerPortMatchModeAuto,
+			explicit: false,
+			ports:    map[int32]struct{}{9080: {}},
+			expected: false,
+		},
+		{
+			name:     "auto mode: single port with explicit target",
+			mode:     config.ListenerPortMatchModeAuto,
+			explicit: true,
+			ports:    map[int32]struct{}{9080: {}},
+			expected: true,
+		},
+		{
+			name:     "auto mode: multiple ports without explicit target",
+			mode:     config.ListenerPortMatchModeAuto,
+			explicit: false,
+			ports:    map[int32]struct{}{9080: {}, 9081: {}},
+			expected: true,
+		},
+		{
+			name:     "explicit mode: multiple ports without explicit target",
+			mode:     config.ListenerPortMatchModeExplicit,
+			explicit: false,
+			ports:    map[int32]struct{}{9080: {}, 9081: {}},
+			expected: false,
+		},
+		{
+			name:     "explicit mode: single port with explicit target",
+			mode:     config.ListenerPortMatchModeExplicit,
+			explicit: true,
+			ports:    map[int32]struct{}{9080: {}},
+			expected: true,
+		},
+		{
+			name:     "explicit mode: single port without explicit target",
+			mode:     config.ListenerPortMatchModeExplicit,
+			explicit: false,
+			ports:    map[int32]struct{}{9080: {}},
+			expected: false,
+		},
+		{
+			name:     "off mode: ignores explicit target with multiple ports",
+			mode:     config.ListenerPortMatchModeOff,
+			explicit: true,
+			ports:    map[int32]struct{}{9080: {}, 9081: {}},
+			expected: false,
+		},
+		{
+			name:     "off mode: ignores explicit target with single port",
+			mode:     config.ListenerPortMatchModeOff,
+			explicit: true,
+			ports:    map[int32]struct{}{9080: {}},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			translator := &Translator{ListenerPortMatchMode: tt.mode}
+			assert.Equal(t, tt.expected, translator.shouldInjectServerPortVars(tt.explicit, tt.ports))
 		})
 	}
 }

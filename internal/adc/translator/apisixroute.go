@@ -35,6 +35,7 @@ import (
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	sslutils "github.com/apache/apisix-ingress-controller/internal/ssl"
 	internaltypes "github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
 	"github.com/apache/apisix-ingress-controller/pkg/id"
@@ -323,7 +324,7 @@ func (t *Translator) buildService(ar *apiv2.ApisixRoute, rule apiv2.ApisixRouteH
 	service.Name = adc.ComposeServiceNameWithRule(ar.Namespace, ar.Name, fmt.Sprintf("%d", ruleIndex))
 	service.ID = id.GenID(service.Name)
 	service.Labels = label.GenLabel(ar)
-	service.Hosts = rule.Match.Hosts
+	service.Hosts = sslutils.NormalizeHosts(rule.Match.Hosts)
 	service.Upstream = adc.NewDefaultUpstream()
 	return service
 }
@@ -478,7 +479,7 @@ func (t *Translator) translateApisixRouteBackendResolveGranularityEndpoint(tctx 
 			Kind:      (*gatewayv1.Kind)(ptr.To(internaltypes.KindService)),
 			Name:      gatewayv1.ObjectName(backend.ServiceName),
 			Namespace: (*gatewayv1.Namespace)(&arNN.Namespace),
-			Port:      (*gatewayv1.PortNumber)(&port),
+			Port:      &port,
 		},
 		Weight: &weight,
 	}

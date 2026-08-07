@@ -40,7 +40,8 @@ spec:
   listeners:
   - name: udp
     protocol: UDP
-    port: 80
+    # Must equal APISIX's physical stream_proxy UDP port (see tcproute.go).
+    port: 9200
     allowedRoutes:
       kinds:
       - kind: UDPRoute

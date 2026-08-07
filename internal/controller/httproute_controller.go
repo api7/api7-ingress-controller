@@ -40,7 +40,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 	"sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
@@ -76,7 +75,11 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.genericEvent = make(chan event.GenericEvent, 100)
 
 	// Check and store EndpointSlice API support
-	r.supportsEndpointSlice = pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
+	supportsEndpointSlice, err := pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
+	if err != nil {
+		return err
+	}
+	r.supportsEndpointSlice = supportsEndpointSlice
 
 	eventFilters := []predicate.Predicate{
 		predicate.GenerationChangedPredicate{},
@@ -203,6 +206,15 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			acceptStatus.status = false
 			acceptStatus.msg = err.Error()
 		}
+		// Populate listeners for port-based routing.
+		// Use Listeners slice if available (multiple listener support)
+		if len(gateway.Listeners) > 0 {
+			tctx.Listeners = appendListeners(tctx.Listeners, gateway.Listeners...)
+		} else if gateway.Listener != nil {
+			// Fallback for backward compatibility
+			tctx.Listeners = appendListeners(tctx.Listeners, *gateway.Listener)
+		}
+		tctx.HasExplicitListenerMatch = tctx.HasExplicitListenerMatch || gateway.ExplicitListenerMatch
 	}
 
 	var backendRefErr error
@@ -268,7 +280,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if isRouteAccepted(gateways) && err == nil {
 		routeToUpdate := hr
 		if filteredHTTPRoute != nil {
-			r.Log.V(1).Info("filtered httproute", "httproute", filteredHTTPRoute)
+			r.Log.V(1).Info("filtered httproute", "httproute", utils.NamespacedName(filteredHTTPRoute))
 			routeToUpdate = filteredHTTPRoute
 		}
 		if err := r.Provider.Update(ctx, tctx, routeToUpdate); err != nil {
@@ -564,7 +576,7 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 
 		portExists := false
 		for _, port := range service.Spec.Ports {
-			if port.Port == int32(*backend.Port) {
+			if port.Port == *backend.Port {
 				portExists = true
 				break
 			}
@@ -639,8 +651,8 @@ func httpRoutePolicyPredicateFuncs(channel chan event.GenericEvent) predicate.Pr
 			if !ok0 || !ok1 {
 				return false
 			}
-			discardsRefs := slices.DeleteFunc(oldPolicy.Spec.TargetRefs, func(oldRef v1alpha2.LocalPolicyTargetReferenceWithSectionName) bool {
-				return slices.ContainsFunc(newPolicy.Spec.TargetRefs, func(newRef v1alpha2.LocalPolicyTargetReferenceWithSectionName) bool {
+			discardsRefs := slices.DeleteFunc(oldPolicy.Spec.TargetRefs, func(oldRef gatewayv1.LocalPolicyTargetReferenceWithSectionName) bool {
+				return slices.ContainsFunc(newPolicy.Spec.TargetRefs, func(newRef gatewayv1.LocalPolicyTargetReferenceWithSectionName) bool {
 					return oldRef.LocalPolicyTargetReference == newRef.LocalPolicyTargetReference && ptr.Equal(oldRef.SectionName, newRef.SectionName)
 				})
 			})

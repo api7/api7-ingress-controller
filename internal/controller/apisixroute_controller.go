@@ -71,7 +71,11 @@ type ApisixRouteReconciler struct {
 // SetupWithManager sets up the controller with the Manager.
 func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Check and store EndpointSlice API support
-	r.supportsEndpointSlice = pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
+	supportsEndpointSlice, err := pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
+	if err != nil {
+		return err
+	}
+	r.supportsEndpointSlice = supportsEndpointSlice
 	var icWatch client.Object
 	switch r.ICGV.String() {
 	case networkingv1beta1.SchemeGroupVersion.String():
@@ -141,7 +145,7 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			}
 
 			if err := r.Provider.Delete(ctx, &ar); err != nil {
-				r.Log.Error(err, "failed to delete apisixroute", "apisixroute", ar)
+				r.Log.Error(err, "failed to delete apisixroute", "apisixroute", utils.NamespacedName(&ar))
 				return ctrl.Result{}, err
 			}
 			return ctrl.Result{}, nil
@@ -160,7 +164,7 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			"ingressClassName", ar.Spec.IngressClassName,
 			"error", err.Error())
 		if err := r.Provider.Delete(ctx, &ar); err != nil {
-			r.Log.Error(err, "failed to delete apisixroute", "apisixroute", ar)
+			r.Log.Error(err, "failed to delete apisixroute", "apisixroute", utils.NamespacedName(&ar))
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
@@ -179,7 +183,7 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			Reason:  string(apiv2.ConditionReasonSyncFailed),
 			Message: err.Error(),
 		}
-		r.Log.Error(err, "failed to process", "apisixroute", ar)
+		r.Log.Error(err, "failed to process", "apisixroute", utils.NamespacedName(&ar))
 		return ctrl.Result{}, err
 	}
 
