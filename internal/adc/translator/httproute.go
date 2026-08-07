@@ -37,6 +37,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 	"github.com/apache/apisix-ingress-controller/internal/id"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	sslutils "github.com/apache/apisix-ingress-controller/internal/ssl"
 	internaltypes "github.com/apache/apisix-ingress-controller/internal/types"
 )
 
@@ -706,6 +707,7 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 	for _, hostname := range httpRoute.Spec.Hostnames {
 		hosts = append(hosts, string(hostname))
 	}
+	hosts = sslutils.NormalizeHosts(hosts)
 
 	rules := httpRoute.Spec.Rules
 
