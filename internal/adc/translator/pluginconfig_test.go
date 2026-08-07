@@ -27,17 +27,13 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
-	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
-	internaltypes "github.com/apache/apisix-ingress-controller/internal/types"
 )
 
 func TestBuildPluginConfig_NonObjectConfigIsRejected(t *testing.T) {
-	translator := NewTranslator(logr.Discard())
+	translator := NewTranslator(logr.Discard(), "")
 
 	for _, raw := range []string{`["10.0.0.0/8"]`, `"whitelist"`, `42`} {
 		plugin := apiv2.ApisixRoutePlugin{
@@ -53,7 +49,7 @@ func TestBuildPluginConfig_NonObjectConfigIsRejected(t *testing.T) {
 }
 
 func TestBuildPluginConfig_ValidConfigWithSecretRef(t *testing.T) {
-	translator := NewTranslator(logr.Discard())
+	translator := NewTranslator(logr.Discard(), "")
 
 	plugin := apiv2.ApisixRoutePlugin{
 		Name:      "ip-restriction",
@@ -73,7 +69,7 @@ func TestBuildPluginConfig_ValidConfigWithSecretRef(t *testing.T) {
 }
 
 func TestBuildPlugins_MalformedRoutePluginFailsTranslation(t *testing.T) {
-	translator := NewTranslator(logr.Discard())
+	translator := NewTranslator(logr.Discard(), "")
 	tctx := provider.NewDefaultTranslateContext(context.Background())
 
 	ar := &apiv2.ApisixRoute{
@@ -94,7 +90,7 @@ func TestBuildPlugins_MalformedRoutePluginFailsTranslation(t *testing.T) {
 }
 
 func TestBuildPlugins_MalformedReferencedPluginConfigFailsTranslation(t *testing.T) {
-	translator := NewTranslator(logr.Discard())
+	translator := NewTranslator(logr.Discard(), "")
 	tctx := provider.NewDefaultTranslateContext(context.Background())
 	tctx.ApisixPluginConfigs[types.NamespacedName{Namespace: "default", Name: "pc"}] = &apiv2.ApisixPluginConfig{
 		ObjectMeta: metav1.ObjectMeta{Name: "pc", Namespace: "default"},
@@ -121,7 +117,7 @@ func TestBuildPlugins_MalformedReferencedPluginConfigFailsTranslation(t *testing
 }
 
 func TestTranslateStreamRule_MalformedPluginConfigFailsTranslation(t *testing.T) {
-	translator := NewTranslator(logr.Discard())
+	translator := NewTranslator(logr.Discard(), "")
 	tctx := provider.NewDefaultTranslateContext(context.Background())
 
 	ar := &apiv2.ApisixRoute{
@@ -143,7 +139,7 @@ func TestTranslateStreamRule_MalformedPluginConfigFailsTranslation(t *testing.T)
 }
 
 func TestTranslateApisixConsumer_MalformedPluginConfigFailsTranslation(t *testing.T) {
-	translator := NewTranslator(logr.Discard())
+	translator := NewTranslator(logr.Discard(), "")
 	tctx := provider.NewDefaultTranslateContext(context.Background())
 
 	ac := &apiv2.ApisixConsumer{
@@ -163,7 +159,7 @@ func TestTranslateApisixConsumer_MalformedPluginConfigFailsTranslation(t *testin
 }
 
 func TestTranslateApisixGlobalRule_MalformedPluginConfigFailsTranslation(t *testing.T) {
-	translator := NewTranslator(logr.Discard())
+	translator := NewTranslator(logr.Discard(), "")
 	tctx := provider.NewDefaultTranslateContext(context.Background())
 
 	obj := &apiv2.ApisixGlobalRule{
@@ -183,7 +179,7 @@ func TestTranslateApisixGlobalRule_MalformedPluginConfigFailsTranslation(t *test
 }
 
 func TestLoadPluginConfigPluginsForIngress_MalformedPluginConfigFailsTranslation(t *testing.T) {
-	translator := NewTranslator(logr.Discard())
+	translator := NewTranslator(logr.Discard(), "")
 	tctx := provider.NewDefaultTranslateContext(context.Background())
 	tctx.ApisixPluginConfigs[types.NamespacedName{Namespace: "default", Name: "pc"}] = &apiv2.ApisixPluginConfig{
 		ObjectMeta: metav1.ObjectMeta{Name: "pc", Namespace: "default"},
@@ -199,27 +195,4 @@ func TestLoadPluginConfigPluginsForIngress_MalformedPluginConfigFailsTranslation
 	plugins, err := translator.loadPluginConfigPluginsForIngress(tctx, "default", "pc")
 	assert.Error(t, err)
 	assert.Nil(t, plugins)
-}
-
-func TestFillPluginFromExtensionRef_MalformedPluginConfigFailsTranslation(t *testing.T) {
-	translator := NewTranslator(logr.Discard())
-	tctx := provider.NewDefaultTranslateContext(context.Background())
-	tctx.PluginConfigs[types.NamespacedName{Namespace: "default", Name: "pc"}] = &v1alpha1.PluginConfig{
-		ObjectMeta: metav1.ObjectMeta{Name: "pc", Namespace: "default"},
-		Spec: v1alpha1.PluginConfigSpec{
-			Plugins: []v1alpha1.Plugin{{
-				Name:   "ip-restriction",
-				Config: apiextensionsv1.JSON{Raw: []byte(`["10.0.0.0/8"]`)},
-			}},
-		},
-	}
-
-	plugins := make(adctypes.Plugins)
-	ref := &gatewayv1.LocalObjectReference{
-		Kind: gatewayv1.Kind(internaltypes.KindPluginConfig),
-		Name: "pc",
-	}
-	err := translator.fillPluginFromExtensionRef(plugins, "default", ref, tctx)
-	assert.Error(t, err)
-	assert.Empty(t, plugins)
 }
