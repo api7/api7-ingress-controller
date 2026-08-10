@@ -26,8 +26,6 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	v2 "github.com/apache/apisix-ingress-controller/api/v2"
@@ -78,19 +76,19 @@ func KindOf(obj any) string {
 	switch obj.(type) {
 	case *gatewayv1.Gateway:
 		return KindGateway
-	case *gatewayv1alpha2.TCPRoute:
+	case *gatewayv1.TCPRoute:
 		return KindTCPRoute
-	case *gatewayv1alpha2.UDPRoute:
+	case *gatewayv1.UDPRoute:
 		return KindUDPRoute
 	case *gatewayv1.HTTPRoute:
 		return KindHTTPRoute
 	case *gatewayv1.GRPCRoute:
 		return KindGRPCRoute
-	case *gatewayv1alpha2.TLSRoute:
+	case *gatewayv1.TLSRoute:
 		return KindTLSRoute
 	case *gatewayv1.GatewayClass:
 		return KindGatewayClass
-	case *gatewayv1beta1.ReferenceGrant:
+	case *gatewayv1.ReferenceGrant:
 		return KindReferenceGrant
 	case *netv1.Ingress:
 		return KindIngress
@@ -156,10 +154,10 @@ func GvkOf(obj any) schema.GroupVersionKind {
 	switch obj.(type) {
 	case *gatewayv1.Gateway, *gatewayv1.HTTPRoute, *gatewayv1.GatewayClass, *gatewayv1.GRPCRoute:
 		return schema.GroupVersion(gatewayv1.GroupVersion).WithKind(kind)
-	case *gatewayv1alpha2.TCPRoute, *gatewayv1alpha2.UDPRoute, *gatewayv1alpha2.TLSRoute:
-		return schema.GroupVersion(gatewayv1alpha2.GroupVersion).WithKind(kind)
-	case *gatewayv1beta1.ReferenceGrant:
-		return schema.GroupVersion(gatewayv1beta1.GroupVersion).WithKind(kind)
+	case *gatewayv1.TCPRoute, *gatewayv1.UDPRoute, *gatewayv1.TLSRoute:
+		return schema.GroupVersion(gatewayv1.GroupVersion).WithKind(kind)
+	case *gatewayv1.ReferenceGrant:
+		return schema.GroupVersion(gatewayv1.GroupVersion).WithKind(kind)
 	case *netv1.Ingress, *netv1.IngressClass:
 		return netv1.SchemeGroupVersion.WithKind(kind)
 	case *netv1beta1.IngressClass:
