@@ -67,6 +67,7 @@ type api7eeProvider struct {
 	startUpSync atomic.Bool
 
 	client *adcclient.Client
+	syncFn func(context.Context) error
 	log    logr.Logger
 }
 
@@ -236,11 +237,13 @@ func (d *api7eeProvider) Delete(ctx context.Context, obj client.Object) error {
 
 func (d *api7eeProvider) Start(ctx context.Context) error {
 	d.readier.WaitReady(ctx, 5*time.Minute)
+	retrier := common.NewRetrier(common.NewExponentialBackoff(RetryBaseDelay, RetryMaxDelay))
 
 	d.startUpSync.Store(true)
 	d.log.Info("Performing startup synchronization")
 	if err := d.sync(ctx); err != nil {
 		d.log.Error(err, "failed to sync for startup")
+		retrier.Next()
 	}
 
 	initalSyncDelay := d.InitSyncDelay
@@ -248,8 +251,10 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 		time.AfterFunc(initalSyncDelay, func() {
 			if err := d.sync(ctx); err != nil {
 				d.log.Error(err, "failed to sync for startup")
+				retrier.Next()
 				return
 			}
+			retrier.Reset()
 		})
 	}
 
@@ -262,8 +267,6 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 		tickerC = ticker.C
 		defer ticker.Stop()
 	}
-
-	retrier := common.NewRetrier(common.NewExponentialBackoff(RetryBaseDelay, RetryMaxDelay))
 
 	for {
 		select {
@@ -291,6 +294,9 @@ func (d *api7eeProvider) syncNotify() {
 }
 
 func (d *api7eeProvider) sync(ctx context.Context) error {
+	if d.syncFn != nil {
+		return d.syncFn(ctx)
+	}
 	statusesMap, err := d.client.Sync(ctx)
 	d.handleADCExecutionErrors(statusesMap)
 	return err

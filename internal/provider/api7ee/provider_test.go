@@ -19,6 +19,8 @@ package api7ee
 
 import (
 	"context"
+	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -70,6 +72,34 @@ func TestStartConsumesNotificationsWhenPeriodicSyncDisabled(t *testing.T) {
 		require.Failf(t, "provider stopped", "Start returned before cancellation: %v", err)
 	default:
 	}
+
+	cancel()
+	assert.NoError(t, <-done)
+}
+
+func TestStartRetriesStartupFailureWhenPeriodicSyncDisabled(t *testing.T) {
+	var syncCalls atomic.Int32
+	provider := &api7eeProvider{
+		readier: readyManager{},
+		syncCh:  make(chan struct{}, 1),
+		syncFn: func(context.Context) error {
+			if syncCalls.Add(1) == 1 {
+				return errors.New("startup sync failed")
+			}
+			return nil
+		},
+		log: logr.Discard(),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- provider.Start(ctx)
+	}()
+
+	require.Eventually(t, func() bool {
+		return syncCalls.Load() >= 2
+	}, 2*time.Second, 10*time.Millisecond)
 
 	cancel()
 	assert.NoError(t, <-done)
