@@ -73,12 +73,17 @@ listener_port_match_mode: "off"         # Mode for injecting server_port route v
                                         # - "auto": inject when parentRefs explicitly target listeners (sectionName/port) or when multiple listener ports are matched.
                                         # - "explicit": inject only when parentRefs explicitly target listeners.
                                         # The default value is "off".
+                                        # server_port is the port the data plane accepted the connection on
+                                        # (node_listen), not the port declared on the Gateway listener. Only enable
+                                        # "auto"/"explicit" when those two coincide, otherwise routes bound to a
+                                        # listener via sectionName/port will never match.
 
 provider:
   type: "api7ee"                        # Provider type.
 
   sync_period: 0s                       # The period between two consecutive syncs.
-                                        # The default value is 0 seconds, which disables periodic synchronization.
+                                        # The default value is 0 seconds, which disables periodic synchronization
+                                        # while event-driven synchronization and retries remain enabled.
                                         # Set it to a positive value to enable periodic synchronization.
   init_sync_delay: 20m                  # The initial delay before the first sync, only used when the controller is started.
                                         # The default value is 20 minutes.

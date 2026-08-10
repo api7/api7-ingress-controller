@@ -253,11 +253,15 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 		})
 	}
 
-	if d.SyncPeriod < 1 {
-		return nil
+	var (
+		ticker  *time.Ticker
+		tickerC <-chan time.Time
+	)
+	if d.SyncPeriod > 0 {
+		ticker = time.NewTicker(d.SyncPeriod)
+		tickerC = ticker.C
+		defer ticker.Stop()
 	}
-	ticker := time.NewTicker(d.SyncPeriod)
-	defer ticker.Stop()
 
 	retrier := common.NewRetrier(common.NewExponentialBackoff(RetryBaseDelay, RetryMaxDelay))
 
@@ -265,7 +269,7 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 		select {
 		case <-d.syncCh:
 		case <-retrier.C():
-		case <-ticker.C:
+		case <-tickerC:
 		case <-ctx.Done():
 			return nil
 		}
