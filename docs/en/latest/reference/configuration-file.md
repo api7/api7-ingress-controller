@@ -1,7 +1,7 @@
 ---
 title: Configuration File
 slug: /reference/apisix-ingress-controller/configuration-file
-description: Configure the APISIX Ingress Controller using the config.yaml file, including configurations such as log settings, leader election, metrics, and sync behavior.
+description: Configure the API7 Ingress Controller using config.yaml, including log settings, leader election, metrics, and synchronization behavior.
 ---
 
 <!--
@@ -23,21 +23,21 @@ description: Configure the APISIX Ingress Controller using the config.yaml file,
 #
 -->
 
-The APISIX Ingress Controller uses a configuration file `config.yaml` to define core settings such as log level, leader election behavior, metrics endpoints, and sync intervals.
+The API7 Ingress Controller uses a configuration file `config.yaml` to define core settings such as log level, leader election behavior, metrics endpoints, and synchronization intervals.
 
 Configurations are defined in a Kubernetes ConfigMap and mounted into the controller pod as a file at runtime. To apply changes, you can update the ConfigMap and restart the controller Deployment to reload the configurations.
 
-Below are all available configuration options, including their default values and usage:
+The example below shows binary defaults. Helm charts can render different values into the ConfigMap, so inspect the chart values and the generated ConfigMap when troubleshooting an installation.
 
 ```yaml
-log_level: "info"                               # The log level of the APISIX Ingress Controller.
+log_level: "info"                               # The log level of the API7 Ingress Controller.
                                                 # The default value is "info".
 
-controller_name: apisix.apache.org/apisix-ingress-controller  # The controller name of the APISIX Ingress Controller,
+controller_name: apisix.apache.org/apisix-ingress-controller  # The controller name of the API7 Ingress Controller,
                                                               # which is used to identify the controller in the GatewayClass.
                                                               # The default value is "apisix.apache.org/apisix-ingress-controller".
-leader_election_id: "apisix-ingress-controller-leader"    # The leader election ID for the APISIX Ingress Controller.
-                                                          # The default value is "apisix-ingress-controller-leader".
+leader_election_id: "apisix-ingress-gateway-leader"       # The leader election ID for the API7 Ingress Controller.
+                                                          # The default value is "apisix-ingress-gateway-leader".
 leader_election:
   lease_duration: 30s                   # lease_duration is the duration that non-leader candidates will wait
                                         # after observing a leadership renewal until attempting to acquire leadership of a
@@ -51,7 +51,10 @@ leader_election:
 metrics_addr: ":8080"                   # The address the metrics endpoint binds to.
                                         # The default value is ":8080".
 
-server_addr: "127.0.0.1:9092"           # Available endpoints: /debug can be used to debug in-memory state of translated adc configs to be synced with data plane.
+enable_server: false                    # Whether to enable the debug API.
+                                        # The default value is false.
+server_addr: ":9092"                    # The address the debug API binds to.
+                                        # The default value is ":9092".
 
 enable_http2: false                     # Whether to enable HTTP/2 for the server.
                                         # The default value is false.
@@ -65,12 +68,18 @@ secure_metrics: false                   # The secure metrics configuration.
 exec_adc_timeout: 15s                   # The timeout for the ADC to execute.
                                         # The default value is 15 seconds.
 
+listener_port_match_mode: "off"         # Mode for injecting server_port route vars from Gateway listener ports.
+                                        # - "off": never inject server_port vars.
+                                        # - "auto": inject when parentRefs explicitly target listeners (sectionName/port) or when multiple listener ports are matched.
+                                        # - "explicit": inject only when parentRefs explicitly target listeners.
+                                        # The default value is "off".
+
 provider:
   type: "api7ee"                        # Provider type.
 
   sync_period: 0s                       # The period between two consecutive syncs.
-                                        # The default value is 0 seconds, which means the controller will not sync.
-                                        # If you want to enable the sync, set it to a positive value.
+                                        # The default value is 0 seconds, which disables periodic synchronization.
+                                        # Set it to a positive value to enable periodic synchronization.
   init_sync_delay: 20m                  # The initial delay before the first sync, only used when the controller is started.
                                         # The default value is 20 minutes.
 ```

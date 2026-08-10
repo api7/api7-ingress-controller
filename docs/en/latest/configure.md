@@ -1,11 +1,11 @@
 ---
 title: Configuration
 keywords:
-  - APISIX Ingress
-  - Apache APISIX
+  - API7 Ingress
+  - API7
   - Kubernetes Ingress
   - Gateway API
-description: Configuration of the APISIX Ingress Controller
+description: Configuration of the API7 Ingress Controller
 ---
 <!--
 #
@@ -26,20 +26,20 @@ description: Configuration of the APISIX Ingress Controller
 #
 -->
 
-The APISIX Ingress Controller is a Kubernetes Ingress Controller that implements the Gateway API. This document describes how to configure the APISIX Ingress Controller.
+The API7 Ingress Controller is a Kubernetes Ingress Controller that implements the Gateway API. This document describes how to configure the API7 Ingress Controller.
 
 ## Example
 
 ```yaml
-log_level: "info"                               # The log level of the APISIX Ingress Controller.
-                                                # the default value is "info".
+log_level: "info"                               # The log level of the API7 Ingress Controller.
+                                                # The default value is "info".
 
-controller_name: apisix.apache.org/apisix-ingress-controller  # The controller name of the APISIX Ingress Controller,
+controller_name: apisix.apache.org/apisix-ingress-controller  # The controller name of the API7 Ingress Controller,
                                                           # which is used to identify the controller in the GatewayClass.
                                                           # The default value is "apisix.apache.org/apisix-ingress-controller".
 
-leader_election_id: "apisix-ingress-controller-leader" # The leader election ID for the APISIX Ingress Controller.
-                                                        # The default value is "apisix-ingress-controller-leader".
+leader_election_id: "apisix-ingress-gateway-leader" # The leader election ID for the API7 Ingress Controller.
+                                                     # The default value is "apisix-ingress-gateway-leader".
 ```
 
 ### Controller Name
