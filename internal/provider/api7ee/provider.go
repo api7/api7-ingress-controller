@@ -246,16 +246,14 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 		retrier.Next()
 	}
 
-	initalSyncDelay := d.InitSyncDelay
-	if initalSyncDelay > 0 {
-		time.AfterFunc(initalSyncDelay, func() {
-			if err := d.sync(ctx); err != nil {
-				d.log.Error(err, "failed to sync for startup")
-				retrier.Next()
-				return
-			}
-			retrier.Reset()
-		})
+	var (
+		initSyncTimer *time.Timer
+		initSyncC     <-chan time.Time
+	)
+	if d.InitSyncDelay > 0 {
+		initSyncTimer = time.NewTimer(d.InitSyncDelay)
+		initSyncC = initSyncTimer.C
+		defer initSyncTimer.Stop()
 	}
 
 	var (
@@ -272,6 +270,8 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 		select {
 		case <-d.syncCh:
 		case <-retrier.C():
+		case <-initSyncC:
+			initSyncC = nil
 		case <-tickerC:
 		case <-ctx.Done():
 			return nil

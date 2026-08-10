@@ -30,7 +30,6 @@ import (
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	adcclient "github.com/apache/apisix-ingress-controller/internal/adc/client"
 	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
 )
 
@@ -45,14 +44,15 @@ func (readyManager) WaitReady(context.Context, time.Duration) bool {
 func (readyManager) Done(client.Object, k8stypes.NamespacedName) {}
 
 func TestStartConsumesNotificationsWhenPeriodicSyncDisabled(t *testing.T) {
-	adc, err := adcclient.New(logr.Discard(), ProviderTypeAPI7EE, time.Second)
-	require.NoError(t, err)
-
+	var syncCalls atomic.Int32
 	provider := &api7eeProvider{
-		client:  adc,
 		readier: readyManager{},
 		syncCh:  make(chan struct{}, 1),
-		log:     logr.Discard(),
+		syncFn: func(context.Context) error {
+			syncCalls.Add(1)
+			return nil
+		},
+		log: logr.Discard(),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -61,10 +61,12 @@ func TestStartConsumesNotificationsWhenPeriodicSyncDisabled(t *testing.T) {
 		done <- provider.Start(ctx)
 	}()
 
-	require.Eventually(t, provider.startUpSync.Load, time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool {
+		return syncCalls.Load() >= 1
+	}, time.Second, 10*time.Millisecond)
 	provider.syncNotify()
 	require.Eventually(t, func() bool {
-		return len(provider.syncCh) == 0
+		return syncCalls.Load() >= 2
 	}, time.Second, 10*time.Millisecond)
 
 	select {
