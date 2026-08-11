@@ -60,7 +60,7 @@ spec:
 `
 
 		var tcpRoute = `
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1
 kind: TCPRoute
 metadata:
   name: tcp-app-1
@@ -136,7 +136,7 @@ spec:
 `
 
 		var tcpRoute = `
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1
 kind: TCPRoute
 metadata:
   name: tcp-tls-upstream
@@ -224,7 +224,7 @@ spec:
 `
 
 		var tcpRoute = `
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1
 kind: TCPRoute
 metadata:
   name: tcp-l4policy
