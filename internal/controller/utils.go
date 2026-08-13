@@ -1238,22 +1238,6 @@ func validateListenerFrontendValidation(
 	}
 }
 
-// SplitMetaNamespaceKey returns the namespace and name that
-// MetaNamespaceKeyFunc encoded into key.
-func SplitMetaNamespaceKey(key string) (namespace, name string, err error) {
-	parts := strings.Split(key, "/")
-	switch len(parts) {
-	case 1:
-		// name only, no namespace
-		return "", parts[0], nil
-	case 2:
-		// namespace and name
-		return parts[0], parts[1], nil
-	}
-
-	return "", "", fmt.Errorf("unexpected key format: %q", key)
-}
-
 func ProcessGatewayProxy(r client.Client, log logr.Logger, tctx *provider.TranslateContext, gateway *gatewayv1.Gateway, rk types.NamespacedNameKind) error {
 	if gateway == nil {
 		return nil
@@ -2161,4 +2145,43 @@ func deduplicateGatewayStatusAddresses(addrs []gatewayv1.GatewayStatusAddress) [
 	return slices.CompactFunc(addrs, func(a, b gatewayv1.GatewayStatusAddress) bool {
 		return a.Value == b.Value
 	})
+}
+
+// resolvePublishService looks up the Service named by publishService, given as
+// "namespace/name" or as a bare name resolved against defaultNamespace. Callers
+// map the Service's addresses into whichever status shape their API uses.
+func resolvePublishService(
+	ctx context.Context,
+	c client.Client,
+	publishService, defaultNamespace string,
+) (*corev1.Service, error) {
+	namespace, name, err := utils.SplitMetaNamespaceKey(publishService)
+	if err != nil {
+		return nil, fmt.Errorf("invalid publish service format: %s, expected format: namespace/name", publishService)
+	}
+	// if the namespace is not specified, use the caller's namespace
+	if namespace == "" {
+		namespace = defaultNamespace
+	}
+
+	svc := &corev1.Service{}
+	if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, svc); err != nil {
+		return nil, fmt.Errorf("failed to get publish service %s: %w", publishService, err)
+	}
+	return svc, nil
+}
+
+// serviceLoadBalancerAddresses flattens the Service's LoadBalancer ingress
+// entries into address strings, keeping per-entry order: IP before hostname.
+func serviceLoadBalancerAddresses(svc *corev1.Service) []string {
+	var addrs []string
+	for _, ing := range svc.Status.LoadBalancer.Ingress {
+		if ing.IP != "" {
+			addrs = append(addrs, ing.IP)
+		}
+		if ing.Hostname != "" {
+			addrs = append(addrs, ing.Hostname)
+		}
+	}
+	return addrs
 }

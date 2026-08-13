@@ -18,8 +18,10 @@
 package utils
 
 import (
+	"fmt"
 	"net"
 	"regexp"
+	"strings"
 
 	networkingv1 "k8s.io/api/networking/v1"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
@@ -122,4 +124,20 @@ func GetIngressClassV1beta1ParametersNamespace(ingressClass networkingv1beta1.In
 		namespace = annotationNamespace
 	}
 	return namespace
+}
+
+// SplitMetaNamespaceKey returns the namespace and name that
+// MetaNamespaceKeyFunc encoded into key.
+func SplitMetaNamespaceKey(key string) (namespace, name string, err error) {
+	parts := strings.Split(key, "/")
+	switch len(parts) {
+	case 1:
+		// name only, no namespace
+		return "", parts[0], nil
+	case 2:
+		// namespace and name
+		return parts[0], parts[1], nil
+	}
+
+	return "", "", fmt.Errorf("unexpected key format: %q", key)
 }
