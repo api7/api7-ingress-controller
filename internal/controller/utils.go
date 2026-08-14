@@ -241,11 +241,11 @@ func SetGatewayListenerConditionResolvedRefs(gw *gatewayv1.Gateway, listenerName
 	return
 }
 
-func SetGatewayConditionProgrammed(gw *gatewayv1.Gateway, status bool, message string) (ok bool) {
+func SetGatewayConditionProgrammed(gw *gatewayv1.Gateway, status bool, reason, message string) (ok bool) {
 	condition := metav1.Condition{
 		Type:               string(gatewayv1.GatewayConditionProgrammed),
 		Status:             ConditionStatus(status),
-		Reason:             string(gatewayv1.GatewayReasonProgrammed),
+		Reason:             reason,
 		ObservedGeneration: gw.GetGeneration(),
 		Message:            message,
 		LastTransitionTime: metav1.Now(),
@@ -1238,22 +1238,6 @@ func validateListenerFrontendValidation(
 	}
 }
 
-// SplitMetaNamespaceKey returns the namespace and name that
-// MetaNamespaceKeyFunc encoded into key.
-func SplitMetaNamespaceKey(key string) (namespace, name string, err error) {
-	parts := strings.Split(key, "/")
-	switch len(parts) {
-	case 1:
-		// name only, no namespace
-		return "", parts[0], nil
-	case 2:
-		// namespace and name
-		return parts[0], parts[1], nil
-	}
-
-	return "", "", fmt.Errorf("unexpected key format: %q", key)
-}
-
 func ProcessGatewayProxy(r client.Client, log logr.Logger, tctx *provider.TranslateContext, gateway *gatewayv1.Gateway, rk types.NamespacedNameKind) error {
 	if gateway == nil {
 		return nil
@@ -2136,4 +2120,78 @@ func ExtractIngressClass(obj client.Object) string {
 	default:
 		panic(fmt.Errorf("unhandled object type %T for extracting ingress class", obj))
 	}
+}
+
+// deduplicateLoadBalancerIngress removes duplicate IngressLoadBalancerIngress entries in-place,
+// comparing by IP and Hostname (Ports are ignored for dedup purposes).
+func deduplicateLoadBalancerIngress(entries []networkingv1.IngressLoadBalancerIngress) []networkingv1.IngressLoadBalancerIngress {
+	slices.SortFunc(entries, func(a, b networkingv1.IngressLoadBalancerIngress) int {
+		if c := strings.Compare(a.IP, b.IP); c != 0 {
+			return c
+		}
+		return strings.Compare(a.Hostname, b.Hostname)
+	})
+	return slices.CompactFunc(entries, func(a, b networkingv1.IngressLoadBalancerIngress) bool {
+		return a.IP == b.IP && a.Hostname == b.Hostname
+	})
+}
+
+// deduplicateGatewayStatusAddresses removes duplicate GatewayStatusAddress entries in-place,
+// comparing by Value field (AddressType is a pointer so cannot be used as map key).
+func deduplicateGatewayStatusAddresses(addrs []gatewayv1.GatewayStatusAddress) []gatewayv1.GatewayStatusAddress {
+	slices.SortFunc(addrs, func(a, b gatewayv1.GatewayStatusAddress) int {
+		return strings.Compare(a.Value, b.Value)
+	})
+	return slices.CompactFunc(addrs, func(a, b gatewayv1.GatewayStatusAddress) bool {
+		return a.Value == b.Value
+	})
+}
+
+// resolvePublishService looks up the Service named by publishService, given as
+// "namespace/name" or as a bare name resolved against defaultNamespace.
+// A value that cannot work (bad format, no such Service) comes back as a
+// ReasonError with GatewayReasonAddressNotAssigned.
+func resolvePublishService(
+	ctx context.Context,
+	c client.Client,
+	publishService, defaultNamespace string,
+) (*corev1.Service, error) {
+	namespace, name, err := utils.SplitMetaNamespaceKey(publishService)
+	if err != nil {
+		return nil, types.ReasonError{
+			Reason:  string(gatewayv1.GatewayReasonAddressNotAssigned),
+			Message: fmt.Sprintf("invalid publish service format: %s, expected format: namespace/name", publishService),
+		}
+	}
+	// if the namespace is not specified, use the caller's namespace
+	if namespace == "" {
+		namespace = defaultNamespace
+	}
+
+	svc := &corev1.Service{}
+	if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, svc); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, types.ReasonError{
+				Reason:  string(gatewayv1.GatewayReasonAddressNotAssigned),
+				Message: fmt.Sprintf("publish service %s/%s not found", namespace, name),
+			}
+		}
+		return nil, fmt.Errorf("failed to get publish service %s: %w", publishService, err)
+	}
+	return svc, nil
+}
+
+// serviceLoadBalancerAddresses flattens the Service's LoadBalancer ingress
+// entries into address strings, keeping per-entry order: IP before hostname.
+func serviceLoadBalancerAddresses(svc *corev1.Service) []string {
+	var addrs []string
+	for _, ing := range svc.Status.LoadBalancer.Ingress {
+		if ing.IP != "" {
+			addrs = append(addrs, ing.IP)
+		}
+		if ing.Hostname != "" {
+			addrs = append(addrs, ing.Hostname)
+		}
+	}
+	return addrs
 }
