@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	"sigs.k8s.io/gateway-api/conformance"
-	conformancev1 "sigs.k8s.io/gateway-api/conformance/apis/v1"
 	"sigs.k8s.io/gateway-api/conformance/tests"
 )
 
@@ -39,13 +38,8 @@ func TestGatewayAPIConformance(t *testing.T) {
 	opts.CleanupBaseResources = true
 	opts.GatewayClassName = gatewayClassName
 	opts.SkipTests = append(opts.SkipTests, skippedTestsForSSL...)
-	opts.Implementation = conformancev1.Implementation{
-		Organization: "APISIX",
-		Project:      "apisix-ingress-controller",
-		URL:          "https://github.com/apache/apisix-ingress-controller.git",
-		Version:      "v2.0.0",
-		Contact:      []string{"https://github.com/apache/apisix-ingress-controller/issues"},
-	}
+	// Implementation is left to the flags DefaultOptions already applied.
+	// Assigning it here would override them and pin the report to a stale version.
 
 	conformance.RunConformanceWithOptions(t, opts)
 }

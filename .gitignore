@@ -46,7 +46,7 @@ go.work
 dist
 .tmp
 apisix-ingress-controller
-apisix-ingress-controller-conformance-report.yaml
+/*-report.yaml
 
 *.mdx
 .cursor/
