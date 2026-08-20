@@ -26,6 +26,8 @@ import (
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/version"
+	"k8s.io/client-go/discovery"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -50,6 +52,11 @@ import (
 
 var (
 	scheme = runtime.NewScheme()
+)
+
+var (
+	// set value during compilation
+	_minK8sVersion string
 )
 
 func init() {
@@ -188,6 +195,9 @@ func Run(ctx context.Context, logger logr.Logger) error {
 		return nil
 	}
 
+	// Check Kubernetes cluster version
+	checkK8sVersion(mgr, setupLog)
+
 	readier := readiness.NewReadinessManager(mgr.GetClient(), logger)
 	if err := registerReadinessGVK(mgr, readier); err != nil {
 		setupLog.Error(err, "unable to register readiness checks")
@@ -297,4 +307,37 @@ func Run(ctx context.Context, logger logr.Logger) error {
 
 	setupLog.Info("starting controller manager")
 	return mgr.Start(signalCtx)
+}
+
+func checkK8sVersion(mgr ctrl.Manager, logger logr.Logger) {
+	minV, err := version.ParseSemantic(_minK8sVersion)
+	if err != nil {
+		logger.Info("failed to parse minimum version", "error", err)
+		return
+	}
+
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(mgr.GetConfig())
+	if err != nil {
+		logger.Info("failed to create discovery client for version check", "error", err)
+		return
+	}
+
+	serverVersion, err := discoveryClient.ServerVersion()
+	if err != nil {
+		logger.Info("failed to get Kubernetes server version", "error", err)
+		return
+	}
+
+	currentVersion, err := version.ParseSemantic(serverVersion.GitVersion)
+	if err != nil {
+		logger.Info("failed to parse server version", "error", err)
+		return
+	}
+
+	if !currentVersion.AtLeast(minV) {
+		logger.Info("WARNING: Kubernetes cluster version does not meet minimum requirement",
+			"currentVersion", currentVersion.String(),
+			"minimumVersion", minV.String(),
+		)
+	}
 }
