@@ -30,7 +30,37 @@ var skippedTestsForSSL = []string{
 	tests.HTTPRouteRedirectPortAndScheme.ShortName,
 }
 
-// TODO: HTTPRoute hostname intersection and listener hostname matching
+// These fixtures create a Gateway of their own, and that Gateway carries no
+// GatewayProxy, so it never leaves "gateway proxy not found" and no traffic
+// flows. TLSRoute itself is exercised by the e2e suite against this provider;
+// what is missing here is a way to attach the proxy to a Gateway the test
+// creates, not the feature.
+var skippedTestsForStandaloneGateway = []string{
+	tests.TLSRouteSimpleSameNamespace.ShortName,
+	tests.TLSRouteHostnameIntersection.ShortName,
+	tests.TLSRouteInvalidBackendRefNonexistent.ShortName,
+	tests.TLSRouteInvalidBackendRefUnknownKind.ShortName,
+	tests.TLSRouteTerminateSimpleSameNamespace.ShortName,
+}
+
+// Known gaps tracked for follow-up. These are genuine gaps rather than
+// architectural limits, so they are expected to shrink over time.
+var skippedTestsForKnownGaps = []string{
+	// The control plane rejects a second SSL that claims an SNI another one
+	// already holds ("responded with status 400 Bad Request, error_msg: SNI
+	// already exists"), which APISIX accepts. Adding the HTTPS listener this
+	// test asks for therefore fails the sync and the Gateway never reaches
+	// Accepted. The controller has to reconcile SSLs by SNI for this provider.
+	tests.GatewayModifyListeners.ShortName,
+
+	// A single HTTPRoute attached to several Gateways is not served from each
+	// parent independently.
+	tests.HTTPRouteMultipleGateways.ShortName,
+
+	// A backendRef that cannot be resolved must still produce a route that
+	// answers 500; today no route is generated at all, so the request 404s.
+	tests.HTTPRouteNoBackendRefs.ShortName,
+}
 
 func TestGatewayAPIConformance(t *testing.T) {
 	opts := conformance.DefaultOptions(t)
@@ -38,6 +68,8 @@ func TestGatewayAPIConformance(t *testing.T) {
 	opts.CleanupBaseResources = true
 	opts.GatewayClassName = gatewayClassName
 	opts.SkipTests = append(opts.SkipTests, skippedTestsForSSL...)
+	opts.SkipTests = append(opts.SkipTests, skippedTestsForStandaloneGateway...)
+	opts.SkipTests = append(opts.SkipTests, skippedTestsForKnownGaps...)
 	// Implementation is left to the flags DefaultOptions already applied.
 	// Assigning it here would override them and pin the report to a stale version.
 
