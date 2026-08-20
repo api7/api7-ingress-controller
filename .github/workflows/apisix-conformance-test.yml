@@ -168,7 +168,9 @@ jobs:
           RUN_OUTCOME: ${{ steps.conformance.outcome }}
         run: |
           problem=""
-          if [ "${RUN_OUTCOME}" != "success" ]; then
+          if [ "${RUN_OUTCOME}" = "skipped" ]; then
+            problem="the suite never ran, an earlier step failed"
+          elif [ "${RUN_OUTCOME}" != "success" ]; then
             problem="the suite exited non-zero, see the failures above"
           elif ! ls ./*-report.yaml >/dev/null 2>&1; then
             problem="no report was produced"

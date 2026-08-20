@@ -243,12 +243,13 @@ conformance-test-api7ee:
 		--mode="$(CONFORMANCE_MODE)" \
 		--report-output=$(CONFORMANCE_TEST_REPORT_OUTPUT)
 
+# The last line is the API7 EE data plane, which the api7ee mode deploys instead
+# of the APISIX one.
 .PHONY: conformance-images
 conformance-images: ## Print the images the conformance run deploys.
 	@echo $(CONFORMANCE_INGRESS_IMAGE)
 	@echo $(CONFORMANCE_ADC_IMAGE)
 	@echo $(CONFORMANCE_DATAPLANE_IMAGE)
-	# the api7ee mode deploys this one instead of the APISIX data plane
 	@echo $(CONFORMANCE_API7EE_DATAPLANE_IMAGE)
 
 .PHONY: lint
@@ -267,7 +268,9 @@ kind-up:
 
 .PHONY: kind-lb
 kind-lb: ## Run cloud-provider-kind so LoadBalancer Services in kind get an address.
-	@pid=$$(cat $(CLOUD_PROVIDER_KIND_PID) 2>/dev/null); \
+	@# `|| true`: .SHELLFLAGS carries -e, and cat exits non-zero when the pid
+	@# file does not exist yet, which would abort the recipe before the check.
+	@pid=$$(cat $(CLOUD_PROVIDER_KIND_PID) 2>/dev/null || true); \
 	if [ -n "$$pid" ] && ps -p $$pid -o args= 2>/dev/null | grep -q cloud-provider-kind; then \
 		echo "cloud-provider-kind already running"; \
 	else \
