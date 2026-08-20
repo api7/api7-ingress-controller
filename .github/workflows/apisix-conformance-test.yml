@@ -117,7 +117,17 @@ jobs:
       - name: Resolve Released Images
         if: ${{ inputs.image_tag }}
         shell: bash
+        env:
+          # A dispatch input is text someone typed, so it is read from the
+          # environment rather than expanded into the script, and checked
+          # against the tag grammar before it is used or written anywhere.
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
+          if ! [[ "${IMAGE_TAG}" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$ ]]; then
+            echo "::error::image_tag is not a valid image tag: ${IMAGE_TAG}"
+            exit 1
+          fi
           # The report names image_tag, but the skip list, the supported feature
           # list and the manifests come from the ref this runs on, so only a run
           # from that same tag is submittable. It stays a warning rather than an
@@ -125,10 +135,10 @@ jobs:
           # rehearsed against an already published release, and the workflow a
           # tag run executes is the one inside that tag, which cannot be fixed
           # afterwards without a new tag.
-          if [ "${{ github.ref_name }}" != "${{ inputs.image_tag }}" ]; then
-            echo "::warning::running from ${{ github.ref_name }} while reporting ${{ inputs.image_tag }}, this report is a rehearsal and must not be submitted"
+          if [ "${REF_NAME}" != "${IMAGE_TAG}" ]; then
+            echo "::warning::running from ${REF_NAME} while reporting ${IMAGE_TAG}, this report is a rehearsal and must not be submitted"
           fi
-          echo "CONFORMANCE_IMAGE_TAG=${{ inputs.image_tag }}" >> $GITHUB_ENV
+          printf 'CONFORMANCE_IMAGE_TAG=%s\n' "${IMAGE_TAG}" >> "$GITHUB_ENV"
 
       - name: Run Conformance Test
         id: conformance
@@ -194,7 +204,13 @@ jobs:
         run: |
           echo '# conformance test report - ${{ matrix.provider_type }} mode' > report.md
           echo '```yaml' >> report.md
-          cat ./*-report.yaml >> report.md
+          # An unmatched glob would make cat fail and take the job with it,
+          # which would turn a warned-about missing report into a hard failure.
+          if ls ./*-report.yaml >/dev/null 2>&1; then
+            cat ./*-report.yaml >> report.md
+          else
+            echo 'no report was produced' >> report.md
+          fi
           echo '```' >> report.md
 
       - name: Report Conformance Test Result to PR Comment

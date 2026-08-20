@@ -95,6 +95,9 @@ CONFORMANCE_INGRESS_IMAGE ?= api7/api7-ingress-controller:$(CONFORMANCE_IMAGE_TA
 CONFORMANCE_ADC_IMAGE ?= ghcr.io/api7/adc:$(ADC_VERSION)
 CONFORMANCE_DATAPLANE_IMAGE ?= apache/apisix:$(CONFORMANCE_DATAPLANE_VERSION)
 endif
+# The API7EE run deploys its own data plane, not apache/apisix, so it needs its
+# own declaration for the report to name what actually served the traffic.
+CONFORMANCE_API7EE_DATAPLANE_IMAGE ?= ghcr.io/api7/api7-ee-3-gateway:$(DASHBOARD_VERSION)
 CONFORMANCE_TEST_REPORT_OUTPUT ?= $(DIR)/$(CONFORMANCE_CHANNEL)-$(CONFORMANCE_VERSION)-$(CONFORMANCE_MODE)-report.yaml
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
@@ -224,7 +227,10 @@ conformance-test:
 .PHONY: conformance-test-api7ee
 conformance-test-api7ee: export INGRESS_IMAGE=$(CONFORMANCE_INGRESS_IMAGE)
 conformance-test-api7ee: export ADC_IMAGE=$(CONFORMANCE_ADC_IMAGE)
-conformance-test-api7ee: CONFORMANCE_MODE=api7ee
+conformance-test-api7ee: export API7EE_DATAPLANE_IMAGE=$(CONFORMANCE_API7EE_DATAPLANE_IMAGE)
+# override, so a command-line CONFORMANCE_MODE cannot label an API7EE run
+# as some other mode in the report it writes.
+conformance-test-api7ee: override CONFORMANCE_MODE := api7ee
 conformance-test-api7ee:
 	DASHBOARD_VERSION=$(DASHBOARD_VERSION) go test -v ./test/conformance/api7ee -tags conformance,experimental -timeout 60m \
 		--supported-features=$(SUPPORTED_EXTENDED_FEATURES) \
@@ -242,6 +248,8 @@ conformance-images: ## Print the images the conformance run deploys.
 	@echo $(CONFORMANCE_INGRESS_IMAGE)
 	@echo $(CONFORMANCE_ADC_IMAGE)
 	@echo $(CONFORMANCE_DATAPLANE_IMAGE)
+	# the api7ee mode deploys this one instead of the APISIX data plane
+	@echo $(CONFORMANCE_API7EE_DATAPLANE_IMAGE)
 
 .PHONY: lint
 lint: sort-import golangci-lint ## Run golangci-lint linter
@@ -259,9 +267,11 @@ kind-up:
 
 .PHONY: kind-lb
 kind-lb: ## Run cloud-provider-kind so LoadBalancer Services in kind get an address.
-	@if [ -f $(CLOUD_PROVIDER_KIND_PID) ] && kill -0 "$$(cat $(CLOUD_PROVIDER_KIND_PID))" 2>/dev/null; then \
+	@pid=$$(cat $(CLOUD_PROVIDER_KIND_PID) 2>/dev/null); \
+	if [ -n "$$pid" ] && ps -p $$pid -o args= 2>/dev/null | grep -q cloud-provider-kind; then \
 		echo "cloud-provider-kind already running"; \
 	else \
+		rm -f $(CLOUD_PROVIDER_KIND_PID); \
 		go install sigs.k8s.io/cloud-provider-kind@$(CLOUD_PROVIDER_KIND_VERSION); \
 		echo "starting cloud-provider-kind, logs in /tmp/cloud-provider-kind.log"; \
 		nohup $(GOBIN)/cloud-provider-kind > /tmp/cloud-provider-kind.log 2>&1 & \

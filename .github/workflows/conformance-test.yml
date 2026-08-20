@@ -154,7 +154,12 @@ jobs:
         run: |
           echo '# conformance test report' > report.md
           echo '```yaml' >> report.md
-          cat ./*-report.yaml >> report.md
+          # An unmatched glob would make cat fail and take the job with it.
+          if ls ./*-report.yaml >/dev/null 2>&1; then
+            cat ./*-report.yaml >> report.md
+          else
+            echo 'no report was produced' >> report.md
+          fi
           echo '```' >> report.md
 
       - name: Report Conformance Test Result to PR Comment

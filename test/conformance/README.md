@@ -104,6 +104,9 @@ that capability.
    make conformance-test-api7ee
    ```
 
+   That run deploys `CONFORMANCE_API7EE_DATAPLANE_IMAGE` rather than the APISIX
+   data plane, which is the last line `make conformance-images` prints.
+
 6. Read the report
 
    ```shell
