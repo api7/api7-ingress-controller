@@ -26,6 +26,8 @@ import (
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/version"
+	"k8s.io/client-go/discovery"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -34,8 +36,6 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	"sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
@@ -54,22 +54,21 @@ var (
 	scheme = runtime.NewScheme()
 )
 
+var (
+	// set value during compilation
+	_minK8sVersion string
+)
+
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	if err := gatewayv1.Install(scheme); err != nil {
 		panic(err)
 	}
-	if err := gatewayv1alpha2.Install(scheme); err != nil {
-		panic(err)
-	}
 	if err := v1alpha1.AddToScheme(scheme); err != nil {
 		panic(err)
 	}
 	if err := apiv2.AddToScheme(scheme); err != nil {
-		panic(err)
-	}
-	if err := v1beta1.Install(scheme); err != nil {
 		panic(err)
 	}
 	if err := networkingv1beta1.AddToScheme(scheme); err != nil {
@@ -196,6 +195,9 @@ func Run(ctx context.Context, logger logr.Logger) error {
 		return nil
 	}
 
+	// Check Kubernetes cluster version
+	checkK8sVersion(mgr, setupLog)
+
 	readier := readiness.NewReadinessManager(mgr.GetClient(), logger)
 	if err := registerReadinessGVK(mgr, readier); err != nil {
 		setupLog.Error(err, "unable to register readiness checks")
@@ -249,13 +251,13 @@ func Run(ctx context.Context, logger logr.Logger) error {
 		setupLog.Info("Gateway API is disabled, skipping the ReferenceGrants check")
 	} else {
 		setupLog.Info("check ReferenceGrants is enabled")
-		if hasReferenceGrant, err = utils.HasAPIResource(mgr, &v1beta1.ReferenceGrant{}); err != nil {
+		if hasReferenceGrant, err = utils.HasAPIResource(mgr, &gatewayv1.ReferenceGrant{}); err != nil {
 			setupLog.Error(err, "unable to detect whether ReferenceGrants is installed")
 			return err
 		}
 		if !hasReferenceGrant {
 			setupLog.Info("CRD ReferenceGrants is not installed, cross-namespace references will be rejected",
-				"gvk", utils.FormatGVK(&v1beta1.ReferenceGrant{}))
+				"gvk", utils.FormatGVK(&gatewayv1.ReferenceGrant{}))
 		}
 	}
 	controller.SetEnableReferenceGrant(hasReferenceGrant)
@@ -305,4 +307,37 @@ func Run(ctx context.Context, logger logr.Logger) error {
 
 	setupLog.Info("starting controller manager")
 	return mgr.Start(signalCtx)
+}
+
+func checkK8sVersion(mgr ctrl.Manager, logger logr.Logger) {
+	minV, err := version.ParseSemantic(_minK8sVersion)
+	if err != nil {
+		logger.Info("failed to parse minimum version", "error", err)
+		return
+	}
+
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(mgr.GetConfig())
+	if err != nil {
+		logger.Info("failed to create discovery client for version check", "error", err)
+		return
+	}
+
+	serverVersion, err := discoveryClient.ServerVersion()
+	if err != nil {
+		logger.Info("failed to get Kubernetes server version", "error", err)
+		return
+	}
+
+	currentVersion, err := version.ParseSemantic(serverVersion.GitVersion)
+	if err != nil {
+		logger.Info("failed to parse server version", "error", err)
+		return
+	}
+
+	if !currentVersion.AtLeast(minV) {
+		logger.Info("WARNING: Kubernetes cluster version does not meet minimum requirement",
+			"currentVersion", currentVersion.String(),
+			"minimumVersion", minV.String(),
+		)
+	}
 }
