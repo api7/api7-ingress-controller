@@ -82,6 +82,9 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	eventFilters := []predicate.Predicate{
 		predicate.GenerationChangedPredicate{},
+		// A Secret carries no generation, so GenerationChangedPredicate would drop its
+		// updates and a plugin would keep the Secret data read at the last spec change.
+		predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
 	}
 
 	if !r.supportsEndpointSlice {
@@ -101,6 +104,9 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	bdr = bdr.
 		Watches(&v1alpha1.PluginConfig{},
 			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesByExtensionRef),
+		).
+		Watches(&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesForSecret),
 		).
 		Watches(&gatewayv1.Gateway{},
 			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesForGateway),
@@ -616,6 +622,10 @@ func (r *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, 
 					Namespace: httpRoute.GetNamespace(),
 					Name:      string(filter.ExtensionRef.Name),
 				}] = pluginconfig
+				if err := loadPluginSecrets(tctx, r.Client, tctx, httpRoute.GetNamespace(), pluginconfig.Spec.Plugins); err != nil {
+					terror = err
+					continue
+				}
 			}
 		}
 		for _, backend := range rule.BackendRefs {
@@ -744,4 +754,23 @@ func (r *HTTPRouteReconciler) listHTTPRoutesForReferenceGrant(ctx context.Contex
 		}
 	}
 	return requests
+}
+
+// listHTTPRoutesForSecret maps a Secret to the HTTPRoutes that reference, through a PluginConfig
+// extension filter, a plugin configured with that Secret.
+func (r *HTTPRouteReconciler) listHTTPRoutesForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
+	secret, ok := obj.(*corev1.Secret)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to Secret")
+		return nil
+	}
+	var requests []reconcile.Request
+	for _, pcRef := range ListRequests(ctx, r.Client, r.Log, &v1alpha1.PluginConfigList{}, client.MatchingFields{
+		indexer.SecretIndexRef: indexer.GenIndexKey(secret.GetNamespace(), secret.GetName()),
+	}) {
+		requests = append(requests, ListRequests(ctx, r.Client, r.Log, &gatewayv1.HTTPRouteList{}, client.MatchingFields{
+			indexer.ExtensionRef: indexer.GenIndexKey(pcRef.Namespace, pcRef.Name),
+		})...)
+	}
+	return pkgutils.DedupComparable(requests)
 }
