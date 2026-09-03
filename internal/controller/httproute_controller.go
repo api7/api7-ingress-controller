@@ -82,6 +82,9 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	eventFilters := []predicate.Predicate{
 		predicate.GenerationChangedPredicate{},
+		// A Secret carries no generation, so GenerationChangedPredicate would drop its
+		// updates and a plugin would keep the Secret data read at the last spec change.
+		predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
 	}
 
 	if !r.supportsEndpointSlice {
