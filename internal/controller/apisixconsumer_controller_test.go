@@ -35,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 )
@@ -64,6 +65,15 @@ func (p *recordingProvider) Delete(_ context.Context, obj client.Object) error {
 func (p *recordingProvider) Start(context.Context) error { return nil }
 
 func (p *recordingProvider) NeedLeaderElection() bool { return true }
+
+// recordingUpdater captures the status updates a reconciler would write. Upstream
+// keeps it in gateway_controller_publishservice_test.go, which has not been
+// backported, so it lives beside recordingProvider here.
+type recordingUpdater struct {
+	updates []status.Update
+}
+
+func (u *recordingUpdater) Update(update status.Update) { u.updates = append(u.updates, update) }
 
 func newApisixConsumerReconciler(t *testing.T, cli client.Client, p provider.Provider) *ApisixConsumerReconciler {
 	t.Helper()
