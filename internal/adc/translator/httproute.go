@@ -761,6 +761,14 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 			routes = append(routes, route)
 		}
 
+		// A route answers only the schemes its listeners accept: one attached only to
+		// HTTPS listeners must not answer plaintext requests for the same host and
+		// path, and one attached only to HTTP listeners must not answer TLS ones.
+		// Nothing else enforces that: hostname matching cannot tell the two apart, and
+		// server_port only can when the Gateway's declared ports equal the ports
+		// APISIX listens on.
+		t.pinRoutesToListenerScheme(tctx.Listeners, routes)
+
 		// Collect unique listener ports for port-based routing.
 		listenerPorts := make(map[int32]struct{})
 		for _, listener := range tctx.Listeners {
