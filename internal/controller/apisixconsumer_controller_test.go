@@ -68,11 +68,15 @@ func (p *recordingProvider) NeedLeaderElection() bool { return true }
 
 // recordingUpdater captures the status updates a reconciler would write. Upstream
 // keeps it in gateway_controller_publishservice_test.go, which has not been
-// backported, so it lives beside recordingProvider here.
-type recordingUpdater struct {
+// backported, so it lives beside recordingProvider here. Nothing in this file
+// needs it; it is here for the reconciler tests being backported alongside, which
+// construct reconcilers that do have an Updater. Drop the suppression once one of
+// them lands.
+type recordingUpdater struct { //nolint:unused
 	updates []status.Update
 }
 
+//nolint:unused
 func (u *recordingUpdater) Update(update status.Update) { u.updates = append(u.updates, update) }
 
 func newApisixConsumerReconciler(t *testing.T, cli client.Client, p provider.Provider) *ApisixConsumerReconciler {
