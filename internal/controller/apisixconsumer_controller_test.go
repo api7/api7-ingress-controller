@@ -20,7 +20,6 @@ package controller
 import (
 	"context"
 	"errors"
-	"net/http"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -35,49 +34,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
-	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 )
 
 const testConsumerNamespace = "default"
 
-// recordingProvider records the objects passed to Update and Delete, and can be
-// told to fail a delete. Shared by the reconciler tests in this package.
-type recordingProvider struct {
-	updated   int
-	deleted   []types.NamespacedName
-	deleteErr error
-}
-
-func (p *recordingProvider) Register(string, *http.ServeMux) {}
-
-func (p *recordingProvider) Update(context.Context, *provider.TranslateContext, client.Object) error {
-	p.updated++
-	return nil
-}
-
-func (p *recordingProvider) Delete(_ context.Context, obj client.Object) error {
-	p.deleted = append(p.deleted, types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()})
-	return p.deleteErr
-}
-
-func (p *recordingProvider) Start(context.Context) error { return nil }
-
-func (p *recordingProvider) NeedLeaderElection() bool { return true }
-
-// recordingUpdater captures the status updates a reconciler would write. Upstream
-// keeps it in gateway_controller_publishservice_test.go, which has not been
-// backported, so it lives beside recordingProvider here. Nothing in this file
-// needs it; it is here for the reconciler tests being backported alongside, which
-// construct reconcilers that do have an Updater. Drop the suppression once one of
-// them lands.
-type recordingUpdater struct { //nolint:unused
-	updates []status.Update
-}
-
-//nolint:unused
-func (u *recordingUpdater) Update(update status.Update) { u.updates = append(u.updates, update) }
+// recordingProvider and recordingUpdater are declared in
+// httproute_controller_test.go, shared by the reconciler tests in this package.
 
 func newApisixConsumerReconciler(t *testing.T, cli client.Client, p provider.Provider) *ApisixConsumerReconciler {
 	t.Helper()
