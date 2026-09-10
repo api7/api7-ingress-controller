@@ -360,7 +360,7 @@ func (d *apisixProvider) syncEvictedConfigsNow(
 	labels map[string]string,
 ) {
 	for _, cfg := range configs {
-		_, err := d.syncConfigNow(ctx, cfg.Name, func() (adcclient.SyncInput, error) {
+		execErrs, err := d.syncConfigNow(ctx, cfg.Name, func() (adcclient.SyncInput, error) {
 			return adcclient.SyncInput{
 				Name:          cfg.Name,
 				Config:        cfg,
@@ -370,7 +370,7 @@ func (d *apisixProvider) syncEvictedConfigsNow(
 			}, nil
 		})
 		if err != nil {
-			d.log.Error(err, "failed to sync deleted config", "config", cfg)
+			d.log.Error(common.PushError(cfg.Name, execErrs, err), "failed to sync deleted config", "config", cfg)
 		}
 	}
 }

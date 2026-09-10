@@ -364,7 +364,7 @@ func (d *api7eeProvider) pushConfigsNow(
 ) error {
 	var errs []error
 	for _, cfg := range configs {
-		_, err := d.syncConfigNow(ctx, cfg.Name, func() (adcclient.SyncInput, error) {
+		execErrs, err := d.syncConfigNow(ctx, cfg.Name, func() (adcclient.SyncInput, error) {
 			mergedResources, err := common.WithMergedGlobalRules(d.store, cfg.Name, resourceTypes, resources)
 			if err != nil {
 				return adcclient.SyncInput{}, err
@@ -378,7 +378,7 @@ func (d *api7eeProvider) pushConfigsNow(
 			}, nil
 		})
 		if err != nil {
-			errs = append(errs, fmt.Errorf("config %s: %w", cfg.Name, err))
+			errs = append(errs, common.PushError(cfg.Name, execErrs, err))
 		}
 	}
 	return errors.Join(errs...)
@@ -396,7 +396,7 @@ func (d *api7eeProvider) syncEvictedConfigsNow(
 	labels map[string]string,
 ) {
 	for _, cfg := range configs {
-		_, err := d.syncConfigNow(ctx, cfg.Name, func() (adcclient.SyncInput, error) {
+		execErrs, err := d.syncConfigNow(ctx, cfg.Name, func() (adcclient.SyncInput, error) {
 			resources, err := common.WithMergedGlobalRules(d.store, cfg.Name, resourceTypes, &adctypes.Resources{})
 			if err != nil {
 				return adcclient.SyncInput{}, err
@@ -410,7 +410,7 @@ func (d *api7eeProvider) syncEvictedConfigsNow(
 			}, nil
 		})
 		if err != nil {
-			d.log.Error(err, "failed to sync deleted config", "config", cfg)
+			d.log.Error(common.PushError(cfg.Name, execErrs, err), "failed to sync deleted config", "config", cfg)
 		}
 	}
 }

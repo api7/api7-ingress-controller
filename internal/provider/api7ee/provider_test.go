@@ -150,6 +150,39 @@ func TestSyncStillPushesHealthyConfigsWhenAnotherFails(t *testing.T) {
 	assert.True(t, seen["good"], "a config failing must not stop the others from being pushed")
 }
 
+// TestPushConfigsNowSurfacesTheDataPlaneRejectionReason covers a regression: Update's
+// immediate push must return the actual reason the data plane rejected a resource for
+// (e.g. "custom plugin (non-existent-plugin) not found"), not just a generic "failed to
+// sync N configs" wrapper -- that reason is what a resource controller puts into the
+// resource's own status condition, and status.go tests for it verbatim.
+func TestPushConfigsNowSurfacesTheDataPlaneRejectionReason(t *testing.T) {
+	const rejectReason = "custom plugin (non-existent-plugin) not found"
+
+	withMockADCServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(w).Encode(adctypes.SyncResult{
+			Status:      adctypes.StatusFailed,
+			FailedCount: 1,
+			Failed: []adctypes.SyncStatus{{
+				Event:  adctypes.StatusEvent{ResourceType: "route", ResourceID: "r1"},
+				Reason: rejectReason,
+			}},
+		})
+	})
+
+	d := newTestProvider(t)
+	cfg := adctypes.Config{Name: "proxy", BackendType: "apisix", ServerAddrs: []string{"http://apisix:9080"}}
+	configs := map[types.NamespacedNameKind]adctypes.Config{
+		{Namespace: "default", Name: "proxy", Kind: "GatewayProxy"}: cfg,
+	}
+	resources := &adctypes.Resources{}
+
+	err := d.pushConfigsNow(context.Background(), configs, nil, resources, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), rejectReason,
+		"the data plane's rejection reason must reach the caller, not just a generic wrapper")
+}
+
 // TestPushConfigsNowMergesGlobalRulesFromStore covers the fork-specific piece the client
 // package no longer holds: global_rule is a singleton per config, not partitioned by
 // label, so an immediate push scoped to "global_rule" must carry every contribution

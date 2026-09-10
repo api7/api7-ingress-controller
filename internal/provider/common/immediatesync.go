@@ -24,6 +24,7 @@ import (
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/internal/adc/cache"
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
+	"github.com/apache/apisix-ingress-controller/internal/types"
 )
 
 // ResourceKeyLabels narrows labels down to just the resource-key label, which is what an
@@ -68,4 +69,16 @@ func WithMergedGlobalRules(store *cache.Store, cfgName string, resourceTypes []s
 	}
 	out.GlobalRules = adctypes.GlobalRule(merged)
 	return out, nil
+}
+
+// PushError picks what to report for a failed immediate push: execErrs, when the data
+// plane is what rejected it, carries the actual reason (e.g. "custom plugin
+// (non-existent-plugin) not found") that a caller surfaces as a resource's status message.
+// The generic err from syncConfigNow itself -- the build callback failing, say -- carries
+// none of that, so it is only a fallback.
+func PushError(cacheKey string, execErrs types.ADCExecutionErrors, err error) error {
+	if len(execErrs.Errors) > 0 {
+		return execErrs
+	}
+	return fmt.Errorf("config %s: %w", cacheKey, err)
 }
