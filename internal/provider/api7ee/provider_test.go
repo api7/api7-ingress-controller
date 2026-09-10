@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package apisix
+package api7ee
 
 import (
 	"context"
@@ -49,13 +49,13 @@ func withMockADCServer(t *testing.T, handler http.HandlerFunc) {
 	t.Cleanup(server.Close)
 }
 
-// newTestProvider builds a minimally-wired apisixProvider against the given mock ADC
-// server -- every field Client/Delete/sync touch, none of the manager/controller ones.
-func newTestProvider(t *testing.T) *apisixProvider {
+// newTestProvider builds a minimally-wired api7eeProvider against the given mock ADC
+// server -- every field Delete/sync touch, none of the manager/controller ones.
+func newTestProvider(t *testing.T) *api7eeProvider {
 	t.Helper()
-	cli, err := adcclient.New(logr.Discard(), ProviderTypeAPISIX, time.Second)
+	cli, err := adcclient.New(logr.Discard(), ProviderTypeAPI7EE, time.Second)
 	require.NoError(t, err)
-	return &apisixProvider{
+	return &api7eeProvider{
 		client:        cli,
 		store:         cache.NewStore(logr.Discard()),
 		configManager: common.NewConfigManager[types.NamespacedNameKind, adctypes.Config](),
@@ -65,36 +65,10 @@ func newTestProvider(t *testing.T) *apisixProvider {
 	}
 }
 
-// TestDeleteNotifiesSyncOnlyWhenConfigWasRemoved covers the cost side of route
-// ownership: a sync pushes the whole store to every data plane, and reconciles
-// for routes this controller never configured are frequent (any EndpointSlice
-// event on a shared backend enqueues them), so those must not notify.
-func TestDeleteNotifiesSyncOnlyWhenConfigWasRemoved(t *testing.T) {
-	d := newTestProvider(t)
-
-	route := &gatewayv1.HTTPRoute{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "HTTPRoute",
-			APIVersion: gatewayv1.GroupVersion.String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "route"},
-	}
-
-	require.NoError(t, d.Delete(context.Background(), route))
-	require.Empty(t, d.syncCh, "a route this controller never configured must not trigger a sync")
-
-	d.configManager.Update(utils.NamespacedNameKind(route), map[types.NamespacedNameKind]adctypes.Config{
-		{Namespace: "default", Name: "proxy", Kind: "GatewayProxy"}: {Name: "proxy"},
-	})
-
-	require.NoError(t, d.Delete(context.Background(), route))
-	require.Len(t, d.syncCh, 1, "removing configuration this controller pushed must trigger a sync")
-}
-
-// TestDeleteTriggersImmediateSyncForEvictedConfigs covers the immediate-push branch of
-// Delete: a Gateway going away must reach the data plane right away -- an empty resource
-// set for the config it referenced -- not wait for the next scheduled sync round.
-func TestDeleteTriggersImmediateSyncForEvictedConfigs(t *testing.T) {
+// TestDeletePushesImmediatelyRegardlessOfStartup covers what sets api7ee apart from
+// apisix: every Delete pushes right away, whether or not startup synchronization has
+// completed -- unlike Update, which defers to the periodic sync until it has.
+func TestDeletePushesImmediatelyRegardlessOfStartup(t *testing.T) {
 	var mu sync.Mutex
 	var received []adcclient.ADCServerRequest
 
@@ -109,15 +83,16 @@ func TestDeleteTriggersImmediateSyncForEvictedConfigs(t *testing.T) {
 	})
 
 	d := newTestProvider(t)
+	// startUpSync is deliberately left false: Delete must not wait for it.
 
-	gw := &gatewayv1.Gateway{
+	route := &gatewayv1.HTTPRoute{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "Gateway",
+			Kind:       "HTTPRoute",
 			APIVersion: gatewayv1.GroupVersion.String(),
 		},
-		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "gw"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "route"},
 	}
-	d.configManager.Update(utils.NamespacedNameKind(gw), map[types.NamespacedNameKind]adctypes.Config{
+	d.configManager.Update(utils.NamespacedNameKind(route), map[types.NamespacedNameKind]adctypes.Config{
 		{Namespace: "default", Name: "proxy", Kind: "GatewayProxy"}: {
 			Name:        "proxy",
 			BackendType: "apisix",
@@ -125,13 +100,12 @@ func TestDeleteTriggersImmediateSyncForEvictedConfigs(t *testing.T) {
 		},
 	})
 
-	require.NoError(t, d.Delete(context.Background(), gw))
+	require.NoError(t, d.Delete(context.Background(), route))
 
 	mu.Lock()
 	defer mu.Unlock()
-	require.Len(t, received, 1, "deleting a Gateway must push immediately, not wait for the next scheduled round")
+	require.Len(t, received, 1, "deleting a route must push immediately, not wait for the next scheduled round")
 	assert.Equal(t, "proxy", received[0].Task.Opts.CacheKey)
-	assert.Empty(t, received[0].Task.Config.Services, "the evicted config's push must carry an empty resource set")
 }
 
 // TestSyncStillPushesHealthyConfigsWhenAnotherFails covers sync's error aggregation: one
@@ -174,4 +148,54 @@ func TestSyncStillPushesHealthyConfigsWhenAnotherFails(t *testing.T) {
 	defer mu.Unlock()
 	assert.True(t, seen["bad"], "the failing config must still have been attempted")
 	assert.True(t, seen["good"], "a config failing must not stop the others from being pushed")
+}
+
+// TestPushConfigsNowMergesGlobalRulesFromStore covers the fork-specific piece the client
+// package no longer holds: global_rule is a singleton per config, not partitioned by
+// label, so an immediate push scoped to "global_rule" must carry every contribution
+// currently in store for that config, not just the one this call is pushing.
+func TestPushConfigsNowMergesGlobalRulesFromStore(t *testing.T) {
+	var mu sync.Mutex
+	var received []adcclient.ADCServerRequest
+
+	withMockADCServer(t, func(w http.ResponseWriter, r *http.Request) {
+		var req adcclient.ADCServerRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		mu.Lock()
+		received = append(received, req)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(adctypes.SyncResult{Status: adctypes.StatusSuccess})
+	})
+
+	d := newTestProvider(t)
+	cfg := adctypes.Config{Name: "proxy", BackendType: "apisix", ServerAddrs: []string{"http://apisix:9080"}}
+
+	// Another ApisixGlobalRule already contributed a rule to this same config's store
+	// entry before this call.
+	require.NoError(t, d.store.Insert(cfg.Name, []string{"global_rule"}, &adctypes.Resources{
+		GlobalRules: adctypes.GlobalRule{"limit-count": map[string]any{"count": float64(1)}},
+	}, map[string]string{"k8s/resource-key": "ApisixGlobalRule/default/one"}))
+
+	configs := map[types.NamespacedNameKind]adctypes.Config{
+		{Namespace: "default", Name: "proxy", Kind: "GatewayProxy"}: cfg,
+	}
+	resources := &adctypes.Resources{
+		GlobalRules: adctypes.GlobalRule{"key-auth": map[string]any{"key": "k"}},
+	}
+	labels := map[string]string{"k8s/resource-key": "ApisixGlobalRule/default/two"}
+
+	// pushConfigsNow is the immediate half of Update, called only after applyResourceState
+	// has already put this call's own contribution in the store -- mirror that here.
+	require.NoError(t, d.store.Insert(cfg.Name, []string{"global_rule"}, resources, labels))
+
+	require.NoError(t, d.pushConfigsNow(context.Background(), configs, []string{"global_rule"}, resources, labels))
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, received, 1)
+	assert.Contains(t, received[0].Task.Config.GlobalRules, "limit-count",
+		"the other ApisixGlobalRule's contribution must not be dropped by this push")
+	assert.Contains(t, received[0].Task.Config.GlobalRules, "key-auth",
+		"this push's own contribution must still be included")
 }
