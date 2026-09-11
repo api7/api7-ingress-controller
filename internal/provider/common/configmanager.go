@@ -36,12 +36,6 @@ func NewConfigManager[K comparable, T any]() *ConfigManager[K, T] {
 	}
 }
 
-func (s *ConfigManager[K, T]) GetConfigRefs(key K) []K {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.configRefs[key]
-}
-
 func (s *ConfigManager[K, T]) GetConfigRefsByResourceKey(key K) []K {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -122,12 +116,6 @@ func (s *ConfigManager[K, T]) Update(
 	}
 
 	return discard
-}
-
-func (s *ConfigManager[K, T]) Set(key K, cfg T) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.configs[key] = cfg
 }
 
 func (s *ConfigManager[K, T]) Delete(key K) {

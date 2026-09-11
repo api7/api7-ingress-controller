@@ -19,7 +19,10 @@ package api7ee
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -32,6 +35,7 @@ import (
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	"github.com/apache/apisix-ingress-controller/internal/adc/cache"
 	adcclient "github.com/apache/apisix-ingress-controller/internal/adc/client"
 	"github.com/apache/apisix-ingress-controller/internal/adc/translator"
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
@@ -51,8 +55,22 @@ const (
 	RetryMaxDelay  = 1000 * time.Second
 )
 
+// api7eeProvider owns AIC's own view of what should be live: which Kubernetes resource
+// targets which GatewayProxy config (configManager) and the merged, translated resource
+// snapshot per config (store). It builds the input the adc client package needs and hands
+// it over on every call; the client package holds none of this state itself.
 type api7eeProvider struct {
+	sync.Mutex
+
 	translator *translator.Translator
+
+	store         *cache.Store
+	configManager *common.ConfigManager[types.NamespacedNameKind, adctypes.Config]
+	debugProvider *common.ADCDebugProvider
+
+	// syncLocks serializes, per cacheKey, reading that GatewayProxy's current resource
+	// snapshot together with pushing it
+	syncLocks *common.KeyedMutex
 
 	updater         status.Updater
 	statusUpdateMap map[types.NamespacedNameKind][]string
@@ -81,19 +99,28 @@ func New(log logr.Logger, updater status.Updater, readier readiness.ReadinessMan
 		return nil, err
 	}
 
+	logger := log.WithName("provider")
+
+	store := cache.NewStore(logger)
+	configManager := common.NewConfigManager[types.NamespacedNameKind, adctypes.Config]()
+
 	return &api7eeProvider{
-		client:     cli,
-		Options:    o,
-		translator: translator.NewTranslator(log, o.ListenerPortMatchMode),
-		updater:    updater,
-		readier:    readier,
-		syncCh:     make(chan struct{}, 1),
-		log:        log.WithName("provider"),
+		client:        cli,
+		store:         store,
+		configManager: configManager,
+		debugProvider: common.NewADCDebugProvider(store, configManager),
+		syncLocks:     common.NewKeyedMutex(),
+		Options:       o,
+		translator:    translator.NewTranslator(log, o.ListenerPortMatchMode),
+		updater:       updater,
+		readier:       readier,
+		syncCh:        make(chan struct{}, 1),
+		log:           logger,
 	}, nil
 }
 
 func (d *api7eeProvider) Register(pathPrefix string, mux *http.ServeMux) {
-	d.client.ADCDebugProvider.SetupHandler(pathPrefix, mux)
+	d.debugProvider.SetupHandler(pathPrefix, mux)
 }
 
 func (d *api7eeProvider) Update(ctx context.Context, tctx *provider.TranslateContext, obj client.Object) error {
@@ -169,29 +196,31 @@ func (d *api7eeProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 		return nil
 	}
 
-	nnk := utils.NamespacedNameKind(obj)
+	resources := &adctypes.Resources{
+		GlobalRules:    result.GlobalRules,
+		PluginMetadata: result.PluginMetadata,
+		Services:       result.Services,
+		SSLs:           result.SSL,
+		Consumers:      result.Consumers,
+	}
+	labels := label.GenLabel(obj)
 
-	task := adcclient.Task{
-		Key:           nnk,
-		Name:          nnk.String(),
-		Labels:        label.GenLabel(obj),
-		Configs:       configs,
-		ResourceTypes: resourceTypes,
-		Resources: &adctypes.Resources{
-			GlobalRules:    result.GlobalRules,
-			PluginMetadata: result.PluginMetadata,
-			Services:       result.Services,
-			SSLs:           result.SSL,
-			Consumers:      result.Consumers,
-		},
+	evicted, err := d.applyResourceState(rk, configs, resourceTypes, resources, labels)
+	if err != nil {
+		return err
 	}
 
 	if !d.startUpSync.Load() {
 		d.log.V(1).Info("startup synchronization not completed, skip sync", "object", obj)
-		return d.client.UpdateConfig(ctx, task)
+		return nil
 	}
 
-	return d.client.Update(ctx, task)
+	// A GatewayProxy this resource no longer targets must still lose this resource's
+	// contribution on the data plane. That push is best-effort, the same as the deferred
+	// path's: only the periodic sync ever surfaces its failures as a status update.
+	d.syncEvictedConfigsNow(ctx, evicted, resourceTypes, labels)
+
+	return d.pushConfigsNow(ctx, configs, resourceTypes, resources, labels)
 }
 
 func (d *api7eeProvider) Delete(ctx context.Context, obj client.Object) error {
@@ -225,12 +254,165 @@ func (d *api7eeProvider) Delete(ctx context.Context, obj client.Object) error {
 	}
 
 	nnk := utils.NamespacedNameKind(obj)
-	return d.client.Delete(ctx, adcclient.Task{
-		Key:           nnk,
-		Name:          nnk.String(),
-		Labels:        labels,
-		ResourceTypes: resourceTypes,
-	})
+
+	removed, err := d.removeResourceState(nnk, resourceTypes, labels)
+	if err != nil {
+		return err
+	}
+
+	// A deleted resource always pushes right away rather than waiting for the next
+	// scheduled round, and -- like the deferred path -- only logs a push failure instead
+	// of surfacing it, since there is no per-object status to report it against once the
+	// object itself is gone.
+	d.syncEvictedConfigsNow(ctx, removed, resourceTypes, labels)
+	return nil
+}
+
+// applyResourceState upserts a resource's config associations and its contribution to each
+// target config's cached resource snapshot -- the AIC-side bookkeeping the adc client
+// package no longer holds itself. It returns the configs this resource no longer
+// references (if any), so the caller can push their eviction right away instead of
+// waiting for the next scheduled sync round.
+func (d *api7eeProvider) applyResourceState(
+	rk types.NamespacedNameKind,
+	configs map[types.NamespacedNameKind]adctypes.Config,
+	resourceTypes []string,
+	resources *adctypes.Resources,
+	labels map[string]string,
+) (map[types.NamespacedNameKind]adctypes.Config, error) {
+	d.Lock()
+	defer d.Unlock()
+
+	evicted := d.configManager.Update(rk, configs)
+	if err := d.evictFromStore(evicted, resourceTypes, labels); err != nil {
+		return nil, err
+	}
+	for _, cfg := range configs {
+		if err := d.store.Insert(cfg.Name, resourceTypes, resources, labels); err != nil {
+			return nil, fmt.Errorf("store insert failed for config %s: %w", cfg.Name, err)
+		}
+	}
+	return evicted, nil
+}
+
+// removeResourceState forgets a resource's config associations and evicts its contribution
+// from each config it used to reference, returning those configs so an immediate-push
+// caller (see syncEvictedConfigsNow) knows what to push right away.
+func (d *api7eeProvider) removeResourceState(
+	rk types.NamespacedNameKind,
+	resourceTypes []string,
+	labels map[string]string,
+) (map[types.NamespacedNameKind]adctypes.Config, error) {
+	d.Lock()
+	defer d.Unlock()
+
+	evicted := d.configManager.Get(rk)
+	d.configManager.Delete(rk)
+	if err := d.evictFromStore(evicted, resourceTypes, labels); err != nil {
+		return nil, err
+	}
+	return evicted, nil
+}
+
+// evictFromStore deletes a resource's contribution from each of the given configs' cached
+// snapshots. Callers must already hold d.Lock.
+func (d *api7eeProvider) evictFromStore(
+	configs map[types.NamespacedNameKind]adctypes.Config,
+	resourceTypes []string,
+	labels map[string]string,
+) error {
+	for _, cfg := range configs {
+		if err := d.store.Delete(cfg.Name, resourceTypes, labels); err != nil {
+			return fmt.Errorf("store delete failed for config %s: %w", cfg.Name, err)
+		}
+	}
+	return nil
+}
+
+// syncConfigNow reads name's current data (via build, called only once this cacheKey's
+// lock is actually held) and pushes it -- one atomic read-then-push step per cacheKey, so
+// whichever caller is granted the lock decides what to push only once it holds it: nothing
+// it sends can already be stale relative to whatever the other caller committed to the
+// store before losing the race for the same key. See common.KeyedMutex.
+func (d *api7eeProvider) syncConfigNow(
+	ctx context.Context,
+	name string,
+	build func() (adcclient.SyncInput, error),
+) (types.ADCExecutionErrors, error) {
+	unlock := d.syncLocks.Lock(name)
+	defer unlock()
+
+	input, err := build()
+	if err != nil {
+		return types.ADCExecutionErrors{}, err
+	}
+	failedMap, err := d.client.Sync(ctx, []adcclient.SyncInput{input})
+	return failedMap[name], err
+}
+
+// pushConfigsNow pushes resources immediately to every one of the given configs, through
+// the same per-cacheKey lock the periodic sync uses, and reports the combined push error.
+// This is the immediate half of Update: it only runs once startup synchronization has
+// completed, mirroring the old Client.Update. Before that, applyResourceState alone is
+// enough -- the startup sync and the periodic ticker eventually push it.
+func (d *api7eeProvider) pushConfigsNow(
+	ctx context.Context,
+	configs map[types.NamespacedNameKind]adctypes.Config,
+	resourceTypes []string,
+	resources *adctypes.Resources,
+	labels map[string]string,
+) error {
+	var errs []error
+	for _, cfg := range configs {
+		execErrs, err := d.syncConfigNow(ctx, cfg.Name, func() (adcclient.SyncInput, error) {
+			mergedResources, err := common.WithMergedGlobalRules(d.store, cfg.Name, resourceTypes, resources)
+			if err != nil {
+				return adcclient.SyncInput{}, err
+			}
+			return adcclient.SyncInput{
+				Name:          cfg.Name,
+				Config:        cfg,
+				Resources:     mergedResources,
+				ResourceTypes: resourceTypes,
+				Labels:        common.ResourceKeyLabels(labels),
+			}, nil
+		})
+		if err != nil {
+			errs = append(errs, common.PushError(cfg.Name, execErrs, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// syncEvictedConfigsNow pushes an empty resource set for each of the given configs
+// immediately, instead of waiting for the next scheduled sync round -- through the same
+// per-cacheKey lock the periodic sync uses, so it can never race a periodic round for the
+// same GatewayProxy. Failures are logged, not surfaced as a status update -- this mirrors
+// the deferred path, which only reports through the next scheduled sync round.
+func (d *api7eeProvider) syncEvictedConfigsNow(
+	ctx context.Context,
+	configs map[types.NamespacedNameKind]adctypes.Config,
+	resourceTypes []string,
+	labels map[string]string,
+) {
+	for _, cfg := range configs {
+		execErrs, err := d.syncConfigNow(ctx, cfg.Name, func() (adcclient.SyncInput, error) {
+			resources, err := common.WithMergedGlobalRules(d.store, cfg.Name, resourceTypes, &adctypes.Resources{})
+			if err != nil {
+				return adcclient.SyncInput{}, err
+			}
+			return adcclient.SyncInput{
+				Name:          cfg.Name,
+				Config:        cfg,
+				Resources:     resources,
+				ResourceTypes: resourceTypes,
+				Labels:        common.ResourceKeyLabels(labels),
+			}, nil
+		})
+		if err != nil {
+			d.log.Error(common.PushError(cfg.Name, execErrs, err), "failed to sync deleted config", "config", cfg)
+		}
+	}
 }
 
 func (d *api7eeProvider) Start(ctx context.Context) error {
@@ -285,10 +467,35 @@ func (d *api7eeProvider) syncNotify() {
 	}
 }
 
+// sync pushes every GatewayProxy AIC currently knows about, config by config -- each
+// one's current resource snapshot is only read once syncConfigNow actually holds that
+// cacheKey's lock, so a slow round can never push a snapshot that was already stale by the
+// time its turn came up. All of this round's results are still collected into one
+// statusesMap and handed to handleADCExecutionErrors together, exactly as a single batched
+// sync would: that logic diffs against last round's full picture, not per-config.
 func (d *api7eeProvider) sync(ctx context.Context) error {
-	statusesMap, err := d.client.Sync(ctx)
+	configs := d.configManager.List()
+
+	statusesMap := map[string]types.ADCExecutionErrors{}
+	var errs []error
+	for _, config := range configs {
+		execErrs, err := d.syncConfigNow(ctx, config.Name, func() (adcclient.SyncInput, error) {
+			resources, err := d.store.GetResources(config.Name)
+			if err != nil {
+				return adcclient.SyncInput{}, fmt.Errorf("failed to get resources from store: %w", err)
+			}
+			return adcclient.SyncInput{Name: config.Name, Config: config, Resources: resources}, nil
+		})
+		if err != nil {
+			errs = append(errs, fmt.Errorf("config %s: %w", config.Name, err))
+		}
+		if len(execErrs.Errors) > 0 {
+			statusesMap[config.Name] = execErrs
+		}
+	}
+
 	d.handleADCExecutionErrors(statusesMap)
-	return err
+	return errors.Join(errs...)
 }
 
 func (d *api7eeProvider) handleADCExecutionErrors(statusesMap map[string]types.ADCExecutionErrors) {
@@ -310,12 +517,17 @@ func (d *api7eeProvider) updateConfigForGatewayProxy(tctx *provider.TranslateCon
 
 	nnk := utils.NamespacedNameKind(gp)
 	if config == nil {
-		d.client.ConfigManager.DeleteConfig(nnk)
+		d.Lock()
+		d.configManager.DeleteConfig(nnk)
+		d.Unlock()
 		return nil
 	}
+
 	referrers := tctx.GatewayProxyReferrers[utils.NamespacedName(gp)]
-	d.client.ConfigManager.SetConfigRefs(nnk, referrers)
-	d.client.ConfigManager.UpdateConfig(nnk, *config)
+	d.Lock()
+	d.configManager.SetConfigRefs(nnk, referrers)
+	d.configManager.UpdateConfig(nnk, *config)
+	d.Unlock()
 	d.syncNotify()
 	return nil
 }
