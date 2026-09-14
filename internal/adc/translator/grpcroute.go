@@ -30,6 +30,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 	"github.com/apache/apisix-ingress-controller/internal/id"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	sslutils "github.com/apache/apisix-ingress-controller/internal/ssl"
 	internaltypes "github.com/apache/apisix-ingress-controller/internal/types"
 )
 
@@ -38,7 +39,7 @@ func (t *Translator) fillPluginsFromGRPCRouteFilters(
 	namespace string,
 	filters []gatewayv1.GRPCRouteFilter,
 	tctx *provider.TranslateContext,
-) {
+) error {
 	for _, filter := range filters {
 		switch filter.Type {
 		case gatewayv1.GRPCRouteFilterRequestHeaderModifier:
@@ -48,9 +49,12 @@ func (t *Translator) fillPluginsFromGRPCRouteFilters(
 		case gatewayv1.GRPCRouteFilterResponseHeaderModifier:
 			t.fillPluginFromHTTPResponseHeaderFilter(plugins, filter.ResponseHeaderModifier)
 		case gatewayv1.GRPCRouteFilterExtensionRef:
-			t.fillPluginFromExtensionRef(plugins, namespace, filter.ExtensionRef, tctx)
+			if err := t.fillPluginFromExtensionRef(plugins, namespace, filter.ExtensionRef, tctx); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 func calculateGRPCRoutePriority(match *gatewayv1.GRPCRouteMatch, ruleIndex int, hosts []string) uint64 {
@@ -158,6 +162,9 @@ func (t *Translator) TranslateGRPCRoute(tctx *provider.TranslateContext, grpcRou
 			hosts = append(hosts, string(*listener.Hostname))
 		}
 	}
+	// the listener hostnames can repeat what the route already declares, and the APISIX
+	// service schema requires unique hosts
+	hosts = sslutils.NormalizeHosts(hosts)
 
 	rules := grpcRoute.Spec.Rules
 
@@ -205,7 +212,7 @@ func (t *Translator) TranslateGRPCRoute(tctx *provider.TranslateContext, grpcRou
 				kind = string(*backend.Kind)
 			}
 			if backend.Port != nil {
-				port = int32(*backend.Port)
+				port = *backend.Port
 			}
 			namespace := string(*backend.Namespace)
 			name := string(backend.Name)
@@ -283,7 +290,9 @@ func (t *Translator) TranslateGRPCRoute(tctx *provider.TranslateContext, grpcRou
 			}
 		}
 
-		t.fillPluginsFromGRPCRouteFilters(service.Plugins, grpcRoute.GetNamespace(), rule.Filters, tctx)
+		if err := t.fillPluginsFromGRPCRouteFilters(service.Plugins, grpcRoute.GetNamespace(), rule.Filters, tctx); err != nil {
+			return nil, err
+		}
 
 		matches := rule.Matches
 		if len(matches) == 0 {
@@ -308,6 +317,23 @@ func (t *Translator) TranslateGRPCRoute(tctx *provider.TranslateContext, grpcRou
 
 			routes = append(routes, route)
 		}
+
+		// A route answers only the schemes its listeners accept. See the HTTPRoute
+		// translator for why neither hostname matching nor server_port covers this.
+		t.pinRoutesToListenerScheme(tctx.Listeners, routes)
+
+		// Collect unique listener ports for port-based routing.
+		listenerPorts := make(map[int32]struct{})
+		for _, listener := range tctx.Listeners {
+			listenerPorts[listener.Port] = struct{}{}
+		}
+
+		if t.shouldInjectServerPortVars(tctx.HasExplicitListenerMatch, listenerPorts) {
+			for _, route := range routes {
+				addServerPortVars(route, listenerPorts)
+			}
+		}
+
 		service.Routes = routes
 
 		result.Services = append(result.Services, service)

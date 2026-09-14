@@ -25,8 +25,10 @@ import (
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	"k8s.io/utils/ptr"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
 )
 
@@ -43,7 +45,10 @@ spec:
   listeners:
   - name: tcp
     protocol: TCP
-    port: 80
+    # Must equal APISIX's physical stream_proxy TCP port so that when
+    # listener_port_match_mode=auto the injected server_port matches the port
+    # connections arrive on (see apache/apisix-ingress-controller#2818).
+    port: 9100
     allowedRoutes:
       kinds:
       - kind: TCPRoute
@@ -55,7 +60,7 @@ spec:
 `
 
 		var tcpRoute = `
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1
 kind: TCPRoute
 metadata:
   name: tcp-app-1
@@ -108,7 +113,7 @@ spec:
 		})
 	})
 
-	Context("TCPRoute With L4RoutePolicy", func() {
+	Context("TCPRoute With BackendTrafficPolicy", func() {
 		var tcpGateway = `
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
@@ -131,7 +136,95 @@ spec:
 `
 
 		var tcpRoute = `
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1
+kind: TCPRoute
+metadata:
+  name: tcp-tls-upstream
+spec:
+  parentRefs:
+  - name: %s
+    sectionName: tcp
+  rules:
+  - backendRefs:
+    - name: nginx
+      port: 443
+`
+
+		var backendTrafficPolicy = `
+apiVersion: apisix.apache.org/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: nginx-tls
+spec:
+  targetRefs:
+  - name: nginx
+    kind: Service
+    group: ""
+  scheme: tls
+`
+
+		BeforeEach(func() {
+			Expect(s.CreateResourceFromString(s.GetGatewayProxySpec())).NotTo(HaveOccurred(), "creating GatewayProxy")
+			Expect(s.CreateResourceFromString(s.GetGatewayClassYaml())).NotTo(HaveOccurred(), "creating GatewayClass")
+			Expect(s.CreateResourceFromString(fmt.Sprintf(tcpGateway, s.Namespace(), s.Namespace()))).
+				NotTo(HaveOccurred(), "creating Gateway")
+			s.DeployNginx(framework.NginxOptions{
+				Namespace: s.Namespace(),
+				Replicas:  ptr.To(int32(1)),
+			})
+		})
+
+		It("BackendTrafficPolicy scheme tls connects to the upstream over TLS", func() {
+			By("creating BackendTrafficPolicy with scheme: tls")
+			Expect(s.CreateResourceFromString(backendTrafficPolicy)).NotTo(HaveOccurred(), "creating BackendTrafficPolicy")
+
+			By("creating TCPRoute to the TLS port of nginx")
+			s.ResourceApplied("TCPRoute", "tcp-tls-upstream", fmt.Sprintf(tcpRoute, s.Namespace()), 1)
+
+			// The client speaks plain HTTP over TCP; without scheme: tls nginx would
+			// reject the request on its TLS port instead of answering with 200.
+			s.RequestAssert(&scaffold.RequestAssert{
+				Client: s.NewAPISIXClientOnTCPPort(),
+				Method: "GET",
+				Path:   "/",
+				Checks: []scaffold.ResponseCheckFunc{
+					scaffold.WithExpectedStatus(200),
+					scaffold.WithExpectedHeader("X-Port", "443"),
+					scaffold.WithExpectedBodyContains("Hello, World!"),
+				},
+				Timeout:  time.Minute * 3,
+				Interval: time.Second * 2,
+			})
+		})
+	})
+
+	Context("TCPRoute With L4RoutePolicy", func() {
+		var tcpGateway = `
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: %s
+spec:
+  gatewayClassName: %s
+  listeners:
+  - name: tcp
+    protocol: TCP
+    # Must equal APISIX's physical stream_proxy TCP port so that when
+    # listener_port_match_mode=auto the injected server_port matches the port
+    # connections arrive on (see apache/apisix-ingress-controller#2818).
+    port: 9100
+    allowedRoutes:
+      kinds:
+      - kind: TCPRoute
+  infrastructure:
+    parametersRef:
+      group: apisix.apache.org
+      kind: GatewayProxy
+      name: apisix-proxy-config
+`
+
+		var tcpRoute = `
+apiVersion: gateway.networking.k8s.io/v1
 kind: TCPRoute
 metadata:
   name: tcp-l4policy
@@ -163,6 +256,25 @@ spec:
       - "0.0.0.0/0"
 `
 
+		var l4RoutePolicyMissingSecret = `
+apiVersion: apisix.apache.org/v1alpha1
+kind: L4RoutePolicy
+metadata:
+  name: tcp-block-all
+spec:
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: TCPRoute
+    name: tcp-l4policy
+  plugins:
+  - name: ip-restriction
+    secretRef:
+      name: no-such-secret
+    config:
+      blacklist:
+      - "0.0.0.0/0"
+`
+
 		BeforeEach(func() {
 			Expect(s.CreateResourceFromString(s.GetGatewayProxySpec())).NotTo(HaveOccurred(), "creating GatewayProxy")
 			Expect(s.CreateResourceFromString(s.GetGatewayClassYaml())).NotTo(HaveOccurred(), "creating GatewayClass")
@@ -183,7 +295,7 @@ spec:
 				types.NamespacedName{Namespace: s.Namespace(), Name: "tcp-block-all"},
 				l4RoutePolicyBlockAll,
 				metav1.Condition{
-					Type:   string(gatewayv1alpha2.PolicyConditionAccepted),
+					Type:   string(gatewayv1.PolicyConditionAccepted),
 					Status: metav1.ConditionTrue,
 				},
 			)
@@ -195,6 +307,27 @@ spec:
 			Expect(s.DeleteResource("L4RoutePolicy", "tcp-block-all")).NotTo(HaveOccurred(), "deleting L4RoutePolicy")
 
 			By("verifying TCP traffic recovers after L4RoutePolicy deletion")
+			s.HTTPOverTCPConnectAssert(true, time.Minute*3)
+		})
+
+		It("L4RoutePolicy with a missing plugin Secret is rejected", func() {
+			By("creating TCPRoute")
+			s.ResourceApplied("TCPRoute", "tcp-l4policy", fmt.Sprintf(tcpRoute, s.Namespace()), 1)
+			s.HTTPOverTCPConnectAssert(true, time.Minute*3)
+
+			By("applying an L4RoutePolicy whose plugin references a Secret that does not exist")
+			s.ApplyL4RoutePolicy(
+				types.NamespacedName{Name: s.Namespace()},
+				types.NamespacedName{Namespace: s.Namespace(), Name: "tcp-block-all"},
+				l4RoutePolicyMissingSecret,
+				metav1.Condition{
+					Type:   string(gatewayv1.PolicyConditionAccepted),
+					Status: metav1.ConditionFalse,
+					Reason: string(gatewayv1.PolicyReasonInvalid),
+				},
+			)
+
+			By("verifying the policy plugins are not attached")
 			s.HTTPOverTCPConnectAssert(true, time.Minute*3)
 		})
 	})

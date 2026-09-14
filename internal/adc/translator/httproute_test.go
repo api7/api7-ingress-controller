@@ -31,7 +31,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
@@ -62,7 +61,7 @@ func TestTranslateHTTPRouteUpstreamScheme(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			translator := NewTranslator(logr.Discard())
+			translator := NewTranslator(logr.Discard(), "")
 			tctx := provider.NewDefaultTranslateContext(context.Background())
 
 			const (
@@ -111,14 +110,110 @@ func TestTranslateHTTPRouteUpstreamScheme(t *testing.T) {
 					},
 					Spec: v1alpha1.BackendTrafficPolicySpec{
 						TargetRefs: []v1alpha1.BackendPolicyTargetReferenceWithSectionName{{
-							LocalPolicyTargetReference: gatewayv1alpha2.LocalPolicyTargetReference{
-								Name: gatewayv1alpha2.ObjectName(serviceName),
-								Kind: gatewayv1alpha2.Kind(internaltypes.KindService),
+							LocalPolicyTargetReference: gatewayv1.LocalPolicyTargetReference{
+								Name: gatewayv1.ObjectName(serviceName),
+								Kind: gatewayv1.Kind(internaltypes.KindService),
 							},
 						}},
 						Scheme: tt.policyScheme,
 					},
 				}
+			}
+
+			route := &gatewayv1.HTTPRoute{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "demo",
+					Namespace: namespace,
+				},
+				Spec: gatewayv1.HTTPRouteSpec{
+					Rules: []gatewayv1.HTTPRouteRule{{
+						BackendRefs: []gatewayv1.HTTPBackendRef{{
+							BackendRef: gatewayv1.BackendRef{
+								BackendObjectReference: gatewayv1.BackendObjectReference{
+									Name: gatewayv1.ObjectName(serviceName),
+									Port: ptr.To(portNumber),
+								},
+							},
+						}},
+					}},
+				},
+			}
+
+			result, err := translator.TranslateHTTPRoute(tctx, route)
+			require.NoError(t, err)
+			require.Len(t, result.Services, 1)
+			require.NotNil(t, result.Services[0].Upstream)
+
+			assert.Equal(t, tt.wantScheme, result.Services[0].Upstream.Scheme)
+			assert.Equal(t, "10.0.0.1", result.Services[0].Upstream.Nodes[0].Host)
+		})
+	}
+}
+
+func TestTranslateHTTPRouteExternalNameAppProtocol(t *testing.T) {
+	tests := []struct {
+		name          string
+		appProtocol   string
+		wantScheme    string
+		wantWebsocket *bool
+	}{
+		{
+			name:          "ExternalName with wss appProtocol",
+			appProtocol:   internaltypes.AppProtocolWSS,
+			wantScheme:    apiv2.SchemeHTTPS,
+			wantWebsocket: ptr.To(true),
+		},
+		{
+			name:          "ExternalName with ws appProtocol",
+			appProtocol:   internaltypes.AppProtocolWS,
+			wantScheme:    apiv2.SchemeHTTP,
+			wantWebsocket: ptr.To(true),
+		},
+		{
+			name:        "ExternalName with http appProtocol",
+			appProtocol: internaltypes.AppProtocolHTTP,
+			wantScheme:  apiv2.SchemeHTTP,
+		},
+		{
+			// An unset appProtocol falls through to the explicit http default
+			// applied to every upstream.
+			name:        "ExternalName without appProtocol",
+			appProtocol: "",
+			wantScheme:  apiv2.SchemeHTTP,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			translator := NewTranslator(logr.Discard(), "")
+			tctx := provider.NewDefaultTranslateContext(context.Background())
+
+			const (
+				namespace   = "default"
+				serviceName = "external-backend"
+				portNumber  = 5000
+			)
+
+			var appProtocol *string
+			if tt.appProtocol != "" {
+				appProtocol = ptr.To(tt.appProtocol)
+			}
+
+			serviceKey := types.NamespacedName{Namespace: namespace, Name: serviceName}
+			tctx.Services[serviceKey] = &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      serviceName,
+					Namespace: namespace,
+				},
+				Spec: corev1.ServiceSpec{
+					Type:         corev1.ServiceTypeExternalName,
+					ExternalName: "example.com",
+					Ports: []corev1.ServicePort{{
+						Name:        "web",
+						Port:        portNumber,
+						AppProtocol: appProtocol,
+					}},
+				},
 			}
 
 			route := &gatewayv1.HTTPRoute{
@@ -144,9 +239,11 @@ func TestTranslateHTTPRouteUpstreamScheme(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, result.Services, 1)
 			require.NotNil(t, result.Services[0].Upstream)
+			require.Len(t, result.Services[0].Routes, 1)
 
 			assert.Equal(t, tt.wantScheme, result.Services[0].Upstream.Scheme)
-			assert.Equal(t, "10.0.0.1", result.Services[0].Upstream.Nodes[0].Host)
+			assert.Equal(t, "example.com", result.Services[0].Upstream.Nodes[0].Host)
+			assert.Equal(t, tt.wantWebsocket, result.Services[0].Routes[0].EnableWebsocket)
 		})
 	}
 }
@@ -338,20 +435,20 @@ func TestAttachBackendTrafficPolicyToUpstreamSectionName(t *testing.T) {
 			BackendObjectReference: gatewayv1.BackendObjectReference{
 				Name:      gatewayv1.ObjectName(serviceName),
 				Namespace: ptr.To(gatewayv1.Namespace(namespace)),
-				Port:      ptr.To(gatewayv1.PortNumber(port)),
+				Port:      ptr.To(port),
 			},
 		}
 	}
 
 	newPolicy := func(name, sectionName, scheme string) *v1alpha1.BackendTrafficPolicy {
 		targetRef := v1alpha1.BackendPolicyTargetReferenceWithSectionName{
-			LocalPolicyTargetReference: gatewayv1alpha2.LocalPolicyTargetReference{
-				Name: gatewayv1alpha2.ObjectName(serviceName),
-				Kind: gatewayv1alpha2.Kind(internaltypes.KindService),
+			LocalPolicyTargetReference: gatewayv1.LocalPolicyTargetReference{
+				Name: gatewayv1.ObjectName(serviceName),
+				Kind: gatewayv1.Kind(internaltypes.KindService),
 			},
 		}
 		if sectionName != "" {
-			targetRef.SectionName = ptr.To(gatewayv1alpha2.SectionName(sectionName))
+			targetRef.SectionName = ptr.To(gatewayv1.SectionName(sectionName))
 		}
 		return &v1alpha1.BackendTrafficPolicy{
 			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
@@ -409,9 +506,9 @@ func TestAttachBackendTrafficPolicyToUpstreamSectionName(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{Name: "p", Namespace: namespace},
 					Spec: v1alpha1.BackendTrafficPolicySpec{
 						TargetRefs: []v1alpha1.BackendPolicyTargetReferenceWithSectionName{{
-							LocalPolicyTargetReference: gatewayv1alpha2.LocalPolicyTargetReference{
-								Name: gatewayv1alpha2.ObjectName(serviceName),
-								Kind: gatewayv1alpha2.Kind("ServiceImport"),
+							LocalPolicyTargetReference: gatewayv1.LocalPolicyTargetReference{
+								Name: gatewayv1.ObjectName(serviceName),
+								Kind: gatewayv1.Kind("ServiceImport"),
 							},
 						}},
 						Scheme: apiv2.SchemeHTTPS,
@@ -422,7 +519,7 @@ func TestAttachBackendTrafficPolicyToUpstreamSectionName(t *testing.T) {
 		},
 	}
 
-	translator := NewTranslator(logr.Discard())
+	translator := NewTranslator(logr.Discard(), "")
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			upstream := adctypes.NewDefaultUpstream()
@@ -430,4 +527,75 @@ func TestAttachBackendTrafficPolicyToUpstreamSectionName(t *testing.T) {
 			assert.Equal(t, tt.wantScheme, upstream.Scheme)
 		})
 	}
+}
+
+func TestTranslateHTTPRouteTrafficSplitWeightsSkipUnresolvedBackends(t *testing.T) {
+	const namespace = "default"
+
+	translator := NewTranslator(logr.Discard(), "")
+	tctx := provider.NewDefaultTranslateContext(context.Background())
+
+	// "empty" resolves to zero nodes and is skipped, so the weights of the two
+	// remaining backends must not shift onto the wrong upstream.
+	for _, name := range []string{"empty", "first", "second"} {
+		key := types.NamespacedName{Namespace: namespace, Name: name}
+		tctx.Services[key] = &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+			Spec: corev1.ServiceSpec{
+				Ports: []corev1.ServicePort{{Name: "web", Port: 80}},
+			},
+		}
+		if name == "empty" {
+			continue
+		}
+		tctx.EndpointSlices[key] = []discoveryv1.EndpointSlice{{
+			ObjectMeta: metav1.ObjectMeta{Name: name + "-1", Namespace: namespace},
+			Ports:      []discoveryv1.EndpointPort{{Name: ptr.To("web"), Port: ptr.To(int32(80))}},
+			Endpoints: []discoveryv1.Endpoint{{
+				Addresses:  []string{"10.0.0.1"},
+				Conditions: discoveryv1.EndpointConditions{Ready: ptr.To(true)},
+			}},
+		}}
+	}
+
+	backendRef := func(name string, weight int32) gatewayv1.HTTPBackendRef {
+		return gatewayv1.HTTPBackendRef{
+			BackendRef: gatewayv1.BackendRef{
+				BackendObjectReference: gatewayv1.BackendObjectReference{
+					Name: gatewayv1.ObjectName(name),
+					Port: ptr.To(gatewayv1.PortNumber(80)),
+				},
+				Weight: ptr.To(weight),
+			},
+		}
+	}
+
+	route := &gatewayv1.HTTPRoute{
+		ObjectMeta: metav1.ObjectMeta{Name: "demo", Namespace: namespace},
+		Spec: gatewayv1.HTTPRouteSpec{
+			Rules: []gatewayv1.HTTPRouteRule{{
+				BackendRefs: []gatewayv1.HTTPBackendRef{
+					backendRef("empty", 10),
+					backendRef("first", 20),
+					backendRef("second", 30),
+				},
+			}},
+		},
+	}
+
+	result, err := translator.TranslateHTTPRoute(tctx, route)
+	require.NoError(t, err)
+	require.Len(t, result.Services, 1)
+
+	svc := result.Services[0]
+	require.Len(t, svc.Upstreams, 1)
+
+	cfg, ok := svc.Plugins["traffic-split"].(*adctypes.TrafficSplitConfig)
+	require.True(t, ok, "traffic-split plugin should be configured")
+	require.Len(t, cfg.Rules, 1)
+	require.Len(t, cfg.Rules[0].WeightedUpstreams, 2)
+
+	assert.Equal(t, 20, cfg.Rules[0].WeightedUpstreams[0].Weight, "default upstream keeps its own weight")
+	assert.Equal(t, 30, cfg.Rules[0].WeightedUpstreams[1].Weight)
+	assert.Equal(t, svc.Upstreams[0].ID, cfg.Rules[0].WeightedUpstreams[1].UpstreamID)
 }

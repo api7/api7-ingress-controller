@@ -28,7 +28,6 @@ import (
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
@@ -86,7 +85,7 @@ func New(log logr.Logger, updater status.Updater, readier readiness.ReadinessMan
 	return &apisixProvider{
 		client:     cli,
 		Options:    o,
-		translator: translator.NewTranslator(log),
+		translator: translator.NewTranslator(log, o.ListenerPortMatchMode),
 		updater:    updater,
 		readier:    readier,
 		syncCh:     make(chan struct{}, 1),
@@ -99,7 +98,7 @@ func (d *apisixProvider) Register(pathPrefix string, mux *http.ServeMux) {
 }
 
 func (d *apisixProvider) Update(ctx context.Context, tctx *provider.TranslateContext, obj client.Object) error {
-	d.log.V(1).Info("updating object", "object", obj)
+	d.log.V(1).Info("updating object", "object", utils.NamespacedNameKind(obj))
 	var (
 		result        *translator.TranslateResult
 		resourceTypes []string
@@ -112,13 +111,13 @@ func (d *apisixProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 	case *gatewayv1.HTTPRoute:
 		result, err = d.translator.TranslateHTTPRoute(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, adctypes.TypeService)
-	case *gatewayv1alpha2.TCPRoute:
+	case *gatewayv1.TCPRoute:
 		result, err = d.translator.TranslateTCPRoute(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, adctypes.TypeService)
-	case *gatewayv1alpha2.UDPRoute:
+	case *gatewayv1.UDPRoute:
 		result, err = d.translator.TranslateUDPRoute(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, adctypes.TypeService)
-	case *gatewayv1alpha2.TLSRoute:
+	case *gatewayv1.TLSRoute:
 		result, err = d.translator.TranslateTLSRoute(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, adctypes.TypeService)
 	case *gatewayv1.GRPCRoute:
@@ -198,7 +197,7 @@ func (d *apisixProvider) Delete(ctx context.Context, obj client.Object) error {
 	var resourceTypes []string
 	var labels map[string]string
 	switch obj.(type) {
-	case *gatewayv1.HTTPRoute, *apiv2.ApisixRoute, *gatewayv1.GRPCRoute, *gatewayv1alpha2.TCPRoute, *gatewayv1alpha2.UDPRoute, *gatewayv1alpha2.TLSRoute:
+	case *gatewayv1.HTTPRoute, *apiv2.ApisixRoute, *gatewayv1.GRPCRoute, *gatewayv1.TCPRoute, *gatewayv1.UDPRoute, *gatewayv1.TLSRoute:
 		resourceTypes = append(resourceTypes, adctypes.TypeService)
 		labels = label.GenLabel(obj)
 	case *gatewayv1.Gateway:
@@ -233,13 +232,19 @@ func (d *apisixProvider) Delete(ctx context.Context, obj client.Object) error {
 			Labels: labels,
 		})
 	}
-	defer d.syncNotify()
-	return d.client.DeleteConfig(ctx, adcclient.Task{
+	delta, err := d.client.DeleteConfig(ctx, adcclient.Task{
 		Key:           nnk,
 		Name:          nnk.String(),
 		Labels:        labels,
 		ResourceTypes: resourceTypes,
 	})
+	// Syncing pushes the whole store to every data plane. Objects this controller
+	// never configured delete nothing, and reconciles for them are frequent, so
+	// notify only when the store actually changed.
+	if len(delta.Deleted) > 0 {
+		d.syncNotify()
+	}
+	return err
 }
 
 func (d *apisixProvider) buildConfig(tctx *provider.TranslateContext, nnk types.NamespacedNameKind) (map[types.NamespacedNameKind]adctypes.Config, error) {
@@ -255,6 +260,12 @@ func (d *apisixProvider) buildConfig(tctx *provider.TranslateContext, nnk types.
 }
 
 func (d *apisixProvider) Start(ctx context.Context) error {
+	// Start only runs once this pod has won the election, and a leadership change is the
+	// one thing that leaves the ADC sidecar holding a baseline from an earlier term: it
+	// survives the manager container, the configuration it was derived from does not.
+	// Rebuild every baseline from the data plane before syncing from it.
+	d.client.InvalidateADCCache()
+
 	d.readier.WaitReady(ctx, 5*time.Minute)
 
 	initalSyncDelay := d.InitSyncDelay

@@ -21,6 +21,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -36,6 +37,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
 	"github.com/apache/apisix-ingress-controller/internal/id"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	sslutils "github.com/apache/apisix-ingress-controller/internal/ssl"
 	internaltypes "github.com/apache/apisix-ingress-controller/internal/types"
 )
 
@@ -45,7 +47,7 @@ func (t *Translator) fillPluginsFromHTTPRouteFilters(
 	filters []gatewayv1.HTTPRouteFilter,
 	matches []gatewayv1.HTTPRouteMatch,
 	tctx *provider.TranslateContext,
-) {
+) error {
 	for _, filter := range filters {
 		switch filter.Type {
 		case gatewayv1.HTTPRouteFilterRequestHeaderModifier:
@@ -59,38 +61,42 @@ func (t *Translator) fillPluginsFromHTTPRouteFilters(
 		case gatewayv1.HTTPRouteFilterResponseHeaderModifier:
 			t.fillPluginFromHTTPResponseHeaderFilter(plugins, filter.ResponseHeaderModifier)
 		case gatewayv1.HTTPRouteFilterExtensionRef:
-			t.fillPluginFromExtensionRef(plugins, namespace, filter.ExtensionRef, tctx)
+			if err := t.fillPluginFromExtensionRef(plugins, namespace, filter.ExtensionRef, tctx); err != nil {
+				return err
+			}
 		case gatewayv1.HTTPRouteFilterCORS:
 			t.fillPluginFromHTTPCORSFilter(plugins, filter.CORS)
 		}
 	}
+	return nil
 }
 
-func (t *Translator) fillPluginFromExtensionRef(plugins adctypes.Plugins, namespace string, extensionRef *gatewayv1.LocalObjectReference, tctx *provider.TranslateContext) {
+func (t *Translator) fillPluginFromExtensionRef(plugins adctypes.Plugins, namespace string, extensionRef *gatewayv1.LocalObjectReference, tctx *provider.TranslateContext) error {
 	if extensionRef == nil {
-		return
+		return nil
 	}
-	if extensionRef.Kind == internaltypes.KindPluginConfig {
-		pluginconfig := tctx.PluginConfigs[types.NamespacedName{
-			Namespace: namespace,
-			Name:      string(extensionRef.Name),
-		}]
-		if pluginconfig == nil {
-			return
-		}
-		for _, plugin := range pluginconfig.Spec.Plugins {
-			pluginName := plugin.Name
-			pluginconfig := make(map[string]any)
-			if len(plugin.Config.Raw) > 0 {
-				if err := json.Unmarshal(plugin.Config.Raw, &pluginconfig); err != nil {
-					t.Log.Error(err, "plugin config unmarshal failed", "plugin", plugin.Name)
-					continue
-				}
-			}
-			plugins[pluginName] = pluginconfig
-		}
-		t.Log.V(1).Info("fill plugin from extension ref", "plugins", plugins)
+	if extensionRef.Kind != internaltypes.KindPluginConfig {
+		return nil
 	}
+	pluginconfig := tctx.PluginConfigs[types.NamespacedName{
+		Namespace: namespace,
+		Name:      string(extensionRef.Name),
+	}]
+	if pluginconfig == nil {
+		return nil
+	}
+	names := make([]string, 0, len(pluginconfig.Spec.Plugins))
+	for _, plugin := range pluginconfig.Spec.Plugins {
+		config, err := renderPluginConfig(plugin, namespace, tctx.Secrets)
+		if err != nil {
+			return err
+		}
+		plugins[plugin.Name] = config
+		names = append(names, plugin.Name)
+	}
+	// The rendered configuration may hold Secret data, so log the plugin names only.
+	t.Log.V(1).Info("fill plugin from extension ref", "pluginConfig", string(extensionRef.Name), "plugins", names)
+	return nil
 }
 
 func (t *Translator) fillPluginFromURLRewriteFilter(plugins adctypes.Plugins, urlRewrite *gatewayv1.HTTPURLRewriteFilter, matches []gatewayv1.HTTPRouteMatch) {
@@ -191,7 +197,9 @@ func (t *Translator) fillPluginFromHTTPCORSFilter(plugins adctypes.Plugins, cors
 		}
 		plugin.ExposeHeaders = strings.Join(exposeHeaders, ",")
 	}
-	plugin.AllowCredential = bool(cors.AllowCredentials)
+	if cors.AllowCredentials != nil {
+		plugin.AllowCredential = *cors.AllowCredentials
+	}
 }
 
 func (t *Translator) fillPluginFromHTTPRequestHeaderFilter(plugins adctypes.Plugins, reqHeaderModifier *gatewayv1.HTTPHeaderFilter) {
@@ -421,6 +429,12 @@ func (t *Translator) translateBackendRef(tctx *provider.TranslateContext, ref ga
 		port := 80
 		if ref.Port != nil {
 			port = int(*ref.Port)
+			for _, p := range service.Spec.Ports {
+				if int(p.Port) == port {
+					protocol = ptr.Deref(p.AppProtocol, "")
+					break
+				}
+			}
 		}
 		return adctypes.UpstreamNodes{
 			{
@@ -525,6 +539,171 @@ func calculateHTTPRoutePriority(match *gatewayv1.HTTPRouteMatch, ruleIndex int, 
 	return priority
 }
 
+// translateBackendsToUpstreams processes the BackendRefs of an HTTPRouteRule,
+// builds upstreams, assigns them to the service (single upstream or traffic-split
+// plugin for multiple), and injects fault-injection on backend errors.
+func (t *Translator) translateBackendsToUpstreams(
+	tctx *provider.TranslateContext,
+	rule gatewayv1.HTTPRouteRule,
+	httpRoute *gatewayv1.HTTPRoute,
+	service *adctypes.Service,
+) (enableWebsocket *bool, backendErr error) {
+	upstreams := make([]*adctypes.Upstream, 0)
+	weightedUpstreams := make([]adctypes.TrafficSplitConfigRuleWeightedUpstream, 0)
+	// backendRefs of the upstreams above, kept in sync so traffic-split weights
+	// stay bound to their own backend when some backendRefs are skipped.
+	validBackends := make([]gatewayv1.HTTPBackendRef, 0)
+
+	for _, backend := range rule.BackendRefs {
+		if backend.Namespace == nil {
+			namespace := gatewayv1.Namespace(httpRoute.Namespace)
+			backend.Namespace = &namespace
+		}
+		upstream := adctypes.NewDefaultUpstream()
+		upNodes, protocol, err := t.translateBackendRef(tctx, backend.BackendRef, DefaultEndpointFilter)
+		if err != nil {
+			backendErr = err
+			continue
+		}
+		if len(upNodes) == 0 {
+			continue
+		}
+		if protocol == internaltypes.AppProtocolWS || protocol == internaltypes.AppProtocolWSS {
+			enableWebsocket = ptr.To(true)
+		}
+
+		t.AttachBackendTrafficPolicyToUpstream(backend.BackendRef, tctx.BackendTrafficPolicies, upstream, tctx.Services)
+		upstream.Nodes = upNodes
+		if upstream.Scheme == "" {
+			upstream.Scheme = appProtocolToUpstreamScheme(protocol)
+		}
+		var (
+			kind string
+			port int32
+		)
+		if backend.Kind == nil {
+			kind = internaltypes.KindService
+		} else {
+			kind = string(*backend.Kind)
+		}
+		if backend.Port != nil {
+			port = *backend.Port
+		}
+		namespace := string(*backend.Namespace)
+		name := string(backend.Name)
+		upstreamName := adctypes.ComposeUpstreamNameForBackendRef(kind, namespace, name, port)
+		upstream.Name = upstreamName
+		upstream.Scheme = cmp.Or(upstream.Scheme, apiv2.SchemeHTTP)
+		upstream.ID = id.GenID(upstreamName)
+		upstreams = append(upstreams, upstream)
+		validBackends = append(validBackends, backend)
+	}
+
+	// Handle multiple backends with traffic-split plugin
+	if len(upstreams) == 0 {
+		// Create a default upstream if no valid backends
+		service.Upstream = adctypes.NewDefaultUpstream()
+	} else if len(upstreams) == 1 {
+		// Single backend - use directly as service upstream
+		service.Upstream = upstreams[0]
+		// remove the id and name of the service.upstream, adc schema does not need id and name for it
+		service.Upstream.ID = ""
+		service.Upstream.Name = ""
+	} else {
+		// Multiple backends - use traffic-split plugin
+		service.Upstream = upstreams[0]
+		// remove the id and name of the service.upstream, adc schema does not need id and name for it
+		service.Upstream.ID = ""
+		service.Upstream.Name = ""
+
+		upstreams = upstreams[1:]
+
+		if len(upstreams) > 0 {
+			service.Upstreams = upstreams
+		}
+
+		// Set weight in traffic-split for the default upstream
+		weight := apiv2.DefaultWeight
+		if validBackends[0].Weight != nil {
+			weight = int(*validBackends[0].Weight)
+		}
+		weightedUpstreams = append(weightedUpstreams, adctypes.TrafficSplitConfigRuleWeightedUpstream{
+			Weight: weight,
+		})
+
+		// Set other upstreams in traffic-split using upstream_id
+		for i, upstream := range upstreams {
+			weight := apiv2.DefaultWeight
+			// get weight from the backend refs starting from the second backend
+			if i+1 < len(validBackends) && validBackends[i+1].Weight != nil {
+				weight = int(*validBackends[i+1].Weight)
+			}
+			weightedUpstreams = append(weightedUpstreams, adctypes.TrafficSplitConfigRuleWeightedUpstream{
+				UpstreamID: upstream.ID,
+				Weight:     weight,
+			})
+		}
+
+		if len(weightedUpstreams) > 0 {
+			if service.Plugins == nil {
+				service.Plugins = make(map[string]any)
+			}
+			service.Plugins["traffic-split"] = &adctypes.TrafficSplitConfig{
+				Rules: []adctypes.TrafficSplitConfigRule{
+					{
+						WeightedUpstreams: weightedUpstreams,
+					},
+				},
+			}
+		}
+	}
+
+	if backendErr != nil && (service.Upstream == nil || len(service.Upstream.Nodes) == 0) {
+		if service.Plugins == nil {
+			service.Plugins = make(map[string]any)
+		}
+		service.Plugins["fault-injection"] = map[string]any{
+			"abort": map[string]any{
+				"http_status": 500,
+				"body":        "No existing backendRef provided",
+			},
+		}
+	}
+
+	return enableWebsocket, backendErr
+}
+
+// addServerPortVars appends server_port matching vars to a route for the given ports.
+func addServerPortVars(route *adctypes.Route, ports map[int32]struct{}) {
+	if len(ports) == 0 {
+		return
+	}
+
+	portList := make([]int32, 0, len(ports))
+	for p := range ports {
+		portList = append(portList, p)
+	}
+	sort.Slice(portList, func(i, j int) bool { return portList[i] < portList[j] })
+
+	if len(portList) == 1 {
+		route.Vars = append(route.Vars, []adctypes.StringOrSlice{
+			{StrVal: "server_port"},
+			{StrVal: "=="},
+			{StrVal: fmt.Sprintf("%d", portList[0])},
+		})
+	} else {
+		portSlice := make([]adctypes.StringOrSlice, 0, len(portList))
+		for _, p := range portList {
+			portSlice = append(portSlice, adctypes.StringOrSlice{StrVal: fmt.Sprintf("%d", p)})
+		}
+		route.Vars = append(route.Vars, []adctypes.StringOrSlice{
+			{StrVal: "server_port"},
+			{StrVal: "in"},
+			{SliceVal: portSlice},
+		})
+	}
+}
+
 func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRoute *gatewayv1.HTTPRoute) (*TranslateResult, error) {
 	result := &TranslateResult{}
 
@@ -532,6 +711,7 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 	for _, hostname := range httpRoute.Spec.Hostnames {
 		hosts = append(hosts, string(hostname))
 	}
+	hosts = sslutils.NormalizeHosts(hosts)
 
 	rules := httpRoute.Spec.Rules
 
@@ -545,130 +725,13 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 		service.ID = id.GenID(service.Name)
 		service.Hosts = hosts
 
-		var (
-			upstreams         = make([]*adctypes.Upstream, 0)
-			weightedUpstreams = make([]adctypes.TrafficSplitConfigRuleWeightedUpstream, 0)
-			backendErr        error
-			enableWebsocket   *bool
-		)
+		// The backend error is already surfaced by the helper as a fault-injection
+		// plugin on the service, so it is deliberately not propagated here.
+		enableWebsocket, _ := t.translateBackendsToUpstreams(tctx, rule, httpRoute, service)
 
-		for _, backend := range rule.BackendRefs {
-			if backend.Namespace == nil {
-				namespace := gatewayv1.Namespace(httpRoute.Namespace)
-				backend.Namespace = &namespace
-			}
-			upstream := adctypes.NewDefaultUpstream()
-			upNodes, protocol, err := t.translateBackendRef(tctx, backend.BackendRef, DefaultEndpointFilter)
-			if err != nil {
-				backendErr = err
-				continue
-			}
-			if len(upNodes) == 0 {
-				continue
-			}
-			if protocol == internaltypes.AppProtocolWS || protocol == internaltypes.AppProtocolWSS {
-				enableWebsocket = ptr.To(true)
-			}
-
-			t.AttachBackendTrafficPolicyToUpstream(backend.BackendRef, tctx.BackendTrafficPolicies, upstream, tctx.Services)
-			upstream.Nodes = upNodes
-			if upstream.Scheme == "" {
-				upstream.Scheme = appProtocolToUpstreamScheme(protocol)
-			}
-			var (
-				kind string
-				port int32
-			)
-			if backend.Kind == nil {
-				kind = internaltypes.KindService
-			} else {
-				kind = string(*backend.Kind)
-			}
-			if backend.Port != nil {
-				port = int32(*backend.Port)
-			}
-			namespace := string(*backend.Namespace)
-			name := string(backend.Name)
-			upstreamName := adctypes.ComposeUpstreamNameForBackendRef(kind, namespace, name, port)
-			upstream.Name = upstreamName
-			upstream.Scheme = cmp.Or(upstream.Scheme, apiv2.SchemeHTTP)
-			upstream.ID = id.GenID(upstreamName)
-			upstreams = append(upstreams, upstream)
+		if err := t.fillPluginsFromHTTPRouteFilters(service.Plugins, httpRoute.GetNamespace(), rule.Filters, rule.Matches, tctx); err != nil {
+			return nil, err
 		}
-
-		// Handle multiple backends with traffic-split plugin
-		if len(upstreams) == 0 {
-			// Create a default upstream if no valid backends
-			upstream := adctypes.NewDefaultUpstream()
-			service.Upstream = upstream
-		} else if len(upstreams) == 1 {
-			// Single backend - use directly as service upstream
-			service.Upstream = upstreams[0]
-			// remove the id and name of the service.upstream, adc schema does not need id and name for it
-			service.Upstream.ID = ""
-			service.Upstream.Name = ""
-		} else {
-			// Multiple backends - use traffic-split plugin
-			service.Upstream = upstreams[0]
-			// remove the id and name of the service.upstream, adc schema does not need id and name for it
-			service.Upstream.ID = ""
-			service.Upstream.Name = ""
-
-			upstreams = upstreams[1:]
-
-			if len(upstreams) > 0 {
-				service.Upstreams = upstreams
-			}
-
-			// Set weight in traffic-split for the default upstream
-			weight := apiv2.DefaultWeight
-			if rule.BackendRefs[0].Weight != nil {
-				weight = int(*rule.BackendRefs[0].Weight)
-			}
-			weightedUpstreams = append(weightedUpstreams, adctypes.TrafficSplitConfigRuleWeightedUpstream{
-				Weight: weight,
-			})
-
-			// Set other upstreams in traffic-split using upstream_id
-			for i, upstream := range upstreams {
-				weight := apiv2.DefaultWeight
-				// get weight from the backend refs starting from the second backend
-				if i+1 < len(rule.BackendRefs) && rule.BackendRefs[i+1].Weight != nil {
-					weight = int(*rule.BackendRefs[i+1].Weight)
-				}
-				weightedUpstreams = append(weightedUpstreams, adctypes.TrafficSplitConfigRuleWeightedUpstream{
-					UpstreamID: upstream.ID,
-					Weight:     weight,
-				})
-			}
-
-			if len(weightedUpstreams) > 0 {
-				if service.Plugins == nil {
-					service.Plugins = make(map[string]any)
-				}
-				service.Plugins["traffic-split"] = &adctypes.TrafficSplitConfig{
-					Rules: []adctypes.TrafficSplitConfigRule{
-						{
-							WeightedUpstreams: weightedUpstreams,
-						},
-					},
-				}
-			}
-		}
-
-		if backendErr != nil && (service.Upstream == nil || len(service.Upstream.Nodes) == 0) {
-			if service.Plugins == nil {
-				service.Plugins = make(map[string]any)
-			}
-			service.Plugins["fault-injection"] = map[string]any{
-				"abort": map[string]any{
-					"http_status": 500,
-					"body":        "No existing backendRef provided",
-				},
-			}
-		}
-
-		t.fillPluginsFromHTTPRouteFilters(service.Plugins, httpRoute.GetNamespace(), rule.Filters, rule.Matches, tctx)
 
 		matches := rule.Matches
 		if len(matches) == 0 {
@@ -703,6 +766,29 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 
 			routes = append(routes, route)
 		}
+
+		// A route answers only the schemes its listeners accept: one attached only to
+		// HTTPS listeners must not answer plaintext requests for the same host and
+		// path, and one attached only to HTTP listeners must not answer TLS ones.
+		// Nothing else enforces that: hostname matching cannot tell the two apart, and
+		// server_port only can when the Gateway's declared ports equal the ports
+		// APISIX listens on.
+		t.pinRoutesToListenerScheme(tctx.Listeners, routes)
+
+		// Collect unique listener ports for port-based routing.
+		listenerPorts := make(map[int32]struct{})
+		for _, listener := range tctx.Listeners {
+			listenerPorts[listener.Port] = struct{}{}
+		}
+
+		// Add server_port matching only when a route explicitly targets a listener
+		// or when multiple listener ports need to be disambiguated.
+		if t.shouldInjectServerPortVars(tctx.HasExplicitListenerMatch, listenerPorts) {
+			for _, route := range routes {
+				addServerPortVars(route, listenerPorts)
+			}
+		}
+
 		t.fillHTTPRoutePoliciesForHTTPRoute(tctx, routes, rule)
 		service.Routes = routes
 

@@ -40,7 +40,8 @@ spec:
   listeners:
   - name: udp
     protocol: UDP
-    port: 80
+    # Must equal APISIX's physical stream_proxy UDP port (see tcproute.go).
+    port: 9200
     allowedRoutes:
       kinds:
       - kind: UDPRoute
@@ -52,7 +53,7 @@ spec:
 `
 
 		var udpRoute = `
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1
 kind: UDPRoute
 metadata:
   name: udp-app-1

@@ -30,7 +30,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
@@ -119,7 +118,11 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 	var controllers []Controller
 
 	icgv := netv1.SchemeGroupVersion
-	if !utils.HasAPIResource(mgr, &netv1.IngressClass{}) {
+	hasIngressClassV1, err := utils.HasAPIResource(mgr, &netv1.IngressClass{})
+	if err != nil {
+		return nil, err
+	}
+	if !hasIngressClassV1 {
 		setupLog.Info("IngressClass v1 not found, falling back to IngressClass v1beta1")
 		icgv = netv1beta1.SchemeGroupVersion
 		controllers = append(controllers, &controller.IngressClassV1beta1Reconciler{
@@ -154,7 +157,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 				Updater:  updater,
 				Readier:  readier,
 			},
-			&gatewayv1alpha2.TCPRoute{}: &controller.TCPRouteReconciler{
+			&gatewayv1.TCPRoute{}: &controller.TCPRouteReconciler{
 				Client:   mgr.GetClient(),
 				Scheme:   mgr.GetScheme(),
 				Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindTCPRoute),
@@ -162,7 +165,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 				Updater:  updater,
 				Readier:  readier,
 			},
-			&gatewayv1alpha2.UDPRoute{}: &controller.UDPRouteReconciler{
+			&gatewayv1.UDPRoute{}: &controller.UDPRouteReconciler{
 				Client:   mgr.GetClient(),
 				Scheme:   mgr.GetScheme(),
 				Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindUDPRoute),
@@ -178,7 +181,7 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 				Updater:  updater,
 				Readier:  readier,
 			},
-			&gatewayv1alpha2.TLSRoute{}: &controller.TLSRouteReconciler{
+			&gatewayv1.TLSRoute{}: &controller.TLSRouteReconciler{
 				Client:   mgr.GetClient(),
 				Scheme:   mgr.GetScheme(),
 				Log:      ctrl.LoggerFrom(ctx).WithName("controllers").WithName(types.KindTLSRoute),
@@ -195,7 +198,11 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 				Readier:  readier,
 			},
 		} {
-			if utils.HasAPIResource(mgr, resource) {
+			installed, err := utils.HasAPIResource(mgr, resource)
+			if err != nil {
+				return nil, err
+			}
+			if installed {
 				controllers = append(controllers, controller)
 			} else {
 				setupLog.Info("Skipping controller setup, API not found in cluster", "api", utils.FormatGVK(resource))
@@ -221,7 +228,11 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 			Provider: pro,
 		},
 	} {
-		if utils.HasAPIResource(mgr, resource) {
+		installed, err := utils.HasAPIResource(mgr, resource)
+		if err != nil {
+			return nil, err
+		}
+		if installed {
 			controllers = append(controllers, controller)
 		} else {
 			setupLog.Info("Skipping controller setup, API not found in cluster", "api", utils.FormatGVK(resource))
@@ -293,29 +304,43 @@ func setupControllers(ctx context.Context, mgr manager.Manager, pro provider.Pro
 	return controllers, nil
 }
 
-func registerReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManager) {
+func registerReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManager) error {
 	log := ctrl.LoggerFrom(context.Background()).WithName("readiness")
 
-	registerV2ForReadinessGVK(mgr, readier, log)
-	if !config.ControllerConfig.DisableGatewayAPI {
-		registerGatewayAPIForReadinessGVK(mgr, readier, log)
-		registerV1alpha1ForReadinessGVK(mgr, readier, log)
-	} else {
-		log.Info("Skipping Gateway API and v1alpha1 GVK registration for readiness checks as Gateway API is disabled")
+	if err := registerV2ForReadinessGVK(mgr, readier, log); err != nil {
+		return err
 	}
+	if config.ControllerConfig.DisableGatewayAPI {
+		log.Info("Skipping Gateway API and v1alpha1 GVK registration for readiness checks as Gateway API is disabled")
+		return nil
+	}
+	if err := registerGatewayAPIForReadinessGVK(mgr, readier, log); err != nil {
+		return err
+	}
+	return registerV1alpha1ForReadinessGVK(mgr, readier, log)
 }
 
-func registerV2ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManager, log logr.Logger) {
+func registerV2ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManager, log logr.Logger) error {
 	icgv := netv1.SchemeGroupVersion
-	if !utils.HasAPIResource(mgr, &netv1.IngressClass{}) {
+	hasIngressClassV1, err := utils.HasAPIResource(mgr, &netv1.IngressClass{})
+	if err != nil {
+		return err
+	}
+	if !hasIngressClassV1 {
 		icgv = netv1beta1.SchemeGroupVersion
 	}
 
 	resources := v2ReadinessResources()
 	gvks := make([]schema.GroupVersionKind, 0, len(resources))
 	for _, resource := range resources {
-		if _, ok := resource.(*netv1.Ingress); ok && !utils.HasAPIResource(mgr, resource) {
-			continue
+		if _, ok := resource.(*netv1.Ingress); ok {
+			installed, err := utils.HasAPIResource(mgr, resource)
+			if err != nil {
+				return err
+			}
+			if !installed {
+				continue
+			}
 		}
 		gvks = append(gvks, types.GvkOf(resource))
 	}
@@ -330,6 +355,7 @@ func registerV2ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessM
 		}),
 	})
 	log.Info("Registered v2 GVKs for readiness checks", "gvks", gvks)
+	return nil
 }
 
 func v2ReadinessResources() []client.Object {
@@ -342,45 +368,53 @@ func v2ReadinessResources() []client.Object {
 	}
 }
 
-func registerGatewayAPIForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManager, log logr.Logger) {
-	gvks := []schema.GroupVersionKind{}
-	if utils.HasAPIResource(mgr, &gatewayv1.HTTPRoute{}) {
-		gvks = append(gvks, types.GvkOf(&gatewayv1.HTTPRoute{}))
+func registerGatewayAPIForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManager, log logr.Logger) error {
+	resources := []client.Object{
+		&gatewayv1.HTTPRoute{},
+		&gatewayv1.GRPCRoute{},
+		&gatewayv1.TCPRoute{},
+		&gatewayv1.UDPRoute{},
+		&gatewayv1.TLSRoute{},
 	}
-	if utils.HasAPIResource(mgr, &gatewayv1.GRPCRoute{}) {
-		gvks = append(gvks, types.GvkOf(&gatewayv1.GRPCRoute{}))
-	}
-	if utils.HasAPIResource(mgr, &gatewayv1alpha2.TCPRoute{}) {
-		gvks = append(gvks, types.GvkOf(&gatewayv1alpha2.TCPRoute{}))
-	}
-	if utils.HasAPIResource(mgr, &gatewayv1alpha2.UDPRoute{}) {
-		gvks = append(gvks, types.GvkOf(&gatewayv1alpha2.UDPRoute{}))
-	}
-	if utils.HasAPIResource(mgr, &gatewayv1alpha2.TLSRoute{}) {
-		gvks = append(gvks, types.GvkOf(&gatewayv1alpha2.TLSRoute{}))
+	gvks := make([]schema.GroupVersionKind, 0, len(resources))
+	for _, resource := range resources {
+		installed, err := utils.HasAPIResource(mgr, resource)
+		if err != nil {
+			return err
+		}
+		if !installed {
+			continue
+		}
+		gvks = append(gvks, types.GvkOf(resource))
 	}
 	if len(gvks) == 0 {
-		return
+		return nil
 	}
 
 	readier.RegisterGVK(readiness.GVKConfig{
 		GVKs: gvks,
 	})
 	log.Info("Registered Gateway API GVKs for readiness checks", "gvks", gvks)
+	return nil
 }
 
-func registerV1alpha1ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManager, log logr.Logger) {
-	gvks := []schema.GroupVersionKind{}
-
-	for _, resource := range []client.Object{
+func registerV1alpha1ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessManager, log logr.Logger) error {
+	resources := []client.Object{
 		&v1alpha1.Consumer{},
-	} {
-		if utils.HasAPIResource(mgr, resource) {
-			gvks = append(gvks, types.GvkOf(resource))
+	}
+	gvks := make([]schema.GroupVersionKind, 0, len(resources))
+	for _, resource := range resources {
+		installed, err := utils.HasAPIResource(mgr, resource)
+		if err != nil {
+			return err
 		}
+		if !installed {
+			continue
+		}
+		gvks = append(gvks, types.GvkOf(resource))
 	}
 	if len(gvks) == 0 {
-		return
+		return nil
 	}
 	c := mgr.GetClient()
 	readier.RegisterGVK(readiness.GVKConfig{
@@ -394,4 +428,5 @@ func registerV1alpha1ForReadinessGVK(mgr manager.Manager, readier readiness.Read
 		}),
 	})
 	log.Info("Registered v1alpha1 GVKs for readiness checks", "gvks", gvks)
+	return nil
 }

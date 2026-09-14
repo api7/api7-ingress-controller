@@ -61,6 +61,23 @@ type Resources struct {
 	SSLs           []*SSL           `json:"ssls,omitempty" yaml:"ssls,omitempty"`
 }
 
+// MarshalLog implements logr.Marshaler so logging Resources emits only counts,
+// never the secret-bearing bodies (SSL private keys, consumer credentials).
+// It affects logging only, not the JSON sent to the data plane.
+func (r *Resources) MarshalLog() any {
+	if r == nil {
+		return nil
+	}
+	return map[string]int{
+		"consumerGroups": len(r.ConsumerGroups),
+		"consumers":      len(r.Consumers),
+		"globalRules":    len(r.GlobalRules),
+		"pluginMetadata": len(r.PluginMetadata),
+		"services":       len(r.Services),
+		"ssls":           len(r.SSLs),
+	}
+}
+
 type GlobalRule Plugins
 
 func (g *GlobalRule) DeepCopy() GlobalRule {
@@ -789,6 +806,16 @@ type Config struct {
 	Token       string
 	TlsVerify   bool
 	BackendType string
+
+	// CaCert is a PEM-encoded CA certificate (or bundle) used to verify the
+	// control plane, in place of the system trust store. Only meaningful when
+	// TlsVerify is true.
+	CaCert string
+
+	// BypassCache makes the ADC server drop the in-memory baseline it holds for this
+	// cacheKey and re-derive it from the data plane before computing the diff. It is a
+	// per-request flag set on the sync path, not part of the translated configuration.
+	BypassCache bool
 }
 
 // MarshalJSON implements custom JSON marshaling for adcConfig
@@ -798,10 +825,12 @@ func (c Config) MarshalJSON() ([]byte, error) {
 		Name        string   `json:"name"`
 		ServerAddrs []string `json:"serverAddrs"`
 		TlsVerify   bool     `json:"tlsVerify"`
+		HasCaCert   bool     `json:"hasCaCert"`
 	}{
 		Name:        c.Name,
 		ServerAddrs: c.ServerAddrs,
 		TlsVerify:   c.TlsVerify,
+		HasCaCert:   c.CaCert != "",
 	})
 }
 

@@ -71,7 +71,11 @@ type ApisixRouteReconciler struct {
 // SetupWithManager sets up the controller with the Manager.
 func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Check and store EndpointSlice API support
-	r.supportsEndpointSlice = pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
+	supportsEndpointSlice, err := pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
+	if err != nil {
+		return err
+	}
+	r.supportsEndpointSlice = supportsEndpointSlice
 	var icWatch client.Object
 	switch r.ICGV.String() {
 	case networkingv1beta1.SchemeGroupVersion.String():
@@ -141,7 +145,7 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			}
 
 			if err := r.Provider.Delete(ctx, &ar); err != nil {
-				r.Log.Error(err, "failed to delete apisixroute", "apisixroute", ar)
+				r.Log.Error(err, "failed to delete apisixroute", "apisixroute", utils.NamespacedName(&ar))
 				return ctrl.Result{}, err
 			}
 			return ctrl.Result{}, nil
@@ -160,7 +164,7 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			"ingressClassName", ar.Spec.IngressClassName,
 			"error", err.Error())
 		if err := r.Provider.Delete(ctx, &ar); err != nil {
-			r.Log.Error(err, "failed to delete apisixroute", "apisixroute", ar)
+			r.Log.Error(err, "failed to delete apisixroute", "apisixroute", utils.NamespacedName(&ar))
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
@@ -172,6 +176,21 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	if err = r.processApisixRoute(tctx, &ar); err != nil {
+		// A reference the route needs is gone, so the route can no longer be
+		// translated. Retract what an earlier reconcile published: the store is what
+		// every sync pushes, so leaving it in place keeps the data plane serving the
+		// last good configuration while the status says the spec is invalid.
+		if types.IsDependencyMissing(err) {
+			if derr := r.Provider.Delete(ctx, &ar); derr != nil {
+				r.Log.Error(derr, "failed to delete apisixroute", "apisixroute", utils.NamespacedName(&ar))
+				return ctrl.Result{}, derr
+			}
+			// The deferred updateStatus still reports the reason. Returning the
+			// error as well would requeue forever with backoff: the reference does
+			// not come back on its own, and the ApisixPluginConfig watch reconciles
+			// the route again when it does.
+			return ctrl.Result{}, nil
+		}
 		return ctrl.Result{}, err
 	}
 	if err = r.Provider.Update(ctx, tctx, &ar); err != nil {
@@ -179,7 +198,7 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			Reason:  string(apiv2.ConditionReasonSyncFailed),
 			Message: err.Error(),
 		}
-		r.Log.Error(err, "failed to process", "apisixroute", ar)
+		r.Log.Error(err, "failed to process", "apisixroute", utils.NamespacedName(&ar))
 		return ctrl.Result{}, err
 	}
 
@@ -300,10 +319,15 @@ func (r *ApisixRouteReconciler) validatePluginConfig(tctx *provider.TranslateCon
 		pcNN = utils.NamespacedName(&pc)
 	)
 	if err := r.Get(tctx, pcNN, &pc); err != nil {
-		return types.ReasonError{
-			Reason:  string(apiv2.ConditionReasonInvalidSpec),
-			Message: fmt.Sprintf("failed to get ApisixPluginConfig: %s", pcNN),
+		if !k8serrors.IsNotFound(err) {
+			// A read failure is transient: retry it rather than reporting the
+			// reference as invalid and retracting the route.
+			return err
 		}
+		return types.DependencyMissingError{Err: types.ReasonError{
+			Reason:  string(apiv2.ConditionReasonInvalidSpec),
+			Message: fmt.Sprintf("ApisixPluginConfig not found: %s", pcNN),
+		}}
 	}
 
 	// Check if ApisixPluginConfig has IngressClassName and if it matches
@@ -431,6 +455,16 @@ func (r *ApisixRouteReconciler) validateHTTPBackend(tctx *provider.TranslateCont
 		}
 	)
 
+	// An empty port never resolves, and an empty name would otherwise match a
+	// Service port that omits its name, which is allowed for a single-port Service.
+	// Reject it before the reference is resolved: no ordering makes it valid.
+	if backend.ServicePort.Type == intstr.String && backend.ServicePort.StrVal == "" {
+		return types.ReasonError{
+			Reason:  string(apiv2.ConditionReasonInvalidSpec),
+			Message: fmt.Sprintf("servicePort must not be empty, Service: %s", serviceNN),
+		}
+	}
+
 	if err := r.Get(tctx, serviceNN, &service); err != nil {
 		if k8serrors.IsNotFound(err) {
 			r.Log.Info("service not found", "Service", serviceNN)
@@ -478,12 +512,14 @@ func (r *ApisixRouteReconciler) validateHTTPBackend(tctx *provider.TranslateCont
 		}
 		return false
 	}) {
-		r.Log.Error(errors.New("service port not found"),
-			"failed to match service port",
-			"Service", serviceNN,
-			"ServicePort", backend.ServicePort,
-		)
-		return nil
+		// The Service resolves but has no such port. Reporting this as accepted
+		// publishes a route with no upstream node, which answers 503 while the
+		// status claims the spec is fine.
+		return types.ReasonError{
+			Reason: string(apiv2.ConditionReasonInvalidSpec),
+			Message: fmt.Sprintf("service port not found: Service %s has no port %s",
+				serviceNN, backend.ServicePort.String()),
+		}
 	}
 	tctx.Services[serviceNN] = &service
 

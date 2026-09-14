@@ -49,11 +49,15 @@ By supporting Gateway API, the APISIX Ingress controller can realize richer func
 | Gateway          | Partially supported | Partially supported    | Not supported                         | v1          |
 | HTTPRoute        | Supported           | Partially supported    | Not supported                         | v1          |
 | GRPCRoute        | Supported           | Supported              | Not supported                         | v1          |
-| ReferenceGrant   | Supported           | Not supported          | Not supported                         | v1beta1     |
-| TLSRoute         | Supported           | Supported              | Not supported                         | v1alpha2    |
-| TCPRoute         | Supported           | Supported              | Not supported                         | v1alpha2    |
-| UDPRoute         | Supported           | Supported              | Not supported                         | v1alpha2    |
+| ReferenceGrant   | Supported           | Not supported          | Not supported                         | v1          |
+| TLSRoute         | Supported           | Supported              | Not supported                         | v1          |
+| TCPRoute         | Supported           | Supported              | Not supported                         | v1          |
+| UDPRoute         | Supported           | Supported              | Not supported                         | v1          |
 | BackendTLSPolicy | Not supported       | Not supported          | Not supported                         | v1alpha3    |
+
+TLSRoute, TCPRoute, and UDPRoute are read as `v1`, which Gateway API promoted them to in 1.6. Gateway API 1.6 or later is therefore required for L4 routing: the `v1alpha2` versions of these resources are deprecated everywhere and are not even served by the standard channel CRDs. ReferenceGrant is read as `v1` for the same reason, although its `v1beta1` version is not deprecated and remains the storage version.
+
+Existing manifests that still declare an older version keep working as long as the installed CRDs serve it, because the API server converts them before they reach the controller. They should still be updated to `v1`.
 
 ## Examples
 
