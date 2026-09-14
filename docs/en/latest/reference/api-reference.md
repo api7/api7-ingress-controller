@@ -1480,7 +1480,6 @@ _Appears in:_
 
 
 
-
 #### ApisixTlsSpec
 
 
@@ -1777,3 +1776,4 @@ _Appears in:_
 - [ApisixUpstreamConfig](#apisixupstreamconfig)
 - [ApisixUpstreamSpec](#apisixupstreamspec)
 - [PortLevelSettings](#portlevelsettings)
+
