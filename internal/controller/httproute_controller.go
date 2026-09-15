@@ -243,11 +243,11 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		tctx.HasExplicitListenerMatch = tctx.HasExplicitListenerMatch || gateway.ExplicitListenerMatch
 	}
 
-	var backendRefErr error
+	var resolvedRefErr error
 	if err := r.processHTTPRoute(tctx, hr); err != nil {
-		// When encountering a backend reference error, it should not affect the acceptance status
-		if types.IsSomeReasonError(err, gatewayv1.RouteReasonInvalidKind) {
-			backendRefErr = err
+		// Reference resolution errors do not affect the acceptance status.
+		if types.IsSomeReasonError(err, gatewayv1.RouteReasonInvalidKind, gatewayv1.RouteReasonBackendNotFound) {
+			resolvedRefErr = err
 		} else {
 			acceptStatus.status = false
 			acceptStatus.msg = err.Error()
@@ -259,10 +259,9 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		acceptStatus.msg = err.Error()
 	}
 
-	// Store the backend reference error for later use.
-	// If the backend reference error is because of an invalid kind, use this error first
-	if err := r.processHTTPRouteBackendRefs(tctx, req.NamespacedName); err != nil && backendRefErr == nil {
-		backendRefErr = err
+	// Preserve a previously found reference error when backend references also fail to resolve.
+	if err := r.processHTTPRouteBackendRefs(tctx, req.NamespacedName); err != nil && resolvedRefErr == nil {
+		resolvedRefErr = err
 	}
 
 	ProcessBackendTrafficPolicy(r.Client, r.Log, tctx)
@@ -282,7 +281,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			parentStatus.Conditions = MergeCondition(parentStatus.Conditions, condition)
 		}
 		SetRouteConditionAccepted(&parentStatus, hr.GetGeneration(), acceptStatus.status, acceptStatus.msg)
-		SetRouteConditionResolvedRefs(&parentStatus, hr.GetGeneration(), backendRefErr)
+		SetRouteConditionResolvedRefs(&parentStatus, hr.GetGeneration(), resolvedRefErr)
 
 		hr.Status.Parents = append(hr.Status.Parents, parentStatus)
 	}
@@ -645,23 +644,9 @@ func (r *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, 
 			if filter.Type != gatewayv1.HTTPRouteFilterExtensionRef || filter.ExtensionRef == nil {
 				continue
 			}
-			if filter.ExtensionRef.Kind == types.KindPluginConfig {
-				pluginconfig := new(v1alpha1.PluginConfig)
-				if err := r.Get(context.Background(), client.ObjectKey{
-					Namespace: httpRoute.GetNamespace(),
-					Name:      string(filter.ExtensionRef.Name),
-				}, pluginconfig); err != nil {
-					terror = err
-					continue
-				}
-				tctx.PluginConfigs[k8stypes.NamespacedName{
-					Namespace: httpRoute.GetNamespace(),
-					Name:      string(filter.ExtensionRef.Name),
-				}] = pluginconfig
-				if err := loadPluginSecrets(tctx, r.Client, tctx, httpRoute.GetNamespace(), pluginconfig.Spec.Plugins); err != nil {
-					terror = err
-					continue
-				}
+			if err := loadPluginConfigExtensionRef(tctx, r.Client, httpRoute.GetNamespace(), filter.ExtensionRef); err != nil {
+				terror = err
+				continue
 			}
 		}
 		for _, backend := range rule.BackendRefs {
