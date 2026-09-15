@@ -86,6 +86,8 @@ const (
 
 var (
 	ErrNoMatchingListenerHostname = errors.New("no matching hostnames in listener")
+	errNoDefaultIngressClass      = errors.New("no default ingress class found")
+	errIngressClassNotControlled  = errors.New("ingress class is not controlled by us")
 )
 
 var (
@@ -1872,7 +1874,7 @@ func GetIngressClassV1Beta1(ctx context.Context, c client.Client, log logr.Logge
 			}
 		}
 		log.V(1).Info("no default ingress class(v1beta1) found")
-		return nil, errors.New("no default ingress class found")
+		return nil, errNoDefaultIngressClass
 	}
 
 	// Check if the specified ingress class is controlled by us
@@ -1885,7 +1887,7 @@ func GetIngressClassV1Beta1(ctx context.Context, c client.Client, log logr.Logge
 		return &ingressClass, nil
 	}
 
-	return nil, errors.New("ingress class is not controlled by us")
+	return nil, errIngressClassNotControlled
 }
 
 func GetIngressClassV1(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string) (*networkingv1.IngressClass, error) {
@@ -1906,7 +1908,7 @@ func GetIngressClassV1(ctx context.Context, c client.Client, log logr.Logger, in
 			}
 		}
 		log.V(1).Info("no default ingress class found")
-		return nil, errors.New("no default ingress class found")
+		return nil, errNoDefaultIngressClass
 	}
 
 	// Check if the specified ingress class is controlled by us
@@ -1919,7 +1921,13 @@ func GetIngressClassV1(ctx context.Context, c client.Client, log logr.Logger, in
 		return &ingressClass, nil
 	}
 
-	return nil, errors.New("ingress class is not controlled by us")
+	return nil, errIngressClassNotControlled
+}
+
+func isIngressClassSelectionAbsent(err error) bool {
+	return k8serrors.IsNotFound(err) ||
+		errors.Is(err, errNoDefaultIngressClass) ||
+		errors.Is(err, errIngressClassNotControlled)
 }
 
 func FindMatchingIngressClassByObject(ctx context.Context, c client.Client, log logr.Logger, obj client.Object, apiVersion string) (*networkingv1.IngressClass, error) {
