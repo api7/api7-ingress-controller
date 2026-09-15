@@ -19,6 +19,8 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -50,6 +52,21 @@ type PolicyTargetKey struct {
 	// port name). Policies that target different sections of the same resource
 	// do not conflict; an empty SectionName targets the whole resource.
 	SectionName string
+}
+
+type invalidL4RoutePolicyError struct {
+	err error
+}
+
+func (e *invalidL4RoutePolicyError) Error() string { return e.err.Error() }
+func (e *invalidL4RoutePolicyError) Unwrap() error { return e.err }
+
+func l4RoutePolicyReconcileError(err error) error {
+	var invalidErr *invalidL4RoutePolicyError
+	if errors.As(err, &invalidErr) {
+		return nil
+	}
+	return err
 }
 
 func (p PolicyTargetKey) String() string {
@@ -267,15 +284,15 @@ func ProcessL4RoutePolicy(
 	log logr.Logger,
 	tctx *provider.TranslateContext,
 	routeNamespace, routeName, routeKind string,
-) {
+) error {
 	var list v1alpha1.L4RoutePolicyList
 	key := indexer.GenIndexKeyWithGK(gatewayv1.GroupName, routeKind, routeNamespace, routeName)
 	if err := c.List(tctx, &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
 		log.Error(err, "failed to list L4RoutePolicy", "namespace", routeNamespace, "name", routeName, "kind", routeKind)
-		return
+		return err
 	}
 	if len(list.Items) == 0 {
-		return
+		return nil
 	}
 
 	// L4 routes have no addressable sections; a targetRef that specifies a sectionName
@@ -284,7 +301,7 @@ func ProcessL4RoutePolicy(
 		return !l4RoutePolicyMatchesRoute(p, routeKind, routeNamespace, routeName)
 	})
 	if len(list.Items) == 0 {
-		return
+		return nil
 	}
 
 	// Deterministic conflict resolution: oldest creationTimestamp wins; tie-break by namespace/name.
@@ -300,11 +317,14 @@ func ProcessL4RoutePolicy(
 	})
 
 	winner := list.Items[0].DeepCopy()
-	// A policy whose Secrets cannot be read is not attached at all, so a route is never
-	// programmed with a subset of the plugins the policy asks for.
-	secretErr := loadPluginSecrets(tctx, c, tctx, winner.Namespace, winner.Spec.Plugins)
-	if secretErr != nil {
-		log.Error(secretErr, "failed to load Secrets referenced by L4RoutePolicy plugins", "policy", types.NamespacedName{Namespace: winner.Namespace, Name: winner.Name})
+	// An invalid policy is not attached at all, so a route is never programmed with
+	// a subset of the plugins the policy asks for.
+	policyErr := validateL4RoutePolicyPluginConfigs(winner)
+	if policyErr == nil {
+		policyErr = loadPluginSecrets(tctx, c, tctx, winner.Namespace, winner.Spec.Plugins)
+	}
+	if policyErr != nil {
+		log.Error(policyErr, "failed to process L4RoutePolicy plugins", "policy", types.NamespacedName{Namespace: winner.Namespace, Name: winner.Name})
 	} else {
 		tctx.L4RoutePolicies[types.NamespacedName{Namespace: winner.Namespace, Name: winner.Name}] = winner
 	}
@@ -312,14 +332,14 @@ func ProcessL4RoutePolicy(
 	for i := range list.Items {
 		policy := list.Items[i]
 		var condition metav1.Condition
-		if i == 0 && secretErr != nil {
+		if i == 0 && policyErr != nil {
 			condition = metav1.Condition{
 				Type:               string(gatewayv1.PolicyConditionAccepted),
 				Status:             metav1.ConditionFalse,
 				ObservedGeneration: policy.GetGeneration(),
 				LastTransitionTime: metav1.Now(),
 				Reason:             string(gatewayv1.PolicyReasonInvalid),
-				Message:            secretErr.Error(),
+				Message:            policyErr.Error(),
 			}
 		} else if i == 0 {
 			condition = metav1.Condition{
@@ -356,6 +376,23 @@ func ProcessL4RoutePolicy(
 			})
 		}
 	}
+	if policyErr != nil {
+		return &invalidL4RoutePolicyError{err: policyErr}
+	}
+	return nil
+}
+
+func validateL4RoutePolicyPluginConfigs(policy *v1alpha1.L4RoutePolicy) error {
+	for _, plugin := range policy.Spec.Plugins {
+		if len(plugin.Config.Raw) == 0 {
+			continue
+		}
+		var config map[string]any
+		if err := json.Unmarshal(plugin.Config.Raw, &config); err != nil {
+			return fmt.Errorf("plugin %q has an invalid configuration: %w", plugin.Name, err)
+		}
+	}
+	return nil
 }
 
 // updateL4RoutePolicyStatusOnDeleting removes the deleted route's ancestor status entries
