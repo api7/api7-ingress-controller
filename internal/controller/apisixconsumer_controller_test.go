@@ -198,3 +198,47 @@ func TestApisixConsumerReconcile_KeepsConfigOnIngressClassReadError(t *testing.T
 		})
 	}
 }
+
+func TestApisixConsumerReconcile_RemovesConfigWhenIngressClassIsMissing(t *testing.T) {
+	const (
+		namespace = "default"
+		name      = "consumer"
+	)
+	consumerKey := k8stypes.NamespacedName{Namespace: namespace, Name: name}
+
+	for _, tc := range []struct {
+		name       string
+		apiVersion schema.GroupVersion
+	}{
+		{name: "v1", apiVersion: networkingv1.SchemeGroupVersion},
+		{name: "v1beta1", apiVersion: networkingv1beta1.SchemeGroupVersion},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			require.NoError(t, clientgoscheme.AddToScheme(scheme))
+			require.NoError(t, apiv2.AddToScheme(scheme))
+
+			consumer := &apiv2.ApisixConsumer{
+				ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
+				Spec:       apiv2.ApisixConsumerSpec{IngressClassName: "missing"},
+			}
+			cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(consumer).Build()
+			prov := &recordingProvider{}
+			r := &ApisixConsumerReconciler{
+				Client:   cli,
+				Scheme:   scheme,
+				Log:      logr.Discard(),
+				Provider: prov,
+				Readier:  noopReadier{},
+				ICGV:     tc.apiVersion,
+			}
+
+			result, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: consumerKey})
+
+			require.NoError(t, err)
+			assert.Equal(t, ctrl.Result{}, result)
+			assert.Equal(t, []k8stypes.NamespacedName{consumerKey}, prov.deleted)
+			assert.Zero(t, prov.updated)
+		})
+	}
+}
