@@ -742,7 +742,6 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 		enableWebsocket, _ := t.translateBackendsToUpstreams(tctx, rule, httpRoute, service)
 
 		if err := t.fillPluginsFromHTTPRouteFilters(service.Plugins, httpRoute.GetNamespace(), rule.Filters, rule.Matches, tctx); err != nil {
-			// Keep the failure scoped to this rule and return an error response for its requests.
 			setExtensionRefErrorResponse(service)
 		}
 

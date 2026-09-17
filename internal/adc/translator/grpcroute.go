@@ -291,7 +291,6 @@ func (t *Translator) TranslateGRPCRoute(tctx *provider.TranslateContext, grpcRou
 		}
 
 		if err := t.fillPluginsFromGRPCRouteFilters(service.Plugins, grpcRoute.GetNamespace(), rule.Filters, tctx); err != nil {
-			// Keep the failure scoped to this rule and return an error response for its requests.
 			setExtensionRefErrorResponse(service)
 		}
 

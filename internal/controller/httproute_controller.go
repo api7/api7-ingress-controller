@@ -243,11 +243,11 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		tctx.HasExplicitListenerMatch = tctx.HasExplicitListenerMatch || gateway.ExplicitListenerMatch
 	}
 
-	var resolvedRefErr error
+	var backendRefErr error
 	if err := r.processHTTPRoute(tctx, hr); err != nil {
-		// Reference resolution errors do not affect the acceptance status.
+		// When encountering a backend reference error, it should not affect the acceptance status
 		if types.IsSomeReasonError(err, gatewayv1.RouteReasonInvalidKind, gatewayv1.RouteReasonBackendNotFound) {
-			resolvedRefErr = err
+			backendRefErr = err
 		} else {
 			acceptStatus.status = false
 			acceptStatus.msg = err.Error()
@@ -259,9 +259,10 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		acceptStatus.msg = err.Error()
 	}
 
-	// Preserve a previously found reference error when backend references also fail to resolve.
-	if err := r.processHTTPRouteBackendRefs(tctx, req.NamespacedName); err != nil && resolvedRefErr == nil {
-		resolvedRefErr = err
+	// Store the backend reference error for later use.
+	// If the backend reference error is because of an invalid kind, use this error first
+	if err := r.processHTTPRouteBackendRefs(tctx, req.NamespacedName); err != nil && backendRefErr == nil {
+		backendRefErr = err
 	}
 
 	ProcessBackendTrafficPolicy(r.Client, r.Log, tctx)
@@ -281,7 +282,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			parentStatus.Conditions = MergeCondition(parentStatus.Conditions, condition)
 		}
 		SetRouteConditionAccepted(&parentStatus, hr.GetGeneration(), acceptStatus.status, acceptStatus.msg)
-		SetRouteConditionResolvedRefs(&parentStatus, hr.GetGeneration(), resolvedRefErr)
+		SetRouteConditionResolvedRefs(&parentStatus, hr.GetGeneration(), backendRefErr)
 
 		hr.Status.Parents = append(hr.Status.Parents, parentStatus)
 	}
@@ -644,9 +645,8 @@ func (r *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, 
 			if filter.Type != gatewayv1.HTTPRouteFilterExtensionRef || filter.ExtensionRef == nil {
 				continue
 			}
-			if err := loadPluginConfigExtensionRef(tctx, r.Client, httpRoute.GetNamespace(), filter.ExtensionRef); err != nil {
+			if err := loadPluginConfigExtensionRef(tctx, r.Client, tctx, httpRoute.GetNamespace(), filter.ExtensionRef); err != nil {
 				terror = err
-				continue
 			}
 		}
 		for _, backend := range rule.BackendRefs {

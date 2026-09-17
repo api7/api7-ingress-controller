@@ -18,6 +18,8 @@
 package controller
 
 import (
+	"context"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -29,8 +31,9 @@ import (
 )
 
 func loadPluginConfigExtensionRef(
-	tctx *provider.TranslateContext,
+	ctx context.Context,
 	c client.Client,
+	tctx *provider.TranslateContext,
 	namespace string,
 	ref *gatewayv1.LocalObjectReference,
 ) error {
@@ -38,17 +41,22 @@ func loadPluginConfigExtensionRef(
 		return err
 	}
 
-	nn := k8stypes.NamespacedName{Namespace: namespace, Name: string(ref.Name)}
 	pluginConfig := new(v1alpha1.PluginConfig)
-	if err := c.Get(tctx, nn, pluginConfig); err != nil {
+	if err := c.Get(ctx, client.ObjectKey{
+		Namespace: namespace,
+		Name:      string(ref.Name),
+	}, pluginConfig); err != nil {
 		if apierrors.IsNotFound(err) {
 			return types.NewPluginConfigNotFoundError(namespace, string(ref.Name))
 		}
 		return err
 	}
 
-	tctx.PluginConfigs[nn] = pluginConfig
-	if err := loadPluginSecrets(tctx, c, tctx, namespace, pluginConfig.Spec.Plugins); err != nil {
+	tctx.PluginConfigs[k8stypes.NamespacedName{
+		Namespace: namespace,
+		Name:      string(ref.Name),
+	}] = pluginConfig
+	if err := loadPluginSecrets(ctx, c, tctx, namespace, pluginConfig.Spec.Plugins); err != nil {
 		if apierrors.IsNotFound(err) {
 			return types.ReasonError{
 				Reason:  string(gatewayv1.RouteReasonBackendNotFound),
