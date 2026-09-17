@@ -34,6 +34,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/types"
 
+	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/test/e2e/framework"
 	"github.com/apache/apisix-ingress-controller/test/e2e/scaffold"
@@ -193,7 +194,7 @@ spec:
 			}).WithTimeout(30 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusUnauthorized))
 		}
 		expectConsumerAbsent := func() {
-			username := fmt.Sprintf("%s_test-consumer", s.Namespace())
+			username := adctypes.ComposeConsumerName(s.Namespace(), "test-consumer")
 			By("verify the consumer is no longer present")
 			Eventually(func() (bool, error) {
 				consumers, err := s.DefaultDataplaneResource().Consumer().List(context.Background())
