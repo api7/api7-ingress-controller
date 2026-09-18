@@ -15,26 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package apisix
+package api7ee
 
 import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/funcr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
-	adcclient "github.com/apache/apisix-ingress-controller/internal/adc/client"
-	"github.com/apache/apisix-ingress-controller/internal/types"
-	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
 func TestDeleteLogsObjectIdentityOnly(t *testing.T) {
@@ -65,37 +58,4 @@ func TestDeleteLogsObjectIdentityOnly(t *testing.T) {
 	assert.NotContains(t, output, privateValue)
 	assert.Contains(t, output, "default")
 	assert.Contains(t, output, "consumer")
-}
-
-// TestDeleteNotifiesSyncOnlyWhenConfigWasRemoved covers the cost side of route
-// ownership: a sync pushes the whole store to every data plane, and reconciles
-// for routes this controller never configured are frequent (any EndpointSlice
-// event on a shared backend enqueues them), so those must not notify.
-func TestDeleteNotifiesSyncOnlyWhenConfigWasRemoved(t *testing.T) {
-	cli, err := adcclient.New(logr.Discard(), ProviderTypeAPISIX, time.Second)
-	require.NoError(t, err)
-
-	d := &apisixProvider{
-		client: cli,
-		syncCh: make(chan struct{}, 1),
-		log:    logr.Discard(),
-	}
-
-	route := &gatewayv1.HTTPRoute{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "HTTPRoute",
-			APIVersion: gatewayv1.GroupVersion.String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "route"},
-	}
-
-	require.NoError(t, d.Delete(context.Background(), route))
-	require.Empty(t, d.syncCh, "a route this controller never configured must not trigger a sync")
-
-	cli.ConfigManager.Update(utils.NamespacedNameKind(route), map[types.NamespacedNameKind]adctypes.Config{
-		{Namespace: "default", Name: "proxy", Kind: "GatewayProxy"}: {Name: "proxy"},
-	})
-
-	require.NoError(t, d.Delete(context.Background(), route))
-	require.Len(t, d.syncCh, 1, "removing configuration this controller pushed must trigger a sync")
 }
