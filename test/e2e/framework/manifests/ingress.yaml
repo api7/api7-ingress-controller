@@ -358,7 +358,7 @@ spec:
       securityContext:
         fsGroup: 2000   
       containers:
-      - image: api7/api7-ingress-controller:dev
+      - image: {{ .ControllerImage }}
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -401,7 +401,7 @@ spec:
             port: 8081
           initialDelaySeconds: 5
           periodSeconds: 10       
-      - image: ghcr.io/api7/adc:dev
+      - image: {{ .ADCImage }}
         env:
         - name: ADC_RUNNING_MODE
           value: ingress
