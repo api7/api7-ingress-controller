@@ -273,6 +273,67 @@ func TestTranslateTLSRouteWithL4RoutePolicy(t *testing.T) {
 	}
 }
 
+func TestTranslateL4RouteRejectsInvalidPolicyPluginConfig(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		routeKind string
+		routeName string
+		translate func(*Translator, *provider.TranslateContext) (*TranslateResult, error)
+	}{
+		{
+			name:      "TCPRoute",
+			routeKind: "TCPRoute",
+			routeName: "my-tcp",
+			translate: func(tr *Translator, tctx *provider.TranslateContext) (*TranslateResult, error) {
+				return tr.TranslateTCPRoute(tctx, &gatewayv1.TCPRoute{
+					ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "my-tcp"},
+					Spec:       gatewayv1.TCPRouteSpec{Rules: []gatewayv1.TCPRouteRule{{}}},
+				})
+			},
+		},
+		{
+			name:      "UDPRoute",
+			routeKind: "UDPRoute",
+			routeName: "my-udp",
+			translate: func(tr *Translator, tctx *provider.TranslateContext) (*TranslateResult, error) {
+				return tr.TranslateUDPRoute(tctx, &gatewayv1.UDPRoute{
+					ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "my-udp"},
+					Spec:       gatewayv1.UDPRouteSpec{Rules: []gatewayv1.UDPRouteRule{{}}},
+				})
+			},
+		},
+		{
+			name:      "TLSRoute",
+			routeKind: "TLSRoute",
+			routeName: "my-tls",
+			translate: func(tr *Translator, tctx *provider.TranslateContext) (*TranslateResult, error) {
+				return tr.TranslateTLSRoute(tctx, &gatewayv1.TLSRoute{
+					ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "my-tls"},
+					Spec: gatewayv1.TLSRouteSpec{
+						Hostnames: []gatewayv1.Hostname{"example.com"},
+						Rules:     []gatewayv1.TLSRouteRule{{}},
+					},
+				})
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tr := NewTranslator(logr.Discard(), "")
+			tctx := provider.NewDefaultTranslateContext(context.Background())
+			policy := makeL4RoutePolicy("default", "invalid-policy", tt.routeKind, tt.routeName, []v1alpha1.Plugin{
+				{Name: "ip-restriction", Config: mustJSON([]string{"not-an-object"})},
+			})
+			tctx.L4RoutePolicies[k8stypes.NamespacedName{Namespace: policy.Namespace, Name: policy.Name}] = policy
+
+			result, err := tt.translate(tr, tctx)
+
+			require.Error(t, err)
+			assert.Nil(t, result)
+			assert.Contains(t, err.Error(), `plugin "ip-restriction"`)
+		})
+	}
+}
+
 func TestTranslateTCPRouteUpstreamScheme(t *testing.T) {
 	const (
 		namespace   = "default"
