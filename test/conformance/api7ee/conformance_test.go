@@ -31,6 +31,22 @@ var skippedTestsForSSL = []string{
 	tests.HTTPRouteRedirectPortAndScheme.ShortName,
 }
 
+// The API7 gateway's stream_route schema carries `sni` only, under
+// additionalProperties = false, and has no tls_passthrough - it predates
+// apache/apisix#13912. A stream route carrying either `snis` or
+// `tls_passthrough` is rejected outright, so a TLSRoute needs its own gateway
+// support before these can run here. The APISIX provider runs them already; see
+// test/conformance/conformance_test.go.
+var skippedTestsForGatewaySchema = []string{
+	// Pinned to mode: Passthrough, which the gateway cannot serve.
+	tests.TLSRouteSimpleSameNamespace.ShortName,
+	tests.TLSRouteInvalidBackendRefNonexistent.ShortName,
+	tests.TLSRouteInvalidBackendRefUnknownKind.ShortName,
+	// Passthrough as well, and its routes carry several hostnames, which the
+	// translator emits as `snis`.
+	tests.TLSRouteHostnameIntersection.ShortName,
+}
+
 // TODO: HTTPRoute hostname intersection and listener hostname matching
 
 func TestGatewayAPIConformance(t *testing.T) {
@@ -39,6 +55,7 @@ func TestGatewayAPIConformance(t *testing.T) {
 	opts.CleanupBaseResources = true
 	opts.GatewayClassName = gatewayClassName
 	opts.SkipTests = append(opts.SkipTests, skippedTestsForSSL...)
+	opts.SkipTests = append(opts.SkipTests, skippedTestsForGatewaySchema...)
 	opts.Implementation = conformancev1.Implementation{
 		Organization: "APISIX",
 		Project:      "apisix-ingress-controller",
