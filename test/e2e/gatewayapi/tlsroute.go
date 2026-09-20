@@ -181,6 +181,11 @@ spec:
 		})
 
 		It("forwards the stream to the backend that owns the certificate", func() {
+			if s.Deployer.Name() == framework.ProviderTypeAPI7EE {
+				// The API7 gateway's stream_route schema has no tls_passthrough and
+				// refuses unknown keys, so the route never reaches the data plane.
+				Skip("skipping test in API7EE mode")
+			}
 			s.ResourceApplied("TLSRoute", "tls-passthrough-route", passthroughRoute, 1)
 
 			// The client verifies the served chain against the backend's own CA.
