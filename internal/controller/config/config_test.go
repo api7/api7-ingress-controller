@@ -65,12 +65,54 @@ func TestConfigValidateListenerPortMatchMode(t *testing.T) {
 	}
 }
 
+func TestConfigValidateNamespaceSelector(t *testing.T) {
+	tests := []struct {
+		name      string
+		selector  []string
+		expectErr bool
+	}{
+		{
+			name:     "unset",
+			selector: nil,
+		},
+		{
+			name:     "equality",
+			selector: []string{"apisix.byd=watching"},
+		},
+		{
+			name:     "set based",
+			selector: []string{"env in (prod,staging),!legacy", "team=gateway"},
+		},
+		{
+			name:      "invalid",
+			selector:  []string{"apisix.byd in watching"},
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewDefaultConfig()
+			cfg.NamespaceSelector = tt.selector
+
+			err := cfg.Validate()
+			if tt.expectErr {
+				assert.ErrorContains(t, err, "invalid namespace_selector")
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestNewConfigFromFile(t *testing.T) {
 	// Create a temporary config file
 	fileContent := `
 log_level: debug
 controller_name: test-controller
 disable_gateway_api: true
+namespace_selector:
+- "apisix.byd=watching"
 `
 	tempFile, err := os.CreateTemp("", "config-*.yaml")
 	assert.NoError(t, err)
@@ -87,4 +129,5 @@ disable_gateway_api: true
 	assert.Equal(t, "debug", cfg.LogLevel)
 	assert.Equal(t, "test-controller", cfg.ControllerName)
 	assert.Equal(t, true, cfg.DisableGatewayAPI)
+	assert.Equal(t, []string{"apisix.byd=watching"}, cfg.NamespaceSelector)
 }

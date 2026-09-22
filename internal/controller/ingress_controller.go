@@ -84,6 +84,7 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		predicate.GenerationChangedPredicate{},
 		predicate.AnnotationChangedPredicate{},
 		predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
+		predicate.NewPredicateFuncs(TypePredicate[*corev1.Namespace]()),
 	}
 
 	if !r.supportsEndpointSlice {
@@ -110,6 +111,7 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		r.listIngressesByService,
 		r.listIngressesByEndpoints,
 		r.Log)
+	bdr = watchNamespaceSelector(bdr, r.Client, r.Log, func() client.ObjectList { return &networkingv1.IngressList{} })
 
 	return bdr.
 		Watches(

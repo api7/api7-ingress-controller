@@ -65,6 +65,14 @@ secure_metrics: false                   # The secure metrics configuration.
 exec_adc_timeout: 15s                   # The timeout for the ADC to execute.
                                         # The default value is 15 seconds.
 
+namespace_selector: []                  # Label selectors of the namespaces whose resources are handled by the controller.
+                                        # A namespace is selected when its labels match any of the selectors, for example:
+                                        #   namespace_selector:
+                                        #   - "apisix.apache.org/watching=true"
+                                        # It applies to Ingress and apisix.apache.org/v2 resources. Resources they reference,
+                                        # such as Services, Secrets and GatewayProxies, are read from any namespace.
+                                        # The default value is empty, which selects all namespaces.
+
 provider:
   type: "api7ee"                        # Provider type.
 

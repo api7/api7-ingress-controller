@@ -47,6 +47,14 @@ listener_port_match_mode: "off"         # Mode for injecting server_port route v
                                         # "auto"/"explicit" when those two coincide, otherwise routes bound to a
                                         # listener via sectionName/port will never match.
 
+namespace_selector: []                  # Label selectors of the namespaces whose resources are handled by the controller.
+                                        # A namespace is selected when its labels match any of the selectors, for example:
+                                        #   namespace_selector:
+                                        #   - "apisix.apache.org/watching=true"
+                                        # It applies to Ingress and apisix.apache.org/v2 resources. Resources they reference,
+                                        # such as Services, Secrets and GatewayProxies, are read from any namespace.
+                                        # The default value is empty, which selects all namespaces.
+
 provider:
   type: "api7ee"
 

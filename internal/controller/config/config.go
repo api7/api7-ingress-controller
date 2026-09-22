@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/apache/apisix-ingress-controller/internal/types"
 )
@@ -129,6 +130,12 @@ func (c *Config) Validate() error {
 		case ListenerPortMatchModeAuto, ListenerPortMatchModeExplicit, ListenerPortMatchModeOff:
 		default:
 			return fmt.Errorf("invalid listener_port_match_mode: %q (must be auto, explicit, or off)", c.ListenerPortMatchMode)
+		}
+	}
+
+	for _, selector := range c.NamespaceSelector {
+		if _, err := labels.Parse(selector); err != nil {
+			return fmt.Errorf("invalid namespace_selector %q: %w", selector, err)
 		}
 	}
 

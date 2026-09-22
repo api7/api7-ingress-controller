@@ -1927,10 +1927,16 @@ func GetIngressClassV1(ctx context.Context, c client.Client, log logr.Logger, in
 func isIngressClassSelectionAbsent(err error) bool {
 	return k8serrors.IsNotFound(err) ||
 		errors.Is(err, errNoDefaultIngressClass) ||
-		errors.Is(err, errIngressClassNotControlled)
+		errors.Is(err, errIngressClassNotControlled) ||
+		errors.Is(err, ErrNamespaceNotWatched)
 }
 
 func FindMatchingIngressClassByObject(ctx context.Context, c client.Client, log logr.Logger, obj client.Object, apiVersion string) (*networkingv1.IngressClass, error) {
+	// An object outside the watched namespaces is not ours, just like one bound
+	// to an IngressClass of another controller.
+	if err := checkWatchedNamespace(ctx, c, obj); err != nil {
+		return nil, err
+	}
 	ingressClassName := ExtractIngressClass(obj)
 	switch apiVersion {
 	case networkingv1beta1.SchemeGroupVersion.String():

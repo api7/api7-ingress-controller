@@ -88,6 +88,7 @@ func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		predicate.GenerationChangedPredicate{},
 		predicate.AnnotationChangedPredicate{},
 		predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
+		predicate.NewPredicateFuncs(TypePredicate[*corev1.Namespace]()),
 	}
 
 	if !r.supportsEndpointSlice {
@@ -117,6 +118,7 @@ func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		r.listApisixRoutesForService,
 		r.listApisixRoutesForEndpoints,
 		r.Log)
+	bdr = watchNamespaceSelector(bdr, r.Client, r.Log, func() client.ObjectList { return &apiv2.ApisixRouteList{} })
 
 	return bdr.
 		Watches(&corev1.Secret{},

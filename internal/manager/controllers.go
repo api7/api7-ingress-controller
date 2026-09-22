@@ -349,6 +349,9 @@ func registerV2ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessM
 	readier.RegisterGVK(readiness.GVKConfig{
 		GVKs: gvks,
 		Filter: readiness.GVKFilter(func(obj *unstructured.Unstructured) bool {
+			if watched, _ := controller.IsWatchedNamespace(context.Background(), c, obj.GetNamespace()); !watched {
+				return false
+			}
 			icName, _, _ := unstructured.NestedString(obj.Object, "spec", "ingressClassName")
 			ingressClass, _ := controller.FindMatchingIngressClassByName(context.Background(), c, log, icName, icgv.String())
 			return ingressClass != nil
