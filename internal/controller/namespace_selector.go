@@ -135,12 +135,14 @@ func watchNamespaceSelector(bdr *builder.Builder, c client.Client, log logr.Logg
 				return nil
 			}
 			var requests []reconcile.Request
-			_ = meta.EachListItem(list, func(item runtime.Object) error {
+			if err := meta.EachListItem(list, func(item runtime.Object) error {
 				if o, ok := item.(client.Object); ok {
 					requests = append(requests, reconcile.Request{NamespacedName: utils.NamespacedName(o)})
 				}
 				return nil
-			})
+			}); err != nil {
+				log.Error(err, "failed to iterate objects for namespace", "namespace", obj.GetName())
+			}
 			return requests
 		}),
 		builder.WithPredicates(namespaceSelectorChangedPredicate()),
