@@ -40,38 +40,40 @@ const (
 	unwatchedNamespace = "unwatched"
 )
 
-func setNamespaceSelectors(t *testing.T, selectors ...string) {
+func setNamespaceSelector(t *testing.T, entries ...string) {
 	t.Helper()
-	require.NoError(t, SetNamespaceSelectors(selectors))
-	t.Cleanup(func() { namespaceSelectors = nil })
+	require.NoError(t, SetNamespaceSelector(entries))
+	t.Cleanup(func() { namespaceSelector = nil })
 }
 
 func selectorNamespaces() []client.Object {
 	return []client.Object{
 		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
 			Name:   watchedNamespace,
-			Labels: map[string]string{"apisix.byd": "watching"},
+			Labels: map[string]string{"team": "a"},
 		}},
 		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
 			Name:   unwatchedNamespace,
-			Labels: map[string]string{"apisix.changan": "watching"},
+			Labels: map[string]string{"team": "b"},
 		}},
 	}
 }
 
-func TestSetNamespaceSelectors(t *testing.T) {
-	t.Cleanup(func() { namespaceSelectors = nil })
+func TestSetNamespaceSelector(t *testing.T) {
+	t.Cleanup(func() { namespaceSelector = nil })
 
-	require.Error(t, SetNamespaceSelectors([]string{"apisix.byd in watching"}))
+	require.Error(t, SetNamespaceSelector([]string{"team in a"}))
 
-	require.NoError(t, SetNamespaceSelectors(nil))
-	assert.True(t, namespaceLabelsMatch(nil), "no selector watches every namespace")
+	require.NoError(t, SetNamespaceSelector([]string{""}))
+	assert.False(t, namespaceSelectorEnabled(), "[\"\"] disables the selector as in 1.x")
+	assert.True(t, namespaceLabelsMatch(nil))
 
-	require.NoError(t, SetNamespaceSelectors([]string{"apisix.byd=watching", "team in (a,b),!legacy"}))
-	assert.True(t, namespaceLabelsMatch(map[string]string{"apisix.byd": "watching"}))
-	assert.True(t, namespaceLabelsMatch(map[string]string{"team": "a"}), "selectors are ORed")
-	assert.False(t, namespaceLabelsMatch(map[string]string{"team": "a", "legacy": "true"}))
-	assert.False(t, namespaceLabelsMatch(map[string]string{"apisix.byd": "ignored"}))
+	require.NoError(t, SetNamespaceSelector([]string{"team=a", "team=b", "env=prod"}))
+	assert.True(t, namespaceSelectorEnabled())
+	assert.True(t, namespaceLabelsMatch(map[string]string{"team": "a", "env": "prod"}))
+	assert.True(t, namespaceLabelsMatch(map[string]string{"team": "b", "env": "prod"}))
+	assert.False(t, namespaceLabelsMatch(map[string]string{"team": "a"}), "entries on different keys are ANDed")
+	assert.False(t, namespaceLabelsMatch(map[string]string{"team": "c", "env": "prod"}))
 	assert.False(t, namespaceLabelsMatch(nil))
 }
 
@@ -84,7 +86,7 @@ func TestIsWatchedNamespace(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, watched, "every namespace is watched without a selector")
 
-	setNamespaceSelectors(t, "apisix.byd=watching")
+	setNamespaceSelector(t, "team=a")
 
 	for ns, want := range map[string]bool{
 		watchedNamespace:   true,
@@ -101,7 +103,7 @@ func TestIsWatchedNamespace(t *testing.T) {
 func TestFindMatchingIngressClassByObject_NamespaceSelector(t *testing.T) {
 	cli := fake.NewClientBuilder().WithScheme(retractPluginConfigScheme(t)).
 		WithObjects(append(selectorNamespaces(), retractIngressClass())...).Build()
-	setNamespaceSelectors(t, "apisix.byd=watching")
+	setNamespaceSelector(t, "team=a")
 
 	route := func(ns string) *apiv2.ApisixRoute {
 		return &apiv2.ApisixRoute{
@@ -121,19 +123,19 @@ func TestFindMatchingIngressClassByObject_NamespaceSelector(t *testing.T) {
 }
 
 func TestNamespaceSelectorChangedPredicate(t *testing.T) {
-	setNamespaceSelectors(t, "apisix.byd=watching")
+	setNamespaceSelector(t, "team=a")
 	pred := namespaceSelectorChangedPredicate()
 
 	ns := func(labels map[string]string) *corev1.Namespace {
 		return &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ns", Labels: labels}}
 	}
-	watching := map[string]string{"apisix.byd": "watching"}
+	watching := map[string]string{"team": "a"}
 
 	assert.True(t, pred.Update(event.UpdateEvent{ObjectOld: ns(nil), ObjectNew: ns(watching)}))
 	assert.True(t, pred.Update(event.UpdateEvent{ObjectOld: ns(watching), ObjectNew: ns(nil)}))
 	assert.False(t, pred.Update(event.UpdateEvent{
 		ObjectOld: ns(watching),
-		ObjectNew: ns(map[string]string{"apisix.byd": "watching", "other": "x"}),
+		ObjectNew: ns(map[string]string{"team": "a", "other": "x"}),
 	}), "a label change that keeps the match result must not requeue")
 	assert.False(t, pred.Create(event.CreateEvent{Object: ns(watching)}))
 	assert.False(t, pred.Delete(event.DeleteEvent{Object: ns(watching)}))
@@ -151,7 +153,7 @@ func TestApisixRouteReconcile_RetractsOutsideWatchedNamespace(t *testing.T) {
 		WithObjects(append(selectorNamespaces(), retractIngressClass(), route)...).
 		WithStatusSubresource(route).
 		Build()
-	setNamespaceSelectors(t, "apisix.byd=watching")
+	setNamespaceSelector(t, "team=a")
 
 	prov := &pluginConfigProvider{}
 	updater := &pluginConfigUpdater{}
@@ -184,7 +186,7 @@ func TestApisixTlsReconcile_RetractsOutsideWatchedNamespace(t *testing.T) {
 		WithObjects(append(selectorNamespaces(), retractIngressClass(), tls)...).
 		WithStatusSubresource(tls).
 		Build()
-	setNamespaceSelectors(t, "apisix.byd=watching")
+	setNamespaceSelector(t, "team=a")
 
 	prov := &pluginConfigProvider{}
 	r := &ApisixTlsReconciler{

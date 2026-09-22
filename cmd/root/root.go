@@ -109,7 +109,7 @@ func newAPISIXIngressController() *cobra.Command {
 			if err := cfg.Validate(); err != nil {
 				return err
 			}
-			if err := controller.SetNamespaceSelectors(cfg.NamespaceSelector); err != nil {
+			if err := controller.SetNamespaceSelector(cfg.NamespaceSelector); err != nil {
 				return err
 			}
 

@@ -179,6 +179,9 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	ingressClass, err := FindMatchingIngressClassByObject(tctx, r.Client, r.Log, ingress, "")
 	if err != nil {
+		if !isIngressClassSelectionAbsent(err) {
+			return ctrl.Result{}, err
+		}
 		if err := r.Provider.Delete(ctx, ingress); err != nil {
 			r.Log.Error(err, "failed to delete ingress resources", "ingress", ingress.Name)
 			return ctrl.Result{}, nil

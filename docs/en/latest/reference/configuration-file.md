@@ -66,12 +66,19 @@ exec_adc_timeout: 15s                   # The timeout for the ADC to execute.
                                         # The default value is 15 seconds.
 
 namespace_selector: []                  # Label selectors of the namespaces whose resources are handled by the controller.
-                                        # A namespace is selected when its labels match any of the selectors, for example:
+                                        # A namespace is selected when its labels match all entries. Equality and "in"
+                                        # requirements on the same key are merged, so the example below selects namespaces
+                                        # labeled team=a or team=b that are also labeled env=prod:
                                         #   namespace_selector:
-                                        #   - "apisix.apache.org/watching=true"
-                                        # It applies to Ingress and apisix.apache.org/v2 resources. Resources they reference,
-                                        # such as Services, Secrets and GatewayProxies, are read from any namespace.
-                                        # The default value is empty, which selects all namespaces.
+                                        #   - "team=a"
+                                        #   - "team=b"
+                                        #   - "env=prod"
+                                        # It applies to Ingress and apisix.apache.org/v2 resources. Gateway API resources are
+                                        # not filtered, use the allowedRoutes of the Gateway listeners instead. Resources they
+                                        # reference, such as Services, Secrets and GatewayProxies, are read from any namespace.
+                                        # When a namespace stops matching, the configuration of its resources is removed
+                                        # from the data plane.
+                                        # The default value is empty, which selects all namespaces. Empty entries are ignored.
 
 provider:
   type: "api7ee"                        # Provider type.

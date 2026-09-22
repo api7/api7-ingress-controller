@@ -5,6 +5,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/utils/ptr"
 )
 
 func TestNewDefaultConfig(t *testing.T) {
@@ -71,23 +74,11 @@ func TestConfigValidateNamespaceSelector(t *testing.T) {
 		selector  []string
 		expectErr bool
 	}{
-		{
-			name:     "unset",
-			selector: nil,
-		},
-		{
-			name:     "equality",
-			selector: []string{"apisix.byd=watching"},
-		},
-		{
-			name:     "set based",
-			selector: []string{"env in (prod,staging),!legacy", "team=gateway"},
-		},
-		{
-			name:      "invalid",
-			selector:  []string{"apisix.byd in watching"},
-			expectErr: true,
-		},
+		{name: "unset", selector: nil},
+		{name: "1.x default", selector: []string{""}},
+		{name: "equality", selector: []string{"team=a"}},
+		{name: "set based", selector: []string{"env in (prod,staging),!legacy", "team=a"}},
+		{name: "invalid", selector: []string{"team in a"}, expectErr: true},
 	}
 
 	for _, tt := range tests {
@@ -105,6 +96,46 @@ func TestConfigValidateNamespaceSelector(t *testing.T) {
 	}
 }
 
+func TestParseNamespaceSelector(t *testing.T) {
+	nsLabels := labels.Set{"version": "v1", "env": "prod"}
+
+	tests := []struct {
+		name    string
+		entries []string
+		// nil means the selector is disabled.
+		matches *bool
+	}{
+		// Cases ported from TestMultiValueLabelsIsSubsetOf of 1.x.
+		{name: "no entry", entries: nil},
+		{name: "1.x default", entries: []string{""}},
+		{name: "single value", entries: []string{"env=prod"}, matches: ptr.To(true)},
+		{name: "values on one key are ORed", entries: []string{"env=qa", "env=prod"}, matches: ptr.To(true)},
+		{name: "value mismatch", entries: []string{"env=qa"}, matches: ptr.To(false)},
+		{name: "missing key", entries: []string{"env3=not"}, matches: ptr.To(false)},
+		// Entries on different keys are ANDed.
+		{name: "all keys match", entries: []string{"env=prod", "version=v1"}, matches: ptr.To(true)},
+		{name: "one key mismatches", entries: []string{"env=prod", "version=v2"}, matches: ptr.To(false)},
+		{name: "empty entry is ignored", entries: []string{"env=qa", ""}, matches: ptr.To(false)},
+		// Full selector syntax on top of 1.x.
+		{name: "in merges with equality", entries: []string{"env in (qa)", "env==prod"}, matches: ptr.To(true)},
+		{name: "not equal", entries: []string{"env=prod", "version!=v1"}, matches: ptr.To(false)},
+		{name: "does not exist", entries: []string{"!legacy"}, matches: ptr.To(true)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			selector, err := ParseNamespaceSelector(tt.entries)
+			require.NoError(t, err)
+			if tt.matches == nil {
+				assert.Nil(t, selector)
+				return
+			}
+			require.NotNil(t, selector)
+			assert.Equal(t, *tt.matches, selector.Matches(nsLabels), selector.String())
+		})
+	}
+}
+
 func TestNewConfigFromFile(t *testing.T) {
 	// Create a temporary config file
 	fileContent := `
@@ -112,7 +143,7 @@ log_level: debug
 controller_name: test-controller
 disable_gateway_api: true
 namespace_selector:
-- "apisix.byd=watching"
+- "team=a"
 `
 	tempFile, err := os.CreateTemp("", "config-*.yaml")
 	assert.NoError(t, err)
@@ -129,5 +160,5 @@ namespace_selector:
 	assert.Equal(t, "debug", cfg.LogLevel)
 	assert.Equal(t, "test-controller", cfg.ControllerName)
 	assert.Equal(t, true, cfg.DisableGatewayAPI)
-	assert.Equal(t, []string{"apisix.byd=watching"}, cfg.NamespaceSelector)
+	assert.Equal(t, []string{"team=a"}, cfg.NamespaceSelector)
 }

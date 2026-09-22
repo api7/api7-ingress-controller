@@ -351,7 +351,8 @@ func registerV2ForReadinessGVK(mgr manager.Manager, readier readiness.ReadinessM
 		Filter: readiness.GVKFilter(func(obj *unstructured.Unstructured) bool {
 			watched, err := controller.IsWatchedNamespace(context.Background(), c, obj.GetNamespace())
 			if err != nil {
-				// Keep waiting for the object: its reconcile marks it done either way.
+				// Keep waiting for the object rather than skipping a selected one. If
+				// the lookup keeps failing, readiness falls back to its timeout.
 				log.Error(err, "failed to evaluate namespace selector", "namespace", obj.GetNamespace())
 				return true
 			}

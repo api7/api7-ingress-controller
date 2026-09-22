@@ -95,6 +95,9 @@ func (r *ApisixGlobalRuleReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		r.Log.V(1).Info("no matching IngressClass available",
 			"ingressClassName", globalRule.Spec.IngressClassName,
 			"error", err.Error())
+		if !isIngressClassSelectionAbsent(err) {
+			return ctrl.Result{}, err
+		}
 		if err := r.Provider.Delete(ctx, &globalRule); err != nil {
 			r.Log.Error(err, "failed to delete global rule from provider")
 			return ctrl.Result{}, err

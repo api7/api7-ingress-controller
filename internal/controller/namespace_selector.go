@@ -20,7 +20,6 @@ package controller
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -35,51 +34,39 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
 // ErrNamespaceNotWatched is returned for an object whose namespace does not
-// match the configured namespace selectors.
+// match the configured namespace selector.
 var ErrNamespaceNotWatched = errors.New("namespace is not watched by the namespace selector")
 
-var namespaceSelectors []labels.Selector
+var namespaceSelector labels.Selector
 
-// SetNamespaceSelectors limits the IngressClass scoped resources (Ingress and
+// SetNamespaceSelector limits the IngressClass scoped resources (Ingress and
 // apisix.apache.org/v2 resources) handled by the controller to the namespaces
-// whose labels match at least one of the selectors. An empty list watches all
-// namespaces.
-func SetNamespaceSelectors(selectors []string) error {
-	parsed := make([]labels.Selector, 0, len(selectors))
-	for _, s := range selectors {
-		selector, err := labels.Parse(s)
-		if err != nil {
-			return fmt.Errorf("invalid namespace selector %q: %w", s, err)
-		}
-		parsed = append(parsed, selector)
+// matching the namespace_selector entries, see config.ParseNamespaceSelector.
+// Without an entry every namespace is watched.
+func SetNamespaceSelector(entries []string) error {
+	selector, err := config.ParseNamespaceSelector(entries)
+	if err != nil {
+		return err
 	}
-	namespaceSelectors = parsed
+	namespaceSelector = selector
 	return nil
 }
 
 func namespaceSelectorEnabled() bool {
-	return len(namespaceSelectors) > 0
+	return namespaceSelector != nil
 }
 
 func namespaceLabelsMatch(nsLabels map[string]string) bool {
-	if !namespaceSelectorEnabled() {
-		return true
-	}
-	set := labels.Set(nsLabels)
-	for _, selector := range namespaceSelectors {
-		if selector.Matches(set) {
-			return true
-		}
-	}
-	return false
+	return !namespaceSelectorEnabled() || namespaceSelector.Matches(labels.Set(nsLabels))
 }
 
 // IsWatchedNamespace reports whether objects in the namespace are handled by
-// the controller under the configured namespace selectors.
+// the controller under the configured namespace selector.
 func IsWatchedNamespace(ctx context.Context, c client.Client, namespace string) (bool, error) {
 	if !namespaceSelectorEnabled() || namespace == "" {
 		return true, nil
@@ -120,7 +107,7 @@ func namespaceSelectorChangedPredicate() predicate.Funcs {
 }
 
 // watchNamespaceSelector requeues every object listed by newList in a namespace
-// whose labels start or stop matching the namespace selectors, so that the
+// whose labels start or stop matching the namespace selector, so that the
 // objects are synced or retracted accordingly. The event filter of the
 // controller must let Namespace events through.
 func watchNamespaceSelector(bdr *builder.Builder, c client.Client, log logr.Logger, newList func() client.ObjectList) *builder.Builder {
