@@ -55,6 +55,8 @@ namespace_selector: []                  # Label selectors of the namespaces whos
                                         #   - "team=a"
                                         #   - "team=b"
                                         #   - "env=prod"
+                                        # Only separate entries are merged. Within one entry, comma-separated requirements
+                                        # follow the Kubernetes label selector syntax, so "team=a,team=b" matches nothing.
                                         # It applies to Ingress and apisix.apache.org/v2 resources. Gateway API resources are
                                         # not filtered, use the allowedRoutes of the Gateway listeners instead. Resources they
                                         # reference, such as Services, Secrets and GatewayProxies, are read from any namespace.

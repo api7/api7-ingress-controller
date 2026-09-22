@@ -29,14 +29,15 @@ import (
 )
 
 var _ = Describe("Test Namespace Selector", Label("apisix.apache.org", "v2", "apisixroute"), func() {
+	// Entries on different keys are ANDed, a namespace needs both labels.
 	const (
-		selectorLabel = "apisix.apache.org/e2e-namespace-selector"
-		selector      = selectorLabel + "=watching"
+		teamLabel = "apisix.apache.org/e2e-namespace-team"
+		envLabel  = "apisix.apache.org/e2e-namespace-env"
 	)
 
 	var (
 		s = scaffold.NewScaffold(scaffold.Options{
-			NamespaceSelector: []string{selector},
+			NamespaceSelector: []string{teamLabel + "=a", envLabel + "=prod"},
 		})
 		otherNamespace string
 	)
@@ -72,14 +73,12 @@ spec:
 `
 	)
 
-	labelNamespace := func(ns string, watching bool) {
-		arg := selector
-		if !watching {
-			arg = selectorLabel + "-"
-		}
-		_, err := s.RunKubectlAndGetOutput("label", "namespace", ns, arg, "--overwrite")
+	labelNamespace := func(ns string, labels ...string) {
+		args := append([]string{"label", "namespace", ns, "--overwrite"}, labels...)
+		_, err := s.RunKubectlAndGetOutput(args...)
 		Expect(err).NotTo(HaveOccurred(), "labeling namespace %s", ns)
 	}
+	selectNamespace := func(ns string) { labelNamespace(ns, teamLabel+"=a", envLabel+"=prod") }
 
 	request := func(host string) int {
 		return s.NewAPISIXClient().GET("/get").WithHost(host).Expect().Raw().StatusCode
@@ -95,7 +94,7 @@ spec:
 
 		otherNamespace = s.Namespace() + "-other"
 		s.CreateNamespace(otherNamespace)
-		labelNamespace(s.Namespace(), true)
+		selectNamespace(s.Namespace())
 
 		for _, ns := range []string{s.Namespace(), otherNamespace} {
 			err := s.CreateResourceFromStringWithNamespace(fmt.Sprintf(externalServiceSpec, s.Namespace()), ns)
@@ -119,20 +118,25 @@ spec:
 		Consistently(request).WithArguments("unwatched").WithTimeout(10 * time.Second).ProbeEvery(time.Second).
 			Should(Equal(http.StatusNotFound))
 
+		By("label the other namespace with only one of the selected labels")
+		labelNamespace(otherNamespace, teamLabel+"=a")
+		Consistently(request).WithArguments("unwatched").WithTimeout(10 * time.Second).ProbeEvery(time.Second).
+			Should(Equal(http.StatusNotFound))
+
 		By("select the other namespace")
-		labelNamespace(otherNamespace, true)
+		selectNamespace(otherNamespace)
 		Eventually(request).WithArguments("unwatched").WithTimeout(30 * time.Second).ProbeEvery(time.Second).
 			Should(Equal(http.StatusOK))
 
 		By("unselect the namespace, its configuration is retracted")
-		labelNamespace(s.Namespace(), false)
+		labelNamespace(s.Namespace(), envLabel+"-")
 		Eventually(request).WithArguments("watched").WithTimeout(30 * time.Second).ProbeEvery(time.Second).
 			Should(Equal(http.StatusNotFound))
 		Consistently(request).WithArguments("unwatched").WithTimeout(5 * time.Second).ProbeEvery(time.Second).
 			Should(Equal(http.StatusOK))
 
 		By("select the namespace again")
-		labelNamespace(s.Namespace(), true)
+		selectNamespace(s.Namespace())
 		Eventually(request).WithArguments("watched").WithTimeout(30 * time.Second).ProbeEvery(time.Second).
 			Should(Equal(http.StatusOK))
 	})

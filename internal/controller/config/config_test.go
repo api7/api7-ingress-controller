@@ -120,6 +120,9 @@ func TestParseNamespaceSelector(t *testing.T) {
 		{name: "in merges with equality", entries: []string{"env in (qa)", "env==prod"}, matches: ptr.To(true)},
 		{name: "not equal", entries: []string{"env=prod", "version!=v1"}, matches: ptr.To(false)},
 		{name: "does not exist", entries: []string{"!legacy"}, matches: ptr.To(true)},
+		// Only separate entries are merged, one entry keeps the standard semantics.
+		{name: "one entry is not merged", entries: []string{"env=qa,env=prod"}, matches: ptr.To(false)},
+		{name: "one entry with several keys", entries: []string{"env=prod,version=v1"}, matches: ptr.To(true)},
 	}
 
 	for _, tt := range tests {

@@ -162,10 +162,12 @@ func validateProvider(config ProviderConfig) error {
 }
 
 // ParseNamespaceSelector combines the namespace_selector entries into one
-// selector, keeping the semantics of 1.x: every entry must match, and the
-// equality and set-based "in" requirements on one key are merged, so
-// ["team=a", "team=b"] selects "team in (a,b)". Empty entries are ignored, as
-// 1.x used [""] to disable the selector. It returns nil when no entry is left.
+// selector, keeping the semantics of 1.x: every entry must match, and entries
+// holding a single equality or "in" requirement on the same key are merged, so
+// ["team=a", "team=b"] selects "team in (a,b)". An entry with several
+// requirements keeps the standard label selector semantics, so "team=a,team=b"
+// matches nothing. Empty entries are ignored, as 1.x used [""] to disable the
+// selector. It returns nil when no entry is left.
 func ParseNamespaceSelector(entries []string) (labels.Selector, error) {
 	var (
 		selector labels.Selector
@@ -183,17 +185,17 @@ func ParseNamespaceSelector(entries []string) (labels.Selector, error) {
 		if selector == nil {
 			selector = labels.NewSelector()
 		}
-		for _, req := range reqs {
-			switch req.Operator() {
+		if len(reqs) == 1 {
+			switch req := reqs[0]; req.Operator() {
 			case selection.Equals, selection.DoubleEquals, selection.In:
 				if _, ok := values[req.Key()]; !ok {
 					keys = append(keys, req.Key())
 				}
 				values[req.Key()] = append(values[req.Key()], req.ValuesUnsorted()...)
-			default:
-				selector = selector.Add(req)
+				continue
 			}
 		}
+		selector = selector.Add(reqs...)
 	}
 	for _, key := range keys {
 		req, err := labels.NewRequirement(key, selection.In, values[key])
