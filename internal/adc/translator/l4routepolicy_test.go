@@ -23,7 +23,6 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -75,7 +74,7 @@ func TestAttachL4RoutePolicyPlugins_AttachesMatchingPolicy(t *testing.T) {
 	}
 
 	plugins := adctypes.Plugins{}
-	require.NoError(t, tr.AttachL4RoutePolicyPlugins(policies, "default", "my-tcp-route", "TCPRoute", plugins, nil))
+	assert.NoError(t, tr.AttachL4RoutePolicyPlugins(policies, "default", "my-tcp-route", "TCPRoute", plugins, nil))
 
 	assert.Len(t, plugins, 2)
 	assert.Contains(t, plugins, "limit-conn")
@@ -98,7 +97,7 @@ func TestAttachL4RoutePolicyPlugins_NoMatchOnKind(t *testing.T) {
 
 	plugins := adctypes.Plugins{}
 	// Looking for TCPRoute, but policy targets UDPRoute — should not match.
-	require.NoError(t, tr.AttachL4RoutePolicyPlugins(policies, "default", "my-udp-route", "TCPRoute", plugins, nil))
+	assert.NoError(t, tr.AttachL4RoutePolicyPlugins(policies, "default", "my-udp-route", "TCPRoute", plugins, nil))
 
 	assert.Empty(t, plugins)
 }
@@ -116,7 +115,7 @@ func TestAttachL4RoutePolicyPlugins_NoMatchOnNamespace(t *testing.T) {
 
 	plugins := adctypes.Plugins{}
 	// Route is in "default" namespace, policy is in "other-ns" — should not match.
-	require.NoError(t, tr.AttachL4RoutePolicyPlugins(policies, "default", "my-tcp-route", "TCPRoute", plugins, nil))
+	assert.NoError(t, tr.AttachL4RoutePolicyPlugins(policies, "default", "my-tcp-route", "TCPRoute", plugins, nil))
 
 	assert.Empty(t, plugins)
 }
@@ -131,7 +130,7 @@ func TestAttachL4RoutePolicyPlugins_EmptyPlugins(t *testing.T) {
 	}
 
 	plugins := adctypes.Plugins{}
-	require.NoError(t, tr.AttachL4RoutePolicyPlugins(policies, "default", "my-tcp-route", "TCPRoute", plugins, nil))
+	assert.NoError(t, tr.AttachL4RoutePolicyPlugins(policies, "default", "my-tcp-route", "TCPRoute", plugins, nil))
 
 	assert.Empty(t, plugins)
 }
@@ -139,22 +138,6 @@ func TestAttachL4RoutePolicyPlugins_EmptyPlugins(t *testing.T) {
 func TestAttachL4RoutePolicyPlugins_EmptyPolicies(t *testing.T) {
 	tr := NewTranslator(logr.Discard(), "")
 	plugins := adctypes.Plugins{}
-	require.NoError(t, tr.AttachL4RoutePolicyPlugins(nil, "default", "my-tcp-route", "TCPRoute", plugins, nil))
+	assert.NoError(t, tr.AttachL4RoutePolicyPlugins(nil, "default", "my-tcp-route", "TCPRoute", plugins, nil))
 	assert.Empty(t, plugins)
-}
-
-func TestAttachL4RoutePolicyPlugins_ReturnsInvalidConfigError(t *testing.T) {
-	tr := NewTranslator(logr.Discard(), "")
-	policy := makeL4RoutePolicy("default", "invalid-policy", "TCPRoute", "my-tcp-route", []v1alpha1.Plugin{
-		{Name: "ip-restriction", Config: mustJSON([]string{"not-an-object"})},
-	})
-	policies := map[k8stypes.NamespacedName]*v1alpha1.L4RoutePolicy{
-		{Namespace: policy.Namespace, Name: policy.Name}: policy,
-	}
-
-	err := tr.AttachL4RoutePolicyPlugins(policies, "default", "my-tcp-route", "TCPRoute", adctypes.Plugins{}, nil)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), `plugin "ip-restriction"`)
-	assert.Contains(t, err.Error(), "invalid-policy")
 }

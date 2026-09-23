@@ -19,8 +19,6 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -40,6 +38,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
+	"github.com/apache/apisix-ingress-controller/internal/pluginconfig"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	internaltypes "github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
@@ -52,21 +51,6 @@ type PolicyTargetKey struct {
 	// port name). Policies that target different sections of the same resource
 	// do not conflict; an empty SectionName targets the whole resource.
 	SectionName string
-}
-
-type invalidL4RoutePolicyError struct {
-	err error
-}
-
-func (e *invalidL4RoutePolicyError) Error() string { return e.err.Error() }
-func (e *invalidL4RoutePolicyError) Unwrap() error { return e.err }
-
-func l4RoutePolicyReconcileError(err error) error {
-	var invalidErr *invalidL4RoutePolicyError
-	if errors.As(err, &invalidErr) {
-		return nil
-	}
-	return err
 }
 
 func (p PolicyTargetKey) String() string {
@@ -284,15 +268,15 @@ func ProcessL4RoutePolicy(
 	log logr.Logger,
 	tctx *provider.TranslateContext,
 	routeNamespace, routeName, routeKind string,
-) error {
+) {
 	var list v1alpha1.L4RoutePolicyList
 	key := indexer.GenIndexKeyWithGK(gatewayv1.GroupName, routeKind, routeNamespace, routeName)
 	if err := c.List(tctx, &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
 		log.Error(err, "failed to list L4RoutePolicy", "namespace", routeNamespace, "name", routeName, "kind", routeKind)
-		return err
+		return
 	}
 	if len(list.Items) == 0 {
-		return nil
+		return
 	}
 
 	// L4 routes have no addressable sections; a targetRef that specifies a sectionName
@@ -301,7 +285,7 @@ func ProcessL4RoutePolicy(
 		return !l4RoutePolicyMatchesRoute(p, routeKind, routeNamespace, routeName)
 	})
 	if len(list.Items) == 0 {
-		return nil
+		return
 	}
 
 	// Deterministic conflict resolution: oldest creationTimestamp wins; tie-break by namespace/name.
@@ -317,29 +301,33 @@ func ProcessL4RoutePolicy(
 	})
 
 	winner := list.Items[0].DeepCopy()
-	// An invalid policy is not attached at all, so a route is never programmed with
-	// a subset of the plugins the policy asks for.
-	policyErr := validateL4RoutePolicyPluginConfigs(winner)
-	if policyErr == nil {
-		policyErr = loadPluginSecrets(tctx, c, tctx, winner.Namespace, winner.Spec.Plugins)
-	}
-	if policyErr != nil {
-		log.Error(policyErr, "failed to process L4RoutePolicy plugins", "policy", types.NamespacedName{Namespace: winner.Namespace, Name: winner.Name})
+	renderErr := loadPluginSecrets(tctx, c, tctx, winner.Namespace, winner.Spec.Plugins)
+	if renderErr == nil {
+		for _, plugin := range winner.Spec.Plugins {
+			if _, err := pluginconfig.Render(plugin, winner.Namespace, tctx.Secrets); err != nil {
+				log.Error(err, "failed to render L4RoutePolicy plugin config", "plugin", plugin.Name, "policy", types.NamespacedName{Namespace: winner.Namespace, Name: winner.Name})
+				renderErr = fmt.Errorf("plugin %q has invalid configuration", plugin.Name)
+				break
+			}
+		}
 	} else {
-		tctx.L4RoutePolicies[types.NamespacedName{Namespace: winner.Namespace, Name: winner.Name}] = winner
+		log.Error(renderErr, "failed to load Secrets referenced by L4RoutePolicy plugins", "policy", types.NamespacedName{Namespace: winner.Namespace, Name: winner.Name})
 	}
+	// Keep the winning policy in the translation context even when rendering failed.
+	// Translation must return the error instead of publishing the route without it.
+	tctx.L4RoutePolicies[types.NamespacedName{Namespace: winner.Namespace, Name: winner.Name}] = winner
 
 	for i := range list.Items {
 		policy := list.Items[i]
 		var condition metav1.Condition
-		if i == 0 && policyErr != nil {
+		if i == 0 && renderErr != nil {
 			condition = metav1.Condition{
 				Type:               string(gatewayv1.PolicyConditionAccepted),
 				Status:             metav1.ConditionFalse,
 				ObservedGeneration: policy.GetGeneration(),
 				LastTransitionTime: metav1.Now(),
 				Reason:             string(gatewayv1.PolicyReasonInvalid),
-				Message:            policyErr.Error(),
+				Message:            renderErr.Error(),
 			}
 		} else if i == 0 {
 			condition = metav1.Condition{
@@ -376,23 +364,6 @@ func ProcessL4RoutePolicy(
 			})
 		}
 	}
-	if policyErr != nil {
-		return &invalidL4RoutePolicyError{err: policyErr}
-	}
-	return nil
-}
-
-func validateL4RoutePolicyPluginConfigs(policy *v1alpha1.L4RoutePolicy) error {
-	for _, plugin := range policy.Spec.Plugins {
-		if len(plugin.Config.Raw) == 0 {
-			continue
-		}
-		var config map[string]any
-		if err := json.Unmarshal(plugin.Config.Raw, &config); err != nil {
-			return fmt.Errorf("plugin %q has an invalid configuration: %w", plugin.Name, err)
-		}
-	}
-	return nil
 }
 
 // updateL4RoutePolicyStatusOnDeleting removes the deleted route's ancestor status entries

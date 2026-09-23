@@ -345,9 +345,8 @@ func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	ProcessBackendTrafficPolicy(r.Client, r.Log, tctx)
-	var l4RoutePolicyErr error
 	if r.supportsL4RoutePolicy {
-		l4RoutePolicyErr = ProcessL4RoutePolicy(r.Client, r.Log, tctx, tr.Namespace, tr.Name, KindTCPRoute)
+		ProcessL4RoutePolicy(r.Client, r.Log, tctx, tr.Namespace, tr.Name, KindTCPRoute)
 	}
 	tr.Status.Parents = make([]gatewayv1.RouteParentStatus, 0, len(gateways))
 	for _, gateway := range gateways {
@@ -378,9 +377,6 @@ func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	})
 	UpdateStatus(r.Updater, r.Log, tctx)
 	if isRouteAccepted(gateways) {
-		if l4RoutePolicyErr != nil {
-			return ctrl.Result{}, l4RoutePolicyReconcileError(l4RoutePolicyErr)
-		}
 		routeToUpdate := tr
 		if err := r.Provider.Update(ctx, tctx, routeToUpdate); err != nil {
 			return ctrl.Result{}, err

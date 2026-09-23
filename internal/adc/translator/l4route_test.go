@@ -43,6 +43,7 @@ func TestTranslateTCPRouteWithL4RoutePolicy(t *testing.T) {
 		policy        *v1alpha1.L4RoutePolicy
 		wantPlugins   []string
 		wantNoPlugins bool
+		wantErr       bool
 	}{
 		{
 			name: "attaches plugins from matching L4RoutePolicy",
@@ -51,6 +52,13 @@ func TestTranslateTCPRouteWithL4RoutePolicy(t *testing.T) {
 				{Name: "ip-restriction", Config: mustJSON(map[string]any{"whitelist": []string{"10.0.0.0/8"}})},
 			}),
 			wantPlugins: []string{"limit-conn", "ip-restriction"},
+		},
+		{
+			name: "rejects a policy with a non-object plugin config",
+			policy: makeL4RoutePolicy("default", "tcp-policy", "TCPRoute", "my-tcp", []v1alpha1.Plugin{
+				{Name: "ip-restriction", Config: mustJSON([]string{"10.0.0.0/8"})},
+			}),
+			wantErr: true,
 		},
 		{
 			name: "does not attach plugins from policy targeting different route kind",
@@ -96,6 +104,11 @@ func TestTranslateTCPRouteWithL4RoutePolicy(t *testing.T) {
 			}
 
 			result, err := translator.TranslateTCPRoute(tctx, route)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, result)
+				return
+			}
 			require.NoError(t, err)
 			require.Len(t, result.Services, 1)
 			require.NotEmpty(t, result.Services[0].StreamRoutes)
@@ -118,6 +131,7 @@ func TestTranslateUDPRouteWithL4RoutePolicy(t *testing.T) {
 		policy        *v1alpha1.L4RoutePolicy
 		wantPlugins   []string
 		wantNoPlugins bool
+		wantErr       bool
 	}{
 		{
 			name: "attaches plugins from matching L4RoutePolicy",
@@ -125,6 +139,13 @@ func TestTranslateUDPRouteWithL4RoutePolicy(t *testing.T) {
 				{Name: "limit-conn", Config: mustJSON(map[string]any{"conn": 50})},
 			}),
 			wantPlugins: []string{"limit-conn"},
+		},
+		{
+			name: "rejects a policy with a non-object plugin config",
+			policy: makeL4RoutePolicy("default", "udp-policy", "UDPRoute", "my-udp", []v1alpha1.Plugin{
+				{Name: "ip-restriction", Config: mustJSON("10.0.0.0/8")},
+			}),
+			wantErr: true,
 		},
 		{
 			name: "does not attach plugins from policy targeting TCPRoute",
@@ -163,6 +184,11 @@ func TestTranslateUDPRouteWithL4RoutePolicy(t *testing.T) {
 			}
 
 			result, err := translator.TranslateUDPRoute(tctx, route)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, result)
+				return
+			}
 			require.NoError(t, err)
 			require.Len(t, result.Services, 1)
 			require.NotEmpty(t, result.Services[0].StreamRoutes)
@@ -186,6 +212,7 @@ func TestTranslateTLSRouteWithL4RoutePolicy(t *testing.T) {
 		hostnames     []string
 		wantPlugins   []string
 		wantNoPlugins bool
+		wantErr       bool
 	}{
 		{
 			name: "attaches plugins from matching L4RoutePolicy",
@@ -194,6 +221,14 @@ func TestTranslateTLSRouteWithL4RoutePolicy(t *testing.T) {
 			}),
 			hostnames:   []string{"example.com"},
 			wantPlugins: []string{"ip-restriction"},
+		},
+		{
+			name: "rejects a policy with a non-object plugin config",
+			policy: makeL4RoutePolicy("default", "tls-policy", "TLSRoute", "my-tls", []v1alpha1.Plugin{
+				{Name: "ip-restriction", Config: mustJSON(true)},
+			}),
+			hostnames: []string{"example.com"},
+			wantErr:   true,
 		},
 		{
 			name: "plugins attached once per rule even with multiple SNI hostnames",
@@ -248,6 +283,11 @@ func TestTranslateTLSRouteWithL4RoutePolicy(t *testing.T) {
 			}
 
 			result, err := translator.TranslateTLSRoute(tctx, route)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, result)
+				return
+			}
 			require.NoError(t, err)
 			require.Len(t, result.Services, 1)
 
@@ -269,67 +309,6 @@ func TestTranslateTLSRouteWithL4RoutePolicy(t *testing.T) {
 					}
 				}
 			}
-		})
-	}
-}
-
-func TestTranslateL4RouteRejectsInvalidPolicyPluginConfig(t *testing.T) {
-	for _, tt := range []struct {
-		name      string
-		routeKind string
-		routeName string
-		translate func(*Translator, *provider.TranslateContext) (*TranslateResult, error)
-	}{
-		{
-			name:      "TCPRoute",
-			routeKind: "TCPRoute",
-			routeName: "my-tcp",
-			translate: func(tr *Translator, tctx *provider.TranslateContext) (*TranslateResult, error) {
-				return tr.TranslateTCPRoute(tctx, &gatewayv1.TCPRoute{
-					ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "my-tcp"},
-					Spec:       gatewayv1.TCPRouteSpec{Rules: []gatewayv1.TCPRouteRule{{}}},
-				})
-			},
-		},
-		{
-			name:      "UDPRoute",
-			routeKind: "UDPRoute",
-			routeName: "my-udp",
-			translate: func(tr *Translator, tctx *provider.TranslateContext) (*TranslateResult, error) {
-				return tr.TranslateUDPRoute(tctx, &gatewayv1.UDPRoute{
-					ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "my-udp"},
-					Spec:       gatewayv1.UDPRouteSpec{Rules: []gatewayv1.UDPRouteRule{{}}},
-				})
-			},
-		},
-		{
-			name:      "TLSRoute",
-			routeKind: "TLSRoute",
-			routeName: "my-tls",
-			translate: func(tr *Translator, tctx *provider.TranslateContext) (*TranslateResult, error) {
-				return tr.TranslateTLSRoute(tctx, &gatewayv1.TLSRoute{
-					ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "my-tls"},
-					Spec: gatewayv1.TLSRouteSpec{
-						Hostnames: []gatewayv1.Hostname{"example.com"},
-						Rules:     []gatewayv1.TLSRouteRule{{}},
-					},
-				})
-			},
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			tr := NewTranslator(logr.Discard(), "")
-			tctx := provider.NewDefaultTranslateContext(context.Background())
-			policy := makeL4RoutePolicy("default", "invalid-policy", tt.routeKind, tt.routeName, []v1alpha1.Plugin{
-				{Name: "ip-restriction", Config: mustJSON([]string{"not-an-object"})},
-			})
-			tctx.L4RoutePolicies[k8stypes.NamespacedName{Namespace: policy.Namespace, Name: policy.Name}] = policy
-
-			result, err := tt.translate(tr, tctx)
-
-			require.Error(t, err)
-			assert.Nil(t, result)
-			assert.Contains(t, err.Error(), `plugin "ip-restriction"`)
 		})
 	}
 }
