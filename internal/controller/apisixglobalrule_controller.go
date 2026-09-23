@@ -159,7 +159,7 @@ func (r *ApisixGlobalRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	} else {
 		icWatch = &networkingv1.IngressClass{}
 	}
-	return ctrl.NewControllerManagedBy(mgr).
+	bdr := ctrl.NewControllerManagedBy(mgr).
 		For(&apiv2.ApisixGlobalRule{},
 			builder.WithPredicates(
 				MatchesIngressClassPredicate(r.Client, r.Log, r.ICGV.String()),
@@ -170,6 +170,7 @@ func (r *ApisixGlobalRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				predicate.GenerationChangedPredicate{},
 				predicate.AnnotationChangedPredicate{},
 				predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
+				predicate.NewPredicateFuncs(TypePredicate[*corev1.Namespace]()),
 			),
 		).
 		Watches(
@@ -184,7 +185,8 @@ func (r *ApisixGlobalRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Watches(&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.listGlobalRulesForSecret),
-		).
+		)
+	return watchNamespaceSelector(bdr, r.Client, r.Log, func() client.ObjectList { return &apiv2.ApisixGlobalRuleList{} }).
 		Named("apisixglobalrule").
 		Complete(r)
 }

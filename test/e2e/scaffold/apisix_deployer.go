@@ -285,6 +285,7 @@ func (s *APISIXDeployer) DeployIngress() {
 		ProviderType:       framework.ProviderType,
 		ProviderSyncPeriod: syncPeriod,
 		Namespace:          s.namespace,
+		NamespaceSelector:  s.runtimeOpts.NamespaceSelector,
 		Replicas:           ptr.To(1),
 		WebhookEnable:      s.runtimeOpts.EnableWebhook,
 	})
@@ -300,6 +301,7 @@ func (s *APISIXDeployer) ScaleIngress(replicas int) {
 		ProviderType:       framework.ProviderType,
 		ProviderSyncPeriod: syncPeriod,
 		Namespace:          s.namespace,
+		NamespaceSelector:  s.runtimeOpts.NamespaceSelector,
 		Replicas:           &replicas,
 	})
 }

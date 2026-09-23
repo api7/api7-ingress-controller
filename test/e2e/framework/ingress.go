@@ -53,6 +53,7 @@ type IngressDeployOpts struct {
 	InitSyncDelay      time.Duration
 	WebhookEnable      bool
 	WebhookPort        int
+	NamespaceSelector  []string
 }
 
 func (f *Framework) DeployIngress(opts IngressDeployOpts) {

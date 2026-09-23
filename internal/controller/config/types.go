@@ -70,6 +70,7 @@ type Config struct {
 	ProviderConfig    ProviderConfig     `json:"provider" yaml:"provider"`
 	Webhook           *WebhookConfig     `json:"webhook" yaml:"webhook"`
 	DisableGatewayAPI bool               `json:"disable_gateway_api" yaml:"disable_gateway_api"`
+	NamespaceSelector []string           `json:"namespace_selector" yaml:"namespace_selector"`
 }
 
 type GatewayConfig struct {
