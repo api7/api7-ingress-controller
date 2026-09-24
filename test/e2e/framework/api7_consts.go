@@ -44,4 +44,6 @@ const (
 
 var (
 	IngressVersion = cmp.Or(os.Getenv("INGRESS_VERSION"), "v1")
+
+	API7EEDataplaneImage = cmp.Or(os.Getenv("API7EE_DATAPLANE_IMAGE"), "ghcr.io/api7/api7-ee-3-gateway:dev")
 )
