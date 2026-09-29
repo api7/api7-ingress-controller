@@ -412,7 +412,7 @@ func (t *Translator) fillPluginMetadataFromGatewayProxy(pluginMetadata adctypes.
 		if pluginConfig == nil {
 			return fmt.Errorf("GatewayProxy plugin metadata for %q must be a JSON object", pluginName)
 		}
-		t.Log.V(1).Info("fill plugin_metadata for gateway proxy", "plugin", pluginName, "config", pluginConfig)
+		t.Log.V(1).Info("fill plugin_metadata for gateway proxy", "plugin", pluginName)
 		translated[pluginName] = pluginConfig
 	}
 	for pluginName, pluginConfig := range translated {

@@ -47,6 +47,14 @@ func udpListener(name string, port int32) gatewayv1.Listener {
 	}
 }
 
+func tlsListener(name string, port int32) gatewayv1.Listener {
+	return gatewayv1.Listener{
+		Name:     gatewayv1.SectionName(name),
+		Protocol: gatewayv1.TLSProtocolType,
+		Port:     port,
+	}
+}
+
 func TestTranslateTCPRouteServerPort(t *testing.T) {
 	tests := []struct {
 		name string
@@ -205,6 +213,116 @@ func TestTranslateUDPRouteServerPort(t *testing.T) {
 			}
 			assert.ElementsMatch(t, tt.wantPorts, gotPorts)
 			assert.Len(t, ids, len(streamRoutes))
+		})
+	}
+}
+
+func TestTranslateTLSRouteServerPort(t *testing.T) {
+	tests := []struct {
+		name        string
+		mode        config.ListenerPortMatchMode
+		listeners   []gatewayv1.Listener
+		explicit    bool
+		wantPorts   []int32
+		wantNoMatch bool
+	}{
+		{
+			name:      "explicit sectionName injects the matching listener port",
+			mode:      config.ListenerPortMatchModeAuto,
+			listeners: []gatewayv1.Listener{tlsListener("tls-a", 9110)},
+			explicit:  true,
+			wantPorts: []int32{9110},
+		},
+		{
+			name:      "multiple listener ports produce distinct StreamRoutes",
+			mode:      config.ListenerPortMatchModeAuto,
+			listeners: []gatewayv1.Listener{tlsListener("tls-b", 9111), tlsListener("tls-a", 9110)},
+			wantPorts: []int32{9110, 9111},
+		},
+		{
+			name:      "duplicate ports across gateways are de-duplicated",
+			mode:      config.ListenerPortMatchModeAuto,
+			listeners: []gatewayv1.Listener{tlsListener("tls-a", 9110), tlsListener("tls-a2", 9110)},
+			explicit:  true,
+			wantPorts: []int32{9110},
+		},
+		{
+			name:      "explicit mode injects an explicitly targeted listener",
+			mode:      config.ListenerPortMatchModeExplicit,
+			listeners: []gatewayv1.Listener{tlsListener("tls-a", 9110)},
+			explicit:  true,
+			wantPorts: []int32{9110},
+		},
+		{
+			name:        "single listener without explicit targeting keeps a portless StreamRoute",
+			mode:        config.ListenerPortMatchModeAuto,
+			listeners:   []gatewayv1.Listener{tlsListener("tls-a", 9110)},
+			wantNoMatch: true,
+		},
+		{
+			name:        "explicit mode ignores implicit multi-listener targeting",
+			mode:        config.ListenerPortMatchModeExplicit,
+			listeners:   []gatewayv1.Listener{tlsListener("tls-a", 9110), tlsListener("tls-b", 9111)},
+			wantNoMatch: true,
+		},
+		{
+			name:        "off mode keeps explicit targeting portless",
+			mode:        config.ListenerPortMatchModeOff,
+			listeners:   []gatewayv1.Listener{tlsListener("tls-a", 9110)},
+			explicit:    true,
+			wantNoMatch: true,
+		},
+		{
+			name:        "no matched listener falls back to a single portless StreamRoute",
+			mode:        config.ListenerPortMatchModeAuto,
+			explicit:    true,
+			wantNoMatch: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			translator := NewTranslator(logr.Discard(), tt.mode)
+			tctx := provider.NewDefaultTranslateContext(context.Background())
+			tctx.Listeners = tt.listeners
+			tctx.HasExplicitListenerMatch = tt.explicit
+
+			route := &gatewayv1.TLSRoute{
+				ObjectMeta: metav1.ObjectMeta{Name: "my-tls", Namespace: "default"},
+				Spec: gatewayv1.TLSRouteSpec{
+					Hostnames: []gatewayv1.Hostname{"example.com"},
+					Rules: []gatewayv1.TLSRouteRule{
+						{BackendRefs: []gatewayv1.BackendRef{}},
+					},
+				},
+			}
+
+			result, err := translator.TranslateTLSRoute(tctx, route)
+			require.NoError(t, err)
+			require.Len(t, result.Services, 1)
+			streamRoutes := result.Services[0].StreamRoutes
+
+			if tt.wantNoMatch {
+				require.Len(t, streamRoutes, 1)
+				assert.Zero(t, streamRoutes[0].ServerPort)
+				assert.Equal(t, "example.com", streamRoutes[0].SNI)
+				assert.Equal(t, "default_my-tls_0_TLS", streamRoutes[0].Name)
+				return
+			}
+
+			require.Len(t, streamRoutes, len(tt.wantPorts))
+			gotPorts := make([]int32, 0, len(streamRoutes))
+			ids := make(map[string]struct{})
+			names := make(map[string]struct{})
+			for _, sr := range streamRoutes {
+				gotPorts = append(gotPorts, sr.ServerPort)
+				ids[sr.ID] = struct{}{}
+				names[sr.Name] = struct{}{}
+				assert.Equal(t, "example.com", sr.SNI)
+			}
+			assert.Equal(t, tt.wantPorts, gotPorts)
+			assert.Len(t, ids, len(streamRoutes))
+			assert.Len(t, names, len(streamRoutes))
 		})
 	}
 }

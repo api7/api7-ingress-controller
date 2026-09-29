@@ -84,6 +84,7 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		predicate.GenerationChangedPredicate{},
 		predicate.AnnotationChangedPredicate{},
 		predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
+		predicate.NewPredicateFuncs(TypePredicate[*corev1.Namespace]()),
 	}
 
 	if !r.supportsEndpointSlice {
@@ -110,6 +111,7 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		r.listIngressesByService,
 		r.listIngressesByEndpoints,
 		r.Log)
+	bdr = watchNamespaceSelector(bdr, r.Client, r.Log, func() client.ObjectList { return &networkingv1.IngressList{} })
 
 	return bdr.
 		Watches(
@@ -177,6 +179,9 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	ingressClass, err := FindMatchingIngressClassByObject(tctx, r.Client, r.Log, ingress, "")
 	if err != nil {
+		if !isIngressClassSelectionAbsent(err) {
+			return ctrl.Result{}, err
+		}
 		if err := r.Provider.Delete(ctx, ingress); err != nil {
 			r.Log.Error(err, "failed to delete ingress resources", "ingress", ingress.Name)
 			return ctrl.Result{}, nil

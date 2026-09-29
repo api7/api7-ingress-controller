@@ -197,6 +197,7 @@ func (s *API7Deployer) DeployIngress() {
 		ControllerName:     s.runtimeOpts.ControllerName,
 		ProviderSyncPeriod: 1 * time.Hour,
 		Namespace:          s.namespace,
+		NamespaceSelector:  s.runtimeOpts.NamespaceSelector,
 		Replicas:           ptr.To(1),
 		WebhookEnable:      s.runtimeOpts.EnableWebhook,
 	})
@@ -208,6 +209,7 @@ func (s *API7Deployer) ScaleIngress(replicas int) {
 		ControllerName:     s.runtimeOpts.ControllerName,
 		ProviderSyncPeriod: 1 * time.Hour,
 		Namespace:          s.namespace,
+		NamespaceSelector:  s.runtimeOpts.NamespaceSelector,
 		Replicas:           ptr.To(replicas),
 	})
 }
