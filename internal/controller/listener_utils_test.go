@@ -217,13 +217,19 @@ func TestIntersectRouteHostnamesIgnoresRejectedParents(t *testing.T) {
 	rejectedHost := gatewayv1.Hostname("b.example.com")
 
 	gatewayWith := func(hostname gatewayv1.Hostname) *gatewayv1.Gateway {
-		// The protocol has to be one isListenerHostnameEffective accepts, or
-		// the union branch skips the listener and reads as "no hostnames".
-		l := listener("tls", 443, string(hostname))
-		l.Protocol = gatewayv1.TLSProtocolType
+		h := hostname
 		return &gatewayv1.Gateway{
 			ObjectMeta: metav1.ObjectMeta{Name: string(hostname), Namespace: "default"},
-			Spec:       gatewayv1.GatewaySpec{Listeners: []gatewayv1.Listener{l}},
+			Spec: gatewayv1.GatewaySpec{
+				Listeners: []gatewayv1.Listener{{
+					Name: "tls",
+					Port: 443,
+					// Has to be a protocol isListenerHostnameEffective accepts, or
+					// the union branch skips the listener and reads as "no hostnames".
+					Protocol: gatewayv1.TLSProtocolType,
+					Hostname: &h,
+				}},
+			},
 		}
 	}
 	condition := func(status metav1.ConditionStatus) []metav1.Condition {
