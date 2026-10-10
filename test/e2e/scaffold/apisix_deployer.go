@@ -439,6 +439,9 @@ func (s *APISIXDeployer) CreateAdditionalGatewayWithOptions(namePrefix string, o
 	if opts.ServiceHTTPSPort != 0 {
 		o.ServiceHTTPSPort = opts.ServiceHTTPSPort
 	}
+	if opts.ServiceHTTPSTargetPort != 0 {
+		o.ServiceHTTPSTargetPort = opts.ServiceHTTPSTargetPort
+	}
 	if opts.ProviderType != "" {
 		if opts.ProviderType == framework.ProviderTypeAPISIX {
 			o.ConfigProvider = framework.ConfigProviderTypeEtcd

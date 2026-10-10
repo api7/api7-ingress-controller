@@ -207,3 +207,53 @@ func TestFilterTLSRouteHostnames(t *testing.T) {
 		})
 	}
 }
+
+// A rejected parentRef carries no matched listener, so listenersForGatewayContext
+// falls back to every listener on its Gateway. Without filtering, a hostname only
+// that Gateway accepts survives the intersection and the TLS translator serves it
+// as an SNI through the parent that was accepted.
+func TestIntersectRouteHostnamesIgnoresRejectedParents(t *testing.T) {
+	acceptedHost := gatewayv1.Hostname("a.example.com")
+	rejectedHost := gatewayv1.Hostname("b.example.com")
+
+	gatewayWith := func(hostname gatewayv1.Hostname) *gatewayv1.Gateway {
+		// The protocol has to be one isListenerHostnameEffective accepts, or
+		// the union branch skips the listener and reads as "no hostnames".
+		l := listener("tls", 443, string(hostname))
+		l.Protocol = gatewayv1.TLSProtocolType
+		return &gatewayv1.Gateway{
+			ObjectMeta: metav1.ObjectMeta{Name: string(hostname), Namespace: "default"},
+			Spec:       gatewayv1.GatewaySpec{Listeners: []gatewayv1.Listener{l}},
+		}
+	}
+	condition := func(status metav1.ConditionStatus) []metav1.Condition {
+		return []metav1.Condition{{
+			Type:   string(gatewayv1.RouteConditionAccepted),
+			Status: status,
+		}}
+	}
+
+	accepted := gatewayWith(acceptedHost)
+	rejected := gatewayWith(rejectedHost)
+	gateways := []RouteParentRefContext{
+		{
+			Gateway:    accepted,
+			Listeners:  accepted.Spec.Listeners,
+			Conditions: condition(metav1.ConditionTrue),
+		},
+		{
+			// No matched listener, as ParseRouteParentRefs leaves it.
+			Gateway:    rejected,
+			Conditions: condition(metav1.ConditionFalse),
+		},
+	}
+
+	got, err := intersectRouteHostnames(gateways, []gatewayv1.Hostname{acceptedHost, rejectedHost})
+	require.NoError(t, err)
+	require.Equal(t, []gatewayv1.Hostname{acceptedHost}, got)
+
+	// A route without hostnames takes the union, which must not be widened either.
+	got, err = intersectRouteHostnames(gateways, nil)
+	require.NoError(t, err)
+	require.Equal(t, []gatewayv1.Hostname{acceptedHost}, got)
+}
