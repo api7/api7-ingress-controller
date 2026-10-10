@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -319,15 +320,72 @@ const tlsPassthroughPortName = "tls-passthrough"
 // Verifying is the point: the gateway holds no certificate for a passthrough
 // listener, so a chain that validates against the backend's own CA can only
 // have come from the backend itself.
-func (s *Scaffold) NewAPISIXClientWithTLSPassthrough(sni string, caCert []byte) *httpexpect.Expect {
-	Expect(s.apisixTunnels.TLSPassthrough).NotTo(BeNil(), "tls passthrough tunnel")
+// tlsPassthroughTunnel forwards the data plane's tls_passthrough stream port and
+// hands back a tunnel that has been proven to carry a handshake end to end.
+//
+// Two things make this port different from the others the scaffold forwards.
+//
+// A tls_passthrough listen prereads the ClientHello to pick a stream route, so a
+// connection that carries no TLS gets reset. kubectl port-forward treats that
+// reset as fatal and exits, taking the local listener with it - every later dial
+// then gets "connection refused" rather than anything describing the cause. So
+// the tunnel is verified with a real handshake for sni, never a bare TCP dial,
+// and a failed attempt rebuilds it rather than reusing a forwarder that may
+// already be gone.
+//
+// It is also forwarded on demand rather than alongside the HTTP tunnels when the
+// data plane is deployed: APISIX opens its stream listens later than its HTTP
+// ones, and only this one spec dials this port, so the rest of the suite would
+// pay for a forward it never uses.
+func (s *Scaffold) tlsPassthroughTunnel(sni string, pool *x509.CertPool) Tunnel {
+	svc := s.dataplaneService
+	Expect(svc).NotTo(BeNil(), "data plane service")
 
+	var port int
+	for _, p := range svc.Spec.Ports {
+		if p.Name == tlsPassthroughPortName {
+			port = int(p.Port)
+		}
+	}
+	Expect(port).NotTo(BeZero(), "data plane service has no %s port", tlsPassthroughPortName)
+
+	kubectlOpts := k8s.NewKubectlOptions("", "", svc.Namespace)
+	var tunnel *k8s.Tunnel
+	Eventually(func() error {
+		t := k8s.NewTunnel(kubectlOpts, k8s.ResourceTypeService, svc.Name, 0, port)
+		if err := t.ForwardPortE(s.t); err != nil {
+			return err
+		}
+		// ForwardPortE returns before the forward has proxied anything, so the
+		// handshake is what decides whether this tunnel works.
+		conn, err := tls.DialWithDialer(
+			&net.Dialer{Timeout: 10 * time.Second},
+			"tcp", t.Endpoint(),
+			&tls.Config{ServerName: sni, RootCAs: pool},
+		)
+		if err != nil {
+			t.Close()
+			return err
+		}
+		_ = conn.Close()
+		tunnel = t
+		return nil
+	}).WithTimeout(time.Minute*2).WithPolling(time.Second*2).
+		Should(Succeed(), "forwarding the tls passthrough port")
+
+	s.apisixTunnels.TLSPassthrough = tunnel
+	return tunnel
+}
+
+func (s *Scaffold) NewAPISIXClientWithTLSPassthrough(sni string, caCert []byte) *httpexpect.Expect {
 	pool := x509.NewCertPool()
 	Expect(pool.AppendCertsFromPEM(caCert)).To(BeTrue(), "parsing CA certificate")
 
+	tunnel := s.tlsPassthroughTunnel(sni, pool)
+
 	u := url.URL{
 		Scheme: apiv2.SchemeHTTPS,
-		Host:   s.apisixTunnels.TLSPassthrough.Endpoint(),
+		Host:   tunnel.Endpoint(),
 	}
 	return httpexpect.WithConfig(httpexpect.Config{
 		BaseURL: u.String(),
@@ -459,12 +517,11 @@ func (s *Scaffold) createDataplaneTunnels(
 	serviceName string,
 ) (*Tunnels, error) {
 	var (
-		httpPort           int
-		httpsPort          int
-		tcpPort            int
-		http2Port          int
-		tlsPort            int
-		tlsPassthroughPort int
+		httpPort  int
+		httpsPort int
+		tcpPort   int
+		http2Port int
+		tlsPort   int
 	)
 
 	for _, port := range svc.Spec.Ports {
@@ -479,8 +536,6 @@ func (s *Scaffold) createDataplaneTunnels(
 			http2Port = int(port.Port)
 		case apiv2.SchemeTLS:
 			tlsPort = int(port.Port)
-		case tlsPassthroughPortName:
-			tlsPassthroughPort = int(port.Port)
 		}
 	}
 
@@ -524,16 +579,8 @@ func (s *Scaffold) createDataplaneTunnels(
 		tunnels.HTTP2 = http2Tunnel
 	}
 
-	// Absent on a gateway deployed from an older manifest revision; the specs
-	// that need it assert on the tunnel being there.
-	if tlsPassthroughPort != 0 {
-		tlsPassthroughTunnel := k8s.NewTunnel(kubectlOpts, k8s.ResourceTypeService, serviceName,
-			0, tlsPassthroughPort)
-		if err := tlsPassthroughTunnel.ForwardPortE(s.t); err != nil {
-			return nil, err
-		}
-		tunnels.TLSPassthrough = tlsPassthroughTunnel
-	}
+	// The TLS passthrough tunnel is deliberately not forwarded here. See
+	// tlsPassthroughTunnel.
 
 	return tunnels, nil
 }
