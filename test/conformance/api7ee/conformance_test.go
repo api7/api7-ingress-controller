@@ -31,6 +31,23 @@ var skippedTestsForSSL = []string{
 	tests.HTTPRouteRedirectPortAndScheme.ShortName,
 }
 
+// The TLSRoute tests all pin their listener to mode: Passthrough, which the
+// API7 gateway serves since api7/api7-ee-3-gateway#2173. One of them cannot
+// pass here for the same reason it cannot on the APISIX provider, recorded in
+// test/conformance/conformance_test.go: every Gateway resolves to one data
+// plane address and one physical stream listen, so their SNI namespaces are
+// shared and a name no listener on the addressed Gateway accepts is still
+// answered by a sibling Gateway's route.
+var skippedTestsForKnownGaps = []string{
+	tests.TLSRouteHostnameIntersection.ShortName,
+	// Terminate mode itself is covered by TLSRouteListenerTerminateSupportedKinds
+	// and by the e2e TLSRoute suite. This provisional test additionally requires a
+	// standalone Gateway with no GatewayProxy attached to reach Accepted=True, and
+	// a stream proxy listening on the port it picks; neither holds here, so the
+	// Gateway is rejected with "gateway proxy not found" before any traffic flows.
+	tests.TLSRouteTerminateSimpleSameNamespace.ShortName,
+}
+
 // TODO: HTTPRoute hostname intersection and listener hostname matching
 
 func TestGatewayAPIConformance(t *testing.T) {
@@ -39,6 +56,7 @@ func TestGatewayAPIConformance(t *testing.T) {
 	opts.CleanupBaseResources = true
 	opts.GatewayClassName = gatewayClassName
 	opts.SkipTests = append(opts.SkipTests, skippedTestsForSSL...)
+	opts.SkipTests = append(opts.SkipTests, skippedTestsForKnownGaps...)
 	opts.Implementation = conformancev1.Implementation{
 		Organization: "APISIX",
 		Project:      "apisix-ingress-controller",
