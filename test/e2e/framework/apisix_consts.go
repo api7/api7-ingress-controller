@@ -28,6 +28,10 @@ import (
 
 var (
 	ProviderType = cmp.Or(os.Getenv("PROVIDER_TYPE"), ProviderTypeAPISIXStandalone)
+
+	IngressImage   = cmp.Or(os.Getenv("INGRESS_IMAGE"), "api7/api7-ingress-controller:dev")
+	ADCImage       = cmp.Or(os.Getenv("ADC_IMAGE"), "ghcr.io/api7/adc:dev")
+	DataplaneImage = cmp.Or(os.Getenv("DATAPLANE_IMAGE"), "apache/apisix:dev")
 )
 
 const (

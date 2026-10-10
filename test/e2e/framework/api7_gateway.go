@@ -62,6 +62,9 @@ type API7DeployOptions struct {
 	Replicas         *int
 }
 
+// See IngressDeployOpts.ControllerImage.
+func (API7DeployOptions) Image() string { return API7EEDataplaneImage }
+
 func (f *Framework) DeployGateway(opts *API7DeployOptions) *corev1.Service {
 	if opts.ServiceName == "" {
 		opts.ServiceName = "api7ee3-apisix-gateway-mtls"
