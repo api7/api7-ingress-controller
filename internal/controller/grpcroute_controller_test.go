@@ -37,24 +37,10 @@ import (
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
-	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
 )
 
-const (
-	retractGatewayNamespace = "infra"
-	retractRouteNamespace   = "tenant"
-	retractRouteName        = "route"
-)
-
-// newHTTPRouteRetractFixture builds a Gateway of our class in retractGatewayNamespace
-// and an HTTPRoute in retractRouteNamespace that names it as its parent. from
-// controls the listener's allowedRoutes, which is what revoking cross-namespace
-// access changes.
-func newHTTPRouteRetractFixture(
-	t *testing.T,
-	from gatewayv1.FromNamespaces,
-) (*HTTPRouteReconciler, *recordingProvider, *recordingUpdater) {
+func newGRPCRouteFixture(t *testing.T) (*GRPCRouteReconciler, *recordingProvider, *recordingUpdater) {
 	t.Helper()
 
 	scheme := runtime.NewScheme()
@@ -62,6 +48,7 @@ func newHTTPRouteRetractFixture(
 	require.NoError(t, gatewayv1.Install(scheme))
 	require.NoError(t, v1alpha1.AddToScheme(scheme))
 
+	from := gatewayv1.NamespacesFromAll
 	gatewayClass := &gatewayv1.GatewayClass{
 		ObjectMeta: metav1.ObjectMeta{Name: "apisix"},
 		Spec: gatewayv1.GatewayClassSpec{
@@ -82,9 +69,9 @@ func newHTTPRouteRetractFixture(
 			}},
 		},
 	}
-	route := &gatewayv1.HTTPRoute{
+	route := &gatewayv1.GRPCRoute{
 		ObjectMeta: metav1.ObjectMeta{Namespace: retractRouteNamespace, Name: retractRouteName},
-		Spec: gatewayv1.HTTPRouteSpec{
+		Spec: gatewayv1.GRPCRouteSpec{
 			CommonRouteSpec: gatewayv1.CommonRouteSpec{
 				ParentRefs: []gatewayv1.ParentReference{{
 					Name:      gatewayv1.ObjectName(gateway.Name),
@@ -97,10 +84,6 @@ func newHTTPRouteRetractFixture(
 	cli := fake.NewClientBuilder().WithScheme(scheme).
 		WithObjects([]client.Object{gatewayClass, gateway, route}...).
 		WithStatusSubresource(route).
-		// The reconcile lists HTTPRoutePolicies by target, which the fake client
-		// only serves once the index exists. No policy is under test here.
-		WithIndex(&v1alpha1.HTTPRoutePolicy{}, indexer.PolicyTargetRefs,
-			func(client.Object) []string { return nil }).
 		Build()
 
 	readier := readiness.NewReadinessManager(cli, logr.Discard())
@@ -108,7 +91,7 @@ func newHTTPRouteRetractFixture(
 
 	prov := &recordingProvider{}
 	updater := &recordingUpdater{}
-	return &HTTPRouteReconciler{
+	return &GRPCRouteReconciler{
 		Client:   cli,
 		Scheme:   scheme,
 		Log:      logr.Discard(),
@@ -118,59 +101,10 @@ func newHTTPRouteRetractFixture(
 	}, prov, updater
 }
 
-func reconcileRetractHTTPRoute(t *testing.T, r *HTTPRouteReconciler) (ctrl.Result, error) {
-	t.Helper()
-	return r.Reconcile(context.Background(), ctrl.Request{
-		NamespacedName: k8stypes.NamespacedName{Namespace: retractRouteNamespace, Name: retractRouteName},
-	})
-}
-
-var retractRouteKey = k8stypes.NamespacedName{Namespace: retractRouteNamespace, Name: retractRouteName}
-
-// Narrowing a listener's allowedRoutes leaves the HTTPRoute in place but stops it
-// being accepted. The configuration an earlier reconcile published must be
-// retracted, otherwise the data plane keeps serving a route the Gateway no longer
-// admits and only deleting the HTTPRoute clears it.
-func TestHTTPRouteReconcile_RetractsWhenListenerStopsAllowingRoute(t *testing.T) {
-	r, prov, _ := newHTTPRouteRetractFixture(t, gatewayv1.NamespacesFromSame)
-
-	result, err := reconcileRetractHTTPRoute(t, r)
-
-	require.NoError(t, err)
-	assert.Equal(t, ctrl.Result{}, result)
-	assert.Equal(t, []k8stypes.NamespacedName{retractRouteKey}, prov.deleted)
-	assert.Zero(t, prov.updated, "a route that is not accepted must not be published")
-}
-
-// An accepted route must still be published and must not be retracted.
-func TestHTTPRouteReconcile_PublishesAcceptedRoute(t *testing.T) {
-	r, prov, updater := newHTTPRouteRetractFixture(t, gatewayv1.NamespacesFromAll)
-
-	_, err := reconcileRetractHTTPRoute(t, r)
-
-	require.NoError(t, err)
-	assert.Empty(t, prov.deleted, "an accepted route must not be retracted")
-	assert.Equal(t, 1, prov.updated)
-
-	accepted := acceptedConditionFromUpdater(t, updater)
-	assert.Equal(t, metav1.ConditionTrue, accepted.Status)
-}
-
-// A provider failure while retracting must surface so the reconcile is retried.
-func TestHTTPRouteReconcile_RetractErrorIsReturned(t *testing.T) {
-	r, prov, _ := newHTTPRouteRetractFixture(t, gatewayv1.NamespacesFromSame)
-	prov.deleteErr = errors.New("provider unavailable")
-
-	_, err := reconcileRetractHTTPRoute(t, r)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "provider unavailable")
-}
-
-func acceptedConditionFromUpdater(t *testing.T, updater *recordingUpdater) *metav1.Condition {
+func grpcAcceptedConditionFromUpdater(t *testing.T, updater *recordingUpdater) *metav1.Condition {
 	t.Helper()
 	require.NotEmpty(t, updater.updates)
-	mutated, ok := updater.updates[0].Mutator.Mutate(&gatewayv1.HTTPRoute{}).(*gatewayv1.HTTPRoute)
+	mutated, ok := updater.updates[0].Mutator.Mutate(&gatewayv1.GRPCRoute{}).(*gatewayv1.GRPCRoute)
 	require.True(t, ok)
 	require.Len(t, mutated.Status.Parents, 1)
 	accepted := meta.FindStatusCondition(mutated.Status.Parents[0].Conditions, string(gatewayv1.RouteConditionAccepted))
@@ -180,18 +114,20 @@ func acceptedConditionFromUpdater(t *testing.T, updater *recordingUpdater) *meta
 
 // A translation / Provider.Update failure must be visible on the route status
 // instead of Accepted=True plus a silent requeue.
-func TestHTTPRouteReconcile_UpdateErrorIsVisibleOnStatus(t *testing.T) {
-	r, prov, updater := newHTTPRouteRetractFixture(t, gatewayv1.NamespacesFromAll)
+func TestGRPCRouteReconcile_UpdateErrorIsVisibleOnStatus(t *testing.T) {
+	r, prov, updater := newGRPCRouteFixture(t)
 	prov.updateErr = errors.New("translation failed")
 
-	_, err := reconcileRetractHTTPRoute(t, r)
+	_, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: k8stypes.NamespacedName{Namespace: retractRouteNamespace, Name: retractRouteName},
+	})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "translation failed")
 	assert.Equal(t, 1, prov.updated)
 	assert.Empty(t, prov.deleted)
 
-	accepted := acceptedConditionFromUpdater(t, updater)
+	accepted := grpcAcceptedConditionFromUpdater(t, updater)
 	assert.Equal(t, metav1.ConditionFalse, accepted.Status)
 	assert.Contains(t, accepted.Message, "translation failed")
 }
