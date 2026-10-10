@@ -20,7 +20,9 @@ package manager
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"os"
+	"strings"
 
 	"github.com/go-logr/logr"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
@@ -333,6 +335,7 @@ func checkK8sVersion(mgr ctrl.Manager, logger logr.Logger) {
 		logger.Info("failed to parse server version", "error", err)
 		return
 	}
+	currentVersion = releaseVersion(currentVersion)
 
 	if !currentVersion.AtLeast(minV) {
 		logger.Info("WARNING: Kubernetes cluster version does not meet minimum requirement",
@@ -340,4 +343,24 @@ func checkK8sVersion(mgr ctrl.Manager, logger logr.Logger) {
 			"minimumVersion", minV.String(),
 		)
 	}
+}
+
+// releaseVersion drops a distribution suffix so it does not read as a
+// prerelease. Managed clusters report versions like v1.31.0-eks-a737599 or
+// v1.32.1-gke.1000000, and semver sorts a prerelease below the same release,
+// so an EKS cluster running exactly the minimum would otherwise be reported as
+// too old. Only alpha/beta/rc are real prereleases; anything else is a vendor
+// tag and does not make the cluster older than its release.
+func releaseVersion(v *version.Version) *version.Version {
+	pre := v.PreRelease()
+	if pre == "" {
+		return v
+	}
+	for _, prefix := range []string{"alpha", "beta", "rc"} {
+		if strings.HasPrefix(pre, prefix) {
+			return v
+		}
+	}
+	// WithPreRelease("") is a no-op, so rebuild from the release components.
+	return version.MustParseSemantic(fmt.Sprintf("%d.%d.%d", v.Major(), v.Minor(), v.Patch()))
 }
