@@ -1504,27 +1504,11 @@ func listenersForGatewayContext(gateway RouteParentRefContext) []gatewayv1.Liste
 	return gateway.Gateway.Spec.Listeners
 }
 
-// appendListeners appends listeners to the slice, avoiding duplicates by port+name.
-func appendListeners(existing []gatewayv1.Listener, toAdd ...gatewayv1.Listener) []gatewayv1.Listener {
-	// Listener names are only unique within a Gateway, while this slice is
-	// aggregated across every Gateway the route attaches to, so the name alone
-	// would collapse distinct listeners such as two "http" on different ports.
-	type listenerKey struct {
-		name string
-		port gatewayv1.PortNumber
-	}
-	seen := make(map[listenerKey]struct{}, len(existing))
-	for _, l := range existing {
-		seen[listenerKey{name: string(l.Name), port: l.Port}] = struct{}{}
-	}
-	for _, l := range toAdd {
-		key := listenerKey{name: string(l.Name), port: l.Port}
-		if _, ok := seen[key]; !ok {
-			existing = append(existing, l)
-			seen[key] = struct{}{}
-		}
-	}
-	return existing
+// appendListeners appends listeners without de-duplication.
+// Route translation aggregates listeners across multiple Gateways, and listener
+// names are only unique within a single Gateway.
+func appendListeners(target []gatewayv1.Listener, source ...gatewayv1.Listener) []gatewayv1.Listener {
+	return append(target, source...)
 }
 
 // getMinimumHostnameIntersection returns the smallest intersection hostname

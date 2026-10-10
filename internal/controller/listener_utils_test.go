@@ -20,6 +20,7 @@ package controller
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -36,19 +37,43 @@ func listener(name string, port gatewayv1.PortNumber, hostname string) gatewayv1
 	}
 	return l
 }
+func TestAppendListeners(t *testing.T) {
+	listenerA := gatewayv1.Listener{Name: "a", Port: 80}
+	listenerB := gatewayv1.Listener{Name: "b", Port: 81}
+	listenerA2 := gatewayv1.Listener{Name: "a", Port: 82}
+	listenerA3 := gatewayv1.Listener{Name: "a", Port: 80}
 
-func TestAppendListenersKeepsSameNameOnDifferentPorts(t *testing.T) {
-	// Listener names are unique per Gateway only, and this slice spans every
-	// Gateway a route attaches to.
-	got := appendListeners(nil,
-		listener("http", 80, ""),
-		listener("http", 8080, ""),
-		listener("http", 80, ""),
-	)
+	tests := []struct {
+		name     string
+		target   []gatewayv1.Listener
+		source   []gatewayv1.Listener
+		expected []gatewayv1.Listener
+	}{
+		{
+			name:     "empty target, add listeners",
+			target:   nil,
+			source:   []gatewayv1.Listener{listenerA, listenerB},
+			expected: []gatewayv1.Listener{listenerA, listenerB},
+		},
+		{
+			name:     "preserves same listener names from different gateways",
+			target:   []gatewayv1.Listener{listenerA},
+			source:   []gatewayv1.Listener{listenerA, listenerB},
+			expected: []gatewayv1.Listener{listenerA, listenerA, listenerB},
+		},
+		{
+			name:     "preserves all listeners when names collide",
+			target:   []gatewayv1.Listener{listenerA},
+			source:   []gatewayv1.Listener{listenerB, listenerA2, listenerA3},
+			expected: []gatewayv1.Listener{listenerA, listenerB, listenerA2, listenerA3},
+		},
+	}
 
-	require.Len(t, got, 2)
-	require.Equal(t, gatewayv1.PortNumber(80), got[0].Port)
-	require.Equal(t, gatewayv1.PortNumber(8080), got[1].Port)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, appendListeners(tt.target, tt.source...))
+		})
+	}
 }
 
 func TestListenersForGatewayContext(t *testing.T) {
