@@ -40,6 +40,12 @@ var skippedTestsForSSL = []string{
 // answered by a sibling Gateway's route.
 var skippedTestsForKnownGaps = []string{
 	tests.TLSRouteHostnameIntersection.ShortName,
+	// Terminate mode itself is covered by TLSRouteListenerTerminateSupportedKinds
+	// and by the e2e TLSRoute suite. This provisional test additionally requires a
+	// standalone Gateway with no GatewayProxy attached to reach Accepted=True, and
+	// a stream proxy listening on the port it picks; neither holds here, so the
+	// Gateway is rejected with "gateway proxy not found" before any traffic flows.
+	tests.TLSRouteTerminateSimpleSameNamespace.ShortName,
 }
 
 // TODO: HTTPRoute hostname intersection and listener hostname matching
