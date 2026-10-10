@@ -88,6 +88,7 @@ func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		predicate.GenerationChangedPredicate{},
 		predicate.AnnotationChangedPredicate{},
 		predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
+		predicate.NewPredicateFuncs(TypePredicate[*corev1.Namespace]()),
 	}
 
 	if !r.supportsEndpointSlice {
@@ -117,6 +118,7 @@ func (r *ApisixRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		r.listApisixRoutesForService,
 		r.listApisixRoutesForEndpoints,
 		r.Log)
+	bdr = watchNamespaceSelector(bdr, r.Client, r.Log, func() client.ObjectList { return &apiv2.ApisixRouteList{} })
 
 	return bdr.
 		Watches(&corev1.Secret{},
@@ -163,6 +165,9 @@ func (r *ApisixRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		r.Log.V(1).Info("no matching IngressClass available",
 			"ingressClassName", ar.Spec.IngressClassName,
 			"error", err.Error())
+		if !isIngressClassSelectionAbsent(err) {
+			return ctrl.Result{}, err
+		}
 		if err := r.Provider.Delete(ctx, &ar); err != nil {
 			r.Log.Error(err, "failed to delete apisixroute", "apisixroute", utils.NamespacedName(&ar))
 			return ctrl.Result{}, err
@@ -220,7 +225,7 @@ func (r *ApisixRouteReconciler) processApisixRoute(tctx *provider.TranslateConte
 		rules[http.Name] = struct{}{}
 
 		// check secret
-		if err := r.validatePlugins(tctx, in, http.Plugins); err != nil {
+		if err := r.validatePlugins(tctx, in.Namespace, http.Plugins); err != nil {
 			return err
 		}
 
@@ -268,7 +273,7 @@ func (r *ApisixRouteReconciler) processApisixRoute(tctx *provider.TranslateConte
 		rules[stream.Name] = struct{}{}
 
 		// check secret
-		if err := r.validatePlugins(tctx, in, stream.Plugins); err != nil {
+		if err := r.validatePlugins(tctx, in.Namespace, stream.Plugins); err != nil {
 			return err
 		}
 
@@ -281,14 +286,14 @@ func (r *ApisixRouteReconciler) processApisixRoute(tctx *provider.TranslateConte
 	return nil
 }
 
-func (r *ApisixRouteReconciler) validatePlugins(tctx *provider.TranslateContext, in *apiv2.ApisixRoute, plugins []apiv2.ApisixRoutePlugin) error {
+func (r *ApisixRouteReconciler) validatePlugins(tctx *provider.TranslateContext, namespace string, plugins []apiv2.ApisixRoutePlugin) error {
 	// check secret
 	for _, plugin := range plugins {
 		if !plugin.Enable {
 			continue
 		}
 		// check secret
-		if err := r.validateSecrets(tctx, in, plugin.SecretRef); err != nil {
+		if err := r.validateSecrets(tctx, namespace, plugin.SecretRef); err != nil {
 			return err
 		}
 	}
@@ -355,14 +360,15 @@ func (r *ApisixRouteReconciler) validatePluginConfig(tctx *provider.TranslateCon
 
 	tctx.ApisixPluginConfigs[pcNN] = &pc
 
-	// Also check secrets referenced by plugin config
-	if err := r.validatePlugins(tctx, in, pc.Spec.Plugins); err != nil {
+	// Secrets referenced by the plugin config resolve in its own namespace,
+	// which differs from the route's when plugin_config_namespace is set.
+	if err := r.validatePlugins(tctx, pc.Namespace, pc.Spec.Plugins); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (r *ApisixRouteReconciler) validateSecrets(tctx *provider.TranslateContext, in *apiv2.ApisixRoute, secretRef string) error {
+func (r *ApisixRouteReconciler) validateSecrets(tctx *provider.TranslateContext, namespace string, secretRef string) error {
 	if secretRef == "" {
 		return nil
 	}
@@ -370,7 +376,7 @@ func (r *ApisixRouteReconciler) validateSecrets(tctx *provider.TranslateContext,
 		secret = corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      secretRef,
-				Namespace: in.Namespace,
+				Namespace: namespace,
 			},
 		}
 		secretNN = utils.NamespacedName(&secret)
