@@ -20,14 +20,19 @@ package controller
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
+	cutils "github.com/apache/apisix-ingress-controller/internal/controller/utils"
 )
 
 func listener(name string, port gatewayv1.PortNumber, hostname string) gatewayv1.Listener {
 	l := gatewayv1.Listener{
-		Name: gatewayv1.SectionName(name),
-		Port: port,
+		Name:     gatewayv1.SectionName(name),
+		Protocol: gatewayv1.HTTPProtocolType,
+		Port:     port,
 	}
 	if hostname != "" {
 		h := gatewayv1.Hostname(hostname)
@@ -35,19 +40,43 @@ func listener(name string, port gatewayv1.PortNumber, hostname string) gatewayv1
 	}
 	return l
 }
+func TestAppendListeners(t *testing.T) {
+	listenerA := gatewayv1.Listener{Name: "a", Port: 80}
+	listenerB := gatewayv1.Listener{Name: "b", Port: 81}
+	listenerA2 := gatewayv1.Listener{Name: "a", Port: 82}
+	listenerA3 := gatewayv1.Listener{Name: "a", Port: 80}
 
-func TestAppendListenersKeepsSameNameOnDifferentPorts(t *testing.T) {
-	// Listener names are unique per Gateway only, and this slice spans every
-	// Gateway a route attaches to.
-	got := appendListeners(nil,
-		listener("http", 80, ""),
-		listener("http", 8080, ""),
-		listener("http", 80, ""),
-	)
+	tests := []struct {
+		name     string
+		target   []gatewayv1.Listener
+		source   []gatewayv1.Listener
+		expected []gatewayv1.Listener
+	}{
+		{
+			name:     "empty target, add listeners",
+			target:   nil,
+			source:   []gatewayv1.Listener{listenerA, listenerB},
+			expected: []gatewayv1.Listener{listenerA, listenerB},
+		},
+		{
+			name:     "preserves same listener names from different gateways",
+			target:   []gatewayv1.Listener{listenerA},
+			source:   []gatewayv1.Listener{listenerA, listenerB},
+			expected: []gatewayv1.Listener{listenerA, listenerA, listenerB},
+		},
+		{
+			name:     "preserves all listeners when names collide",
+			target:   []gatewayv1.Listener{listenerA},
+			source:   []gatewayv1.Listener{listenerB, listenerA2, listenerA3},
+			expected: []gatewayv1.Listener{listenerA, listenerB, listenerA2, listenerA3},
+		},
+	}
 
-	require.Len(t, got, 2)
-	require.Equal(t, gatewayv1.PortNumber(80), got[0].Port)
-	require.Equal(t, gatewayv1.PortNumber(8080), got[1].Port)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, appendListeners(tt.target, tt.source...))
+		})
+	}
 }
 
 func TestListenersForGatewayContext(t *testing.T) {
@@ -89,11 +118,11 @@ func TestListenersForGatewayContext(t *testing.T) {
 	})
 }
 
-// TestGetMinimumHostnameIntersectionUsesMatchedListeners pins the intersection to
-// the listeners the parentRef actually selected. A parentRef selecting by port
-// leaves ListenerName empty, so filtering by name alone would let a route keep a
+// TestNarrowHostnameUsesMatchedListeners pins the intersection to the listeners
+// the parentRef actually selected. A parentRef selecting by port leaves
+// ListenerName empty, so filtering by name alone would let a route keep a
 // hostname that only a listener on a different port serves.
-func TestGetMinimumHostnameIntersectionUsesMatchedListeners(t *testing.T) {
+func TestNarrowHostnameUsesMatchedListeners(t *testing.T) {
 	gateway := &gatewayv1.Gateway{}
 	gateway.Spec.Listeners = []gatewayv1.Listener{
 		listener("http-a", 80, "a.example.com"),
@@ -104,14 +133,214 @@ func TestGetMinimumHostnameIntersectionUsesMatchedListeners(t *testing.T) {
 		Listeners: []gatewayv1.Listener{gateway.Spec.Listeners[0]},
 	}}
 
-	require.Equal(t, gatewayv1.Hostname("a.example.com"),
-		getMinimumHostnameIntersection(portSelected, "a.example.com"))
-	require.Empty(t, getMinimumHostnameIntersection(portSelected, "b.example.com"),
+	require.Equal(t, []gatewayv1.Hostname{"a.example.com"},
+		cutils.NarrowHostname(hostnameEffectiveListeners(portSelected), "a.example.com"))
+	require.Empty(t, cutils.NarrowHostname(hostnameEffectiveListeners(portSelected), "b.example.com"),
 		"a hostname served only by the untargeted listener must not survive")
 
 	// Without a matched listener the whole spec is still considered, so both
 	// hostnames intersect as before.
 	whole := []RouteParentRefContext{{Gateway: gateway}}
-	require.Equal(t, gatewayv1.Hostname("b.example.com"),
-		getMinimumHostnameIntersection(whole, "b.example.com"))
+	require.Equal(t, []gatewayv1.Hostname{"b.example.com"},
+		cutils.NarrowHostname(hostnameEffectiveListeners(whole), "b.example.com"))
+}
+
+// The Gateway API conformance case TLSRouteHostnameIntersection turns on this:
+// four Gateways whose TLS listeners carry different hostnames all resolve to one
+// physical stream listen, so a TLSRoute keeping its own hostname verbatim serves
+// SNIs its listener never accepted and steals them from the route whose listener
+// did.
+func TestFilterTLSRouteHostnames(t *testing.T) {
+	exact := gatewayv1.Hostname("abc.example.com")
+	moreSpecificWildcard := gatewayv1.Hostname("*.example.com")
+	lessSpecificWildcard := gatewayv1.Hostname("*.com")
+
+	tlsListener := func(name string, hostname *gatewayv1.Hostname) gatewayv1.Listener {
+		return gatewayv1.Listener{
+			Name:     gatewayv1.SectionName(name),
+			Protocol: gatewayv1.TLSProtocolType,
+			Port:     443,
+			Hostname: hostname,
+		}
+	}
+	route := func(hostnames ...gatewayv1.Hostname) *gatewayv1.TLSRoute {
+		return &gatewayv1.TLSRoute{
+			ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+			Spec:       gatewayv1.TLSRouteSpec{Hostnames: hostnames},
+		}
+	}
+
+	for _, tc := range []struct {
+		name      string
+		listener  *gatewayv1.Hostname
+		hostnames []gatewayv1.Hostname
+		want      []gatewayv1.Hostname
+		wantErr   bool
+	}{
+		{
+			name:      "a wildcard route narrows to the exact listener hostname",
+			listener:  &exact,
+			hostnames: []gatewayv1.Hostname{moreSpecificWildcard},
+			want:      []gatewayv1.Hostname{exact},
+		},
+		{
+			name:      "a broader wildcard route narrows to the listener wildcard",
+			listener:  &moreSpecificWildcard,
+			hostnames: []gatewayv1.Hostname{lessSpecificWildcard},
+			want:      []gatewayv1.Hostname{moreSpecificWildcard},
+		},
+		{
+			name:      "an exact route under a listener wildcard keeps its own hostname",
+			listener:  &moreSpecificWildcard,
+			hostnames: []gatewayv1.Hostname{exact},
+			want:      []gatewayv1.Hostname{exact},
+		},
+		{
+			name:      "a listener without a hostname leaves the route alone",
+			listener:  nil,
+			hostnames: []gatewayv1.Hostname{lessSpecificWildcard},
+			want:      []gatewayv1.Hostname{lessSpecificWildcard},
+		},
+		{
+			name:      "a route without hostnames takes the listener hostname",
+			listener:  &moreSpecificWildcard,
+			hostnames: nil,
+			want:      []gatewayv1.Hostname{moreSpecificWildcard},
+		},
+		{
+			name:      "a route without hostnames under a hostname-less listener matches anything",
+			listener:  nil,
+			hostnames: nil,
+			want:      nil,
+		},
+		{
+			name:      "no intersection is rejected",
+			listener:  &exact,
+			hostnames: []gatewayv1.Hostname{gatewayv1.Hostname("other.example.net")},
+			wantErr:   true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			gateways := []RouteParentRefContext{
+				{Listeners: []gatewayv1.Listener{tlsListener("tls", tc.listener)}},
+			}
+
+			filtered, err := filterTLSRouteHostnames(gateways, route(tc.hostnames...).DeepCopy())
+			if tc.wantErr {
+				require.ErrorIs(t, err, ErrNoMatchingListenerHostname)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, filtered.Spec.Hostnames)
+		})
+	}
+}
+
+// A rejected parentRef carries no matched listener, so listenersForGatewayContext
+// falls back to every listener on its Gateway. Without filtering, a hostname only
+// that Gateway accepts survives the intersection and the TLS translator serves it
+// as an SNI through the parent that was accepted.
+func TestIntersectRouteHostnamesIgnoresRejectedParents(t *testing.T) {
+	acceptedHost := gatewayv1.Hostname("a.example.com")
+	rejectedHost := gatewayv1.Hostname("b.example.com")
+
+	gatewayWith := func(hostname gatewayv1.Hostname) *gatewayv1.Gateway {
+		h := hostname
+		return &gatewayv1.Gateway{
+			ObjectMeta: metav1.ObjectMeta{Name: string(hostname), Namespace: "default"},
+			Spec: gatewayv1.GatewaySpec{
+				Listeners: []gatewayv1.Listener{{
+					Name: "tls",
+					Port: 443,
+					// Has to be a protocol isListenerHostnameEffective accepts, or
+					// the union branch skips the listener and reads as "no hostnames".
+					Protocol: gatewayv1.TLSProtocolType,
+					Hostname: &h,
+				}},
+			},
+		}
+	}
+	condition := func(status metav1.ConditionStatus) []metav1.Condition {
+		return []metav1.Condition{{
+			Type:   string(gatewayv1.RouteConditionAccepted),
+			Status: status,
+		}}
+	}
+
+	accepted := gatewayWith(acceptedHost)
+	rejected := gatewayWith(rejectedHost)
+	gateways := []RouteParentRefContext{
+		{
+			Gateway:    accepted,
+			Listeners:  accepted.Spec.Listeners,
+			Conditions: condition(metav1.ConditionTrue),
+		},
+		{
+			// No matched listener, as ParseRouteParentRefs leaves it.
+			Gateway:    rejected,
+			Conditions: condition(metav1.ConditionFalse),
+		},
+	}
+
+	got, err := intersectRouteHostnames(gateways, []gatewayv1.Hostname{acceptedHost, rejectedHost})
+	require.NoError(t, err)
+	require.Equal(t, []gatewayv1.Hostname{acceptedHost}, got)
+
+	// A route without hostnames takes the union, which must not be widened either.
+	got, err = intersectRouteHostnames(gateways, nil)
+	require.NoError(t, err)
+	require.Equal(t, []gatewayv1.Hostname{acceptedHost}, got)
+}
+
+// A route hostname that covers several listener hostnames intersects with every
+// one of them. Keeping only the first left the names the other listeners accept
+// unserved.
+func TestIntersectRouteHostnamesKeepsEveryIntersection(t *testing.T) {
+	aHostname := gatewayv1.Hostname("a.example.com")
+	bHostname := gatewayv1.Hostname("b.example.com")
+	gateways := []RouteParentRefContext{
+		{
+			Listeners: []gatewayv1.Listener{
+				{Name: "a", Protocol: gatewayv1.TLSProtocolType, Port: gatewayv1.PortNumber(443), Hostname: &aHostname},
+				{Name: "b", Protocol: gatewayv1.TLSProtocolType, Port: gatewayv1.PortNumber(443), Hostname: &bHostname},
+			},
+			Conditions: []metav1.Condition{
+				{
+					Type:   string(gatewayv1.RouteConditionAccepted),
+					Status: metav1.ConditionTrue,
+				},
+			},
+		},
+	}
+
+	got, err := intersectRouteHostnames(gateways, []gatewayv1.Hostname{"*.example.com"})
+	require.NoError(t, err)
+	assert.Equal(t, []gatewayv1.Hostname{aHostname, bHostname}, got)
+}
+
+// The same hostname contributed by two listeners is one hostname: listeners are
+// aggregated across Gateways without de-duplication.
+func TestIntersectRouteHostnamesDedups(t *testing.T) {
+	hostname := gatewayv1.Hostname("a.example.com")
+	listener := gatewayv1.Listener{
+		Name: "a", Protocol: gatewayv1.TLSProtocolType, Port: gatewayv1.PortNumber(443), Hostname: &hostname,
+	}
+	accepted := []metav1.Condition{
+		{
+			Type:   string(gatewayv1.RouteConditionAccepted),
+			Status: metav1.ConditionTrue,
+		},
+	}
+	gateways := []RouteParentRefContext{
+		{Listeners: []gatewayv1.Listener{listener}, Conditions: accepted},
+		{Listeners: []gatewayv1.Listener{listener}, Conditions: accepted},
+	}
+
+	got, err := intersectRouteHostnames(gateways, []gatewayv1.Hostname{"*.example.com"})
+	require.NoError(t, err)
+	assert.Equal(t, []gatewayv1.Hostname{hostname}, got)
+
+	got, err = intersectRouteHostnames(gateways, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []gatewayv1.Hostname{hostname}, got)
 }

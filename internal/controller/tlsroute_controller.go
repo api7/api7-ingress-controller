@@ -67,7 +67,14 @@ func (r *TLSRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	bdr := ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.TLSRoute{}).
-		WithEventFilter(predicate.GenerationChangedPredicate{}).
+		// A Secret carries no generation, so GenerationChangedPredicate would drop its
+		// updates and a plugin would keep the Secret data read at the last spec change.
+		WithEventFilter(
+			predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
+			),
+		).
 		Watches(&discoveryv1.EndpointSlice{},
 			handler.EnqueueRequestsFromMapFunc(r.listTLSRoutesByServiceRef),
 		).
@@ -107,7 +114,10 @@ func (r *TLSRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.supportsL4RoutePolicy {
 		bdr.Watches(&v1alpha1.L4RoutePolicy{},
 			handler.EnqueueRequestsFromMapFunc(r.listTLSRoutesForL4RoutePolicy),
-		)
+		).
+			Watches(&corev1.Secret{},
+				handler.EnqueueRequestsFromMapFunc(r.listTLSRoutesForSecret),
+			)
 	}
 
 	if GetEnableReferenceGrant() {
@@ -307,6 +317,15 @@ func (r *TLSRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			acceptStatus.status = false
 			acceptStatus.msg = err.Error()
 		}
+		// Populate the matched listeners so the translator can derive the
+		// StreamRoute server_port and its tls.mode from the listener the route
+		// attaches to.
+		if len(gateway.Listeners) > 0 {
+			tctx.Listeners = appendListeners(tctx.Listeners, gateway.Listeners...)
+		} else if gateway.Listener != nil {
+			tctx.Listeners = appendListeners(tctx.Listeners, *gateway.Listener)
+		}
+		tctx.HasExplicitListenerMatch = tctx.HasExplicitListenerMatch || gateway.ExplicitListenerMatch
 	}
 
 	var backendRefErr error
@@ -329,6 +348,30 @@ func (r *TLSRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	ProcessBackendTrafficPolicy(r.Client, r.Log, tctx)
 	if r.supportsL4RoutePolicy {
 		ProcessL4RoutePolicy(r.Client, r.Log, tctx, tr.Namespace, tr.Name, types.KindTLSRoute)
+	}
+
+	// The hostnames become the SNIs the stream routes match on, so they have to be
+	// narrowed to what the listeners accept first. Every Gateway shares one physical
+	// stream listen, so a route keeping its own broader hostname does not merely
+	// over-serve: it takes that name from the route whose listener does accept it.
+	filteredTLSRoute, hostnameErr := filterTLSRouteHostnames(gateways, tr.DeepCopy())
+	if hostnameErr != nil {
+		acceptStatus.status = false
+		acceptStatus.msg = hostnameErr.Error()
+	}
+	// Translate and sync before writing Accepted=True. A translation or
+	// buildConfig failure from Provider.Update used to leave a green status
+	// and only requeue, matching neither Ingress nor ApisixGlobalRule.
+	var syncErr error
+	if isRouteAccepted(gateways) && hostnameErr == nil {
+		routeToUpdate := tr
+		if filteredTLSRoute != nil {
+			routeToUpdate = filteredTLSRoute
+		}
+		if syncErr = r.Provider.Update(ctx, tctx, routeToUpdate); syncErr != nil {
+			acceptStatus.status = false
+			acceptStatus.msg = syncErr.Error()
+		}
 	}
 	tr.Status.Parents = make([]gatewayv1.RouteParentStatus, 0, len(gateways))
 	for _, gateway := range gateways {
@@ -358,11 +401,22 @@ func (r *TLSRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		}),
 	})
 	UpdateStatus(r.Updater, r.Log, tctx)
-	if isRouteAccepted(gateways) {
-		routeToUpdate := tr
-		if err := r.Provider.Update(ctx, tctx, routeToUpdate); err != nil {
-			return ctrl.Result{}, err
-		}
+	if isRouteAccepted(gateways) && hostnameErr == nil {
+		return ctrl.Result{}, syncErr
+	}
+
+	// The route still resolves to one of our Gateways but no parent accepts it any
+	// more, so retract what an earlier reconcile published. The store is what every
+	// sync pushes, so leaving the entry keeps the data plane serving the route.
+	// Provider.Delete derives the resource labels from the object Kind, which is not
+	// set on every object read through the client.
+	tr.TypeMeta = metav1.TypeMeta{
+		Kind:       types.KindTLSRoute,
+		APIVersion: gatewayv1.GroupVersion.String(),
+	}
+	if err := r.Provider.Delete(ctx, tr); err != nil {
+		r.Log.Error(err, "failed to delete tlsroute", "tlsroute", utils.NamespacedName(tr))
+		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
 }
@@ -564,4 +618,13 @@ func (r *TLSRouteReconciler) listTLSRoutesForL4RoutePolicy(ctx context.Context, 
 		requests = append(requests, reconcile.Request{NamespacedName: nn})
 	}
 	return requests
+}
+
+// listTLSRoutesForSecret maps a Secret to the TLSRoutes whose L4RoutePolicy plugins reference it.
+func (r *TLSRouteReconciler) listTLSRoutesForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
+	var requests []reconcile.Request
+	for _, policy := range listL4RoutePoliciesForSecret(ctx, r.Client, r.Log, obj) {
+		requests = append(requests, r.listTLSRoutesForL4RoutePolicy(ctx, &policy)...)
+	}
+	return pkgutils.DedupComparable(requests)
 }

@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -86,6 +87,11 @@ func (g *GlobalRule) DeepCopy() GlobalRule {
 	return GlobalRule(copied)
 }
 
+// MarshalLog implements logr.Marshaler. See Plugins.MarshalLog.
+func (g GlobalRule) MarshalLog() any {
+	return pluginNames(g)
+}
+
 // +k8s:deepcopy-gen=true
 type GlobalRuleItem struct {
 	Metadata `json:",inline" yaml:",inline"`
@@ -99,6 +105,11 @@ func (p *PluginMetadata) DeepCopy() PluginMetadata {
 	original := Plugins(*p)
 	copied := original.DeepCopy()
 	return PluginMetadata(copied)
+}
+
+// MarshalLog implements logr.Marshaler. See Plugins.MarshalLog.
+func (p PluginMetadata) MarshalLog() any {
+	return pluginNames(p)
 }
 
 // +k8s:deepcopy-gen=true
@@ -170,7 +181,18 @@ type StreamRoute struct {
 	RemoteAddr string  `json:"remote_addr,omitempty"`
 	ServerAddr string  `json:"server_addr,omitempty"`
 	ServerPort int32   `json:"server_port,omitempty"`
-	SNI        string  `json:"sni,omitempty"`
+	// SNI and SNIs are the singular and plural forms of the same match; APISIX
+	// rejects a stream route carrying both, so only one is ever set.
+	SNI  string   `json:"sni,omitempty"`
+	SNIs []string `json:"snis,omitempty"`
+	// TLSPassthrough forwards the TLS stream to the upstream untouched instead
+	// of terminating it on the gateway.
+	//
+	// A listen carrying tls_passthrough alone passes every connection through
+	// and never reads this; a listen carrying tls alone always terminates. It
+	// decides only on a listen configured with both, where the matched stream
+	// route picks between the terminating and the prereading server.
+	TLSPassthrough *bool `json:"tls_passthrough,omitempty"`
 }
 
 // +k8s:deepcopy-gen=true
@@ -398,6 +420,23 @@ func (p Plugins) DeepCopy() Plugins {
 	out := make(Plugins)
 	p.DeepCopyInto(&out)
 	return out
+}
+
+// MarshalLog implements logr.Marshaler so logging a plugin map emits only the
+// plugin names. Plugin config is arbitrary user JSON and routinely carries
+// credentials (kafka SASL passwords, logger tokens, OIDC client secrets).
+// It affects logging only, not the JSON sent to the data plane.
+func (p Plugins) MarshalLog() any {
+	return pluginNames(p)
+}
+
+func pluginNames(p map[string]any) []string {
+	names := make([]string, 0, len(p))
+	for name := range p {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // UpstreamNode is the node in upstream

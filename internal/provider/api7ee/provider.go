@@ -195,7 +195,8 @@ func (d *api7eeProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 }
 
 func (d *api7eeProvider) Delete(ctx context.Context, obj client.Object) error {
-	d.log.V(1).Info("deleting object", "object", obj)
+	nnk := utils.NamespacedNameKind(obj)
+	d.log.V(1).Info("deleting object", "object", nnk)
 
 	var resourceTypes []string
 	var labels map[string]string
@@ -224,7 +225,6 @@ func (d *api7eeProvider) Delete(ctx context.Context, obj client.Object) error {
 		labels = label.GenLabel(obj)
 	}
 
-	nnk := utils.NamespacedNameKind(obj)
 	return d.client.Delete(ctx, adcclient.Task{
 		Key:           nnk,
 		Name:          nnk.String(),

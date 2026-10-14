@@ -47,7 +47,7 @@ func (t *Translator) fillPluginsFromHTTPRouteFilters(
 	filters []gatewayv1.HTTPRouteFilter,
 	matches []gatewayv1.HTTPRouteMatch,
 	tctx *provider.TranslateContext,
-) {
+) error {
 	for _, filter := range filters {
 		switch filter.Type {
 		case gatewayv1.HTTPRouteFilterRequestHeaderModifier:
@@ -61,37 +61,53 @@ func (t *Translator) fillPluginsFromHTTPRouteFilters(
 		case gatewayv1.HTTPRouteFilterResponseHeaderModifier:
 			t.fillPluginFromHTTPResponseHeaderFilter(plugins, filter.ResponseHeaderModifier)
 		case gatewayv1.HTTPRouteFilterExtensionRef:
-			t.fillPluginFromExtensionRef(plugins, namespace, filter.ExtensionRef, tctx)
+			if err := t.fillPluginFromExtensionRef(plugins, namespace, filter.ExtensionRef, tctx); err != nil {
+				return err
+			}
 		case gatewayv1.HTTPRouteFilterCORS:
 			t.fillPluginFromHTTPCORSFilter(plugins, filter.CORS)
 		}
 	}
+	return nil
 }
 
-func (t *Translator) fillPluginFromExtensionRef(plugins adctypes.Plugins, namespace string, extensionRef *gatewayv1.LocalObjectReference, tctx *provider.TranslateContext) {
+func (t *Translator) fillPluginFromExtensionRef(plugins adctypes.Plugins, namespace string, extensionRef *gatewayv1.LocalObjectReference, tctx *provider.TranslateContext) error {
 	if extensionRef == nil {
-		return
+		return nil
 	}
-	if extensionRef.Kind == internaltypes.KindPluginConfig {
-		pluginconfig := tctx.PluginConfigs[types.NamespacedName{
-			Namespace: namespace,
-			Name:      string(extensionRef.Name),
-		}]
-		if pluginconfig == nil {
-			return
+	if err := internaltypes.ValidatePluginConfigExtensionRef(extensionRef); err != nil {
+		return err
+	}
+	pluginconfig := tctx.PluginConfigs[types.NamespacedName{
+		Namespace: namespace,
+		Name:      string(extensionRef.Name),
+	}]
+	if pluginconfig == nil {
+		return internaltypes.NewPluginConfigNotFoundError(namespace, string(extensionRef.Name))
+	}
+	names := make([]string, 0, len(pluginconfig.Spec.Plugins))
+	for _, plugin := range pluginconfig.Spec.Plugins {
+		config, err := renderPluginConfig(plugin, namespace, tctx.Secrets)
+		if err != nil {
+			return err
 		}
-		for _, plugin := range pluginconfig.Spec.Plugins {
-			pluginName := plugin.Name
-			pluginconfig := make(map[string]any)
-			if len(plugin.Config.Raw) > 0 {
-				if err := json.Unmarshal(plugin.Config.Raw, &pluginconfig); err != nil {
-					t.Log.Error(err, "plugin config unmarshal failed", "plugin", plugin.Name)
-					continue
-				}
-			}
-			plugins[pluginName] = pluginconfig
-		}
-		t.Log.V(1).Info("fill plugin from extension ref", "plugins", plugins)
+		plugins[plugin.Name] = config
+		names = append(names, plugin.Name)
+	}
+	// The rendered configuration may hold Secret data, so log the plugin names only.
+	t.Log.V(1).Info("fill plugin from extension ref", "pluginConfig", string(extensionRef.Name), "plugins", names)
+	return nil
+}
+
+func setExtensionRefErrorResponse(service *adctypes.Service) {
+	if service.Plugins == nil {
+		service.Plugins = make(adctypes.Plugins)
+	}
+	service.Plugins["fault-injection"] = map[string]any{
+		"abort": map[string]any{
+			"http_status": 500,
+			"body":        "ExtensionRef filter could not be resolved",
+		},
 	}
 }
 
@@ -725,7 +741,14 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 		// plugin on the service, so it is deliberately not propagated here.
 		enableWebsocket, _ := t.translateBackendsToUpstreams(tctx, rule, httpRoute, service)
 
-		t.fillPluginsFromHTTPRouteFilters(service.Plugins, httpRoute.GetNamespace(), rule.Filters, rule.Matches, tctx)
+		if err := t.fillPluginsFromHTTPRouteFilters(service.Plugins, httpRoute.GetNamespace(), rule.Filters, rule.Matches, tctx); err != nil {
+			t.Log.Error(err, "failed to fill plugins from HTTPRoute filters",
+				"namespace", httpRoute.GetNamespace(),
+				"name", httpRoute.GetName(),
+				"ruleIndex", ruleIndex,
+			)
+			setExtensionRefErrorResponse(service)
+		}
 
 		matches := rule.Matches
 		if len(matches) == 0 {
@@ -760,6 +783,14 @@ func (t *Translator) TranslateHTTPRoute(tctx *provider.TranslateContext, httpRou
 
 			routes = append(routes, route)
 		}
+
+		// A route answers only the schemes its listeners accept: one attached only to
+		// HTTPS listeners must not answer plaintext requests for the same host and
+		// path, and one attached only to HTTP listeners must not answer TLS ones.
+		// Nothing else enforces that: hostname matching cannot tell the two apart, and
+		// server_port only can when the Gateway's declared ports equal the ports
+		// APISIX listens on.
+		t.pinRoutesToListenerScheme(tctx.Listeners, routes)
 
 		// Collect unique listener ports for port-based routing.
 		listenerPorts := make(map[int32]struct{})

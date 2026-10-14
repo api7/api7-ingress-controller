@@ -39,7 +39,7 @@ func (t *Translator) fillPluginsFromGRPCRouteFilters(
 	namespace string,
 	filters []gatewayv1.GRPCRouteFilter,
 	tctx *provider.TranslateContext,
-) {
+) error {
 	for _, filter := range filters {
 		switch filter.Type {
 		case gatewayv1.GRPCRouteFilterRequestHeaderModifier:
@@ -49,9 +49,12 @@ func (t *Translator) fillPluginsFromGRPCRouteFilters(
 		case gatewayv1.GRPCRouteFilterResponseHeaderModifier:
 			t.fillPluginFromHTTPResponseHeaderFilter(plugins, filter.ResponseHeaderModifier)
 		case gatewayv1.GRPCRouteFilterExtensionRef:
-			t.fillPluginFromExtensionRef(plugins, namespace, filter.ExtensionRef, tctx)
+			if err := t.fillPluginFromExtensionRef(plugins, namespace, filter.ExtensionRef, tctx); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 func calculateGRPCRoutePriority(match *gatewayv1.GRPCRouteMatch, ruleIndex int, hosts []string) uint64 {
@@ -287,7 +290,14 @@ func (t *Translator) TranslateGRPCRoute(tctx *provider.TranslateContext, grpcRou
 			}
 		}
 
-		t.fillPluginsFromGRPCRouteFilters(service.Plugins, grpcRoute.GetNamespace(), rule.Filters, tctx)
+		if err := t.fillPluginsFromGRPCRouteFilters(service.Plugins, grpcRoute.GetNamespace(), rule.Filters, tctx); err != nil {
+			t.Log.Error(err, "failed to fill plugins from GRPCRoute filters",
+				"namespace", grpcRoute.GetNamespace(),
+				"name", grpcRoute.GetName(),
+				"ruleIndex", ruleIndex,
+			)
+			setExtensionRefErrorResponse(service)
+		}
 
 		matches := rule.Matches
 		if len(matches) == 0 {
@@ -312,6 +322,10 @@ func (t *Translator) TranslateGRPCRoute(tctx *provider.TranslateContext, grpcRou
 
 			routes = append(routes, route)
 		}
+
+		// A route answers only the schemes its listeners accept. See the HTTPRoute
+		// translator for why neither hostname matching nor server_port covers this.
+		t.pinRoutesToListenerScheme(tctx.Listeners, routes)
 
 		// Collect unique listener ports for port-based routing.
 		listenerPorts := make(map[int32]struct{})

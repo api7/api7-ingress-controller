@@ -37,6 +37,29 @@ func (e ReasonError) Error() string {
 	return e.Message
 }
 
+// DependencyMissingError marks a validation failure caused by a referenced object
+// that is absent rather than temporarily unreadable. The distinction matters when
+// deciding what to do with configuration already published for the owner: an
+// absent reference will not come back on its own, so keeping the last good
+// configuration leaves the data plane contradicting the Accepted=False status
+// written alongside it, while a transient read failure must be retried instead.
+type DependencyMissingError struct {
+	Err error
+}
+
+func (e DependencyMissingError) Error() string {
+	return e.Err.Error()
+}
+
+func (e DependencyMissingError) Unwrap() error {
+	return e.Err
+}
+
+func IsDependencyMissing(err error) bool {
+	var dme DependencyMissingError
+	return errors.As(err, &dme)
+}
+
 func IsSomeReasonError[Reason ~string](err error, reasons ...Reason) bool {
 	if err == nil {
 		return false
@@ -55,6 +78,14 @@ func NewInvalidKindError[Kind ~string](kind Kind) ReasonError {
 	return ReasonError{
 		Reason:  string(gatewayv1.RouteReasonInvalidKind),
 		Message: fmt.Sprintf("Invalid kind %s, only Service is supported", kind),
+	}
+}
+
+// NewPluginConfigNotFoundError returns a route condition error for a missing PluginConfig.
+func NewPluginConfigNotFoundError(namespace, name string) ReasonError {
+	return ReasonError{
+		Reason:  string(gatewayv1.RouteReasonBackendNotFound),
+		Message: fmt.Sprintf("PluginConfig %s/%s not found", namespace, name),
 	}
 }
 

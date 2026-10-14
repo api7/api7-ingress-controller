@@ -25,96 +25,289 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8stypes "k8s.io/apimachinery/pkg/types"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
-	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
-	"github.com/apache/apisix-ingress-controller/internal/provider"
+	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 )
 
-const testConsumerNamespace = "default"
+func TestApisixConsumerReconcile_RemovesConfigAfterIngressClassHandoff(t *testing.T) {
+	const (
+		namespace        = "default"
+		name             = "consumer"
+		managedClass     = "apisix"
+		unmanagedClass   = "other"
+		unmanagedControl = "example.com/other-controller"
+	)
 
-// recordingProvider and recordingUpdater are declared in
-// httproute_controller_test.go, shared by the reconciler tests in this package.
+	consumerKey := k8stypes.NamespacedName{Namespace: namespace, Name: name}
 
-func newApisixConsumerReconciler(t *testing.T, cli client.Client, p provider.Provider) *ApisixConsumerReconciler {
-	t.Helper()
+	for _, tc := range []struct {
+		name           string
+		apiVersion     schema.GroupVersion
+		ingressClasses []client.Object
+	}{
+		{
+			name:       "v1",
+			apiVersion: networkingv1.SchemeGroupVersion,
+			ingressClasses: []client.Object{
+				&networkingv1.IngressClass{
+					ObjectMeta: metav1.ObjectMeta{Name: managedClass},
+					Spec:       networkingv1.IngressClassSpec{Controller: config.GetControllerName()},
+				},
+				&networkingv1.IngressClass{
+					ObjectMeta: metav1.ObjectMeta{Name: unmanagedClass},
+					Spec:       networkingv1.IngressClassSpec{Controller: unmanagedControl},
+				},
+			},
+		},
+		{
+			name:       "v1beta1",
+			apiVersion: networkingv1beta1.SchemeGroupVersion,
+			ingressClasses: []client.Object{
+				&networkingv1beta1.IngressClass{
+					ObjectMeta: metav1.ObjectMeta{Name: managedClass},
+					Spec: networkingv1beta1.IngressClassSpec{
+						Controller: config.GetControllerName(),
+						Parameters: &networkingv1beta1.IngressClassParametersReference{},
+					},
+				},
+				&networkingv1beta1.IngressClass{
+					ObjectMeta: metav1.ObjectMeta{Name: unmanagedClass},
+					Spec: networkingv1beta1.IngressClassSpec{
+						Controller: unmanagedControl,
+						Parameters: &networkingv1beta1.IngressClassParametersReference{},
+					},
+				},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			require.NoError(t, clientgoscheme.AddToScheme(scheme))
+			require.NoError(t, apiv2.AddToScheme(scheme))
 
-	// A readiness manager with no registered GVKs becomes ready as soon as it is
-	// started. Readier.Done blocks on the started channel, so it must be started.
-	readier := readiness.NewReadinessManager(cli, logr.Discard())
-	require.NoError(t, readier.Start(context.Background()))
+			oldConsumer := &apiv2.ApisixConsumer{
+				ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
+				Spec:       apiv2.ApisixConsumerSpec{IngressClassName: managedClass},
+			}
+			consumer := oldConsumer.DeepCopy()
+			consumer.Spec.IngressClassName = unmanagedClass
 
-	return &ApisixConsumerReconciler{
-		Client:   cli,
-		Scheme:   cli.Scheme(),
-		Log:      logr.Discard(),
-		Provider: p,
-		Readier:  readier,
+			objects := append([]client.Object{consumer}, tc.ingressClasses...)
+			cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
+			prov := &recordingProvider{}
+			r := &ApisixConsumerReconciler{
+				Client:   cli,
+				Scheme:   scheme,
+				Log:      logr.Discard(),
+				Provider: prov,
+				Readier:  noopReadier{},
+				ICGV:     tc.apiVersion,
+			}
+
+			predicate := MatchesIngressClassPredicate(cli, logr.Discard(), tc.apiVersion.String())
+			assert.True(t, predicate.Update(event.UpdateEvent{ObjectOld: oldConsumer, ObjectNew: consumer}),
+				"the handoff update must be reconciled")
+
+			result, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: consumerKey})
+
+			require.NoError(t, err)
+			assert.Equal(t, ctrl.Result{}, result)
+			assert.Equal(t, []k8stypes.NamespacedName{consumerKey}, prov.deleted)
+			assert.Zero(t, prov.updated)
+		})
 	}
 }
 
-func apisixConsumerScheme(t *testing.T) *runtime.Scheme {
-	t.Helper()
-	scheme := runtime.NewScheme()
-	require.NoError(t, apiv2.AddToScheme(scheme))
-	return scheme
+func TestApisixConsumerReconcile_KeepsConfigOnIngressClassReadError(t *testing.T) {
+	const (
+		namespace = "default"
+		name      = "consumer"
+	)
+	consumerKey := k8stypes.NamespacedName{Namespace: namespace, Name: name}
+
+	for _, tc := range []struct {
+		name       string
+		apiVersion schema.GroupVersion
+		failGet    func(client.Object) bool
+	}{
+		{
+			name:       "v1",
+			apiVersion: networkingv1.SchemeGroupVersion,
+			failGet: func(obj client.Object) bool {
+				_, ok := obj.(*networkingv1.IngressClass)
+				return ok
+			},
+		},
+		{
+			name:       "v1beta1",
+			apiVersion: networkingv1beta1.SchemeGroupVersion,
+			failGet: func(obj client.Object) bool {
+				_, ok := obj.(*networkingv1beta1.IngressClass)
+				return ok
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			require.NoError(t, clientgoscheme.AddToScheme(scheme))
+			require.NoError(t, apiv2.AddToScheme(scheme))
+
+			consumer := &apiv2.ApisixConsumer{
+				ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
+				Spec:       apiv2.ApisixConsumerSpec{IngressClassName: "apisix"},
+			}
+			cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(consumer).
+				WithInterceptorFuncs(interceptor.Funcs{
+					Get: func(ctx context.Context, cli client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+						if tc.failGet(obj) {
+							return k8serrors.NewInternalError(errors.New("boom"))
+						}
+						return cli.Get(ctx, key, obj, opts...)
+					},
+				}).Build()
+			prov := &recordingProvider{}
+			r := &ApisixConsumerReconciler{
+				Client:   cli,
+				Scheme:   scheme,
+				Log:      logr.Discard(),
+				Provider: prov,
+				Readier:  noopReadier{},
+				ICGV:     tc.apiVersion,
+			}
+
+			_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: consumerKey})
+
+			require.Error(t, err)
+			assert.True(t, k8serrors.IsInternalError(err), "want an internal error, got %v", err)
+			assert.Empty(t, prov.deleted)
+			assert.Zero(t, prov.updated)
+		})
+	}
 }
 
-// A deleted ApisixConsumer must be removed from the provider and then reported
-// as reconciled. Returning the NotFound error instead makes controller-runtime
-// treat the reconcile as failed and requeue it indefinitely with exponential
-// backoff, even though the delete succeeded.
-func TestApisixConsumerReconcile_DeletedObjectDoesNotRequeue(t *testing.T) {
-	cli := fake.NewClientBuilder().WithScheme(apisixConsumerScheme(t)).Build()
-	p := &recordingProvider{}
-	r := newApisixConsumerReconciler(t, cli, p)
+func TestApisixConsumerReconcile_RemovesConfigWhenIngressClassIsMissing(t *testing.T) {
+	const (
+		namespace = "default"
+		name      = "consumer"
+	)
+	consumerKey := k8stypes.NamespacedName{Namespace: namespace, Name: name}
 
-	key := types.NamespacedName{Namespace: testConsumerNamespace, Name: "gone"}
+	for _, tc := range []struct {
+		name       string
+		apiVersion schema.GroupVersion
+	}{
+		{name: "v1", apiVersion: networkingv1.SchemeGroupVersion},
+		{name: "v1beta1", apiVersion: networkingv1beta1.SchemeGroupVersion},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			require.NoError(t, clientgoscheme.AddToScheme(scheme))
+			require.NoError(t, apiv2.AddToScheme(scheme))
+
+			consumer := &apiv2.ApisixConsumer{
+				ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
+				Spec:       apiv2.ApisixConsumerSpec{IngressClassName: "missing"},
+			}
+			cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(consumer).Build()
+			prov := &recordingProvider{}
+			r := &ApisixConsumerReconciler{
+				Client:   cli,
+				Scheme:   scheme,
+				Log:      logr.Discard(),
+				Provider: prov,
+				Readier:  noopReadier{},
+				ICGV:     tc.apiVersion,
+			}
+
+			result, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: consumerKey})
+
+			require.NoError(t, err)
+			assert.Equal(t, ctrl.Result{}, result)
+			assert.Equal(t, []k8stypes.NamespacedName{consumerKey}, prov.deleted)
+			assert.Zero(t, prov.updated)
+		})
+	}
+}
+
+func TestApisixConsumerReconcile_DeletedObjectDoesNotRequeue(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, apiv2.AddToScheme(scheme))
+	cli := fake.NewClientBuilder().WithScheme(scheme).Build()
+	prov := &recordingProvider{}
+	r := &ApisixConsumerReconciler{
+		Client:   cli,
+		Scheme:   scheme,
+		Log:      logr.Discard(),
+		Provider: prov,
+		Readier:  noopReadier{},
+	}
+	key := k8stypes.NamespacedName{Namespace: "default", Name: "gone"}
+
 	result, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: key})
 
 	require.NoError(t, err)
 	assert.Equal(t, ctrl.Result{}, result)
-	assert.Equal(t, []types.NamespacedName{key}, p.deleted)
+	assert.Equal(t, []k8stypes.NamespacedName{key}, prov.deleted)
 }
 
-// A provider failure must still surface, so the fix does not swallow real errors.
 func TestApisixConsumerReconcile_DeleteErrorIsReturned(t *testing.T) {
-	cli := fake.NewClientBuilder().WithScheme(apisixConsumerScheme(t)).Build()
-	p := &recordingProvider{deleteErr: errors.New("provider unavailable")}
-	r := newApisixConsumerReconciler(t, cli, p)
+	scheme := runtime.NewScheme()
+	require.NoError(t, apiv2.AddToScheme(scheme))
+	cli := fake.NewClientBuilder().WithScheme(scheme).Build()
+	prov := &recordingProvider{deleteErr: errors.New("provider unavailable")}
+	r := &ApisixConsumerReconciler{
+		Client:   cli,
+		Scheme:   scheme,
+		Log:      logr.Discard(),
+		Provider: prov,
+		Readier:  noopReadier{},
+	}
+	key := k8stypes.NamespacedName{Namespace: "default", Name: "gone"}
 
-	key := types.NamespacedName{Namespace: testConsumerNamespace, Name: "gone"}
 	_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: key})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "provider unavailable")
 }
 
-// A Get failure that is not NotFound must be returned, and must not be mistaken
-// for a deletion.
 func TestApisixConsumerReconcile_NonNotFoundGetErrorIsReturned(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, apiv2.AddToScheme(scheme))
 	cli := fake.NewClientBuilder().
-		WithScheme(apisixConsumerScheme(t)).
+		WithScheme(scheme).
 		WithInterceptorFuncs(interceptor.Funcs{
 			Get: func(context.Context, client.WithWatch, client.ObjectKey, client.Object, ...client.GetOption) error {
 				return k8serrors.NewInternalError(errors.New("boom"))
 			},
 		}).
 		Build()
-	p := &recordingProvider{}
-	r := newApisixConsumerReconciler(t, cli, p)
+	prov := &recordingProvider{}
+	r := &ApisixConsumerReconciler{
+		Client:   cli,
+		Scheme:   scheme,
+		Log:      logr.Discard(),
+		Provider: prov,
+		Readier:  noopReadier{},
+	}
+	key := k8stypes.NamespacedName{Namespace: "default", Name: "present"}
 
-	key := types.NamespacedName{Namespace: testConsumerNamespace, Name: "present"}
 	_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: key})
 
 	require.Error(t, err)
 	assert.True(t, k8serrors.IsInternalError(err), "want an internal error, got %v", err)
-	assert.Empty(t, p.deleted, "a non-NotFound Get error must not trigger a provider delete")
+	assert.Empty(t, prov.deleted, "a non-NotFound Get error must not trigger a provider delete")
 }

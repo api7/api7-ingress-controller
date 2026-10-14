@@ -82,6 +82,9 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	eventFilters := []predicate.Predicate{
 		predicate.GenerationChangedPredicate{},
+		// A Secret carries no generation, so GenerationChangedPredicate would drop its
+		// updates and a plugin would keep the Secret data read at the last spec change.
+		predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
 	}
 
 	if !r.supportsEndpointSlice {
@@ -101,6 +104,9 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	bdr = bdr.
 		Watches(&v1alpha1.PluginConfig{},
 			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesByExtensionRef),
+		).
+		Watches(&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesForSecret),
 		).
 		Watches(&gatewayv1.Gateway{},
 			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesForGateway),
@@ -168,7 +174,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			}
 
 			if err := r.Provider.Delete(ctx, hr); err != nil {
-				r.Log.Error(err, "failed to delete httproute", "httproute", hr)
+				r.Log.Error(err, "failed to delete httproute", "httproute", utils.NamespacedName(hr))
 				return ctrl.Result{}, err
 			}
 			return ctrl.Result{}, nil
@@ -211,7 +217,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			APIVersion: gatewayv1.GroupVersion.String(),
 		}
 		if err := r.Provider.Delete(ctx, hr); err != nil {
-			r.Log.Error(err, "failed to delete httproute", "httproute", hr)
+			r.Log.Error(err, "failed to delete httproute", "httproute", utils.NamespacedName(hr))
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
@@ -240,7 +246,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	var backendRefErr error
 	if err := r.processHTTPRoute(tctx, hr); err != nil {
 		// When encountering a backend reference error, it should not affect the acceptance status
-		if types.IsSomeReasonError(err, gatewayv1.RouteReasonInvalidKind) {
+		if types.IsSomeReasonError(err, gatewayv1.RouteReasonInvalidKind, gatewayv1.RouteReasonBackendNotFound) {
 			backendRefErr = err
 		} else {
 			acceptStatus.status = false
@@ -265,6 +271,22 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if err != nil {
 		acceptStatus.status = false
 		acceptStatus.msg = err.Error()
+	}
+
+	// Translate and sync before writing Accepted=True. A translation or
+	// buildConfig failure from Provider.Update used to leave a green status
+	// and only requeue, matching neither Ingress nor ApisixGlobalRule.
+	var syncErr error
+	if isRouteAccepted(gateways) && err == nil {
+		routeToUpdate := hr
+		if filteredHTTPRoute != nil {
+			r.Log.V(1).Info("filtered httproute", "httproute", utils.NamespacedName(filteredHTTPRoute))
+			routeToUpdate = filteredHTTPRoute
+		}
+		if syncErr = r.Provider.Update(ctx, tctx, routeToUpdate); syncErr != nil {
+			acceptStatus.status = false
+			acceptStatus.msg = syncErr.Error()
+		}
 	}
 
 	// TODO: diff the old and new status
@@ -298,14 +320,21 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	UpdateStatus(r.Updater, r.Log, tctx)
 
 	if isRouteAccepted(gateways) && err == nil {
-		routeToUpdate := hr
-		if filteredHTTPRoute != nil {
-			r.Log.V(1).Info("filtered httproute", "httproute", utils.NamespacedName(filteredHTTPRoute))
-			routeToUpdate = filteredHTTPRoute
-		}
-		if err := r.Provider.Update(ctx, tctx, routeToUpdate); err != nil {
-			return ctrl.Result{}, err
-		}
+		return ctrl.Result{}, syncErr
+	}
+
+	// The route still resolves to one of our Gateways but no parent accepts it any
+	// more, so retract what an earlier reconcile published. The store is what every
+	// sync pushes, so leaving the entry keeps the data plane serving the route.
+	// Provider.Delete derives the resource labels from the object Kind, which is not
+	// set on every object read through the client.
+	hr.TypeMeta = metav1.TypeMeta{
+		Kind:       KindHTTPRoute,
+		APIVersion: gatewayv1.GroupVersion.String(),
+	}
+	if err := r.Provider.Delete(ctx, hr); err != nil {
+		r.Log.Error(err, "failed to delete httproute", "httproute", utils.NamespacedName(hr))
+		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
 }
@@ -624,19 +653,8 @@ func (r *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, 
 			if filter.Type != gatewayv1.HTTPRouteFilterExtensionRef || filter.ExtensionRef == nil {
 				continue
 			}
-			if filter.ExtensionRef.Kind == types.KindPluginConfig {
-				pluginconfig := new(v1alpha1.PluginConfig)
-				if err := r.Get(context.Background(), client.ObjectKey{
-					Namespace: httpRoute.GetNamespace(),
-					Name:      string(filter.ExtensionRef.Name),
-				}, pluginconfig); err != nil {
-					terror = err
-					continue
-				}
-				tctx.PluginConfigs[k8stypes.NamespacedName{
-					Namespace: httpRoute.GetNamespace(),
-					Name:      string(filter.ExtensionRef.Name),
-				}] = pluginconfig
+			if err := loadPluginConfigExtensionRef(tctx, r.Client, tctx, httpRoute.GetNamespace(), filter.ExtensionRef); err != nil {
+				terror = err
 			}
 		}
 		for _, backend := range rule.BackendRefs {
@@ -765,4 +783,23 @@ func (r *HTTPRouteReconciler) listHTTPRoutesForReferenceGrant(ctx context.Contex
 		}
 	}
 	return requests
+}
+
+// listHTTPRoutesForSecret maps a Secret to the HTTPRoutes that reference, through a PluginConfig
+// extension filter, a plugin configured with that Secret.
+func (r *HTTPRouteReconciler) listHTTPRoutesForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
+	secret, ok := obj.(*corev1.Secret)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to Secret")
+		return nil
+	}
+	var requests []reconcile.Request
+	for _, pcRef := range ListRequests(ctx, r.Client, r.Log, &v1alpha1.PluginConfigList{}, client.MatchingFields{
+		indexer.SecretIndexRef: indexer.GenIndexKey(secret.GetNamespace(), secret.GetName()),
+	}) {
+		requests = append(requests, ListRequests(ctx, r.Client, r.Log, &gatewayv1.HTTPRouteList{}, client.MatchingFields{
+			indexer.ExtensionRef: indexer.GenIndexKey(pcRef.Namespace, pcRef.Name),
+		})...)
+	}
+	return pkgutils.DedupComparable(requests)
 }

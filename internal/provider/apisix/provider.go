@@ -192,7 +192,8 @@ func (d *apisixProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 }
 
 func (d *apisixProvider) Delete(ctx context.Context, obj client.Object) error {
-	d.log.V(1).Info("deleting object", "object", obj)
+	nnk := utils.NamespacedNameKind(obj)
+	d.log.V(1).Info("deleting object", "object", nnk)
 
 	var resourceTypes []string
 	var labels map[string]string
@@ -220,8 +221,6 @@ func (d *apisixProvider) Delete(ctx context.Context, obj client.Object) error {
 		resourceTypes = append(resourceTypes, adctypes.TypeConsumer)
 		labels = label.GenLabel(obj)
 	}
-	nnk := utils.NamespacedNameKind(obj)
-
 	// Full synchronization is performed on a gateway by gateway basis
 	// and it is not possible to perform scheduled synchronization
 	// on deleted gateway level resources

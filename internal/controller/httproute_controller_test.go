@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/apache/apisix-ingress-controller/internal/controller/status"
 	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 )
@@ -112,16 +113,20 @@ func TestHTTPRouteReconcile_EmptyGateways(t *testing.T) {
 	}
 }
 
-// recordingProvider records the objects passed to Delete and can be told to fail.
+// recordingProvider records the objects passed to Update and Delete, and can be
+// told to fail an update or a delete.
 type recordingProvider struct {
+	updated   int
 	deleted   []k8stypes.NamespacedName
 	deleteErr error
+	updateErr error
 }
 
 func (p *recordingProvider) Register(string, *http.ServeMux) {}
 
 func (p *recordingProvider) Update(context.Context, *provider.TranslateContext, client.Object) error {
-	return nil
+	p.updated++
+	return p.updateErr
 }
 
 func (p *recordingProvider) Delete(_ context.Context, obj client.Object) error {
@@ -132,3 +137,10 @@ func (p *recordingProvider) Delete(_ context.Context, obj client.Object) error {
 func (p *recordingProvider) Start(context.Context) error { return nil }
 
 func (p *recordingProvider) NeedLeaderElection() bool { return true }
+
+// recordingUpdater captures the status updates a reconciler would write.
+type recordingUpdater struct {
+	updates []status.Update
+}
+
+func (u *recordingUpdater) Update(update status.Update) { u.updates = append(u.updates, update) }

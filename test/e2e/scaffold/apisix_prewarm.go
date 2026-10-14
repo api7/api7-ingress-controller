@@ -75,7 +75,8 @@ func isPoolable(o Options) bool {
 	return !o.SkipHooks &&
 		!o.EnableWebhook &&
 		o.ControllerName == "" &&
-		o.APISIXAdminAPIKey == ""
+		o.APISIXAdminAPIKey == "" &&
+		len(o.NamespaceSelector) == 0
 }
 
 // profileKey identifies the pool an environment belongs to. Within a process
@@ -165,13 +166,14 @@ func provisionDataplane(t *bgTestingT, env *pooledEnv, _ Options) (*corev1.Servi
 	}
 
 	deployOpts := APISIXDeployOptions{
-		Namespace:        env.namespace,
-		AdminKey:         env.adminKey,
-		ServiceName:      serviceName,
-		ServiceHTTPPort:  9080,
-		ServiceHTTPSPort: 9443,
-		ConfigProvider:   configProvider,
-		Replicas:         ptr.To(1),
+		Namespace:              env.namespace,
+		AdminKey:               env.adminKey,
+		ServiceName:            serviceName,
+		ServiceHTTPPort:        9080,
+		ServiceHTTPSPort:       9443,
+		ServiceHTTPSTargetPort: 9443,
+		ConfigProvider:         configProvider,
+		Replicas:               ptr.To(1),
 	}
 	buf := bytes.NewBuffer(nil)
 	if err := framework.APISIXStandaloneTpl.Execute(buf, &deployOpts); err != nil {
