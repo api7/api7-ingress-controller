@@ -205,7 +205,9 @@ func (d *api7eeProvider) Delete(ctx context.Context, obj client.Object) error {
 		resourceTypes = append(resourceTypes, "service")
 		labels = label.GenLabel(obj)
 	case *gatewayv1.Gateway:
-		// delete all resources
+		// Gateways sharing a GatewayProxy only own their own certificates.
+		resourceTypes = append(resourceTypes, "ssl")
+		labels = label.GenLabel(obj)
 	case *networkingv1.Ingress:
 		resourceTypes = append(resourceTypes, "service", "ssl")
 		labels = label.GenLabel(obj)
