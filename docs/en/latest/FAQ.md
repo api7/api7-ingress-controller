@@ -67,7 +67,10 @@ ADC filters top-level resources. Routes nested under a selected Service are
 included with that Service, so externally managed routes should not share a
 controller-managed Service. Global rules and plugin metadata do not support this
 label-based isolation and remain subject to full reconciliation. The label also
-does not distinguish separate controller installations sharing one APISIX instance or API7 gateway group.
+does not distinguish separate controller installations sharing one APISIX instance or API7 gateway group,
+or separate GatewayProxy resources that point to the same Admin API endpoint or gateway group: each
+GatewayProxy is synchronized on its own and can delete resources the other one created.
+Give each GatewayProxy its own APISIX instance or gateway group.
 This behavior does not apply to `apisix-standalone`, which manages a complete
 configuration.
 

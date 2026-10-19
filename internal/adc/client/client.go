@@ -392,8 +392,9 @@ func (c *Client) push(ctx context.Context, config adctypes.Config, args []string
 
 func buildSyncArgs(filePath string, task Task, backend string) []string {
 	labels := task.Labels
-	if backend == "apisix" || backend == "api7ee" {
-		// Preserve per-resource constraints while scoping full sync and gateway cleanup.
+	if backend != backendAPISIXStandalone {
+		// Preserve per-resource constraints while scoping full sync and gateway cleanup;
+		// only standalone, which replaces the whole configuration, stays unscoped.
 		// ADC does not apply label selectors to global rules or plugin metadata.
 		labels = maps.Clone(labels)
 		if labels == nil {

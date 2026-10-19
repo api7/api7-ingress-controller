@@ -35,7 +35,7 @@ import (
 )
 
 func TestSyncOwnershipSelector(t *testing.T) {
-	for _, backend := range []string{"apisix", "api7ee", "apisix-standalone"} {
+	for _, backend := range []string{"apisix", "api7ee", "custom", "apisix-standalone"} {
 		for _, explicit := range []bool{false, true} {
 			for _, operation := range []string{"full", "resource", "cleanup", "global-rule"} {
 				name := backend + "/default/" + operation
