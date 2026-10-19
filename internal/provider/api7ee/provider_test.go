@@ -151,7 +151,7 @@ func TestDeleteGatewayPreservesSharedProxyResources(t *testing.T) {
 	t.Setenv("ADC_SERVER_URL", server.URL)
 	cli, err := adcclient.New(logr.Discard(), "api7ee", time.Second)
 	require.NoError(t, err)
-	d := &api7eeProvider{client: cli, log: logr.Discard()}
+	d := &api7eeProvider{client: cli, syncCh: make(chan struct{}, 1), log: logr.Discard()}
 	gateway := &gatewayv1.Gateway{
 		TypeMeta:   metav1.TypeMeta{Kind: "Gateway", APIVersion: gatewayv1.GroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "deleted"},
@@ -186,6 +186,7 @@ func TestDeleteGatewayPreservesSharedProxyResources(t *testing.T) {
 	require.Len(t, resources.Services, 1)
 	assert.Equal(t, "route", resources.Services[0].ID)
 	assert.Equal(t, []string{adctypes.TypeSSL}, received.Task.Opts.IncludeResourceType)
+	require.Len(t, d.syncCh, 1, "Gateway deletion must schedule a full sync for the evicted plugins")
 	assert.Equal(t, map[string]string{label.LabelResourceKey: label.GenLabel(gateway)[label.LabelResourceKey]}, received.Task.Opts.LabelSelector)
 	_, err = cli.Sync(context.Background())
 	require.NoError(t, err)

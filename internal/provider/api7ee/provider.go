@@ -227,12 +227,20 @@ func (d *api7eeProvider) Delete(ctx context.Context, obj client.Object) error {
 		labels = label.GenLabel(obj)
 	}
 
-	return d.client.Delete(ctx, adcclient.Task{
+	if err := d.client.Delete(ctx, adcclient.Task{
 		Key:           nnk,
 		Name:          nnk.String(),
 		Labels:        labels,
 		ResourceTypes: resourceTypes,
-	})
+	}); err != nil {
+		return err
+	}
+	if _, ok := obj.(*gatewayv1.Gateway); ok {
+		// The scoped sync above only covers SSLs; push the rest of the proxy snapshot,
+		// including the Gateway's evicted global rule and plugin metadata.
+		d.syncNotify()
+	}
+	return nil
 }
 
 func (d *api7eeProvider) Start(ctx context.Context) error {
