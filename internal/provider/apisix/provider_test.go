@@ -228,3 +228,60 @@ func TestDeleteGatewayPreservesSharedProxyResources(t *testing.T) {
 	assert.NotEmpty(t, cli.ConfigManager.Get(utils.NamespacedNameKind(other)))
 	assert.NotEmpty(t, cli.ConfigManager.Get(utils.NamespacedNameKind(route)))
 }
+
+func TestDeleteGatewayClearsProxyPluginsWithLastReferrer(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(adctypes.SyncResult{Status: adctypes.StatusSuccess})
+	}))
+	defer server.Close()
+	t.Setenv("ADC_SERVER_URL", server.URL)
+	proxy := types.NamespacedNameKind{Kind: "GatewayProxy", Namespace: "default", Name: "proxy"}
+	configs := map[types.NamespacedNameKind]adctypes.Config{proxy: {
+		Name: proxy.String(), BackendType: "apisix", ServerAddrs: []string{"http://apisix:9180"},
+	}}
+	pluginTypes := []string{adctypes.TypeGlobalRule, adctypes.TypeSSL, adctypes.TypePluginMetadata}
+	plugins := &adctypes.Resources{
+		GlobalRules:    adctypes.GlobalRule{"cors": map[string]any{}},
+		PluginMetadata: adctypes.PluginMetadata{"http-logger": map[string]any{}},
+	}
+	for name, referrers := range map[string][]types.NamespacedNameKind{
+		"last referrer":           nil,
+		"IngressClass remains":    {{Kind: "IngressClass", Name: "apisix"}},
+		"another Gateway remains": {{Kind: "Gateway", Namespace: "default", Name: "remaining"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cli, err := adcclient.New(logr.Discard(), ProviderTypeAPISIX, time.Second)
+			require.NoError(t, err)
+			d := &apisixProvider{client: cli, syncCh: make(chan struct{}, 1), log: logr.Discard()}
+			gateway := &gatewayv1.Gateway{
+				TypeMeta:   metav1.TypeMeta{Kind: "Gateway", APIVersion: gatewayv1.GroupVersion.String()},
+				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "deleted"},
+			}
+			keys := append(referrers, utils.NamespacedNameKind(gateway))
+			for _, key := range keys {
+				labels := map[string]string{label.LabelKind: key.Kind, label.LabelNamespace: key.Namespace, label.LabelName: key.Name}
+				require.NoError(t, cli.UpdateConfig(context.Background(), adcclient.Task{
+					Key: key, Configs: configs, Labels: labels, ResourceTypes: pluginTypes, Resources: plugins,
+				}))
+			}
+			route := types.NamespacedNameKind{Kind: "HTTPRoute", Namespace: "default", Name: "route"}
+			require.NoError(t, cli.UpdateConfig(context.Background(), adcclient.Task{
+				Key: route, Configs: configs, ResourceTypes: []string{adctypes.TypeService}, Resources: &adctypes.Resources{},
+			}))
+
+			require.NoError(t, d.Delete(context.Background(), gateway))
+			resources, err := cli.GetResources(proxy.String())
+			require.NoError(t, err)
+			if len(referrers) == 0 {
+				assert.Empty(t, resources.GlobalRules, "an attached route must not keep the GatewayProxy's plugins alive")
+				assert.Empty(t, resources.PluginMetadata)
+			} else {
+				assert.Equal(t, plugins.GlobalRules, resources.GlobalRules)
+				assert.Equal(t, plugins.PluginMetadata, resources.PluginMetadata)
+			}
+			globalRules, err := cli.ListGlobalRules(proxy.String())
+			require.NoError(t, err)
+			assert.Len(t, globalRules, len(referrers), "the deleted Gateway's own global rule must go")
+		})
+	}
+}
