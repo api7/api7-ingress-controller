@@ -19,8 +19,12 @@ package api7ee
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/funcr"
@@ -34,8 +38,12 @@ import (
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	adcclient "github.com/apache/apisix-ingress-controller/internal/adc/client"
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
+	"github.com/apache/apisix-ingress-controller/internal/controller/status"
+	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	"github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
 )
 
@@ -133,3 +141,118 @@ func TestUpdateKeepsLastKnownGoodStateWhenL4PolicyCannotRender(t *testing.T) {
 	require.Len(t, resources.Services, 1)
 	assert.Equal(t, "last-known-good", resources.Services[0].Name)
 }
+
+func TestDeleteGatewayPreservesSharedProxyResources(t *testing.T) {
+	var received adcclient.ADCServerRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&received))
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(adctypes.SyncResult{Status: adctypes.StatusSuccess})
+	}))
+	defer server.Close()
+	t.Setenv("ADC_SERVER_URL", server.URL)
+	cli, err := adcclient.New(logr.Discard(), "api7ee", time.Second)
+	require.NoError(t, err)
+	d := &api7eeProvider{client: cli, syncCh: make(chan struct{}, 1), log: logr.Discard()}
+	gateway := &gatewayv1.Gateway{
+		TypeMeta:   metav1.TypeMeta{Kind: "Gateway", APIVersion: gatewayv1.GroupVersion.String()},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "deleted"},
+	}
+	other := gateway.DeepCopy()
+	other.Name = "remaining"
+	route := &gatewayv1.HTTPRoute{
+		TypeMeta:   metav1.TypeMeta{Kind: "HTTPRoute", APIVersion: gatewayv1.GroupVersion.String()},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "route"},
+	}
+	proxy := types.NamespacedNameKind{Kind: "GatewayProxy", Namespace: "default", Name: "proxy"}
+	configs := map[types.NamespacedNameKind]adctypes.Config{proxy: {
+		Name: proxy.String(), BackendType: "apisix", ServerAddrs: []string{"http://apisix:9180"},
+	}}
+	for _, gw := range []*gatewayv1.Gateway{gateway, other} {
+		labels := label.GenLabel(gw)
+		require.NoError(t, cli.UpdateConfig(context.Background(), adcclient.Task{
+			Key: utils.NamespacedNameKind(gw), Configs: configs, Labels: labels, ResourceTypes: []string{adctypes.TypeSSL},
+			Resources: &adctypes.Resources{SSLs: []*adctypes.SSL{{Metadata: adctypes.Metadata{ID: gw.Name, Labels: labels}}}},
+		}))
+	}
+	labels := label.GenLabel(route)
+	require.NoError(t, cli.UpdateConfig(context.Background(), adcclient.Task{
+		Key: utils.NamespacedNameKind(route), Configs: configs, Labels: labels, ResourceTypes: []string{adctypes.TypeService},
+		Resources: &adctypes.Resources{Services: []*adctypes.Service{{Metadata: adctypes.Metadata{ID: "route", Labels: labels}}}},
+	}))
+	require.NoError(t, d.Delete(context.Background(), gateway))
+	resources, err := cli.GetResources(proxy.String())
+	require.NoError(t, err)
+	require.Len(t, resources.SSLs, 1)
+	assert.Equal(t, "remaining", resources.SSLs[0].ID)
+	require.Len(t, resources.Services, 1)
+	assert.Equal(t, "route", resources.Services[0].ID)
+	assert.Equal(t, []string{adctypes.TypeSSL}, received.Task.Opts.IncludeResourceType)
+	require.Len(t, d.syncCh, 1, "Gateway deletion must schedule a full sync for the evicted plugins")
+	assert.Equal(t, map[string]string{label.LabelResourceKey: label.GenLabel(gateway)[label.LabelResourceKey]}, received.Task.Opts.LabelSelector)
+	_, err = cli.Sync(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, resources.SSLs, received.Task.Config.SSLs)
+	assert.Equal(t, resources.Services, received.Task.Config.Services)
+	assert.Empty(t, cli.ConfigManager.Get(utils.NamespacedNameKind(gateway)))
+	assert.NotEmpty(t, cli.ConfigManager.Get(utils.NamespacedNameKind(other)))
+	assert.NotEmpty(t, cli.ConfigManager.Get(utils.NamespacedNameKind(route)))
+}
+
+func TestStartConsumesSyncNotificationsWithoutSyncPeriod(t *testing.T) {
+	requests := make(chan struct{}, 10)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(adctypes.SyncResult{Status: adctypes.StatusSuccess})
+		requests <- struct{}{}
+	}))
+	defer server.Close()
+	t.Setenv("ADC_SERVER_URL", server.URL)
+	cli, err := adcclient.New(logr.Discard(), "api7ee", time.Second)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	readier := readiness.NewReadinessManager(nil, logr.Discard())
+	require.NoError(t, readier.Start(ctx))
+	d := &api7eeProvider{
+		client: cli, readier: readier, updater: discardUpdater{}, syncCh: make(chan struct{}, 1), log: logr.Discard(),
+	}
+
+	route := &gatewayv1.HTTPRoute{
+		TypeMeta:   metav1.TypeMeta{Kind: "HTTPRoute", APIVersion: gatewayv1.GroupVersion.String()},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "route"},
+	}
+	proxy := types.NamespacedNameKind{Kind: "GatewayProxy", Namespace: "default", Name: "proxy"}
+	labels := label.GenLabel(route)
+	require.NoError(t, cli.UpdateConfig(ctx, adcclient.Task{
+		Key: utils.NamespacedNameKind(route), Labels: labels, ResourceTypes: []string{adctypes.TypeService},
+		Configs: map[types.NamespacedNameKind]adctypes.Config{proxy: {
+			Name: proxy.String(), BackendType: "apisix", ServerAddrs: []string{"http://apisix:9180"},
+		}},
+		Resources: &adctypes.Resources{Services: []*adctypes.Service{{Metadata: adctypes.Metadata{ID: "route", Labels: labels}}}},
+	}))
+
+	done := make(chan error, 1)
+	go func() { done <- d.Start(ctx) }()
+
+	select {
+	case <-requests:
+	case <-time.After(5 * time.Second):
+		t.Fatal("startup sync did not run")
+	}
+	d.syncNotify()
+	select {
+	case <-requests:
+	case err := <-done:
+		t.Fatalf("Start returned before consuming the notification: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("sync notification was not consumed")
+	}
+	cancel()
+	require.NoError(t, <-done)
+}
+
+type discardUpdater struct{}
+
+func (discardUpdater) Update(status.Update) {}
