@@ -40,6 +40,8 @@ import (
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	adcclient "github.com/apache/apisix-ingress-controller/internal/adc/client"
 	"github.com/apache/apisix-ingress-controller/internal/controller/label"
+	"github.com/apache/apisix-ingress-controller/internal/controller/status"
+	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
@@ -196,3 +198,61 @@ func TestDeleteGatewayPreservesSharedProxyResources(t *testing.T) {
 	assert.NotEmpty(t, cli.ConfigManager.Get(utils.NamespacedNameKind(other)))
 	assert.NotEmpty(t, cli.ConfigManager.Get(utils.NamespacedNameKind(route)))
 }
+
+func TestStartConsumesSyncNotificationsWithoutSyncPeriod(t *testing.T) {
+	requests := make(chan struct{}, 10)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(adctypes.SyncResult{Status: adctypes.StatusSuccess})
+		requests <- struct{}{}
+	}))
+	defer server.Close()
+	t.Setenv("ADC_SERVER_URL", server.URL)
+	cli, err := adcclient.New(logr.Discard(), "api7ee", time.Second)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	readier := readiness.NewReadinessManager(nil, logr.Discard())
+	require.NoError(t, readier.Start(ctx))
+	d := &api7eeProvider{
+		client: cli, readier: readier, updater: discardUpdater{}, syncCh: make(chan struct{}, 1), log: logr.Discard(),
+	}
+
+	route := &gatewayv1.HTTPRoute{
+		TypeMeta:   metav1.TypeMeta{Kind: "HTTPRoute", APIVersion: gatewayv1.GroupVersion.String()},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "route"},
+	}
+	proxy := types.NamespacedNameKind{Kind: "GatewayProxy", Namespace: "default", Name: "proxy"}
+	labels := label.GenLabel(route)
+	require.NoError(t, cli.UpdateConfig(ctx, adcclient.Task{
+		Key: utils.NamespacedNameKind(route), Labels: labels, ResourceTypes: []string{adctypes.TypeService},
+		Configs: map[types.NamespacedNameKind]adctypes.Config{proxy: {
+			Name: proxy.String(), BackendType: "apisix", ServerAddrs: []string{"http://apisix:9180"},
+		}},
+		Resources: &adctypes.Resources{Services: []*adctypes.Service{{Metadata: adctypes.Metadata{ID: "route", Labels: labels}}}},
+	}))
+
+	done := make(chan error, 1)
+	go func() { done <- d.Start(ctx) }()
+
+	select {
+	case <-requests:
+	case <-time.After(5 * time.Second):
+		t.Fatal("startup sync did not run")
+	}
+	d.syncNotify()
+	select {
+	case <-requests:
+	case err := <-done:
+		t.Fatalf("Start returned before consuming the notification: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("sync notification was not consumed")
+	}
+	cancel()
+	require.NoError(t, <-done)
+}
+
+type discardUpdater struct{}
+
+func (discardUpdater) Update(status.Update) {}

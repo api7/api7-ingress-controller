@@ -262,11 +262,14 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 		})
 	}
 
-	if d.SyncPeriod < 1 {
-		return nil
+	// A zero SyncPeriod only disables the periodic sync; syncCh still carries changes
+	// that the scoped syncs cannot push, such as an evicted Gateway's plugins.
+	var tick <-chan time.Time
+	if d.SyncPeriod > 0 {
+		ticker := time.NewTicker(d.SyncPeriod)
+		defer ticker.Stop()
+		tick = ticker.C
 	}
-	ticker := time.NewTicker(d.SyncPeriod)
-	defer ticker.Stop()
 
 	retrier := common.NewRetrier(common.NewExponentialBackoff(RetryBaseDelay, RetryMaxDelay))
 
@@ -274,7 +277,7 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 		select {
 		case <-d.syncCh:
 		case <-retrier.C():
-		case <-ticker.C:
+		case <-tick:
 		case <-ctx.Done():
 			return nil
 		}
