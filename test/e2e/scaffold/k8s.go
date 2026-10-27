@@ -337,6 +337,8 @@ spec:
     controlPlane:
       endpoints:
       - %s
+      # The API7 E2E dashboard uses a self-signed test certificate.
+      tlsVerify: false
       auth:
         type: AdminKey
         adminKey:
