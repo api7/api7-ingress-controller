@@ -170,3 +170,29 @@ func TestUpdateKeepsLastKnownGoodStateWhenL4PolicyCannotRender(t *testing.T) {
 	require.Len(t, resources.Services, 1)
 	assert.Equal(t, "last-known-good", resources.Services[0].Name)
 }
+
+func TestUpdateRejectsInvalidConsumerConfiguration(t *testing.T) {
+	for _, plugin := range []bool{false, true} {
+		name := "credential"
+		if plugin {
+			name = "plugin"
+		}
+		t.Run(name, func(t *testing.T) {
+			raw, err := New(logr.Discard(), nil, nil)
+			require.NoError(t, err)
+			consumer := &v1alpha1.Consumer{
+				TypeMeta:   metav1.TypeMeta{Kind: "Consumer", APIVersion: v1alpha1.GroupVersion.String()},
+				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "demo"},
+			}
+			if plugin {
+				consumer.Spec.Plugins = []v1alpha1.Plugin{{Name: "ip-restriction", Config: apiextensionsv1.JSON{Raw: []byte(`[]`)}}}
+			} else {
+				consumer.Spec.Credentials = []v1alpha1.Credential{{Name: "invalid", Type: "key-auth", Config: apiextensionsv1.JSON{Raw: []byte(`[]`)}}}
+			}
+			// Translation errors must propagate before provider configuration or submission.
+			err = raw.Update(context.Background(), provider.NewDefaultTranslateContext(context.Background()), consumer)
+			require.ErrorContains(t, err, "consumer default/demo")
+			require.ErrorContains(t, err, name)
+		})
+	}
+}

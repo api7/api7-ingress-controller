@@ -19,6 +19,7 @@ package translator
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"k8s.io/apimachinery/pkg/types"
 
@@ -63,11 +64,7 @@ func (t *Translator) TranslateConsumerV1alpha1(tctx *provider.TranslateContext, 
 		} else {
 			authConfig := make(map[string]any)
 			if err := json.Unmarshal(credentialSpec.Config.Raw, &authConfig); err != nil {
-				t.Log.Error(err, "failed to unmarshal credential config",
-					"consumer", consumerV.Namespace+"/"+consumerV.Name,
-					"credential", credentialSpec.Name,
-					"type", credentialSpec.Type)
-				continue
+				return nil, fmt.Errorf("consumer %s/%s credential %s: failed to unmarshal config: %w", consumerV.Namespace, consumerV.Name, credentialSpec.Name, err)
 			}
 			credential.Config = authConfig
 		}
@@ -79,10 +76,7 @@ func (t *Translator) TranslateConsumerV1alpha1(tctx *provider.TranslateContext, 
 	for _, plugin := range consumerV.Spec.Plugins {
 		pluginConfig, err := renderPluginConfig(plugin, consumerV.Namespace, tctx.Secrets)
 		if err != nil {
-			t.Log.Error(err, "failed to render plugin config",
-				"consumer", consumerV.Namespace+"/"+consumerV.Name,
-				"plugin", plugin.Name)
-			continue
+			return nil, fmt.Errorf("consumer %s/%s plugin %s: %w", consumerV.Namespace, consumerV.Name, plugin.Name, err)
 		}
 		plugins[plugin.Name] = pluginConfig
 	}
