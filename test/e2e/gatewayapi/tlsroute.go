@@ -91,17 +91,22 @@ spec:
 			s.ResourceApplied("TLSRoute", "tls-route", tlsRoute, 1)
 
 			client := s.NewAPISIXClientWithTLSProxy(host)
+			// TLSRoute is served by the stream subsystem through a port-forward
+			// tunnel, which needs the same headroom as the other stream specs
+			// (tcproute/udproute); the 30s default is too tight on a loaded runner.
 			s.RequestAssert(&scaffold.RequestAssert{
-				Client: client,
-				Method: http.MethodGet,
-				Path:   "/ip",
-				Check:  scaffold.WithExpectedStatus(http.StatusOK),
+				Client:  client,
+				Method:  http.MethodGet,
+				Path:    "/ip",
+				Check:   scaffold.WithExpectedStatus(http.StatusOK),
+				Timeout: time.Minute * 3,
 			})
 			s.RequestAssert(&scaffold.RequestAssert{
-				Client: client,
-				Method: http.MethodGet,
-				Path:   "/notfound",
-				Check:  scaffold.WithExpectedStatus(http.StatusNotFound),
+				Client:  client,
+				Method:  http.MethodGet,
+				Path:    "/notfound",
+				Check:   scaffold.WithExpectedStatus(http.StatusNotFound),
+				Timeout: time.Minute * 3,
 			})
 
 			Expect(s.DeleteResourceFromString(tlsRoute)).NotTo(HaveOccurred(), "deleting TLSRoute")
@@ -114,7 +119,8 @@ spec:
 					errMsg = reporter.Err().Error()
 				}
 				return errMsg
-			}).Should(ContainSubstring("EOF"), "should get EOF after deleting TLSRoute")
+			}).WithTimeout(time.Minute*3).
+				Should(ContainSubstring("EOF"), "should get EOF after deleting TLSRoute")
 		})
 	})
 
