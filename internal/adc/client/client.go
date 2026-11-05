@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -389,6 +390,21 @@ func (c *Client) push(ctx context.Context, config adctypes.Config, args []string
 	return alsoReport, err
 }
 
+func buildSyncArgs(filePath string, task Task, backend string) []string {
+	labels := task.Labels
+	if backend != backendAPISIXStandalone {
+		// Preserve per-resource constraints while scoping full sync and gateway cleanup;
+		// only standalone, which replaces the whole configuration, stays unscoped.
+		// ADC does not apply label selectors to global rules or plugin metadata.
+		labels = maps.Clone(labels)
+		if labels == nil {
+			labels = make(map[string]string)
+		}
+		labels[label.LabelManagedBy] = label.LabelManagedByValue
+	}
+	return BuildADCExecuteArgs(filePath, labels, task.ResourceTypes)
+}
+
 func (c *Client) sync(ctx context.Context, task Task) error {
 	c.log.V(1).Info("syncing resources", "task", task)
 
@@ -437,8 +453,6 @@ func (c *Client) sync(ctx context.Context, task Task) error {
 			pkgmetrics.RecordFileIODuration("prepare_sync_file", "success", time.Since(fileIOStart).Seconds())
 			defer cleanup()
 
-			args := BuildADCExecuteArgs(syncFilePath, task.Labels, task.ResourceTypes)
-
 			// Record sync duration for each config
 			startTime := time.Now()
 			resourceType := strings.Join(task.ResourceTypes, ",")
@@ -449,6 +463,7 @@ func (c *Client) sync(ctx context.Context, task Task) error {
 				config.BackendType = c.defaultMode
 			}
 
+			args := buildSyncArgs(syncFilePath, task, config.BackendType)
 			err = c.executor.Execute(ctx, config, args)
 			duration := time.Since(startTime).Seconds()
 
@@ -488,8 +503,6 @@ func (c *Client) sync(ctx context.Context, task Task) error {
 	defer cleanup()
 	c.log.V(1).Info("prepared sync file", "path", syncFilePath)
 
-	args := BuildADCExecuteArgs(syncFilePath, task.Labels, task.ResourceTypes)
-
 	for _, config := range task.Configs {
 		// Record sync duration for each config
 		startTime := time.Now()
@@ -501,6 +514,7 @@ func (c *Client) sync(ctx context.Context, task Task) error {
 			config.BackendType = c.defaultMode
 		}
 
+		args := buildSyncArgs(syncFilePath, task, config.BackendType)
 		alsoReport, err := c.push(ctx, config, args)
 		errs.Errors = append(errs.Errors, alsoReport...)
 
