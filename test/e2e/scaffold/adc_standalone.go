@@ -20,6 +20,8 @@ package scaffold
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
 
 	"github.com/gavv/httpexpect/v2"
 
@@ -114,6 +116,10 @@ func (r *standaloneDataplaneResource) dump(ctx context.Context) (*standaloneConf
 		return nil, nil, err
 	}
 	body := []byte(resp.Body().Raw())
+	// An error body would decode into an empty config and read as "no resources".
+	if code := resp.Raw().StatusCode; code != http.StatusOK {
+		return nil, nil, fmt.Errorf("GET /apisix/admin/configs: HTTP %d: %s", code, body)
+	}
 
 	var cfg standaloneConfig
 	if err := json.Unmarshal(body, &cfg); err != nil {
