@@ -30,7 +30,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  ADC_VERSION: dev
+  # ghcr.io/api7/adc:dev is now the Rust ADC, which has no apisix-standalone
+  # backend yet; test against the latest ADC release instead.
+  ADC_VERSION: 0.31.0
 
 jobs:
   e2e-test:
