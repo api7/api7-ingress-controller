@@ -28,6 +28,7 @@ import (
 
 var (
 	ProviderType = cmp.Or(os.Getenv("PROVIDER_TYPE"), ProviderTypeAPISIXStandalone)
+	ADCImage     = cmp.Or(os.Getenv("ADC_IMAGE"), "ghcr.io/api7/adc:dev")
 )
 
 const (

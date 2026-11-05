@@ -153,7 +153,9 @@ spec:
 
 	It("should reject consumer update that fails ADC validation", func() {
 		gatewayName := s.Namespace()
-		consumerName := "webhook-consumer-update"
+		// ADC validates a credential as "<username>/credentials/<id>", which
+		// APISIX caps at 128 characters; the namespace prefix leaves little room.
+		consumerName := "consumer-update"
 
 		validConsumer := fmt.Sprintf(`
 apiVersion: apisix.apache.org/v1alpha1
