@@ -42,6 +42,17 @@ func newDefaultUpstreamWithoutScheme() *adctypes.Upstream {
 	}
 }
 
+// setL4UpstreamScheme gives a stream upstream an L4 scheme unless a
+// BackendTrafficPolicy already set one. ADC derives the service type from the
+// upstream scheme, and API7 EE rejects stream routes on an http service.
+func setL4UpstreamScheme(upstream *adctypes.Upstream, scheme string) {
+	switch upstream.Scheme {
+	case apiv2.SchemeTCP, apiv2.SchemeUDP, apiv2.SchemeTLS:
+		return
+	}
+	upstream.Scheme = scheme
+}
+
 // listenerPortSet returns the de-duplicated set of ports of the listeners the
 // route attaches to. tctx.Listeners is populated by the controller from the
 // listeners that ParseRouteParentRefs already matched against the route's
@@ -133,6 +144,7 @@ func (t *Translator) TranslateTCPRoute(tctx *provider.TranslateContext, tcpRoute
 				continue
 			}
 			t.AttachBackendTrafficPolicyToUpstream(backend, tctx.BackendTrafficPolicies, upstream, tctx.Services)
+			setL4UpstreamScheme(upstream, apiv2.SchemeTCP)
 			upstream.Nodes = upNodes
 			var (
 				kind string
@@ -158,6 +170,7 @@ func (t *Translator) TranslateTCPRoute(tctx *provider.TranslateContext, tcpRoute
 		if len(upstreams) == 0 {
 			// Create a default upstream if no valid backends
 			upstream := adctypes.NewDefaultUpstream()
+			setL4UpstreamScheme(upstream, apiv2.SchemeTCP)
 			service.Upstream = upstream
 		} else if len(upstreams) == 1 {
 			// Single backend - use directly as service upstream
