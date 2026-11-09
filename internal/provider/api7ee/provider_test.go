@@ -189,7 +189,10 @@ func TestDeleteGatewayPreservesSharedProxyResources(t *testing.T) {
 	assert.Equal(t, "route", resources.Services[0].ID)
 	assert.Equal(t, []string{adctypes.TypeSSL}, received.Task.Opts.IncludeResourceType)
 	require.Len(t, d.syncCh, 1, "Gateway deletion must schedule a full sync for the evicted plugins")
-	assert.Equal(t, map[string]string{label.LabelResourceKey: label.GenLabel(gateway)[label.LabelResourceKey]}, received.Task.Opts.LabelSelector)
+	assert.Equal(t, map[string]string{
+		label.LabelResourceKey: label.GenLabel(gateway)[label.LabelResourceKey],
+		label.LabelManagedBy:   label.LabelManagedByValue,
+	}, received.Task.Opts.LabelSelector)
 	_, err = cli.Sync(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, resources.SSLs, received.Task.Config.SSLs)
