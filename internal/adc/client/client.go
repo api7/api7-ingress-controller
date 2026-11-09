@@ -179,8 +179,12 @@ func (c *Client) applyStoreChanges(args Task, isDelete bool) (StoreDelta, error)
 		delta.Applied = args.Configs
 	}
 
-	for _, cfg := range delta.Deleted {
-		if err := c.Store.Delete(cfg.Name, args.ResourceTypes, args.Labels); err != nil {
+	for key, cfg := range delta.Deleted {
+		resourceTypes := args.ResourceTypes
+		if args.Key.Kind == types.KindGateway {
+			resourceTypes = gatewayEvictionTypes(resourceTypes, c.ConfigManager.HasResource(key, isGatewayProxyReferrer))
+		}
+		if err := c.Store.Delete(cfg.Name, resourceTypes, args.Labels); err != nil {
 			c.log.Error(err, "store delete failed", "cfg", cfg, "args", args)
 			return StoreDelta{}, errors.Wrap(err, fmt.Sprintf("store delete failed for config %s", cfg.Name))
 		}
@@ -194,6 +198,26 @@ func (c *Client) applyStoreChanges(args Task, isDelete bool) (StoreDelta, error)
 	}
 
 	return delta, nil
+}
+
+// gatewayEvictionTypes evicts a Gateway's own global rule, stored under its labels, but
+// keeps the GatewayProxy's plugin_metadata, shared by every Gateway and IngressClass
+// referencing it, until the last of them is gone. Only the store is affected: the
+// immediate sync keeps the caller's resource types, as ADC does not label-filter
+// global rules.
+func gatewayEvictionTypes(resourceTypes []string, referenced bool) []string {
+	resourceTypes = slices.DeleteFunc(slices.Clone(resourceTypes), func(t string) bool {
+		return t == adctypes.TypeGlobalRule || t == adctypes.TypePluginMetadata
+	})
+	resourceTypes = append(resourceTypes, adctypes.TypeGlobalRule)
+	if !referenced {
+		resourceTypes = append(resourceTypes, adctypes.TypePluginMetadata)
+	}
+	return resourceTypes
+}
+
+func isGatewayProxyReferrer(key types.NamespacedNameKind) bool {
+	return key.Kind == types.KindGateway || key.Kind == types.KindIngressClass
 }
 
 func (c *Client) applySync(ctx context.Context, args Task, delta StoreDelta) error {

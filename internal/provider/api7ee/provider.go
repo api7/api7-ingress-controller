@@ -205,7 +205,9 @@ func (d *api7eeProvider) Delete(ctx context.Context, obj client.Object) error {
 		resourceTypes = append(resourceTypes, "service")
 		labels = label.GenLabel(obj)
 	case *gatewayv1.Gateway:
-		// delete all resources
+		// Gateways sharing a GatewayProxy only own their own certificates.
+		resourceTypes = append(resourceTypes, "ssl")
+		labels = label.GenLabel(obj)
 	case *networkingv1.Ingress:
 		resourceTypes = append(resourceTypes, "service", "ssl")
 		labels = label.GenLabel(obj)
@@ -225,12 +227,20 @@ func (d *api7eeProvider) Delete(ctx context.Context, obj client.Object) error {
 		labels = label.GenLabel(obj)
 	}
 
-	return d.client.Delete(ctx, adcclient.Task{
+	if err := d.client.Delete(ctx, adcclient.Task{
 		Key:           nnk,
 		Name:          nnk.String(),
 		Labels:        labels,
 		ResourceTypes: resourceTypes,
-	})
+	}); err != nil {
+		return err
+	}
+	if _, ok := obj.(*gatewayv1.Gateway); ok {
+		// The scoped sync above only covers SSLs; push the rest of the proxy snapshot,
+		// including the Gateway's evicted global rule and plugin metadata.
+		d.syncNotify()
+	}
+	return nil
 }
 
 func (d *api7eeProvider) Start(ctx context.Context) error {
@@ -252,11 +262,14 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 		})
 	}
 
-	if d.SyncPeriod < 1 {
-		return nil
+	// A zero SyncPeriod only disables the periodic sync; syncCh still carries changes
+	// that the scoped syncs cannot push, such as an evicted Gateway's plugins.
+	var tick <-chan time.Time
+	if d.SyncPeriod > 0 {
+		ticker := time.NewTicker(d.SyncPeriod)
+		defer ticker.Stop()
+		tick = ticker.C
 	}
-	ticker := time.NewTicker(d.SyncPeriod)
-	defer ticker.Stop()
 
 	retrier := common.NewRetrier(common.NewExponentialBackoff(RetryBaseDelay, RetryMaxDelay))
 
@@ -264,7 +277,7 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 		select {
 		case <-d.syncCh:
 		case <-retrier.C():
-		case <-ticker.C:
+		case <-tick:
 		case <-ctx.Done():
 			return nil
 		}
