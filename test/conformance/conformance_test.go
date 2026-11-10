@@ -39,15 +39,8 @@ var skippedTestsForKnownGaps = []string{
 	tests.HTTPRouteListenerHostnameMatching.ShortName,
 	tests.GRPCRouteListenerHostnameMatching.ShortName,
 
-	// A backendRef that cannot be resolved must still produce a route that
-	// answers 500; today no route is generated at all, so the request 404s.
-	// These consistently pass in standalone mode and fail against the APISIX
-	// admin API, and which member of the group trips is not stable between
-	// runs, so all four are skipped together rather than one at a time.
+	// Omitted backendRefs do not yet inject the required HTTP 500 response.
 	tests.HTTPRouteNoBackendRefs.ShortName,
-	tests.HTTPRouteInvalidBackendRefUnknownKind.ShortName,
-	tests.HTTPRouteInvalidCrossNamespaceBackendRef.ShortName,
-	tests.HTTPRouteInvalidNonExistentBackendRef.ShortName,
 	// Terminate mode itself is covered by TLSRouteListenerTerminateSupportedKinds
 	// and by the e2e TLSRoute suite. This provisional test additionally requires a
 	// standalone Gateway with no GatewayProxy attached to reach Accepted=True, and
