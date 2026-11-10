@@ -59,7 +59,10 @@ type API7DeployOptions struct {
 	ServiceType      string
 	ServiceHTTPPort  int
 	ServiceHTTPSPort int
-	Replicas         *int
+	// ServiceHTTPSTargetPort redirects the HTTPS service port at the data
+	// plane's stream tls_passthrough listen instead of its HTTP ssl listen.
+	ServiceHTTPSTargetPort int
+	Replicas               *int
 }
 
 func (f *Framework) DeployGateway(opts *API7DeployOptions) *corev1.Service {
@@ -73,6 +76,10 @@ func (f *Framework) DeployGateway(opts *API7DeployOptions) *corev1.Service {
 
 	if opts.ServiceHTTPSPort == 0 {
 		opts.ServiceHTTPSPort = 443
+	}
+
+	if opts.ServiceHTTPSTargetPort == 0 {
+		opts.ServiceHTTPSTargetPort = 9443
 	}
 
 	dpCert := f.GetDataplaneCertificates(opts.GatewayGroupID)

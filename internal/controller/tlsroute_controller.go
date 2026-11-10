@@ -55,6 +55,8 @@ type TLSRouteReconciler struct { //nolint:revive
 
 	Provider provider.Provider
 
+	parentResolver routeParentResolver
+
 	Updater status.Updater
 	Readier readiness.ReadinessManager
 
@@ -86,7 +88,7 @@ func (r *TLSRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 						return false
 					},
 					DeleteFunc: func(e event.DeleteEvent) bool {
-						return false
+						return true
 					},
 					CreateFunc: func(e event.CreateEvent) bool {
 						return true
@@ -253,6 +255,7 @@ func (r *TLSRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	tr := new(gatewayv1.TLSRoute)
 	if err := r.Get(ctx, req.NamespacedName, tr); err != nil {
 		if client.IgnoreNotFound(err) == nil {
+			r.parentResolver.Forget(req.NamespacedName)
 			tr.Namespace = req.Namespace
 			tr.Name = req.Name
 
@@ -283,17 +286,12 @@ func (r *TLSRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		msg:    "Route is accepted",
 	}
 
-	gateways, unresolvedParents, err := ParseRouteParentRefs(ctx, r.Client, r.Log, tr, tr.Spec.ParentRefs)
+	gateways, err := r.parentResolver.Resolve(ctx, r.Client, r.Log, tr, tr.Spec.ParentRefs)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
 	if len(gateways) == 0 {
-		if unresolvedParents {
-			// See the HTTPRoute reconciler: an unresolvable parentRef leaves ownership
-			// unknown rather than disproven, so the data plane must be left alone.
-			return ctrl.Result{}, nil
-		}
 		// See the HTTPRoute reconciler: a route that no longer references a
 		// Gateway managed by this controller must have its previously pushed
 		// configuration removed, or the data plane keeps serving it.
@@ -318,7 +316,8 @@ func (r *TLSRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			acceptStatus.msg = err.Error()
 		}
 		// Populate the matched listeners so the translator can derive the
-		// StreamRoute server_port from the listener the route attaches to.
+		// StreamRoute server_port and its tls.mode from the listener the route
+		// attaches to.
 		if len(gateway.Listeners) > 0 {
 			tctx.Listeners = appendListeners(tctx.Listeners, gateway.Listeners...)
 		} else if gateway.Listener != nil {
@@ -348,6 +347,30 @@ func (r *TLSRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	if r.supportsL4RoutePolicy {
 		ProcessL4RoutePolicy(r.Client, r.Log, tctx, tr.Namespace, tr.Name, types.KindTLSRoute)
 	}
+
+	// The hostnames become the SNIs the stream routes match on, so they have to be
+	// narrowed to what the listeners accept first. Every Gateway shares one physical
+	// stream listen, so a route keeping its own broader hostname does not merely
+	// over-serve: it takes that name from the route whose listener does accept it.
+	filteredTLSRoute, hostnameErr := filterTLSRouteHostnames(gateways, tr.DeepCopy())
+	if hostnameErr != nil {
+		acceptStatus.status = false
+		acceptStatus.msg = hostnameErr.Error()
+	}
+	// Translate and sync before writing Accepted=True. A translation or
+	// buildConfig failure from Provider.Update used to leave a green status
+	// and only requeue, matching neither Ingress nor ApisixGlobalRule.
+	var syncErr error
+	if isRouteAccepted(gateways) && hostnameErr == nil {
+		routeToUpdate := tr
+		if filteredTLSRoute != nil {
+			routeToUpdate = filteredTLSRoute
+		}
+		if syncErr = r.Provider.Update(ctx, tctx, routeToUpdate); syncErr != nil {
+			acceptStatus.status = false
+			acceptStatus.msg = syncErr.Error()
+		}
+	}
 	tr.Status.Parents = make([]gatewayv1.RouteParentStatus, 0, len(gateways))
 	for _, gateway := range gateways {
 		parentStatus := gatewayv1.RouteParentStatus{}
@@ -376,12 +399,8 @@ func (r *TLSRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		}),
 	})
 	UpdateStatus(r.Updater, r.Log, tctx)
-	if isRouteAccepted(gateways) {
-		routeToUpdate := tr
-		if err := r.Provider.Update(ctx, tctx, routeToUpdate); err != nil {
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{}, nil
+	if isRouteAccepted(gateways) && hostnameErr == nil {
+		return ctrl.Result{}, syncErr
 	}
 
 	// The route still resolves to one of our Gateways but no parent accepts it any

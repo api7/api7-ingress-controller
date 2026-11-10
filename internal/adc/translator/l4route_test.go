@@ -43,6 +43,7 @@ func TestTranslateTCPRouteWithL4RoutePolicy(t *testing.T) {
 		policy        *v1alpha1.L4RoutePolicy
 		wantPlugins   []string
 		wantNoPlugins bool
+		wantErr       bool
 	}{
 		{
 			name: "attaches plugins from matching L4RoutePolicy",
@@ -51,6 +52,13 @@ func TestTranslateTCPRouteWithL4RoutePolicy(t *testing.T) {
 				{Name: "ip-restriction", Config: mustJSON(map[string]any{"whitelist": []string{"10.0.0.0/8"}})},
 			}),
 			wantPlugins: []string{"limit-conn", "ip-restriction"},
+		},
+		{
+			name: "rejects a policy with a non-object plugin config",
+			policy: makeL4RoutePolicy("default", "tcp-policy", "TCPRoute", "my-tcp", []v1alpha1.Plugin{
+				{Name: "ip-restriction", Config: mustJSON([]string{"10.0.0.0/8"})},
+			}),
+			wantErr: true,
 		},
 		{
 			name: "does not attach plugins from policy targeting different route kind",
@@ -96,6 +104,11 @@ func TestTranslateTCPRouteWithL4RoutePolicy(t *testing.T) {
 			}
 
 			result, err := translator.TranslateTCPRoute(tctx, route)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, result)
+				return
+			}
 			require.NoError(t, err)
 			require.Len(t, result.Services, 1)
 			require.NotEmpty(t, result.Services[0].StreamRoutes)
@@ -118,6 +131,7 @@ func TestTranslateUDPRouteWithL4RoutePolicy(t *testing.T) {
 		policy        *v1alpha1.L4RoutePolicy
 		wantPlugins   []string
 		wantNoPlugins bool
+		wantErr       bool
 	}{
 		{
 			name: "attaches plugins from matching L4RoutePolicy",
@@ -125,6 +139,13 @@ func TestTranslateUDPRouteWithL4RoutePolicy(t *testing.T) {
 				{Name: "limit-conn", Config: mustJSON(map[string]any{"conn": 50})},
 			}),
 			wantPlugins: []string{"limit-conn"},
+		},
+		{
+			name: "rejects a policy with a non-object plugin config",
+			policy: makeL4RoutePolicy("default", "udp-policy", "UDPRoute", "my-udp", []v1alpha1.Plugin{
+				{Name: "ip-restriction", Config: mustJSON("10.0.0.0/8")},
+			}),
+			wantErr: true,
 		},
 		{
 			name: "does not attach plugins from policy targeting TCPRoute",
@@ -163,6 +184,11 @@ func TestTranslateUDPRouteWithL4RoutePolicy(t *testing.T) {
 			}
 
 			result, err := translator.TranslateUDPRoute(tctx, route)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, result)
+				return
+			}
 			require.NoError(t, err)
 			require.Len(t, result.Services, 1)
 			require.NotEmpty(t, result.Services[0].StreamRoutes)
@@ -186,6 +212,7 @@ func TestTranslateTLSRouteWithL4RoutePolicy(t *testing.T) {
 		hostnames     []string
 		wantPlugins   []string
 		wantNoPlugins bool
+		wantErr       bool
 	}{
 		{
 			name: "attaches plugins from matching L4RoutePolicy",
@@ -194,6 +221,14 @@ func TestTranslateTLSRouteWithL4RoutePolicy(t *testing.T) {
 			}),
 			hostnames:   []string{"example.com"},
 			wantPlugins: []string{"ip-restriction"},
+		},
+		{
+			name: "rejects a policy with a non-object plugin config",
+			policy: makeL4RoutePolicy("default", "tls-policy", "TLSRoute", "my-tls", []v1alpha1.Plugin{
+				{Name: "ip-restriction", Config: mustJSON(true)},
+			}),
+			hostnames: []string{"example.com"},
+			wantErr:   true,
 		},
 		{
 			name: "plugins attached once per rule even with multiple SNI hostnames",
@@ -248,16 +283,28 @@ func TestTranslateTLSRouteWithL4RoutePolicy(t *testing.T) {
 			}
 
 			result, err := translator.TranslateTLSRoute(tctx, route)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, result)
+				return
+			}
 			require.NoError(t, err)
 			require.Len(t, result.Services, 1)
 
-			// Verify stream routes are created per SNI hostname
-			if len(tt.hostnames) > 0 {
-				assert.Len(t, result.Services[0].StreamRoutes, len(tt.hostnames))
+			// One stream route carries every hostname: the singular sni for a
+			// single one, the plural snis beyond that. APISIX rejects both at once.
+			require.Len(t, result.Services[0].StreamRoutes, 1)
+			switch len(tt.hostnames) {
+			case 1:
+				assert.Equal(t, tt.hostnames[0], result.Services[0].StreamRoutes[0].SNI)
+				assert.Empty(t, result.Services[0].StreamRoutes[0].SNIs)
+			default:
+				assert.Equal(t, tt.hostnames, result.Services[0].StreamRoutes[0].SNIs)
+				assert.Empty(t, result.Services[0].StreamRoutes[0].SNI)
 			}
 
 			// Plugins are attached at the stream_route level so the APISIX stream proxy
-			// applies them; with multiple SNIs each stream_route carries its own copy.
+			// applies them.
 			require.NotEmpty(t, result.Services[0].StreamRoutes)
 			plugins := result.Services[0].StreamRoutes[0].Plugins
 			if tt.wantNoPlugins {

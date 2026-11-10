@@ -60,6 +60,8 @@ type HTTPRouteReconciler struct { //nolint:revive
 
 	Provider provider.Provider
 
+	parentResolver routeParentResolver
+
 	genericEvent chan event.GenericEvent
 
 	Updater status.Updater
@@ -116,7 +118,7 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 						return false
 					},
 					DeleteFunc: func(e event.DeleteEvent) bool {
-						return false
+						return true
 					},
 					CreateFunc: func(e event.CreateEvent) bool {
 						return true
@@ -162,6 +164,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	hr := new(gatewayv1.HTTPRoute)
 	if err := r.Get(ctx, req.NamespacedName, hr); err != nil {
 		if client.IgnoreNotFound(err) == nil {
+			r.parentResolver.Forget(req.NamespacedName)
 			if err := r.updateHTTPRoutePolicyStatusOnDeleting(ctx, req.NamespacedName); err != nil {
 				r.Log.Error(err, "failed to update HTTPRoutePolicy status on HTTPRoute deleting", "httproute", req.NamespacedName)
 			}
@@ -174,7 +177,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			}
 
 			if err := r.Provider.Delete(ctx, hr); err != nil {
-				r.Log.Error(err, "failed to delete httproute", "httproute", hr)
+				r.Log.Error(err, "failed to delete httproute", "httproute", utils.NamespacedName(hr))
 				return ctrl.Result{}, err
 			}
 			return ctrl.Result{}, nil
@@ -193,18 +196,12 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		msg:    "Route is accepted",
 	}
 
-	gateways, unresolvedParents, err := ParseRouteParentRefs(ctx, r.Client, r.Log, hr, hr.Spec.ParentRefs)
+	gateways, err := r.parentResolver.Resolve(ctx, r.Client, r.Log, hr, hr.Spec.ParentRefs)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
 	if len(gateways) == 0 {
-		if unresolvedParents {
-			// A missing Gateway or GatewayClass leaves ownership unknown rather than
-			// disproven. GatewayClass is cluster-scoped, so while one is absent every
-			// route under it resolves empty and deleting would drain the data plane.
-			return ctrl.Result{}, nil
-		}
 		// The route does not reference any Gateway managed by this controller.
 		// It may have referenced one before, e.g. when its parentRefs are
 		// repointed at a Gateway belonging to another GatewayClass, so the
@@ -217,7 +214,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			APIVersion: gatewayv1.GroupVersion.String(),
 		}
 		if err := r.Provider.Delete(ctx, hr); err != nil {
-			r.Log.Error(err, "failed to delete httproute", "httproute", hr)
+			r.Log.Error(err, "failed to delete httproute", "httproute", utils.NamespacedName(hr))
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
@@ -273,6 +270,22 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		acceptStatus.msg = err.Error()
 	}
 
+	// Translate and sync before writing Accepted=True. A translation or
+	// buildConfig failure from Provider.Update used to leave a green status
+	// and only requeue, matching neither Ingress nor ApisixGlobalRule.
+	var syncErr error
+	if isRouteAccepted(gateways) && err == nil {
+		routeToUpdate := hr
+		if filteredHTTPRoute != nil {
+			r.Log.V(1).Info("filtered httproute", "httproute", utils.NamespacedName(filteredHTTPRoute))
+			routeToUpdate = filteredHTTPRoute
+		}
+		if syncErr = r.Provider.Update(ctx, tctx, routeToUpdate); syncErr != nil {
+			acceptStatus.status = false
+			acceptStatus.msg = syncErr.Error()
+		}
+	}
+
 	// TODO: diff the old and new status
 	hr.Status.Parents = make([]gatewayv1.RouteParentStatus, 0, len(gateways))
 	for _, gateway := range gateways {
@@ -304,15 +317,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	UpdateStatus(r.Updater, r.Log, tctx)
 
 	if isRouteAccepted(gateways) && err == nil {
-		routeToUpdate := hr
-		if filteredHTTPRoute != nil {
-			r.Log.V(1).Info("filtered httproute", "httproute", utils.NamespacedName(filteredHTTPRoute))
-			routeToUpdate = filteredHTTPRoute
-		}
-		if err := r.Provider.Update(ctx, tctx, routeToUpdate); err != nil {
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, syncErr
 	}
 
 	// The route still resolves to one of our Gateways but no parent accepts it any

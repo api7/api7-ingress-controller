@@ -151,6 +151,11 @@ func TestMain(m *testing.M) {
 		ServiceType:            "LoadBalancer",
 		ServiceHTTPPort:        80,
 		ServiceHTTPSPort:       443,
+		// The TLSRoute tests pin their Gateway listener to port 443 in
+		// Passthrough mode and dial the Gateway address there, so 443 has to
+		// reach the stream tls_passthrough listen rather than the HTTP ssl
+		// listen. One port cannot serve both.
+		ServiceHTTPSTargetPort: 9120,
 	})
 
 	if len(svc.Status.LoadBalancer.Ingress) == 0 {

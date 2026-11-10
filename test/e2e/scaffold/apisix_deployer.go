@@ -43,6 +43,11 @@ type APISIXDeployOptions struct {
 	ServiceType      string
 	ServiceHTTPPort  int
 	ServiceHTTPSPort int
+	// ServiceHTTPSTargetPort is the container port the HTTPS service port
+	// forwards to: APISIX's HTTP ssl listen (9443) by default, or its stream
+	// tls_passthrough listen (9120). See the manifest for why the two cannot
+	// share a port.
+	ServiceHTTPSTargetPort int
 
 	ConfigProvider string
 	Replicas       *int
@@ -175,11 +180,12 @@ func (s *APISIXDeployer) AfterEach() {
 
 func (s *APISIXDeployer) DeployDataplane(deployOpts DeployDataplaneOptions) {
 	opts := APISIXDeployOptions{
-		Namespace:        s.namespace,
-		AdminKey:         s.runtimeOpts.APISIXAdminAPIKey,
-		ServiceHTTPPort:  9080,
-		ServiceHTTPSPort: 9443,
-		Replicas:         ptr.To(1),
+		Namespace:              s.namespace,
+		AdminKey:               s.runtimeOpts.APISIXAdminAPIKey,
+		ServiceHTTPPort:        9080,
+		ServiceHTTPSPort:       9443,
+		ServiceHTTPSTargetPort: 9443,
+		Replicas:               ptr.To(1),
 	}
 
 	if deployOpts.Namespace != "" {
@@ -193,6 +199,9 @@ func (s *APISIXDeployer) DeployDataplane(deployOpts DeployDataplaneOptions) {
 	}
 	if deployOpts.ServiceHTTPSPort != 0 {
 		opts.ServiceHTTPSPort = deployOpts.ServiceHTTPSPort
+	}
+	if deployOpts.ServiceHTTPSTargetPort != 0 {
+		opts.ServiceHTTPSTargetPort = deployOpts.ServiceHTTPSTargetPort
 	}
 	if deployOpts.AdminKey != "" {
 		opts.AdminKey = deployOpts.AdminKey
@@ -273,6 +282,12 @@ func (s *APISIXDeployer) deployDataplane(opts *APISIXDeployOptions) *corev1.Serv
 			LabelSelector: "app.kubernetes.io/name=apisix",
 		})
 		Expect(err).ToNot(HaveOccurred(), "waiting for gateway pod ready")
+	} else {
+		// A terminating pod can still be Ready and selected by a new port-forward.
+		err = k8s.WaitUntilNumPodsCreatedE(s.GinkgoT, kubectlOpts, metav1.ListOptions{
+			LabelSelector: "app.kubernetes.io/name=apisix",
+		}, 0, 60, time.Second)
+		Expect(err).ToNot(HaveOccurred(), "waiting for gateway pods to terminate")
 	}
 
 	Eventually(func() bool {
@@ -313,6 +328,7 @@ func (s *APISIXDeployer) DeployIngress() {
 		ProviderType:       framework.ProviderType,
 		ProviderSyncPeriod: syncPeriod,
 		Namespace:          s.namespace,
+		NamespaceSelector:  s.runtimeOpts.NamespaceSelector,
 		Replicas:           ptr.To(1),
 		WebhookEnable:      s.runtimeOpts.EnableWebhook,
 	})
@@ -328,6 +344,7 @@ func (s *APISIXDeployer) ScaleIngress(replicas int) {
 		ProviderType:       framework.ProviderType,
 		ProviderSyncPeriod: syncPeriod,
 		Namespace:          s.namespace,
+		NamespaceSelector:  s.runtimeOpts.NamespaceSelector,
 		Replicas:           &replicas,
 	})
 }
@@ -410,10 +427,11 @@ func (s *APISIXDeployer) CreateAdditionalGatewayWithOptions(namePrefix string, o
 
 	// Deploy dataplane for this additional gateway
 	o := APISIXDeployOptions{
-		Namespace:        additionalNS,
-		AdminKey:         adminKey,
-		ServiceHTTPPort:  9080,
-		ServiceHTTPSPort: 9443,
+		Namespace:              additionalNS,
+		AdminKey:               adminKey,
+		ServiceHTTPPort:        9080,
+		ServiceHTTPSPort:       9443,
+		ServiceHTTPSTargetPort: 9443,
 	}
 	if opts.Namespace != "" {
 		o.Namespace = opts.Namespace
@@ -426,6 +444,9 @@ func (s *APISIXDeployer) CreateAdditionalGatewayWithOptions(namePrefix string, o
 	}
 	if opts.ServiceHTTPSPort != 0 {
 		o.ServiceHTTPSPort = opts.ServiceHTTPSPort
+	}
+	if opts.ServiceHTTPSTargetPort != 0 {
+		o.ServiceHTTPSTargetPort = opts.ServiceHTTPSTargetPort
 	}
 	if opts.ProviderType != "" {
 		if opts.ProviderType == framework.ProviderTypeAPISIX {
@@ -484,6 +505,12 @@ func (s *APISIXDeployer) GetAdminEndpoint(svc ...*corev1.Service) string {
 }
 
 func (s *APISIXDeployer) DefaultDataplaneResource() DataplaneResource {
+	// adc's plain CLI has no --backend value for apisix-standalone (see
+	// standaloneDataplaneResource), so it reads the Admin API directly instead of
+	// shelling out to `adc dump`.
+	if framework.ProviderType == framework.ProviderTypeAPISIXStandalone {
+		return newStandaloneDataplaneResource(s.AdminAPIClient(), s.AdminKey())
+	}
 	return newADCDataplaneResource(
 		framework.ProviderType,
 		fmt.Sprintf("http://%s", s.adminTunnel.Endpoint()),

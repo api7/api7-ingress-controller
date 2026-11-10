@@ -57,6 +57,8 @@ type GRPCRouteReconciler struct { //nolint:revive
 
 	Provider provider.Provider
 
+	parentResolver routeParentResolver
+
 	genericEvent chan event.GenericEvent
 
 	Updater status.Updater
@@ -94,7 +96,7 @@ func (r *GRPCRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 						return false
 					},
 					DeleteFunc: func(e event.DeleteEvent) bool {
-						return false
+						return true
 					},
 					CreateFunc: func(e event.CreateEvent) bool {
 						return true
@@ -164,6 +166,7 @@ func (r *GRPCRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	gr := new(gatewayv1.GRPCRoute)
 	if err := r.Get(ctx, req.NamespacedName, gr); err != nil {
 		if client.IgnoreNotFound(err) == nil {
+			r.parentResolver.Forget(req.NamespacedName)
 			gr.Namespace = req.Namespace
 			gr.Name = req.Name
 
@@ -192,17 +195,12 @@ func (r *GRPCRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		msg:    "Route is accepted",
 	}
 
-	gateways, unresolvedParents, err := ParseRouteParentRefs(ctx, r.Client, r.Log, gr, gr.Spec.ParentRefs)
+	gateways, err := r.parentResolver.Resolve(ctx, r.Client, r.Log, gr, gr.Spec.ParentRefs)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
 	if len(gateways) == 0 {
-		if unresolvedParents {
-			// See the HTTPRoute reconciler: an unresolvable parentRef leaves ownership
-			// unknown rather than disproven, so the data plane must be left alone.
-			return ctrl.Result{}, nil
-		}
 		// See the HTTPRoute reconciler: a route that no longer references a
 		// Gateway managed by this controller must have its previously pushed
 		// configuration removed, or the data plane keeps serving it.
@@ -256,6 +254,17 @@ func (r *GRPCRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	ProcessBackendTrafficPolicy(r.Client, r.Log, tctx)
 
+	// Translate and sync before writing Accepted=True. A translation or
+	// buildConfig failure from Provider.Update used to leave a green status
+	// and only requeue, matching neither Ingress nor ApisixGlobalRule.
+	var syncErr error
+	if isRouteAccepted(gateways) && err == nil {
+		if syncErr = r.Provider.Update(ctx, tctx, gr); syncErr != nil {
+			acceptStatus.status = false
+			acceptStatus.msg = syncErr.Error()
+		}
+	}
+
 	// TODO: diff the old and new status
 	gr.Status.Parents = make([]gatewayv1.RouteParentStatus, 0, len(gateways))
 	for _, gateway := range gateways {
@@ -287,11 +296,7 @@ func (r *GRPCRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	UpdateStatus(r.Updater, r.Log, tctx)
 
 	if isRouteAccepted(gateways) && err == nil {
-		routeToUpdate := gr
-		if err := r.Provider.Update(ctx, tctx, routeToUpdate); err != nil {
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, syncErr
 	}
 
 	// The route still resolves to one of our Gateways but no parent accepts it any

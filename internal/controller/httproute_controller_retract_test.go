@@ -25,6 +25,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -36,6 +37,7 @@ import (
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
+	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/manager/readiness"
 )
 
@@ -52,7 +54,7 @@ const (
 func newHTTPRouteRetractFixture(
 	t *testing.T,
 	from gatewayv1.FromNamespaces,
-) (*HTTPRouteReconciler, *recordingProvider) {
+) (*HTTPRouteReconciler, *recordingProvider, *recordingUpdater) {
 	t.Helper()
 
 	scheme := runtime.NewScheme()
@@ -95,20 +97,25 @@ func newHTTPRouteRetractFixture(
 	cli := fake.NewClientBuilder().WithScheme(scheme).
 		WithObjects([]client.Object{gatewayClass, gateway, route}...).
 		WithStatusSubresource(route).
+		// The reconcile lists HTTPRoutePolicies by target, which the fake client
+		// only serves once the index exists. No policy is under test here.
+		WithIndex(&v1alpha1.HTTPRoutePolicy{}, indexer.PolicyTargetRefs,
+			func(client.Object) []string { return nil }).
 		Build()
 
 	readier := readiness.NewReadinessManager(cli, logr.Discard())
 	require.NoError(t, readier.Start(context.Background()))
 
 	prov := &recordingProvider{}
+	updater := &recordingUpdater{}
 	return &HTTPRouteReconciler{
 		Client:   cli,
 		Scheme:   scheme,
 		Log:      logr.Discard(),
 		Provider: prov,
-		Updater:  &recordingUpdater{},
+		Updater:  updater,
 		Readier:  readier,
-	}, prov
+	}, prov, updater
 }
 
 func reconcileRetractHTTPRoute(t *testing.T, r *HTTPRouteReconciler) (ctrl.Result, error) {
@@ -125,7 +132,7 @@ var retractRouteKey = k8stypes.NamespacedName{Namespace: retractRouteNamespace, 
 // retracted, otherwise the data plane keeps serving a route the Gateway no longer
 // admits and only deleting the HTTPRoute clears it.
 func TestHTTPRouteReconcile_RetractsWhenListenerStopsAllowingRoute(t *testing.T) {
-	r, prov := newHTTPRouteRetractFixture(t, gatewayv1.NamespacesFromSame)
+	r, prov, _ := newHTTPRouteRetractFixture(t, gatewayv1.NamespacesFromSame)
 
 	result, err := reconcileRetractHTTPRoute(t, r)
 
@@ -137,22 +144,54 @@ func TestHTTPRouteReconcile_RetractsWhenListenerStopsAllowingRoute(t *testing.T)
 
 // An accepted route must still be published and must not be retracted.
 func TestHTTPRouteReconcile_PublishesAcceptedRoute(t *testing.T) {
-	r, prov := newHTTPRouteRetractFixture(t, gatewayv1.NamespacesFromAll)
+	r, prov, updater := newHTTPRouteRetractFixture(t, gatewayv1.NamespacesFromAll)
 
 	_, err := reconcileRetractHTTPRoute(t, r)
 
 	require.NoError(t, err)
 	assert.Empty(t, prov.deleted, "an accepted route must not be retracted")
 	assert.Equal(t, 1, prov.updated)
+
+	accepted := acceptedConditionFromUpdater(t, updater)
+	assert.Equal(t, metav1.ConditionTrue, accepted.Status)
 }
 
 // A provider failure while retracting must surface so the reconcile is retried.
 func TestHTTPRouteReconcile_RetractErrorIsReturned(t *testing.T) {
-	r, prov := newHTTPRouteRetractFixture(t, gatewayv1.NamespacesFromSame)
+	r, prov, _ := newHTTPRouteRetractFixture(t, gatewayv1.NamespacesFromSame)
 	prov.deleteErr = errors.New("provider unavailable")
 
 	_, err := reconcileRetractHTTPRoute(t, r)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "provider unavailable")
+}
+
+func acceptedConditionFromUpdater(t *testing.T, updater *recordingUpdater) *metav1.Condition {
+	t.Helper()
+	require.NotEmpty(t, updater.updates)
+	mutated, ok := updater.updates[0].Mutator.Mutate(&gatewayv1.HTTPRoute{}).(*gatewayv1.HTTPRoute)
+	require.True(t, ok)
+	require.Len(t, mutated.Status.Parents, 1)
+	accepted := meta.FindStatusCondition(mutated.Status.Parents[0].Conditions, string(gatewayv1.RouteConditionAccepted))
+	require.NotNil(t, accepted)
+	return accepted
+}
+
+// A translation / Provider.Update failure must be visible on the route status
+// instead of Accepted=True plus a silent requeue.
+func TestHTTPRouteReconcile_UpdateErrorIsVisibleOnStatus(t *testing.T) {
+	r, prov, updater := newHTTPRouteRetractFixture(t, gatewayv1.NamespacesFromAll)
+	prov.updateErr = errors.New("translation failed")
+
+	_, err := reconcileRetractHTTPRoute(t, r)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "translation failed")
+	assert.Equal(t, 1, prov.updated)
+	assert.Empty(t, prov.deleted)
+
+	accepted := acceptedConditionFromUpdater(t, updater)
+	assert.Equal(t, metav1.ConditionFalse, accepted.Status)
+	assert.Contains(t, accepted.Message, "translation failed")
 }
