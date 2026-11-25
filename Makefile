@@ -27,10 +27,10 @@ IMG ?= api7/api7-ingress-controller:$(IMAGE_TAG)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.30.0
 KIND_NAME ?= apisix-ingress-cluster
-KIND_NODE_IMAGE ?= kindest/node:v1.30.0@sha256:047357ac0cfea04663786a612ba1eaba9702bef25227a794b52890dd8bcd692e
+KIND_NODE_IMAGE ?= kindest/node:v1.32.2@sha256:f226345927d7e348497136874b6d207e0b32cc52154ad8323129352923a3142f
 
 DASHBOARD_VERSION ?= dev
-ADC_VERSION ?= 0.22.1
+ADC_VERSION ?= 0.31.0
 
 DIR := $(shell pwd)
 
@@ -52,14 +52,16 @@ INGRESS_VERSION ?= v1
 VERSYM="github.com/apache/apisix-ingress-controller/internal/version._buildVersion"
 GITSHASYM="github.com/apache/apisix-ingress-controller/internal/version._buildGitRevision"
 BUILDOSSYM="github.com/apache/apisix-ingress-controller/internal/version._buildOS"
-GO_LDFLAGS ?= "-X=$(VERSYM)=$(VERSION) -X=$(GITSHASYM)=$(GITSHA) -X=$(BUILDOSSYM)=$(OSNAME)/$(OSARCH)"
+MINK8SVERSYM="github.com/apache/apisix-ingress-controller/internal/manager._minK8sVersion"
+MIN_K8S_VERSION ?= 1.31.0
+GO_LDFLAGS ?= "-X=$(VERSYM)=$(VERSION) -X=$(GITSHASYM)=$(GITSHA) -X=$(BUILDOSSYM)=$(OSNAME)/$(OSARCH) -X=$(MINK8SVERSYM)=$(MIN_K8S_VERSION)"
 
 # gateway-api
-GATEAY_API_VERSION ?= v1.3.0
-## https://github.com/kubernetes-sigs/gateway-api/blob/v1.3.0/pkg/features/httproute.go
-SUPPORTED_EXTENDED_FEATURES = "HTTPRouteDestinationPortMatching,HTTPRouteMethodMatching,HTTPRoutePortRedirect,HTTPRouteRequestMirror,HTTPRouteSchemeRedirect,GatewayAddressEmpty,HTTPRouteResponseHeaderModification,GatewayPort8080,HTTPRouteHostRewrite,HTTPRouteQueryParamMatching,HTTPRoutePathRewrite,HTTPRouteBackendProtocolWebSocket"
+GATEAY_API_VERSION ?= v1.6.0
+## https://github.com/kubernetes-sigs/gateway-api/blob/v1.6.0/pkg/features/httproute.go
+SUPPORTED_EXTENDED_FEATURES = "HTTPRouteDestinationPortMatching,HTTPRouteMethodMatching,HTTPRoutePortRedirect,HTTPRouteRequestMirror,HTTPRouteSchemeRedirect,GatewayAddressEmpty,HTTPRouteResponseHeaderModification,GatewayPort8080,HTTPRouteHostRewrite,HTTPRouteQueryParamMatching,HTTPRoutePathRewrite,HTTPRouteBackendProtocolWebSocket,TLSRouteModeTerminate"
 CONFORMANCE_TEST_REPORT_OUTPUT ?= $(DIR)/apisix-ingress-controller-conformance-report.yaml
-## https://github.com/kubernetes-sigs/gateway-api/blob/v1.3.0/conformance/utils/suite/profiles.go
+## https://github.com/kubernetes-sigs/gateway-api/blob/v1.6.0/conformance/utils/suite/profiles.go
 CONFORMANCE_PROFILES ?= GATEWAY-HTTP,GATEWAY-GRPC,GATEWAY-TLS
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
@@ -200,34 +202,47 @@ kind-down:
 		&& kind delete cluster --name $(KIND_NAME) \
 		|| echo "kind cluster does not exist"
 
+# kind imports images with `ctr import --all-platforms`. With Docker's containerd
+# image store, `docker save` exports every platform of a pulled multi-platform image
+# although only one was pulled, so the import fails; save only the node platform.
+define kind-load-image
+	@if docker info -f '{{.DriverStatus}}' | grep -q io.containerd.snapshotter; then \
+		archive=$$(mktemp) && trap 'rm -f "$$archive"' EXIT && \
+		docker save --platform "$$(docker version -f '{{.Server.Os}}/{{.Server.Arch}}')" -o "$$archive" $(1) && \
+		kind load image-archive "$$archive" --name $(KIND_NAME); \
+	else \
+		kind load docker-image $(1) --name $(KIND_NAME); \
+	fi
+endef
+
 .PHONY: kind-load-images
 kind-load-images: pull-infra-images kind-load-ingress-image kind-load-adc-image
-	@kind load docker-image ghcr.io/api7/api7-ee-3-gateway:dev --name $(KIND_NAME)
-	@kind load docker-image ghcr.io/api7/api7-ee-dp-manager:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
-	@kind load docker-image ghcr.io/api7/api7-ee-3-integrated:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
-	@kind load docker-image kennethreitz/httpbin:latest --name $(KIND_NAME)
-	@kind load docker-image jmalloc/echo-server:latest --name $(KIND_NAME)
-	@kind load docker-image apache/apisix:dev --name $(KIND_NAME)
-	@kind load docker-image openresty/openresty:1.27.1.2-4-bullseye-fat --name $(KIND_NAME)
+	$(call kind-load-image,ghcr.io/api7/api7-ee-3-gateway:dev)
+	$(call kind-load-image,ghcr.io/api7/api7-ee-dp-manager:$(DASHBOARD_VERSION))
+	$(call kind-load-image,ghcr.io/api7/api7-ee-3-integrated:$(DASHBOARD_VERSION))
+	$(call kind-load-image,kennethreitz/httpbin:latest)
+	$(call kind-load-image,jmalloc/echo-server:latest)
+	$(call kind-load-image,apache/apisix:dev)
+	$(call kind-load-image,openresty/openresty:1.27.1.2-4-bullseye-fat)
 
 .PHONY: kind-load-gateway-image
 kind-load-gateway-image:
-	@kind load docker-image ghcr.io/api7/api7-ee-3-gateway:dev --name $(KIND_NAME)
+	$(call kind-load-image,ghcr.io/api7/api7-ee-3-gateway:dev)
 
 .PHONY: kind-load-dashboard-images
 kind-load-dashboard-images:
-	@kind load docker-image ghcr.io/api7/api7-ee-dp-manager:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
-	@kind load docker-image ghcr.io/api7/api7-ee-3-integrated:$(DASHBOARD_VERSION)  --name $(KIND_NAME)
+	$(call kind-load-image,ghcr.io/api7/api7-ee-dp-manager:$(DASHBOARD_VERSION))
+	$(call kind-load-image,ghcr.io/api7/api7-ee-3-integrated:$(DASHBOARD_VERSION))
 
 .PHONY: kind-load-ingress-image
 kind-load-ingress-image:
-	@kind load docker-image $(IMG) --name $(KIND_NAME)
+	$(call kind-load-image,$(IMG))
 
 .PHONY: kind-load-adc-image
 kind-load-adc-image:
 	@docker pull ghcr.io/api7/adc:$(ADC_VERSION)
 	@docker tag ghcr.io/api7/adc:$(ADC_VERSION) ghcr.io/api7/adc:dev
-	@kind load docker-image ghcr.io/api7/adc:dev --name $(KIND_NAME)
+	$(call kind-load-image,ghcr.io/api7/adc:dev)
 
 .PHONY: pull-infra-images
 pull-infra-images:
@@ -328,7 +343,9 @@ endif
 
 .PHONY: install-gateway-api
 install-gateway-api: ## Install Gateway API CRDs into the K8s cluster specified in ~/.kube/config.
-	kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/$(GATEAY_API_VERSION)/experimental-install.yaml
+	# Server-side apply: the v1.6 CRDs exceed the 262144-byte annotation limit of
+	# client-side apply (last-applied-configuration).
+	kubectl apply --server-side --force-conflicts -f https://github.com/kubernetes-sigs/gateway-api/releases/download/$(GATEAY_API_VERSION)/experimental-install.yaml
 
 .PHONY: uninstall-gateway-api
 uninstall-gateway-api: ## Uninstall Gateway API CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
@@ -374,7 +391,7 @@ ADC_BIN ?= $(LOCALBIN)/adc
 KUSTOMIZE_VERSION ?= v5.4.2
 CONTROLLER_TOOLS_VERSION ?= v0.17.2
 ENVTEST_VERSION ?= release-0.18
-GOLANGCI_LINT_VERSION ?= v2.1.5
+GOLANGCI_LINT_VERSION ?= v2.7.1
 
 ## export PATH so that the tools are found
 export PATH := $(LOCALBIN):$(PATH)
@@ -397,7 +414,9 @@ $(ENVTEST): $(LOCALBIN)
 .PHONY: golangci-lint
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(LOCALBIN) $(GOLANGCI_LINT_VERSION)
+	# Build from source with the local Go toolchain: the prebuilt release binary is
+	# compiled with an older Go and panics type-checking a go 1.26 module.
+	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/v2/cmd/golangci-lint,$(GOLANGCI_LINT_VERSION))
 
 .PHONY: adc
 adc: $(ADC_BIN) ## Download adc locally if necessary.
@@ -461,6 +480,10 @@ generate-crd-docs: manifests ## Generate CRD reference documentation in a single
 		--output-path=$(CRD_DOCS_OUTPUT) \
 		--max-depth=100
 	@echo "CRD reference documentation generated at $(CRD_DOCS_OUTPUT)"
+
+.PHONY: check-crd-doc-links
+check-crd-doc-links: ## Check links to headings in the generated CRD reference
+	@python3 scripts/check-crd-doc-links.py $(CRD_DOCS_OUTPUT)
 
 .PHONY: generate-crd-docs-grouped
 generate-crd-docs-grouped: manifests ## Generate CRD reference documentation grouped by API group

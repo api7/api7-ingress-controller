@@ -33,12 +33,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
 	"github.com/apache/apisix-ingress-controller/internal/controller/status"
+	"github.com/apache/apisix-ingress-controller/internal/pluginconfig"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	internaltypes "github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
@@ -47,10 +47,14 @@ import (
 type PolicyTargetKey struct {
 	NsName    types.NamespacedName
 	GroupKind schema.GroupKind
+	// SectionName scopes the target to a specific section (for a Service, the
+	// port name). Policies that target different sections of the same resource
+	// do not conflict; an empty SectionName targets the whole resource.
+	SectionName string
 }
 
 func (p PolicyTargetKey) String() string {
-	return p.NsName.String() + "/" + p.GroupKind.String()
+	return p.NsName.String() + "/" + p.GroupKind.String() + "/" + p.SectionName
 }
 
 func BackendTrafficPolicyPredicateFunc(channel chan event.GenericEvent) predicate.Predicate {
@@ -143,6 +147,9 @@ func ProcessBackendTrafficPolicy(
 				NsName:    types.NamespacedName{Namespace: p.GetNamespace(), Name: string(targetRef.Name)},
 				GroupKind: schema.GroupKind{Group: "", Kind: internaltypes.KindService},
 			}
+			if sectionName != nil {
+				key.SectionName = string(*sectionName)
+			}
 			condition := NewPolicyCondition(policy.Generation, true, "Policy has been accepted")
 			if sectionName != nil && !servicePortNameMap[fmt.Sprintf("%s/%s/%s", policy.Namespace, string(targetRef.Name), *sectionName)] {
 				condition = NewPolicyCondition(policy.Generation, false, fmt.Sprintf("No section name %s found in Service %s/%s", *sectionName, policy.Namespace, targetRef.Name))
@@ -190,10 +197,10 @@ func processPolicyStatus(policy *v1alpha1.BackendTrafficPolicy,
 func SetAncestors(status *v1alpha1.PolicyStatus, parentRefs []gatewayv1.ParentReference, condition metav1.Condition) bool {
 	updated := false
 	for _, parent := range parentRefs {
-		ancestorStatus := gatewayv1alpha2.PolicyAncestorStatus{
+		ancestorStatus := gatewayv1.PolicyAncestorStatus{
 			AncestorRef:    parent,
 			Conditions:     []metav1.Condition{condition},
-			ControllerName: gatewayv1alpha2.GatewayController(config.ControllerConfig.ControllerName),
+			ControllerName: gatewayv1.GatewayController(config.ControllerConfig.ControllerName),
 		}
 		if SetAncestorStatus(status, ancestorStatus) {
 			updated = true
@@ -202,7 +209,7 @@ func SetAncestors(status *v1alpha1.PolicyStatus, parentRefs []gatewayv1.ParentRe
 	return updated
 }
 
-func SetAncestorStatus(status *v1alpha1.PolicyStatus, ancestorStatus gatewayv1alpha2.PolicyAncestorStatus) bool {
+func SetAncestorStatus(status *v1alpha1.PolicyStatus, ancestorStatus gatewayv1.PolicyAncestorStatus) bool {
 	if len(ancestorStatus.Conditions) == 0 {
 		return false
 	}
@@ -236,7 +243,7 @@ func l4RoutePolicyMatchesRoute(policy v1alpha1.L4RoutePolicy, routeKind, routeNa
 		return false
 	}
 	for _, ref := range policy.Spec.TargetRefs {
-		if string(ref.Group) != gatewayv1alpha2.GroupName {
+		if string(ref.Group) != gatewayv1.GroupName {
 			continue
 		}
 		if string(ref.Kind) != routeKind {
@@ -263,7 +270,7 @@ func ProcessL4RoutePolicy(
 	routeNamespace, routeName, routeKind string,
 ) {
 	var list v1alpha1.L4RoutePolicyList
-	key := indexer.GenIndexKeyWithGK(gatewayv1alpha2.GroupName, routeKind, routeNamespace, routeName)
+	key := indexer.GenIndexKeyWithGK(gatewayv1.GroupName, routeKind, routeNamespace, routeName)
 	if err := c.List(tctx, &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
 		log.Error(err, "failed to list L4RoutePolicy", "namespace", routeNamespace, "name", routeName, "kind", routeKind)
 		return
@@ -294,27 +301,50 @@ func ProcessL4RoutePolicy(
 	})
 
 	winner := list.Items[0].DeepCopy()
+	renderErr := loadPluginSecrets(tctx, c, tctx, winner.Namespace, winner.Spec.Plugins)
+	if renderErr == nil {
+		for _, plugin := range winner.Spec.Plugins {
+			if _, err := pluginconfig.Render(plugin, winner.Namespace, tctx.Secrets); err != nil {
+				log.Error(err, "failed to render L4RoutePolicy plugin config", "plugin", plugin.Name, "policy", types.NamespacedName{Namespace: winner.Namespace, Name: winner.Name})
+				renderErr = fmt.Errorf("plugin %q has invalid configuration", plugin.Name)
+				break
+			}
+		}
+	} else {
+		log.Error(renderErr, "failed to load Secrets referenced by L4RoutePolicy plugins", "policy", types.NamespacedName{Namespace: winner.Namespace, Name: winner.Name})
+	}
+	// Keep the winning policy in the translation context even when rendering failed.
+	// Translation must return the error instead of publishing the route without it.
 	tctx.L4RoutePolicies[types.NamespacedName{Namespace: winner.Namespace, Name: winner.Name}] = winner
 
 	for i := range list.Items {
 		policy := list.Items[i]
 		var condition metav1.Condition
-		if i == 0 {
+		if i == 0 && renderErr != nil {
 			condition = metav1.Condition{
-				Type:               string(gatewayv1alpha2.PolicyConditionAccepted),
+				Type:               string(gatewayv1.PolicyConditionAccepted),
+				Status:             metav1.ConditionFalse,
+				ObservedGeneration: policy.GetGeneration(),
+				LastTransitionTime: metav1.Now(),
+				Reason:             string(gatewayv1.PolicyReasonInvalid),
+				Message:            renderErr.Error(),
+			}
+		} else if i == 0 {
+			condition = metav1.Condition{
+				Type:               string(gatewayv1.PolicyConditionAccepted),
 				Status:             metav1.ConditionTrue,
 				ObservedGeneration: policy.GetGeneration(),
 				LastTransitionTime: metav1.Now(),
-				Reason:             string(gatewayv1alpha2.PolicyReasonAccepted),
+				Reason:             string(gatewayv1.PolicyReasonAccepted),
 				Message:            "Policy has been accepted",
 			}
 		} else {
 			condition = metav1.Condition{
-				Type:               string(gatewayv1alpha2.PolicyConditionAccepted),
+				Type:               string(gatewayv1.PolicyConditionAccepted),
 				Status:             metav1.ConditionFalse,
 				ObservedGeneration: policy.GetGeneration(),
 				LastTransitionTime: metav1.Now(),
-				Reason:             string(gatewayv1alpha2.PolicyReasonConflicted),
+				Reason:             string(gatewayv1.PolicyReasonConflicted),
 				Message:            fmt.Sprintf("Conflicts with L4RoutePolicy %s/%s which was created earlier", winner.Namespace, winner.Name),
 			}
 		}
@@ -342,7 +372,7 @@ func ProcessL4RoutePolicy(
 // no longer referenced by any of them are removed.
 func updateL4RoutePolicyStatusOnDeleting(ctx context.Context, c client.Client, updater status.Updater, log logr.Logger, nn types.NamespacedName, routeKind string) {
 	var list v1alpha1.L4RoutePolicyList
-	key := indexer.GenIndexKeyWithGK(gatewayv1alpha2.GroupName, routeKind, nn.Namespace, nn.Name)
+	key := indexer.GenIndexKeyWithGK(gatewayv1.GroupName, routeKind, nn.Namespace, nn.Name)
 	if err := c.List(ctx, &list, client.MatchingFields{indexer.PolicyTargetRefs: key}); err != nil {
 		log.Error(err, "failed to list L4RoutePolicy on route deletion", "namespace", nn.Namespace, "name", nn.Name)
 		return
@@ -351,7 +381,7 @@ func updateL4RoutePolicyStatusOnDeleting(ctx context.Context, c client.Client, u
 		policy := list.Items[i]
 		var parentRefs []gatewayv1.ParentReference
 		for _, ref := range policy.Spec.TargetRefs {
-			if string(ref.Group) != gatewayv1alpha2.GroupName {
+			if string(ref.Group) != gatewayv1.GroupName {
 				continue
 			}
 			// The deleted route returns NotFound here and is naturally skipped.
@@ -370,19 +400,19 @@ func updateL4RoutePolicyStatusOnDeleting(ctx context.Context, c client.Client, u
 func l4RouteParentRefs(ctx context.Context, c client.Client, kind string, nn types.NamespacedName) ([]gatewayv1.ParentReference, bool) {
 	switch kind {
 	case internaltypes.KindTCPRoute:
-		var route gatewayv1alpha2.TCPRoute
+		var route gatewayv1.TCPRoute
 		if err := c.Get(ctx, nn, &route); err != nil {
 			return nil, false
 		}
 		return route.Spec.ParentRefs, true
 	case internaltypes.KindUDPRoute:
-		var route gatewayv1alpha2.UDPRoute
+		var route gatewayv1.UDPRoute
 		if err := c.Get(ctx, nn, &route); err != nil {
 			return nil, false
 		}
 		return route.Spec.ParentRefs, true
 	case internaltypes.KindTLSRoute:
-		var route gatewayv1alpha2.TLSRoute
+		var route gatewayv1.TLSRoute
 		if err := c.Get(ctx, nn, &route); err != nil {
 			return nil, false
 		}
@@ -394,7 +424,7 @@ func l4RouteParentRefs(ctx context.Context, c client.Client, kind string, nn typ
 
 func updateL4RoutePolicyDeleteAncestors(updater status.Updater, policy v1alpha1.L4RoutePolicy, parentRefs []gatewayv1.ParentReference) {
 	length := len(policy.Status.Ancestors)
-	policy.Status.Ancestors = slices.DeleteFunc(policy.Status.Ancestors, func(ancestor gatewayv1alpha2.PolicyAncestorStatus) bool {
+	policy.Status.Ancestors = slices.DeleteFunc(policy.Status.Ancestors, func(ancestor gatewayv1.PolicyAncestorStatus) bool {
 		return !slices.ContainsFunc(parentRefs, func(ref gatewayv1.ParentReference) bool {
 			return parentRefValueEqual(ancestor.AncestorRef, ref)
 		})
@@ -405,7 +435,7 @@ func updateL4RoutePolicyDeleteAncestors(updater status.Updater, policy v1alpha1.
 	// status.ancestors is a required field; ensure a fully-cleared list serializes to []
 	// rather than null, which the CRD schema rejects.
 	if policy.Status.Ancestors == nil {
-		policy.Status.Ancestors = []gatewayv1alpha2.PolicyAncestorStatus{}
+		policy.Status.Ancestors = []gatewayv1.PolicyAncestorStatus{}
 	}
 	updater.Update(status.Update{
 		NamespacedName: utils.NamespacedName(&policy),

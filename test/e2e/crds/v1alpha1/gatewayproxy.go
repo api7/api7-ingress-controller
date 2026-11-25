@@ -117,17 +117,14 @@ spec:
 			err = s.CreateResourceFromString(fmt.Sprintf(gatewayProxySpec, framework.ProviderType, s.AdminKey()))
 		}
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
-		time.Sleep(5 * time.Second)
 
 		By("create GatewayClass")
 		err = s.CreateResourceFromString(s.GetGatewayClassYaml())
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayClass")
-		time.Sleep(5 * time.Second)
 
 		By("create Gateway")
 		err = s.CreateResourceFromString(s.GetGatewayYaml())
 		Expect(err).NotTo(HaveOccurred(), "creating Gateway")
-		time.Sleep(5 * time.Second)
 
 		By("create HTTPRoute")
 		s.ApplyHTTPRoute(types.NamespacedName{Namespace: s.Namespace(), Name: "httpbin"}, fmt.Sprintf(httpRouteSpec, gatewayName))

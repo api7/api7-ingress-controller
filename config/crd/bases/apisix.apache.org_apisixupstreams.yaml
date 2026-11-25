@@ -591,12 +591,18 @@ spec:
                       description: |-
                         Scheme is the protocol used to communicate with the upstream.
                         Default is `http`.
-                        Can be `http`, `https`, `grpc`, or `grpcs`.
+                        For L7 proxy, it can be `http`, `https`, `grpc`, or `grpcs`.
+                        For L4 proxy, it can be `tcp`, `tls`, or `udp`.
+                        The L4 values apply to stream routes only; using them for an HTTP route
+                        makes the upstream unreachable.
                       enum:
                       - http
                       - https
                       - grpc
                       - grpcs
+                      - tcp
+                      - tls
+                      - udp
                       type: string
                     subsets:
                       description: |-
@@ -627,12 +633,21 @@ spec:
                           description: Connect timeout for establishing a connection
                             to the upstream.
                           type: string
+                          x-kubernetes-validations:
+                          - message: timeout must not be negative
+                            rule: duration(self) >= duration('0s')
                         read:
                           description: Read timeout for reading data from the upstream.
                           type: string
+                          x-kubernetes-validations:
+                          - message: timeout must not be negative
+                            rule: duration(self) >= duration('0s')
                         send:
                           description: Send timeout for sending data to the upstream.
                           type: string
+                          x-kubernetes-validations:
+                          - message: timeout must not be negative
+                            rule: duration(self) >= duration('0s')
                       type: object
                     tlsSecret:
                       description: |-
@@ -670,12 +685,18 @@ spec:
                 description: |-
                   Scheme is the protocol used to communicate with the upstream.
                   Default is `http`.
-                  Can be `http`, `https`, `grpc`, or `grpcs`.
+                  For L7 proxy, it can be `http`, `https`, `grpc`, or `grpcs`.
+                  For L4 proxy, it can be `tcp`, `tls`, or `udp`.
+                  The L4 values apply to stream routes only; using them for an HTTP route
+                  makes the upstream unreachable.
                 enum:
                 - http
                 - https
                 - grpc
                 - grpcs
+                - tcp
+                - tls
+                - udp
                 type: string
               subsets:
                 description: |-
@@ -706,12 +727,21 @@ spec:
                     description: Connect timeout for establishing a connection to
                       the upstream.
                     type: string
+                    x-kubernetes-validations:
+                    - message: timeout must not be negative
+                      rule: duration(self) >= duration('0s')
                   read:
                     description: Read timeout for reading data from the upstream.
                     type: string
+                    x-kubernetes-validations:
+                    - message: timeout must not be negative
+                      rule: duration(self) >= duration('0s')
                   send:
                     description: Send timeout for sending data to the upstream.
                     type: string
+                    x-kubernetes-validations:
+                    - message: timeout must not be negative
+                      rule: duration(self) >= duration('0s')
                 type: object
               tlsSecret:
                 description: |-

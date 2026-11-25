@@ -37,7 +37,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	"sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
@@ -46,6 +45,7 @@ import (
 	"github.com/apache/apisix-ingress-controller/internal/provider"
 	"github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
+	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
 )
 
 // GRPCRouteReconciler reconciles a GatewayClass object.
@@ -56,6 +56,8 @@ type GRPCRouteReconciler struct { //nolint:revive
 	Log logr.Logger
 
 	Provider provider.Provider
+
+	parentResolver routeParentResolver
 
 	genericEvent chan event.GenericEvent
 
@@ -69,12 +71,22 @@ func (r *GRPCRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	bdr := ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.GRPCRoute{}).
-		WithEventFilter(predicate.GenerationChangedPredicate{}).
+		// A Secret carries no generation, so GenerationChangedPredicate would drop its
+		// updates and a plugin would keep the Secret data read at the last spec change.
+		WithEventFilter(
+			predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
+			),
+		).
 		Watches(&discoveryv1.EndpointSlice{},
 			handler.EnqueueRequestsFromMapFunc(r.listGRPCRoutesByServiceRef),
 		).
 		Watches(&v1alpha1.PluginConfig{},
 			handler.EnqueueRequestsFromMapFunc(r.listGRPCRoutesByExtensionRef),
+		).
+		Watches(&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.listGRPCRoutesForSecret),
 		).
 		Watches(&gatewayv1.Gateway{},
 			handler.EnqueueRequestsFromMapFunc(r.listGRPCRoutesForGateway),
@@ -84,7 +96,7 @@ func (r *GRPCRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 						return false
 					},
 					DeleteFunc: func(e event.DeleteEvent) bool {
-						return false
+						return true
 					},
 					CreateFunc: func(e event.CreateEvent) bool {
 						return true
@@ -112,7 +124,7 @@ func (r *GRPCRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		)
 
 	if GetEnableReferenceGrant() {
-		bdr.Watches(&v1beta1.ReferenceGrant{},
+		bdr.Watches(&gatewayv1.ReferenceGrant{},
 			handler.EnqueueRequestsFromMapFunc(r.listGRPCRoutesForReferenceGrant),
 			builder.WithPredicates(referenceGrantPredicates(KindGRPCRoute)),
 		)
@@ -154,6 +166,7 @@ func (r *GRPCRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	gr := new(gatewayv1.GRPCRoute)
 	if err := r.Get(ctx, req.NamespacedName, gr); err != nil {
 		if client.IgnoreNotFound(err) == nil {
+			r.parentResolver.Forget(req.NamespacedName)
 			gr.Namespace = req.Namespace
 			gr.Name = req.Name
 
@@ -182,12 +195,23 @@ func (r *GRPCRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		msg:    "Route is accepted",
 	}
 
-	gateways, err := ParseRouteParentRefs(ctx, r.Client, r.Log, gr, gr.Spec.ParentRefs)
+	gateways, err := r.parentResolver.Resolve(ctx, r.Client, r.Log, gr, gr.Spec.ParentRefs)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
 	if len(gateways) == 0 {
+		// See the HTTPRoute reconciler: a route that no longer references a
+		// Gateway managed by this controller must have its previously pushed
+		// configuration removed, or the data plane keeps serving it.
+		gr.TypeMeta = metav1.TypeMeta{
+			Kind:       KindGRPCRoute,
+			APIVersion: gatewayv1.GroupVersion.String(),
+		}
+		if err := r.Provider.Delete(ctx, gr); err != nil {
+			r.Log.Error(err, "failed to delete grpcroute", "grpcroute", gr)
+			return ctrl.Result{}, err
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -200,15 +224,21 @@ func (r *GRPCRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			acceptStatus.status = false
 			acceptStatus.msg = err.Error()
 		}
-		if gateway.Listener != nil {
-			tctx.Listeners = append(tctx.Listeners, *gateway.Listener)
+		// Populate listeners for port-based routing.
+		// Use Listeners slice if available (multiple listener support)
+		if len(gateway.Listeners) > 0 {
+			tctx.Listeners = appendListeners(tctx.Listeners, gateway.Listeners...)
+		} else if gateway.Listener != nil {
+			// Fallback for backward compatibility
+			tctx.Listeners = appendListeners(tctx.Listeners, *gateway.Listener)
 		}
+		tctx.HasExplicitListenerMatch = tctx.HasExplicitListenerMatch || gateway.ExplicitListenerMatch
 	}
 
 	var backendRefErr error
 	if err := r.processGRPCRoute(tctx, gr); err != nil {
 		// When encountering a backend reference error, it should not affect the acceptance status
-		if types.IsSomeReasonError(err, gatewayv1.RouteReasonInvalidKind) {
+		if types.IsSomeReasonError(err, gatewayv1.RouteReasonInvalidKind, gatewayv1.RouteReasonBackendNotFound) {
 			backendRefErr = err
 		} else {
 			acceptStatus.status = false
@@ -223,6 +253,17 @@ func (r *GRPCRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	ProcessBackendTrafficPolicy(r.Client, r.Log, tctx)
+
+	// Translate and sync before writing Accepted=True. A translation or
+	// buildConfig failure from Provider.Update used to leave a green status
+	// and only requeue, matching neither Ingress nor ApisixGlobalRule.
+	var syncErr error
+	if isRouteAccepted(gateways) && err == nil {
+		if syncErr = r.Provider.Update(ctx, tctx, gr); syncErr != nil {
+			acceptStatus.status = false
+			acceptStatus.msg = syncErr.Error()
+		}
+	}
 
 	// TODO: diff the old and new status
 	gr.Status.Parents = make([]gatewayv1.RouteParentStatus, 0, len(gateways))
@@ -255,10 +296,21 @@ func (r *GRPCRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	UpdateStatus(r.Updater, r.Log, tctx)
 
 	if isRouteAccepted(gateways) && err == nil {
-		routeToUpdate := gr
-		if err := r.Provider.Update(ctx, tctx, routeToUpdate); err != nil {
-			return ctrl.Result{}, err
-		}
+		return ctrl.Result{}, syncErr
+	}
+
+	// The route still resolves to one of our Gateways but no parent accepts it any
+	// more, so retract what an earlier reconcile published. The store is what every
+	// sync pushes, so leaving the entry keeps the data plane serving the route.
+	// Provider.Delete derives the resource labels from the object Kind, which is not
+	// set on every object read through the client.
+	gr.TypeMeta = metav1.TypeMeta{
+		Kind:       KindGRPCRoute,
+		APIVersion: gatewayv1.GroupVersion.String(),
+	}
+	if err := r.Provider.Delete(ctx, gr); err != nil {
+		r.Log.Error(err, "failed to delete grpcroute", "grpcroute", utils.NamespacedName(gr))
+		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
 }
@@ -409,10 +461,10 @@ func (r *GRPCRouteReconciler) processGRPCRouteBackendRefs(tctx *provider.Transla
 		if grNN.Namespace != targetNN.Namespace {
 			if permitted := checkReferenceGrant(tctx,
 				r.Client,
-				v1beta1.ReferenceGrantFrom{
+				gatewayv1.ReferenceGrantFrom{
 					Group:     gatewayv1.GroupName,
 					Kind:      KindGRPCRoute,
-					Namespace: v1beta1.Namespace(grNN.Namespace),
+					Namespace: gatewayv1.Namespace(grNN.Namespace),
 				},
 				gatewayv1.ObjectReference{
 					Group:     corev1.GroupName,
@@ -422,7 +474,7 @@ func (r *GRPCRouteReconciler) processGRPCRouteBackendRefs(tctx *provider.Transla
 				},
 			); !permitted {
 				terr = types.ReasonError{
-					Reason:  string(v1beta1.RouteReasonRefNotPermitted),
+					Reason:  string(gatewayv1.RouteReasonRefNotPermitted),
 					Message: fmt.Sprintf("%s is in a different namespace than the GRPCRoute %s and no ReferenceGrant allowing reference is configured", targetNN, grNN),
 				}
 				continue
@@ -436,7 +488,7 @@ func (r *GRPCRouteReconciler) processGRPCRouteBackendRefs(tctx *provider.Transla
 
 		portExists := false
 		for _, port := range service.Spec.Ports {
-			if port.Port == int32(*backend.Port) {
+			if port.Port == *backend.Port {
 				portExists = true
 				break
 			}
@@ -471,19 +523,8 @@ func (r *GRPCRouteReconciler) processGRPCRoute(tctx *provider.TranslateContext, 
 			if filter.Type != gatewayv1.GRPCRouteFilterExtensionRef || filter.ExtensionRef == nil {
 				continue
 			}
-			if filter.ExtensionRef.Kind == "PluginConfig" {
-				pluginconfig := new(v1alpha1.PluginConfig)
-				if err := r.Get(context.Background(), client.ObjectKey{
-					Namespace: grpcroute.GetNamespace(),
-					Name:      string(filter.ExtensionRef.Name),
-				}, pluginconfig); err != nil {
-					terror = err
-					continue
-				}
-				tctx.PluginConfigs[k8stypes.NamespacedName{
-					Namespace: grpcroute.GetNamespace(),
-					Name:      string(filter.ExtensionRef.Name),
-				}] = pluginconfig
+			if err := loadPluginConfigExtensionRef(tctx, r.Client, tctx, grpcroute.GetNamespace(), filter.ExtensionRef); err != nil {
+				terror = err
 			}
 		}
 		for _, backend := range rule.BackendRefs {
@@ -550,7 +591,7 @@ func (r *GRPCRouteReconciler) listGRPCRoutesForGatewayProxy(ctx context.Context,
 }
 
 func (r *GRPCRouteReconciler) listGRPCRoutesForReferenceGrant(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
-	grant, ok := obj.(*v1beta1.ReferenceGrant)
+	grant, ok := obj.(*gatewayv1.ReferenceGrant)
 	if !ok {
 		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to ReferenceGrant")
 		return nil
@@ -563,10 +604,10 @@ func (r *GRPCRouteReconciler) listGRPCRoutesForReferenceGrant(ctx context.Contex
 	}
 
 	for _, grpcRoute := range grpcRouteList.Items {
-		gr := v1beta1.ReferenceGrantFrom{
+		gr := gatewayv1.ReferenceGrantFrom{
 			Group:     gatewayv1.GroupName,
 			Kind:      KindGRPCRoute,
-			Namespace: v1beta1.Namespace(grpcRoute.GetNamespace()),
+			Namespace: gatewayv1.Namespace(grpcRoute.GetNamespace()),
 		}
 		for _, from := range grant.Spec.From {
 			if from == gr {
@@ -580,4 +621,23 @@ func (r *GRPCRouteReconciler) listGRPCRoutesForReferenceGrant(ctx context.Contex
 		}
 	}
 	return requests
+}
+
+// listGRPCRoutesForSecret maps a Secret to the GRPCRoutes that reference, through a PluginConfig
+// extension filter, a plugin configured with that Secret.
+func (r *GRPCRouteReconciler) listGRPCRoutesForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
+	secret, ok := obj.(*corev1.Secret)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to Secret")
+		return nil
+	}
+	var requests []reconcile.Request
+	for _, pcRef := range ListRequests(ctx, r.Client, r.Log, &v1alpha1.PluginConfigList{}, client.MatchingFields{
+		indexer.SecretIndexRef: indexer.GenIndexKey(secret.GetNamespace(), secret.GetName()),
+	}) {
+		requests = append(requests, ListRequests(ctx, r.Client, r.Log, &gatewayv1.GRPCRouteList{}, client.MatchingFields{
+			indexer.ExtensionRef: indexer.GenIndexKey(pcRef.Namespace, pcRef.Name),
+		})...)
+	}
+	return pkgutils.DedupComparable(requests)
 }

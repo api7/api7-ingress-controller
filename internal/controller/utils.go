@@ -46,14 +46,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	"sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/controller/config"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
+	cutils "github.com/apache/apisix-ingress-controller/internal/controller/utils"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	sslutils "github.com/apache/apisix-ingress-controller/internal/ssl"
 	"github.com/apache/apisix-ingress-controller/internal/types"
 	"github.com/apache/apisix-ingress-controller/internal/utils"
 	pkgutils "github.com/apache/apisix-ingress-controller/pkg/utils"
@@ -70,6 +70,7 @@ const (
 	KindIngressClass       = "IngressClass"
 	KindGatewayProxy       = "GatewayProxy"
 	KindSecret             = "Secret"
+	KindConfigMap          = "ConfigMap"
 	KindService            = "Service"
 	KindApisixRoute        = "ApisixRoute"
 	KindApisixGlobalRule   = "ApisixGlobalRule"
@@ -86,6 +87,8 @@ const (
 
 var (
 	ErrNoMatchingListenerHostname = errors.New("no matching hostnames in listener")
+	errNoDefaultIngressClass      = errors.New("no default ingress class found")
+	errIngressClassNotControlled  = errors.New("ingress class is not controlled by us")
 )
 
 var (
@@ -168,11 +171,11 @@ func IsConditionPresentAndEqual(conditions []metav1.Condition, condition metav1.
 	return false
 }
 
-func SetGatewayConditionAccepted(gw *gatewayv1.Gateway, status bool, message string) (ok bool) {
+func SetGatewayConditionAccepted(gw *gatewayv1.Gateway, status bool, reason gatewayv1.GatewayConditionReason, message string) (ok bool) {
 	condition := metav1.Condition{
 		Type:               string(gatewayv1.GatewayConditionAccepted),
 		Status:             ConditionStatus(status),
-		Reason:             string(gatewayv1.GatewayReasonAccepted),
+		Reason:             string(reason),
 		ObservedGeneration: gw.GetGeneration(),
 		Message:            message,
 		LastTransitionTime: metav1.Now(),
@@ -324,12 +327,23 @@ func SetRouteParentRef(routeParentStatus *gatewayv1.RouteParentStatus, gatewayNa
 	routeParentStatus.ControllerName = gatewayv1.GatewayController(config.ControllerConfig.ControllerName)
 }
 
-func ParseRouteParentRefs(
+// parentRefTargetsListenerExplicitly reports whether a parentRef names a
+// specific listener, via a non-empty sectionName or an explicit port. It is only
+// meaningful for a parentRef that already matched a listener on its Gateway.
+func parentRefTargetsListenerExplicitly(parentRef gatewayv1.ParentReference) bool {
+	if parentRef.SectionName != nil && *parentRef.SectionName != "" {
+		return true
+	}
+	return parentRef.Port != nil
+}
+
+func parseRouteParentRefs(
 	ctx context.Context,
 	mgrc client.Client,
 	log logr.Logger,
 	route client.Object,
 	parentRefs []gatewayv1.ParentReference,
+	resolveClass func(*gatewayv1.Gateway) (*gatewayv1.GatewayClass, error),
 ) ([]RouteParentRefContext, error) {
 	gateways := make([]RouteParentRefContext, 0)
 	for _, parentRef := range parentRefs {
@@ -349,22 +363,18 @@ func ParseRouteParentRefs(
 			Name:      name,
 		}, &gateway); err != nil {
 			if client.IgnoreNotFound(err) == nil {
+				// A deleted Gateway no longer authorizes its routes to serve traffic.
 				continue
 			}
 			return nil, fmt.Errorf("failed to retrieve gateway for route: %w", err)
 		}
 
-		gatewayClass := gatewayv1.GatewayClass{}
-		if err := mgrc.Get(ctx, client.ObjectKey{
-			Name: string(gateway.Spec.GatewayClassName),
-		}, &gatewayClass); err != nil {
-			if client.IgnoreNotFound(err) == nil {
-				continue
-			}
+		gatewayClass, err := resolveClass(&gateway)
+		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve gatewayclass for gateway: %w", err)
 		}
 
-		if string(gatewayClass.Spec.ControllerName) != config.ControllerConfig.ControllerName {
+		if gatewayClass == nil || string(gatewayClass.Spec.ControllerName) != config.ControllerConfig.ControllerName {
 			continue
 		}
 
@@ -372,6 +382,19 @@ func ParseRouteParentRefs(
 		reason := gatewayv1.RouteReasonNoMatchingParent
 		var listenerName string
 		var matchedListener gatewayv1.Listener
+		var matchedListeners []gatewayv1.Listener
+
+		// Track if sectionName was explicitly specified
+		sectionNameSpecified := parentRef.SectionName != nil && *parentRef.SectionName != ""
+		// Aggregate the reasons listeners were rejected so the final parent reason
+		// does not depend on listener order: a hostname mismatch on an otherwise
+		// compatible listener is preserved over an unrelated incompatible listener.
+		var hostnameMismatch, notAllowed bool
+
+		// A TLS listener on a port whose tls.mode conflicts cannot be programmed, so
+		// routes must not attach to it; otherwise the route would be translated and
+		// served even though the listener reports Accepted=False/Programmed=False.
+		tlsConflictPorts := portsWithConflictingTLSMode(&gateway)
 
 		for _, listener := range gateway.Spec.Listeners {
 			if parentRef.SectionName != nil {
@@ -386,16 +409,27 @@ func ParseRouteParentRefs(
 				}
 			}
 
+			// A listener on a conflicting tls.mode port cannot be programmed, so it
+			// must not have routes attached to it; otherwise the route would be
+			// translated and served even though the listener reports
+			// Accepted=False/Programmed=False.
+			if listenerNotProgrammable(listener, tlsConflictPorts) {
+				notAllowed = true
+				continue
+			}
+
 			if ok, _ := routeMatchesListenerType(route, listener); !ok {
+				// The listener exists but its protocol cannot carry this route kind,
+				// which the spec reports as NotAllowedByListeners.
+				notAllowed = true
 				continue
 			}
 
 			if !routeHostnamesIntersectsWithListenerHostname(route, listener) {
-				reason = gatewayv1.RouteReasonNoMatchingListenerHostname
+				hostnameMismatch = true
 				continue
 			}
 
-			listenerName = string(listener.Name)
 			ok, err := routeMatchesListenerAllowedRoutes(ctx, mgrc, route, listener.AllowedRoutes, gateway.Namespace, parentRef.Namespace)
 			if err != nil {
 				log.Error(err, "failed matching listener to a route for gateway",
@@ -404,15 +438,42 @@ func ParseRouteParentRefs(
 					"gateway", gateway.Name)
 			}
 			if !ok {
-				reason = gatewayv1.RouteReasonNotAllowedByListeners
+				notAllowed = true
 				continue
 			}
 
 			// TODO: check if the listener status is programmed
 
+			if sectionNameSpecified {
+				listenerName = string(listener.Name)
+			}
+
+			if !matched {
+				// First match - store for backward compatibility
+				matchedListener = listener
+			}
+
+			// Always add to the list of matched listeners
+			matchedListeners = append(matchedListeners, listener)
 			matched = true
-			matchedListener = listener
-			break
+
+			// Only break if sectionName was explicitly specified
+			if sectionNameSpecified {
+				break
+			}
+		}
+
+		// Select the parent reason after evaluating every listener so the outcome is
+		// independent of listener order. A hostname mismatch on an otherwise
+		// compatible listener is more specific than a generic NotAllowedByListeners;
+		// a parentRef that matches no listener at all stays NoMatchingParent.
+		if !matched {
+			switch {
+			case hostnameMismatch:
+				reason = gatewayv1.RouteReasonNoMatchingListenerHostname
+			case notAllowed:
+				reason = gatewayv1.RouteReasonNotAllowedByListeners
+			}
 		}
 
 		if matched {
@@ -420,6 +481,11 @@ func ParseRouteParentRefs(
 				Gateway:      &gateway,
 				ListenerName: listenerName,
 				Listener:     &matchedListener,
+				Listeners:    matchedListeners,
+				// The parentRef explicitly targeted a listener only when an
+				// explicit sectionName or port was given and it resolved to a
+				// matched listener on this Gateway (we are in the matched branch).
+				ExplicitListenerMatch: parentRefTargetsListenerExplicitly(parentRef),
 				Conditions: []metav1.Condition{{
 					Type:               string(gatewayv1.RouteConditionAccepted),
 					Status:             metav1.ConditionTrue,
@@ -431,7 +497,8 @@ func ParseRouteParentRefs(
 			gateways = append(gateways, RouteParentRefContext{
 				Gateway:      &gateway,
 				ListenerName: listenerName,
-				Listener:     &matchedListener,
+				Listener:     nil,
+				Listeners:    matchedListeners,
 				Conditions: []metav1.Condition{{
 					Type:               string(gatewayv1.RouteConditionAccepted),
 					Status:             metav1.ConditionFalse,
@@ -443,6 +510,125 @@ func ParseRouteParentRefs(
 	}
 
 	return gateways, nil
+}
+
+// reuseUnchangedListenerStatus keeps the previously published status when
+// nothing but the condition timestamps would change, so an unchanged listener
+// does not keep rewriting LastTransitionTime and retriggering reconciles.
+func reuseUnchangedListenerStatus(gateway *gatewayv1.Gateway, i int, status gatewayv1.ListenerStatus) gatewayv1.ListenerStatus {
+	if len(gateway.Status.Listeners) <= i {
+		return status
+	}
+	previous := gateway.Status.Listeners[i]
+	// Listener status is keyed by name, not position: if the spec listeners were
+	// reordered, index i now points at a different listener, so never reuse it.
+	if previous.Name != status.Name {
+		return status
+	}
+	if previous.AttachedRoutes != status.AttachedRoutes {
+		return status
+	}
+	for _, condition := range status.Conditions {
+		if !IsConditionPresentAndEqual(previous.Conditions, condition) {
+			return status
+		}
+	}
+	return previous
+}
+
+// portsWithConflictingTLSMode returns the ports carrying TLS listeners that
+// disagree on tls.mode. APISIX binds one stream proxy behaviour per port, so a
+// port cannot terminate TLS for one hostname while passing it through for
+// another. Such listeners are reported as ProtocolConflict instead of being
+// silently accepted with undefined behaviour.
+func portsWithConflictingTLSMode(gateway *gatewayv1.Gateway) map[gatewayv1.PortNumber]bool {
+	modesByPort := make(map[gatewayv1.PortNumber]map[gatewayv1.TLSModeType]struct{})
+	for _, listener := range gateway.Spec.Listeners {
+		if listener.Protocol != gatewayv1.TLSProtocolType {
+			continue
+		}
+		mode := gatewayv1.TLSModeTerminate
+		if listener.TLS != nil && listener.TLS.Mode != nil {
+			mode = *listener.TLS.Mode
+		}
+		if modesByPort[listener.Port] == nil {
+			modesByPort[listener.Port] = make(map[gatewayv1.TLSModeType]struct{})
+		}
+		modesByPort[listener.Port][mode] = struct{}{}
+	}
+
+	conflicting := make(map[gatewayv1.PortNumber]bool)
+	for port, modes := range modesByPort {
+		if len(modes) > 1 {
+			conflicting[port] = true
+		}
+	}
+	return conflicting
+}
+
+// listenerNotProgrammable reports whether a listener cannot be programmed by
+// APISIX and therefore must not have routes attached to it: its tls.mode
+// conflicts with another listener on the same port.
+func listenerNotProgrammable(listener gatewayv1.Listener, tlsConflictPorts map[gatewayv1.PortNumber]bool) bool {
+	return listener.Protocol == gatewayv1.TLSProtocolType && tlsConflictPorts[listener.Port]
+}
+
+// routeKindsForProtocol returns the route kinds a listener of the given protocol
+// can serve. Kinds outside this set are rejected with InvalidRouteKinds so the
+// listener still advertises what it actually supports.
+func routeKindsForProtocol(protocol gatewayv1.ProtocolType) []gatewayv1.RouteGroupKind {
+	group := gatewayv1.Group(gatewayv1.GroupName)
+	kinds := func(names ...gatewayv1.Kind) []gatewayv1.RouteGroupKind {
+		out := make([]gatewayv1.RouteGroupKind, 0, len(names))
+		for _, name := range names {
+			out = append(out, gatewayv1.RouteGroupKind{Group: &group, Kind: name})
+		}
+		return out
+	}
+
+	switch protocol {
+	case gatewayv1.TLSProtocolType:
+		return kinds(types.KindTLSRoute)
+	case gatewayv1.TCPProtocolType:
+		return kinds(types.KindTCPRoute)
+	case gatewayv1.UDPProtocolType:
+		return kinds(types.KindUDPRoute)
+	case gatewayv1.HTTPProtocolType, gatewayv1.HTTPSProtocolType:
+		return kinds(types.KindGRPCRoute, types.KindHTTPRoute)
+	}
+	return []gatewayv1.RouteGroupKind{}
+}
+
+// isSupportedProtocol reports whether a listener protocol is one this
+// implementation serves. routeKindsForProtocol returning nothing is the same
+// question asked the other way round.
+func isSupportedProtocol(protocol gatewayv1.ProtocolType) bool {
+	return len(routeKindsForProtocol(protocol)) > 0
+}
+
+// gatewayAcceptanceFromListeners derives the Gateway's Accepted condition from
+// its listeners. Gateway API asks for ListenersNotValid as soon as one listener
+// is not accepted, with the status separating "some listeners work" from "none
+// do". invalid is false when every listener is accepted, leaving the caller's
+// own verdict alone.
+func gatewayAcceptanceFromListeners(listeners []gatewayv1.ListenerStatus) (status bool, invalid bool) {
+	var accepted, rejected int
+	for _, listener := range listeners {
+		for _, condition := range listener.Conditions {
+			if condition.Type != string(gatewayv1.ListenerConditionAccepted) {
+				continue
+			}
+			if condition.Status == metav1.ConditionTrue {
+				accepted++
+			} else {
+				rejected++
+			}
+		}
+	}
+	if rejected == 0 {
+		return true, false
+	}
+	return accepted > 0, true
 }
 
 func SetApisixCRDConditionAccepted(status *apiv2.ApisixStatus, generation int64, err error) {
@@ -505,11 +691,11 @@ func routeHostnamesIntersectsWithListenerHostname(route client.Object, listener 
 	switch r := route.(type) {
 	case *gatewayv1.HTTPRoute:
 		return listenerHostnameIntersectWithRouteHostnames(listener, r.Spec.Hostnames)
-	case *gatewayv1alpha2.TCPRoute, *gatewayv1alpha2.UDPRoute:
+	case *gatewayv1.TCPRoute, *gatewayv1.UDPRoute:
 		return true // TCPRoute and UDPRoute don't have Hostnames to match
 	case *gatewayv1.GRPCRoute:
 		return listenerHostnameIntersectWithRouteHostnames(listener, r.Spec.Hostnames)
-	case *gatewayv1alpha2.TLSRoute:
+	case *gatewayv1.TLSRoute:
 		return listenerHostnameIntersectWithRouteHostnames(listener, r.Spec.Hostnames)
 	default:
 		return false
@@ -528,63 +714,12 @@ func listenerHostnameIntersectWithRouteHostnames(listener gatewayv1.Listener, ho
 
 	// iterate over all the hostnames and check that at least one intersect with the listener hostname
 	for _, hostname := range hostnames {
-		if HostnamesIntersect(string(*listener.Hostname), string(hostname)) {
+		if cutils.HostnamesIntersect(string(*listener.Hostname), string(hostname)) {
 			return true
 		}
 	}
 
 	return false
-}
-
-func HostnamesIntersect(a, b string) bool {
-	return HostnamesMatch(a, b) || HostnamesMatch(b, a)
-}
-
-// HostnamesMatch checks that the hostnameB matches the hostnameA. HostnameA is treated as mask
-// to be checked against the hostnameB.
-func HostnamesMatch(hostnameA, hostnameB string) bool {
-	// the hostnames are in the form of "foo.bar.com"; split them
-	// in a slice of substrings
-	hostnameALabels := strings.Split(hostnameA, ".")
-	hostnameBLabels := strings.Split(hostnameB, ".")
-
-	var a, b int
-	var wildcard bool
-
-	// iterate over the parts of both the hostnames
-	for a, b = 0, 0; a < len(hostnameALabels) && b < len(hostnameBLabels); a, b = a+1, b+1 {
-		var matchFound bool
-
-		// if the current part of B is a wildcard, we need to find the first
-		// A part that matches with the following B part
-		if wildcard {
-			for ; b < len(hostnameBLabels); b++ {
-				if hostnameALabels[a] == hostnameBLabels[b] {
-					matchFound = true
-					break
-				}
-			}
-		}
-
-		// if no match was found, the hostnames don't match
-		if wildcard && !matchFound {
-			return false
-		}
-
-		// check if at least on of the current parts are a wildcard; if so, continue
-		if hostnameALabels[a] == "*" {
-			wildcard = true
-			continue
-		}
-		// reset the wildcard  variables
-		wildcard = false
-
-		// if the current a part is different from the b part, the hostnames are incompatible
-		if hostnameALabels[a] != hostnameBLabels[b] {
-			return false
-		}
-	}
-	return len(hostnameBLabels)-b == len(hostnameALabels)-a
 }
 
 func routeMatchesListenerAllowedRoutes(
@@ -675,15 +810,15 @@ func routeMatchesListenerType(route client.Object, listener gatewayv1.Listener) 
 				return false, nil
 			}
 		}
-	case *gatewayv1alpha2.TCPRoute:
+	case *gatewayv1.TCPRoute:
 		if listener.Protocol != gatewayv1.TCPProtocolType {
 			return false, nil
 		}
-	case *gatewayv1alpha2.UDPRoute:
+	case *gatewayv1.UDPRoute:
 		if listener.Protocol != gatewayv1.UDPProtocolType {
 			return false, nil
 		}
-	case *gatewayv1alpha2.TLSRoute:
+	case *gatewayv1.TLSRoute:
 		if listener.Protocol != gatewayv1.TLSProtocolType {
 			return false, nil
 		}
@@ -694,6 +829,12 @@ func routeMatchesListenerType(route client.Object, listener gatewayv1.Listener) 
 }
 
 func getAttachedRoutesForListener(ctx context.Context, mgrc client.Client, gateway gatewayv1.Gateway, listener gatewayv1.Listener) (int32, error) {
+	// A TLS listener on a port with a conflicting tls.mode is not programmable, so
+	// no route attaches to it; report zero attached routes to match that.
+	if listenerNotProgrammable(listener, portsWithConflictingTLSMode(&gateway)) {
+		return 0, nil
+	}
+
 	routes := []types.RouteAdapter{}
 	routeList := []client.ObjectList{}
 
@@ -711,11 +852,11 @@ func getAttachedRoutesForListener(ctx context.Context, mgrc client.Client, gatew
 			case types.KindGRPCRoute:
 				routeList = append(routeList, &gatewayv1.GRPCRouteList{})
 			case types.KindTCPRoute:
-				routeList = append(routeList, &gatewayv1alpha2.TCPRouteList{})
+				routeList = append(routeList, &gatewayv1.TCPRouteList{})
 			case types.KindUDPRoute:
-				routeList = append(routeList, &gatewayv1alpha2.UDPRouteList{})
+				routeList = append(routeList, &gatewayv1.UDPRouteList{})
 			case types.KindTLSRoute:
-				routeList = append(routeList, &gatewayv1alpha2.TLSRouteList{})
+				routeList = append(routeList, &gatewayv1.TLSRouteList{})
 			}
 		}
 	} else {
@@ -723,11 +864,11 @@ func getAttachedRoutesForListener(ctx context.Context, mgrc client.Client, gatew
 		case gatewayv1.HTTPProtocolType, gatewayv1.HTTPSProtocolType:
 			routeList = append(routeList, &gatewayv1.HTTPRouteList{}, &gatewayv1.GRPCRouteList{})
 		case gatewayv1.TCPProtocolType:
-			routeList = append(routeList, &gatewayv1alpha2.TCPRouteList{})
+			routeList = append(routeList, &gatewayv1.TCPRouteList{})
 		case gatewayv1.UDPProtocolType:
-			routeList = append(routeList, &gatewayv1alpha2.UDPRouteList{})
+			routeList = append(routeList, &gatewayv1.UDPRouteList{})
 		case gatewayv1.TLSProtocolType:
-			routeList = append(routeList, &gatewayv1alpha2.TLSRouteList{})
+			routeList = append(routeList, &gatewayv1.TLSRouteList{})
 		}
 	}
 
@@ -786,6 +927,7 @@ func getListenerStatus(
 	gateway *gatewayv1.Gateway,
 ) ([]gatewayv1.ListenerStatus, error) {
 	statusArray := make([]gatewayv1.ListenerStatus, 0, len(gateway.Spec.Listeners))
+	tlsModeConflictPorts := portsWithConflictingTLSMode(gateway)
 	for i, listener := range gateway.Spec.Listeners {
 		attachedRoutes, err := getAttachedRoutesForListener(ctx, mrgc, *gateway, listener)
 		if err != nil {
@@ -807,9 +949,11 @@ func getListenerStatus(
 				LastTransitionTime: now,
 				Reason:             string(gatewayv1.ListenerReasonAccepted),
 			}
+			// A listener is not conflicted until something below says so: the
+			// NoConflicts reason is only valid on Status=False.
 			conditionConflicted = metav1.Condition{
 				Type:               string(gatewayv1.ListenerConditionConflicted),
-				Status:             metav1.ConditionTrue,
+				Status:             metav1.ConditionFalse,
 				ObservedGeneration: gateway.GetGeneration(),
 				LastTransitionTime: now,
 				Reason:             string(gatewayv1.ListenerReasonNoConflicts),
@@ -825,37 +969,59 @@ func getListenerStatus(
 			supportedKinds = []gatewayv1.RouteGroupKind{}
 		)
 
+		// A protocol this implementation does not serve is rejected outright:
+		// accepting it would advertise a listener that can never carry traffic.
+		if !isSupportedProtocol(listener.Protocol) {
+			conditionAccepted.Status = metav1.ConditionFalse
+			conditionAccepted.Reason = string(gatewayv1.ListenerReasonUnsupportedProtocol)
+			conditionAccepted.Message = fmt.Sprintf("protocol %q is not supported", listener.Protocol)
+			conditionProgrammed.Status = metav1.ConditionFalse
+			conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
+
+			statusArray = append(statusArray, reuseUnchangedListenerStatus(gateway, i, gatewayv1.ListenerStatus{
+				Name: listener.Name,
+				Conditions: []metav1.Condition{
+					conditionProgrammed,
+					conditionAccepted,
+					conditionConflicted,
+					conditionResolvedRefs,
+				},
+				SupportedKinds: supportedKinds,
+				AttachedRoutes: attachedRoutes,
+			}))
+			continue
+		}
+
+		// A port serving more than one TLS mode cannot be programmed, so the
+		// listener is rejected rather than accepted with undefined behaviour.
+		if listener.Protocol == gatewayv1.TLSProtocolType && tlsModeConflictPorts[listener.Port] {
+			conditionAccepted.Status = metav1.ConditionFalse
+			conditionAccepted.Reason = string(gatewayv1.ListenerReasonProtocolConflict)
+			conditionAccepted.Message = "listeners on this port disagree on tls.mode"
+			conditionConflicted.Status = metav1.ConditionTrue
+			conditionConflicted.Reason = string(gatewayv1.ListenerReasonProtocolConflict)
+			conditionProgrammed.Status = metav1.ConditionFalse
+			conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
+
+			statusArray = append(statusArray, reuseUnchangedListenerStatus(gateway, i, gatewayv1.ListenerStatus{
+				Name: listener.Name,
+				Conditions: []metav1.Condition{
+					conditionProgrammed,
+					conditionAccepted,
+					conditionConflicted,
+					conditionResolvedRefs,
+				},
+				SupportedKinds: supportedKinds,
+				AttachedRoutes: attachedRoutes,
+			}))
+			continue
+		}
+
+		// Route kinds this listener's protocol is able to serve.
+		protocolKinds := routeKindsForProtocol(listener.Protocol)
+
 		if listener.AllowedRoutes == nil || listener.AllowedRoutes.Kinds == nil {
-			group := gatewayv1.Group(gatewayv1.GroupName)
-			supportedKinds = []gatewayv1.RouteGroupKind{}
-			switch listener.Protocol {
-			case gatewayv1.TLSProtocolType:
-				supportedKinds = append(supportedKinds, gatewayv1.RouteGroupKind{
-					Group: &group,
-					Kind:  types.KindTLSRoute,
-				})
-			case gatewayv1.TCPProtocolType:
-				supportedKinds = append(supportedKinds, gatewayv1.RouteGroupKind{
-					Group: &group,
-					Kind:  types.KindTCPRoute,
-				})
-			case gatewayv1.UDPProtocolType:
-				supportedKinds = append(supportedKinds, gatewayv1.RouteGroupKind{
-					Group: &group,
-					Kind:  types.KindUDPRoute,
-				})
-			case gatewayv1.HTTPProtocolType, gatewayv1.HTTPSProtocolType:
-				supportedKinds = append(supportedKinds, []gatewayv1.RouteGroupKind{
-					{
-						Group: &group,
-						Kind:  types.KindGRPCRoute,
-					},
-					{
-						Group: &group,
-						Kind:  types.KindHTTPRoute,
-					},
-				}...)
-			}
+			supportedKinds = protocolKinds
 		} else {
 			for _, kind := range listener.AllowedRoutes.Kinds {
 				if kind.Group != nil && *kind.Group != gatewayv1.GroupName {
@@ -863,13 +1029,16 @@ func getListenerStatus(
 					conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonInvalidRouteKinds)
 					continue
 				}
-				switch kind.Kind {
-				case KindHTTPRoute, types.KindGRPCRoute, types.KindTLSRoute, types.KindTCPRoute, types.KindUDPRoute:
-					supportedKinds = append(supportedKinds, kind)
-				default:
+				// A kind the listener's protocol cannot serve is invalid; the listener
+				// still advertises the kinds it does support.
+				if !slices.ContainsFunc(protocolKinds, func(k gatewayv1.RouteGroupKind) bool {
+					return k.Kind == kind.Kind
+				}) {
 					conditionResolvedRefs.Status = metav1.ConditionFalse
 					conditionResolvedRefs.Reason = string(gatewayv1.ListenerReasonInvalidRouteKinds)
+					continue
 				}
+				supportedKinds = append(supportedKinds, kind)
 			}
 		}
 
@@ -897,10 +1066,10 @@ func getListenerStatus(
 				}
 				if permitted := checkReferenceGrant(ctx,
 					mrgc,
-					v1beta1.ReferenceGrantFrom{
+					gatewayv1.ReferenceGrantFrom{
 						Group:     gatewayv1.GroupName,
 						Kind:      KindGateway,
-						Namespace: v1beta1.Namespace(gateway.Namespace),
+						Namespace: gatewayv1.Namespace(gateway.Namespace),
 					},
 					gatewayv1.ObjectReference{
 						Group:     corev1.GroupName,
@@ -938,6 +1107,13 @@ func getListenerStatus(
 					break
 				}
 			}
+
+			// frontendValidation (downstream mTLS) only applies to Terminate listeners.
+			// In Gateway API v1.6 it is declared at the Gateway level (spec.tls.frontend).
+			if validation := types.FrontendTLSValidationForListener(gateway, listener); validation != nil &&
+				(listener.TLS.Mode == nil || *listener.TLS.Mode == gatewayv1.TLSModeTerminate) {
+				validateListenerFrontendValidation(ctx, mrgc, gateway, validation, &conditionResolvedRefs, &conditionProgrammed, &conditionAccepted)
+			}
 		}
 
 		status := gatewayv1.ListenerStatus{
@@ -952,28 +1128,118 @@ func getListenerStatus(
 			AttachedRoutes: attachedRoutes,
 		}
 
-		changed := false
-		if len(gateway.Status.Listeners) > i {
-			if gateway.Status.Listeners[i].AttachedRoutes != attachedRoutes {
-				changed = true
-			}
-			for _, condition := range status.Conditions {
-				if !IsConditionPresentAndEqual(gateway.Status.Listeners[i].Conditions, condition) {
-					changed = true
-					break
-				}
-			}
-		} else {
-			changed = true
-		}
-
-		if !changed {
-			status = gateway.Status.Listeners[i]
-		}
-		statusArray = append(statusArray, status)
+		statusArray = append(statusArray, reuseUnchangedListenerStatus(gateway, i, status))
 	}
 
 	return statusArray, nil
+}
+
+// validateListenerFrontendValidation validates a listener's TLS frontendValidation
+// (downstream mTLS CA references) and records the outcome on the listener conditions.
+func validateListenerFrontendValidation(
+	ctx context.Context,
+	mrgc client.Client,
+	gateway *gatewayv1.Gateway,
+	frontendValidation *gatewayv1.FrontendTLSValidation,
+	conditionResolvedRefs, conditionProgrammed, conditionAccepted *metav1.Condition,
+) {
+	// AllowInsecureFallback is an Extended feature (the conformance suite tracks it
+	// separately as GatewayFrontendClientCertificateValidationInsecureFallback) that
+	// APISIX cannot express: verification is all-or-nothing per SSL object, with no
+	// way to request a client certificate without enforcing it. Gateway API v1.6 uses
+	// Accepted=False/UnsupportedValue for exactly this case. The CA references are
+	// still validated below so ResolvedRefs keeps reporting whether they resolve.
+	modeUnsupported := frontendValidation.Mode == gatewayv1.AllowInsecureFallback
+	if modeUnsupported {
+		conditionAccepted.Status = metav1.ConditionFalse
+		conditionAccepted.Reason = string(gatewayv1.ListenerReasonUnsupportedValue)
+		conditionAccepted.Message = "frontendValidation mode AllowInsecureFallback is not supported: APISIX cannot accept a connection whose client certificate is missing or fails verification"
+		conditionProgrammed.Status = metav1.ConditionFalse
+		conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
+	}
+
+	setInvalid := func(reason gatewayv1.ListenerConditionReason, message string) {
+		conditionResolvedRefs.Status = metav1.ConditionFalse
+		conditionResolvedRefs.Reason = string(reason)
+		conditionResolvedRefs.Message = message
+		conditionProgrammed.Status = metav1.ConditionFalse
+		conditionProgrammed.Reason = string(gatewayv1.ListenerReasonInvalid)
+	}
+
+	// Count the CA references that resolve to a usable certificate. Any invalid
+	// ref makes ResolvedRefs=False; only when none remain valid is the listener
+	// Accepted=False with NoValidCACertificate (Gateway API v1.6 semantics).
+	valid := 0
+	for _, ref := range frontendValidation.CACertificateRefs {
+		if ref.Group != "" && string(ref.Group) != corev1.GroupName {
+			setInvalid(gatewayv1.ListenerReasonInvalidCACertificateKind,
+				fmt.Sprintf(`Invalid Group for caCertificateRef, expect "", got "%s"`, ref.Group))
+			continue
+		}
+		kind := KindConfigMap
+		if ref.Kind != "" {
+			kind = string(ref.Kind)
+		}
+		if kind != KindConfigMap && kind != KindSecret {
+			setInvalid(gatewayv1.ListenerReasonInvalidCACertificateKind,
+				fmt.Sprintf(`Invalid Kind for caCertificateRef, expect "ConfigMap" or "Secret", got "%s"`, ref.Kind))
+			continue
+		}
+		if permitted := checkReferenceGrant(ctx,
+			mrgc,
+			gatewayv1.ReferenceGrantFrom{
+				Group:     gatewayv1.GroupName,
+				Kind:      KindGateway,
+				Namespace: gatewayv1.Namespace(gateway.Namespace),
+			},
+			gatewayv1.ObjectReference{
+				Group:     corev1.GroupName,
+				Kind:      gatewayv1.Kind(kind),
+				Name:      ref.Name,
+				Namespace: ref.Namespace,
+			},
+		); !permitted {
+			setInvalid(gatewayv1.ListenerReasonRefNotPermitted, "caCertificateRefs cross namespaces is not permitted")
+			continue
+		}
+		nn := k8stypes.NamespacedName{
+			Namespace: string(*cmp.Or(ref.Namespace, (*gatewayv1.Namespace)(&gateway.Namespace))),
+			Name:      string(ref.Name),
+		}
+		switch kind {
+		case KindConfigMap:
+			var configMap corev1.ConfigMap
+			if err := mrgc.Get(ctx, nn, &configMap); err != nil {
+				setInvalid(gatewayv1.ListenerReasonInvalidCACertificateRef, err.Error())
+				continue
+			}
+			if _, err := sslutils.ExtractCAFromConfigMap(&configMap); err != nil {
+				setInvalid(gatewayv1.ListenerReasonInvalidCACertificateRef,
+					fmt.Sprintf("Malformed CA ConfigMap referenced: %s", err.Error()))
+				continue
+			}
+		case KindSecret:
+			var secret corev1.Secret
+			if err := mrgc.Get(ctx, nn, &secret); err != nil {
+				setInvalid(gatewayv1.ListenerReasonInvalidCACertificateRef, err.Error())
+				continue
+			}
+			if _, err := sslutils.ExtractCAFromSecret(&secret); err != nil {
+				setInvalid(gatewayv1.ListenerReasonInvalidCACertificateRef,
+					fmt.Sprintf("Malformed CA Secret referenced: %s", err.Error()))
+				continue
+			}
+		}
+		valid++
+	}
+
+	// An unsupported mode already rejected the listener with a more specific reason;
+	// do not overwrite it with NoValidCACertificate.
+	if valid == 0 && !modeUnsupported {
+		conditionAccepted.Status = metav1.ConditionFalse
+		conditionAccepted.Reason = string(gatewayv1.ListenerReasonNoValidCACertificate)
+		conditionAccepted.Message = "no valid CA certificate for frontend client validation"
+	}
 }
 
 // SplitMetaNamespaceKey returns the namespace and name that
@@ -1081,93 +1347,100 @@ func FullTypeName(a any) string {
 // filterHostnames accepts a list of gateways and an HTTPRoute, and returns a copy of the HTTPRoute with only the hostnames that match the listener hostnames of the gateways.
 // If the HTTPRoute hostnames do not intersect with the listener hostnames of the gateways, it returns an ErrNoMatchingListenerHostname error.
 func filterHostnames(gateways []RouteParentRefContext, httpRoute *gatewayv1.HTTPRoute) (*gatewayv1.HTTPRoute, error) {
-	filteredHostnames := make([]gatewayv1.Hostname, 0)
-
-	// If the HTTPRoute does not specify hostnames, we use the union of the listener hostnames of all supported gateways
-	// If any supported listener does not specify a hostname, the HTTPRoute hostnames remain empty to match any hostname
-	if len(httpRoute.Spec.Hostnames) == 0 {
-		hostnames, matchAnyHost := getUnionOfGatewayHostnames(gateways)
-		if matchAnyHost {
-			return httpRoute, nil
-		}
-		filteredHostnames = hostnames
-	} else {
-		// If the HTTPRoute specifies hostnames, we need to find the intersection with the gateway listener hostnames
-		for _, hostname := range httpRoute.Spec.Hostnames {
-			if hostnameMatching := getMinimumHostnameIntersection(gateways, hostname); hostnameMatching != "" {
-				filteredHostnames = append(filteredHostnames, hostnameMatching)
-			}
-		}
-		if len(filteredHostnames) == 0 {
-			return httpRoute, ErrNoMatchingListenerHostname
-		}
+	hostnames, err := intersectRouteHostnames(gateways, httpRoute.Spec.Hostnames)
+	if err != nil {
+		return httpRoute, err
 	}
-
-	httpRoute.Spec.Hostnames = filteredHostnames
+	httpRoute.Spec.Hostnames = hostnames
 	return httpRoute, nil
 }
 
-// getUnionOfGatewayHostnames returns the union of the hostnames specified in all supported gateways
-// The second return value indicates whether any listener can match any hostname
-func getUnionOfGatewayHostnames(gateways []RouteParentRefContext) ([]gatewayv1.Hostname, bool) {
-	hostnames := make([]gatewayv1.Hostname, 0)
-
-	for _, gateway := range gateways {
-		if gateway.ListenerName != "" {
-			// If a listener name is specified, only check that listener
-			for _, listener := range gateway.Gateway.Spec.Listeners {
-				if string(listener.Name) == gateway.ListenerName {
-					// If a listener does not specify a hostname, it can match any hostname
-					if listener.Hostname == nil {
-						return nil, true
-					}
-					hostnames = append(hostnames, *listener.Hostname)
-					break
-				}
-			}
-		} else {
-			// Otherwise, check all listeners
-			for _, listener := range gateway.Gateway.Spec.Listeners {
-				// Only consider listeners that can effectively configure hostnames (HTTP, HTTPS, or TLS)
-				if isListenerHostnameEffective(listener) {
-					if listener.Hostname == nil {
-						return nil, true
-					}
-					hostnames = append(hostnames, *listener.Hostname)
-				}
-			}
-		}
+// filterTLSRouteHostnames is filterHostnames for a TLSRoute. Its hostnames become
+// the SNIs the stream routes match on, so a route left carrying its own broader
+// hostname would serve names the listener it attached to never accepted - and, on
+// a single shared stream listen, would take them from the route that should have.
+func filterTLSRouteHostnames(gateways []RouteParentRefContext, tlsRoute *gatewayv1.TLSRoute) (*gatewayv1.TLSRoute, error) {
+	hostnames, err := intersectRouteHostnames(gateways, tlsRoute.Spec.Hostnames)
+	if err != nil {
+		return tlsRoute, err
 	}
-
-	return hostnames, false
+	tlsRoute.Spec.Hostnames = hostnames
+	return tlsRoute, nil
 }
 
-// getMinimumHostnameIntersection returns the smallest intersection hostname
-// - If the listener hostname is empty, return the HTTPRoute hostname
-// - If the listener hostname is a wildcard of the HTTPRoute hostname, return the HTTPRoute hostname
-// - If the HTTPRoute hostname is a wildcard of the listener hostname, return the listener hostname
-// - If the HTTPRoute hostname and listener hostname are the same, return it
-// - If none of the above, return an empty string
-func getMinimumHostnameIntersection(gateways []RouteParentRefContext, hostname gatewayv1.Hostname) gatewayv1.Hostname {
-	for _, gateway := range gateways {
-		for _, listener := range gateway.Gateway.Spec.Listeners {
-			// If a listener name is specified, only check that listener
-			// If the listener name is not specified, check all listeners
-			if gateway.ListenerName == "" || gateway.ListenerName == string(listener.Name) {
-				if listener.Hostname == nil || *listener.Hostname == "" {
-					return hostname
-				}
-				if HostnamesMatch(string(*listener.Hostname), string(hostname)) {
-					return hostname
-				}
-				if HostnamesMatch(string(hostname), string(*listener.Hostname)) {
-					return *listener.Hostname
-				}
-			}
+// intersectRouteHostnames narrows a route's hostnames to what the listeners it
+// attached to actually accept.
+//
+// A route without hostnames takes the union of the listener hostnames, and stays
+// empty - matching any hostname - as soon as one supported listener carries no
+// hostname of its own. Otherwise every hostname is replaced by its intersections
+// with the listener hostnames, and a route that intersects with none is
+// ErrNoMatchingListenerHostname.
+func intersectRouteHostnames(gateways []RouteParentRefContext, routeHostnames []gatewayv1.Hostname) ([]gatewayv1.Hostname, error) {
+	listeners := hostnameEffectiveListeners(acceptedParentRefs(gateways))
+
+	if len(routeHostnames) == 0 {
+		hostnames, matchAnyHost := cutils.UnionHostnames(listeners)
+		if matchAnyHost {
+			return routeHostnames, nil
 		}
+		return cutils.DedupHostnames(hostnames), nil
 	}
 
-	return ""
+	filteredHostnames := make([]gatewayv1.Hostname, 0, len(routeHostnames))
+	for _, hostname := range routeHostnames {
+		filteredHostnames = append(filteredHostnames, cutils.NarrowHostname(listeners, hostname)...)
+	}
+	filteredHostnames = cutils.DedupHostnames(filteredHostnames)
+	if len(filteredHostnames) == 0 {
+		return nil, ErrNoMatchingListenerHostname
+	}
+	return filteredHostnames, nil
+}
+
+// hostnameEffectiveListeners flattens the listeners the route attached to,
+// keeping only those a hostname can be matched against.
+func hostnameEffectiveListeners(gateways []RouteParentRefContext) []gatewayv1.Listener {
+	listeners := make([]gatewayv1.Listener, 0, len(gateways))
+	for _, gateway := range gateways {
+		for _, listener := range listenersForGatewayContext(gateway) {
+			// Only consider listeners that can effectively configure hostnames (HTTP, HTTPS, or TLS).
+			if !isListenerHostnameEffective(listener) {
+				continue
+			}
+			listeners = append(listeners, listener)
+		}
+	}
+	return listeners
+}
+
+// listenersForGatewayContext returns the listeners relevant for hostname resolution.
+// The listeners actually matched by the parentRef are preferred, so a parentRef that
+// selects by port alone does not pull in hostnames from listeners it never targeted.
+// Only when nothing matched do we fall back to the gateway spec.
+func listenersForGatewayContext(gateway RouteParentRefContext) []gatewayv1.Listener {
+	if len(gateway.Listeners) > 0 {
+		return gateway.Listeners
+	}
+	if gateway.Listener != nil {
+		return []gatewayv1.Listener{*gateway.Listener}
+	}
+	if gateway.ListenerName != "" {
+		for _, listener := range gateway.Gateway.Spec.Listeners {
+			if string(listener.Name) == gateway.ListenerName {
+				return []gatewayv1.Listener{listener}
+			}
+		}
+		return nil
+	}
+	return gateway.Gateway.Spec.Listeners
+}
+
+// appendListeners appends listeners without de-duplication.
+// Route translation aggregates listeners across multiple Gateways, and listener
+// names are only unique within a single Gateway.
+func appendListeners(target []gatewayv1.Listener, source ...gatewayv1.Listener) []gatewayv1.Listener {
+	return append(target, source...)
 }
 
 // isListenerHostnameEffective checks if a listener can specify a hostname to match the hostname in the request
@@ -1176,6 +1449,33 @@ func isListenerHostnameEffective(listener gatewayv1.Listener) bool {
 	return listener.Protocol == gatewayv1.HTTPProtocolType ||
 		listener.Protocol == gatewayv1.HTTPSProtocolType ||
 		listener.Protocol == gatewayv1.TLSProtocolType
+}
+
+// acceptedParentRefs keeps only the contexts whose parentRef was accepted.
+//
+// ParseRouteParentRefs returns a context per parentRef, accepted or not, and a
+// rejected one carries no matched listener at all - so listenersForGatewayContext
+// falls back to every listener on its Gateway. A hostname that only such a
+// Gateway accepts would then survive the intersection and be served through the
+// parentRef that was accepted. Only an accepted parent may widen the set.
+//
+// When nothing was accepted the contexts are returned unchanged: the route is
+// not translated in that case, and narrowing here would only change which
+// reason its status reports.
+func acceptedParentRefs(gateways []RouteParentRefContext) []RouteParentRefContext {
+	accepted := make([]RouteParentRefContext, 0, len(gateways))
+	for _, gateway := range gateways {
+		for _, condition := range gateway.Conditions {
+			if condition.Type == string(gatewayv1.RouteConditionAccepted) && condition.Status == metav1.ConditionTrue {
+				accepted = append(accepted, gateway)
+				break
+			}
+		}
+	}
+	if len(accepted) == 0 {
+		return gateways
+	}
+	return accepted
 }
 
 func isRouteAccepted(gateways []RouteParentRefContext) bool {
@@ -1209,7 +1509,7 @@ func isTLSSecretValid(secret *corev1.Secret) (string, bool) {
 
 func referenceGrantPredicates(kind gatewayv1.Kind) predicate.Funcs {
 	var filter = func(obj client.Object) bool {
-		grant, ok := obj.(*v1beta1.ReferenceGrant)
+		grant, ok := obj.(*gatewayv1.ReferenceGrant)
 		if !ok {
 			return false
 		}
@@ -1227,7 +1527,7 @@ func referenceGrantPredicates(kind gatewayv1.Kind) predicate.Funcs {
 	return predicates
 }
 
-func checkReferenceGrant(ctx context.Context, cli client.Client, obj v1beta1.ReferenceGrantFrom, ref gatewayv1.ObjectReference) bool {
+func checkReferenceGrant(ctx context.Context, cli client.Client, obj gatewayv1.ReferenceGrantFrom, ref gatewayv1.ObjectReference) bool {
 	if ref.Namespace == nil || *ref.Namespace == obj.Namespace {
 		return true
 	}
@@ -1236,7 +1536,7 @@ func checkReferenceGrant(ctx context.Context, cli client.Client, obj v1beta1.Ref
 		return false
 	}
 
-	var grantList v1beta1.ReferenceGrantList
+	var grantList gatewayv1.ReferenceGrantList
 	if err := cli.List(ctx, &grantList, client.InNamespace(*ref.Namespace)); err != nil {
 		return false
 	}
@@ -1255,6 +1555,45 @@ func checkReferenceGrant(ctx context.Context, cli client.Client, obj v1beta1.Ref
 		}
 	}
 	return false
+}
+
+// CheckConsumerSecretRef reports whether a Consumer in fromNamespace may reference
+// the Secret at secretNN, honoring ReferenceGrant for cross-namespace references.
+// A non-nil error means the grant lookup itself failed (API server, RBAC, cache);
+// that is distinct from a permitted value of false, which means no ReferenceGrant
+// allows the reference. Callers must not treat a lookup failure as "denied".
+func CheckConsumerSecretRef(ctx context.Context, cli client.Client, fromNamespace string, secretNN k8stypes.NamespacedName) (bool, error) {
+	if secretNN.Namespace == "" || secretNN.Namespace == fromNamespace {
+		return true, nil
+	}
+	if !GetEnableReferenceGrant() {
+		return false, nil
+	}
+
+	var grantList gatewayv1.ReferenceGrantList
+	if err := cli.List(ctx, &grantList, client.InNamespace(secretNN.Namespace)); err != nil {
+		return false, err
+	}
+
+	from := gatewayv1.ReferenceGrantFrom{
+		Group:     gatewayv1.Group(v1alpha1.GroupVersion.Group),
+		Kind:      types.KindConsumer,
+		Namespace: gatewayv1.Namespace(fromNamespace),
+	}
+	for _, grant := range grantList.Items {
+		for _, f := range grant.Spec.From {
+			if f != from {
+				continue
+			}
+			for _, to := range grant.Spec.To {
+				if to.Group == corev1.GroupName && string(to.Kind) == types.KindSecret &&
+					(to.Name == nil || string(*to.Name) == secretNN.Name) {
+					return true, nil
+				}
+			}
+		}
+	}
+	return false, nil
 }
 
 func ListRequests(
@@ -1476,7 +1815,7 @@ func GetIngressClassV1Beta1(ctx context.Context, c client.Client, log logr.Logge
 			}
 		}
 		log.V(1).Info("no default ingress class(v1beta1) found")
-		return nil, errors.New("no default ingress class found")
+		return nil, errNoDefaultIngressClass
 	}
 
 	// Check if the specified ingress class is controlled by us
@@ -1489,7 +1828,7 @@ func GetIngressClassV1Beta1(ctx context.Context, c client.Client, log logr.Logge
 		return &ingressClass, nil
 	}
 
-	return nil, errors.New("ingress class is not controlled by us")
+	return nil, errIngressClassNotControlled
 }
 
 func GetIngressClassV1(ctx context.Context, c client.Client, log logr.Logger, ingressClassName string) (*networkingv1.IngressClass, error) {
@@ -1510,7 +1849,7 @@ func GetIngressClassV1(ctx context.Context, c client.Client, log logr.Logger, in
 			}
 		}
 		log.V(1).Info("no default ingress class found")
-		return nil, errors.New("no default ingress class found")
+		return nil, errNoDefaultIngressClass
 	}
 
 	// Check if the specified ingress class is controlled by us
@@ -1523,10 +1862,22 @@ func GetIngressClassV1(ctx context.Context, c client.Client, log logr.Logger, in
 		return &ingressClass, nil
 	}
 
-	return nil, errors.New("ingress class is not controlled by us")
+	return nil, errIngressClassNotControlled
+}
+
+func isIngressClassSelectionAbsent(err error) bool {
+	return k8serrors.IsNotFound(err) ||
+		errors.Is(err, errNoDefaultIngressClass) ||
+		errors.Is(err, errIngressClassNotControlled) ||
+		errors.Is(err, ErrNamespaceNotWatched)
 }
 
 func FindMatchingIngressClassByObject(ctx context.Context, c client.Client, log logr.Logger, obj client.Object, apiVersion string) (*networkingv1.IngressClass, error) {
+	// An object outside the watched namespaces is not ours, just like one bound
+	// to an IngressClass of another controller.
+	if err := checkWatchedNamespace(ctx, c, obj); err != nil {
+		return nil, err
+	}
 	ingressClassName := ExtractIngressClass(obj)
 	switch apiVersion {
 	case networkingv1beta1.SchemeGroupVersion.String():
@@ -1804,4 +2155,43 @@ func ExtractIngressClass(obj client.Object) string {
 	default:
 		panic(fmt.Errorf("unhandled object type %T for extracting ingress class", obj))
 	}
+}
+
+// loadPluginSecrets loads the Secrets referenced by apisix.apache.org/v1alpha1 plugins
+// into the translate context. A plugin may only reference a Secret in the namespace of
+// the object that declares it.
+func loadPluginSecrets(ctx context.Context, c client.Client, tctx *provider.TranslateContext, namespace string, plugins []v1alpha1.Plugin) error {
+	for _, plugin := range plugins {
+		if plugin.SecretRef == nil || plugin.SecretRef.Name == "" {
+			continue
+		}
+		secretNN := k8stypes.NamespacedName{Namespace: namespace, Name: plugin.SecretRef.Name}
+		if _, ok := tctx.Secrets[secretNN]; ok {
+			continue
+		}
+		secret := new(corev1.Secret)
+		if err := c.Get(ctx, secretNN, secret); err != nil {
+			return fmt.Errorf("failed to get Secret %s referenced by plugin %s: %w", secretNN, plugin.Name, err)
+		}
+		tctx.Secrets[secretNN] = secret
+	}
+	return nil
+}
+
+// listL4RoutePoliciesForSecret returns the L4RoutePolicies whose plugins reference the
+// given Secret.
+func listL4RoutePoliciesForSecret(ctx context.Context, c client.Client, log logr.Logger, obj client.Object) []v1alpha1.L4RoutePolicy {
+	secret, ok := obj.(*corev1.Secret)
+	if !ok {
+		log.Error(errors.New("unexpected object type"), "failed to convert object to Secret")
+		return nil
+	}
+	var list v1alpha1.L4RoutePolicyList
+	if err := c.List(ctx, &list, client.MatchingFields{
+		indexer.SecretIndexRef: indexer.GenIndexKey(secret.GetNamespace(), secret.GetName()),
+	}); err != nil {
+		log.Error(err, "failed to list L4RoutePolicy by secret reference", "secret", utils.NamespacedName(secret))
+		return nil
+	}
+	return list.Items
 }

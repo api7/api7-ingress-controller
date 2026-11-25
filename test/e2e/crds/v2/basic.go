@@ -67,12 +67,10 @@ var _ = Describe("APISIX Standalone Basic Tests", Label("apisix.apache.org", "v2
 			By("create GatewayProxy")
 			err := s.CreateResourceFromString(s.GetGatewayProxySpec())
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
-			time.Sleep(5 * time.Second)
 
 			By("create IngressClass")
 			err = s.CreateResourceFromStringWithNamespace(s.GetIngressClassYaml(), "")
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
-			time.Sleep(5 * time.Second)
 
 			const apisixRouteSpec = `
 apiVersion: apisix.apache.org/v2

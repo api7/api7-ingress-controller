@@ -23,6 +23,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/gavv/httpexpect/v2"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	. "github.com/onsi/ginkgo/v2" //nolint:staticcheck
 	. "github.com/onsi/gomega"    //nolint:staticcheck
@@ -42,6 +43,11 @@ type APISIXDeployOptions struct {
 	ServiceType      string
 	ServiceHTTPPort  int
 	ServiceHTTPSPort int
+	// ServiceHTTPSTargetPort is the container port the HTTPS service port
+	// forwards to: APISIX's HTTP ssl listen (9443) by default, or its stream
+	// tls_passthrough listen (9120). See the manifest for why the two cannot
+	// share a port.
+	ServiceHTTPSTargetPort int
 
 	ConfigProvider string
 	Replicas       *int
@@ -59,6 +65,34 @@ func NewAPISIXDeployer(s *Scaffold) Deployer {
 }
 
 func (s *APISIXDeployer) BeforeEach() {
+	// Fast path: pick up a prewarmed environment so the deploy/readiness
+	// latency is paid by a background worker (overlapping the previous spec)
+	// instead of on this spec's critical path. Only the default profile is
+	// pooled; anything else, or any provisioning failure, falls back to the
+	// synchronous deploy below.
+	if prewarmEnabled() && isPoolable(s.opts) && specPrewarmable() {
+		fw, opts := s.Framework, s.opts
+		pool := getOrStartPool(profileKey(opts), prewarmDepth(), func() *pooledEnv {
+			return provisionAPISIXEnv(fw, opts)
+		})
+		env := pool.acquire()
+		if env != nil && env.err == nil {
+			if err := s.loadPooledEnv(env); err != nil {
+				s.Logf("prewarm tunnel setup failed, falling back to synchronous deploy: %v", err)
+				destroyPooledEnv(env)
+			} else {
+				return
+			}
+		} else if env != nil && env.err != nil {
+			s.Logf("prewarm provision failed, falling back to synchronous deploy: %v", env.err)
+			destroyPooledEnv(env)
+		}
+	}
+
+	s.beforeEachSync()
+}
+
+func (s *APISIXDeployer) beforeEachSync() {
 	s.runtimeOpts = s.opts
 	s.namespace = fmt.Sprintf("ingress-apisix-e2e-tests-%s-%d", s.runtimeOpts.Name, time.Now().Nanosecond())
 	s.kubectlOptions = &k8s.KubectlOptions{
@@ -118,9 +152,8 @@ func (s *APISIXDeployer) AfterEach() {
 			_, _ = fmt.Fprintln(GinkgoWriter, output)
 		}
 		if framework.ProviderType == framework.ProviderTypeAPISIXStandalone && s.adminTunnel != nil {
-			client := NewClient("http", s.adminTunnel.Endpoint())
 			reporter := &ErrorReporter{}
-			body := client.GET("/apisix/admin/configs").WithHeader("X-API-KEY", s.AdminKey()).WithReporter(reporter).Expect().Body().Raw()
+			body := s.AdminAPIClient().GET("/apisix/admin/configs").WithHeader("X-API-KEY", s.AdminKey()).WithReporter(reporter).Expect().Body().Raw()
 			_, _ = fmt.Fprintln(GinkgoWriter, "Dumping APISIX configs:")
 			_, _ = fmt.Fprintln(GinkgoWriter, body)
 		}
@@ -147,11 +180,12 @@ func (s *APISIXDeployer) AfterEach() {
 
 func (s *APISIXDeployer) DeployDataplane(deployOpts DeployDataplaneOptions) {
 	opts := APISIXDeployOptions{
-		Namespace:        s.namespace,
-		AdminKey:         s.runtimeOpts.APISIXAdminAPIKey,
-		ServiceHTTPPort:  9080,
-		ServiceHTTPSPort: 9443,
-		Replicas:         ptr.To(1),
+		Namespace:              s.namespace,
+		AdminKey:               s.runtimeOpts.APISIXAdminAPIKey,
+		ServiceHTTPPort:        9080,
+		ServiceHTTPSPort:       9443,
+		ServiceHTTPSTargetPort: 9443,
+		Replicas:               ptr.To(1),
 	}
 
 	if deployOpts.Namespace != "" {
@@ -165,6 +199,9 @@ func (s *APISIXDeployer) DeployDataplane(deployOpts DeployDataplaneOptions) {
 	}
 	if deployOpts.ServiceHTTPSPort != 0 {
 		opts.ServiceHTTPSPort = deployOpts.ServiceHTTPSPort
+	}
+	if deployOpts.ServiceHTTPSTargetPort != 0 {
+		opts.ServiceHTTPSTargetPort = deployOpts.ServiceHTTPSTargetPort
 	}
 	if deployOpts.AdminKey != "" {
 		opts.AdminKey = deployOpts.AdminKey
@@ -245,6 +282,12 @@ func (s *APISIXDeployer) deployDataplane(opts *APISIXDeployOptions) *corev1.Serv
 			LabelSelector: "app.kubernetes.io/name=apisix",
 		})
 		Expect(err).ToNot(HaveOccurred(), "waiting for gateway pod ready")
+	} else {
+		// A terminating pod can still be Ready and selected by a new port-forward.
+		err = k8s.WaitUntilNumPodsCreatedE(s.GinkgoT, kubectlOpts, metav1.ListOptions{
+			LabelSelector: "app.kubernetes.io/name=apisix",
+		}, 0, 60, time.Second)
+		Expect(err).ToNot(HaveOccurred(), "waiting for gateway pods to terminate")
 	}
 
 	Eventually(func() bool {
@@ -285,6 +328,7 @@ func (s *APISIXDeployer) DeployIngress() {
 		ProviderType:       framework.ProviderType,
 		ProviderSyncPeriod: syncPeriod,
 		Namespace:          s.namespace,
+		NamespaceSelector:  s.runtimeOpts.NamespaceSelector,
 		Replicas:           ptr.To(1),
 		WebhookEnable:      s.runtimeOpts.EnableWebhook,
 	})
@@ -300,6 +344,7 @@ func (s *APISIXDeployer) ScaleIngress(replicas int) {
 		ProviderType:       framework.ProviderType,
 		ProviderSyncPeriod: syncPeriod,
 		Namespace:          s.namespace,
+		NamespaceSelector:  s.runtimeOpts.NamespaceSelector,
 		Replicas:           &replicas,
 	})
 }
@@ -335,6 +380,14 @@ func (s *APISIXDeployer) createAdminTunnel(svc *corev1.Service) (*k8s.Tunnel, er
 	s.addFinalizers(s.closeAdminTunnel)
 
 	return adminTunnel, nil
+}
+
+// AdminAPIClient returns a client for the data plane Admin API, reachable through the
+// tunnel the scaffold forwards to it. In standalone mode it is the only way to read or
+// write the configuration APISIX actually holds, bypassing the controller.
+func (s *APISIXDeployer) AdminAPIClient() *httpexpect.Expect {
+	Expect(s.adminTunnel).NotTo(BeNil(), "admin tunnel should be created")
+	return NewClient("http", s.adminTunnel.Endpoint())
 }
 
 func (s *APISIXDeployer) closeAdminTunnel() {
@@ -374,10 +427,11 @@ func (s *APISIXDeployer) CreateAdditionalGatewayWithOptions(namePrefix string, o
 
 	// Deploy dataplane for this additional gateway
 	o := APISIXDeployOptions{
-		Namespace:        additionalNS,
-		AdminKey:         adminKey,
-		ServiceHTTPPort:  9080,
-		ServiceHTTPSPort: 9443,
+		Namespace:              additionalNS,
+		AdminKey:               adminKey,
+		ServiceHTTPPort:        9080,
+		ServiceHTTPSPort:       9443,
+		ServiceHTTPSTargetPort: 9443,
 	}
 	if opts.Namespace != "" {
 		o.Namespace = opts.Namespace
@@ -390,6 +444,9 @@ func (s *APISIXDeployer) CreateAdditionalGatewayWithOptions(namePrefix string, o
 	}
 	if opts.ServiceHTTPSPort != 0 {
 		o.ServiceHTTPSPort = opts.ServiceHTTPSPort
+	}
+	if opts.ServiceHTTPSTargetPort != 0 {
+		o.ServiceHTTPSTargetPort = opts.ServiceHTTPSTargetPort
 	}
 	if opts.ProviderType != "" {
 		if opts.ProviderType == framework.ProviderTypeAPISIX {
@@ -448,6 +505,12 @@ func (s *APISIXDeployer) GetAdminEndpoint(svc ...*corev1.Service) string {
 }
 
 func (s *APISIXDeployer) DefaultDataplaneResource() DataplaneResource {
+	// adc's plain CLI has no --backend value for apisix-standalone (see
+	// standaloneDataplaneResource), so it reads the Admin API directly instead of
+	// shelling out to `adc dump`.
+	if framework.ProviderType == framework.ProviderTypeAPISIXStandalone {
+		return newStandaloneDataplaneResource(s.AdminAPIClient(), s.AdminKey())
+	}
 	return newADCDataplaneResource(
 		framework.ProviderType,
 		fmt.Sprintf("http://%s", s.adminTunnel.Endpoint()),

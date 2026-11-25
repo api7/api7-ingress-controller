@@ -39,6 +39,11 @@ import (
 
 const (
 	defaultHTTPADCExecutorAddr = "http://127.0.0.1:3000"
+
+	pathSync     = "/sync"
+	pathValidate = "/validate"
+
+	backendAPISIXStandalone = "apisix-standalone"
 )
 
 type ADCExecutor interface {
@@ -79,7 +84,33 @@ type ADCServerOpts struct {
 	LabelSelector       map[string]string `json:"labelSelector,omitempty"`
 	IncludeResourceType []string          `json:"includeResourceType,omitempty"`
 	TlsSkipVerify       *bool             `json:"tlsSkipVerify,omitempty"`
-	CacheKey            string            `json:"cacheKey"`
+	// CaCert is the PEM-encoded CA certificate (or bundle) the ADC server verifies
+	// the control plane against. Older ADC servers ignore it, and omitempty keeps
+	// requests without a CA bundle byte for byte what they were.
+	CaCert   string `json:"caCert,omitempty"`
+	CacheKey string `json:"cacheKey"`
+	// BypassCache is only accepted by the /sync task of ADC >= 0.27.0. Both ADC task
+	// schemas reject unknown fields, so omitempty is what keeps every other request --
+	// /validate, and every sync that is not recovering from a rejection -- byte for byte
+	// what an older ADC server already accepts.
+	BypassCache bool `json:"bypassCache,omitempty"`
+}
+
+// MarshalLog implements logr.Marshaler so logging the request body redacts the
+// AdminKey token and the secret-bearing config resources. It affects logging
+// only, not the JSON actually sent to the ADC server.
+func (r ADCServerRequest) MarshalLog() any {
+	return map[string]any{
+		"backend":             r.Task.Opts.Backend,
+		"server":              r.Task.Opts.Server,
+		"token":               "[REDACTED]",
+		"labelSelector":       r.Task.Opts.LabelSelector,
+		"includeResourceType": r.Task.Opts.IncludeResourceType,
+		"tlsSkipVerify":       r.Task.Opts.TlsSkipVerify,
+		"hasCaCert":           r.Task.Opts.CaCert != "",
+		"cacheKey":            r.Task.Opts.CacheKey,
+		"config":              r.Task.Config.MarshalLog(),
+	}
 }
 
 type ADCValidateResult struct {
@@ -141,7 +172,7 @@ func (e *HTTPADCExecutor) runHTTPSync(ctx context.Context, config adctypes.Confi
 	}
 
 	serverAddrs := func() []string {
-		if config.BackendType == "apisix-standalone" {
+		if config.BackendType == backendAPISIXStandalone {
 			return []string{strings.Join(config.ServerAddrs, ",")}
 		}
 		return config.ServerAddrs
@@ -218,7 +249,7 @@ func (e *HTTPADCExecutor) runHTTPSyncForSingleServer(ctx context.Context, server
 	}
 
 	// Build HTTP request
-	req, err := e.buildHTTPRequest(ctx, serverAddr, config, labels, types, resources, http.MethodPut, "/sync")
+	req, err := e.buildHTTPRequest(ctx, serverAddr, config, labels, types, resources, pathSync)
 	if err != nil {
 		return fmt.Errorf("failed to build HTTP request: %w", err)
 	}
@@ -252,7 +283,7 @@ func (e *HTTPADCExecutor) runHTTPValidateForSingleServer(ctx context.Context, se
 		return fmt.Errorf("failed to load resources from file %s: %w", filePath, err)
 	}
 
-	req, err := e.buildHTTPRequest(ctx, serverAddr, config, labels, types, resources, http.MethodPut, "/validate")
+	req, err := e.buildHTTPRequest(ctx, serverAddr, config, labels, types, resources, pathValidate)
 	if err != nil {
 		return fmt.Errorf("failed to build validate request: %w", err)
 	}
@@ -323,9 +354,10 @@ func (e *HTTPADCExecutor) loadResourcesFromFile(filePath string) (*adctypes.Reso
 }
 
 // buildHTTPRequest builds the HTTP request for ADC Server
-func (e *HTTPADCExecutor) buildHTTPRequest(ctx context.Context, serverAddr string, config adctypes.Config, labels map[string]string, types []string, resources *adctypes.Resources, method string, path string) (*http.Request, error) {
+func (e *HTTPADCExecutor) buildHTTPRequest(ctx context.Context, serverAddr string, config adctypes.Config, labels map[string]string, types []string, resources *adctypes.Resources, path string) (*http.Request, error) {
 	// Prepare request body
 	tlsVerify := config.TlsVerify
+	bypassCache := path == pathSync && config.BypassCache
 	reqBody := ADCServerRequest{
 		Task: ADCServerTask{
 			Opts: ADCServerOpts{
@@ -335,7 +367,9 @@ func (e *HTTPADCExecutor) buildHTTPRequest(ctx context.Context, serverAddr strin
 				LabelSelector:       labels,
 				IncludeResourceType: types,
 				TlsSkipVerify:       ptr.To(!tlsVerify),
+				CaCert:              config.CaCert,
 				CacheKey:            config.Name,
+				BypassCache:         bypassCache,
 			},
 			Config: *resources,
 		},
@@ -353,19 +387,36 @@ func (e *HTTPADCExecutor) buildHTTPRequest(ctx context.Context, serverAddr strin
 		"server", serverAddr,
 		"mode", config.BackendType,
 		"cacheKey", config.Name,
+		"bypassCache", bypassCache,
 		"labelSelector", labels,
 		"includeResourceType", types,
 		"tlsSkipVerify", !tlsVerify,
+		"hasCaCert", config.CaCert != "",
 	)
 
 	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, method, e.serverURL+path, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, e.serverURL+path, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 	return req, nil
+}
+
+// distinctReasons joins every distinct, non-empty reason in failed, in the order first
+// seen -- several resources failing for the exact same reason (a rejected conf_version,
+// say) still reports it once.
+func distinctReasons(failed []adctypes.SyncStatus) string {
+	seen := make(map[string]bool, len(failed))
+	reasons := make([]string, 0, len(failed))
+	for _, f := range failed {
+		if f.Reason != "" && !seen[f.Reason] {
+			seen[f.Reason] = true
+			reasons = append(reasons, f.Reason)
+		}
+	}
+	return strings.Join(reasons, "; ")
 }
 
 // handleHTTPResponse handles the HTTP response from ADC Server
@@ -381,51 +432,59 @@ func (e *HTTPADCExecutor) handleHTTPResponse(resp *http.Response, serverAddr str
 		"response", string(body),
 	)
 
-	// not only 200, HTTP 202 is also accepted
-	if resp.StatusCode/100 != 2 {
+	// ADC Server's /sync status codes:
+	//   - 200: apisix-standalone, every server took and confirmed the write.
+	//   - 202: apisix/api7ee always (no confirm concept); apisix-standalone when every
+	//     server took the write but not every one confirmed it, or one server rejected
+	//     it while others accepted.
+	//   - 400: malformed request, unrelated to any backend's content rejection (see 422).
+	//   - 413: request body over the fixed 100 MB limit.
+	//   - 422: apisix-standalone, every server ended up success:false on the write itself
+	//     (rejected the content, unreachable, or a mix -- concurrent writes aren't
+	//     cancelled on the first failure).
+	//   - 500: ADC Server failed before attempting the write at all (e.g. can't reach any
+	//     server to fetch the current remote state) -- never a verdict on the write.
+	// Only 200/202/422 carry a SyncResult body -- the other three shouldn't be parsed as
+	// one: most fields are optional, so an unrelated shape can unmarshal as an empty,
+	// unremarkable "success".
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusAccepted, http.StatusUnprocessableEntity:
+	default:
 		return types.ADCExecutionServerAddrError{
 			ServerAddr: serverAddr,
 			Err:        fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body)),
 		}
 	}
 
-	// Parse response body
 	var result adctypes.SyncResult
 	if err := json.Unmarshal(body, &result); err != nil {
 		return fmt.Errorf("failed to unmarshal response body: %s, err: %w", string(body), err)
 	}
 
-	// Check for sync failures
-	// For apisix-standalone mode: Failed is always empty, check EndpointStatus instead
-	if result.FailedCount > 0 {
-		if len(result.Failed) > 0 {
-			reason := result.Failed[0].Reason
-			e.log.Error(fmt.Errorf("ADC Server sync failed: %s", reason), "ADC Server sync failed", "result", result)
-			return types.ADCExecutionServerAddrError{
-				ServerAddr:     serverAddr,
-				Err:            reason,
-				FailedStatuses: result.Failed,
-			}
+	if len(result.Failed) > 0 {
+		reason := distinctReasons(result.Failed)
+		e.log.Error(fmt.Errorf("ADC Server sync failed: %s", reason), "ADC Server sync failed", "result", result)
+		return types.ADCExecutionServerAddrError{
+			ServerAddr:       serverAddr,
+			Err:              reason,
+			FailedStatuses:   result.Failed,
+			EndpointStatuses: result.EndpointStatus,
 		}
-		if len(result.EndpointStatus) > 0 {
-			// apisix-standalone mode: use EndpointStatus
-			var failedEndpoints []string
-			for _, ep := range result.EndpointStatus {
-				if !ep.Success {
-					failedEndpoints = append(failedEndpoints, fmt.Sprintf("%s: %s", ep.Server, ep.Reason))
-				}
-			}
-			if len(failedEndpoints) > 0 {
-				reason := strings.Join(failedEndpoints, "; ")
-				e.log.Error(fmt.Errorf("ADC Server sync failed (standalone mode): %s", reason), "ADC Server sync failed", "result", result)
-				return types.ADCExecutionServerAddrError{
-					ServerAddr: serverAddr,
-					Err:        reason,
-					FailedStatuses: []adctypes.SyncStatus{
-						{Reason: reason},
-					},
-				}
-			}
+	}
+
+	var failedEndpoints []string
+	for _, ep := range result.EndpointStatus {
+		if !ep.Success {
+			failedEndpoints = append(failedEndpoints, fmt.Sprintf("%s: %s", ep.Server, ep.Reason))
+		}
+	}
+	if len(failedEndpoints) > 0 {
+		reason := strings.Join(failedEndpoints, "; ")
+		e.log.Error(fmt.Errorf("ADC Server sync failed (standalone mode): %s", reason), "ADC Server sync failed", "result", result)
+		return types.ADCExecutionServerAddrError{
+			ServerAddr:       serverAddr,
+			Err:              reason,
+			EndpointStatuses: result.EndpointStatus,
 		}
 	}
 

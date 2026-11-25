@@ -40,8 +40,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	"sigs.k8s.io/gateway-api/apis/v1alpha2"
-	"sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	"github.com/apache/apisix-ingress-controller/internal/controller/indexer"
@@ -62,6 +60,8 @@ type HTTPRouteReconciler struct { //nolint:revive
 
 	Provider provider.Provider
 
+	parentResolver routeParentResolver
+
 	genericEvent chan event.GenericEvent
 
 	Updater status.Updater
@@ -76,10 +76,17 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.genericEvent = make(chan event.GenericEvent, 100)
 
 	// Check and store EndpointSlice API support
-	r.supportsEndpointSlice = pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
+	supportsEndpointSlice, err := pkgutils.HasAPIResource(mgr, &discoveryv1.EndpointSlice{})
+	if err != nil {
+		return err
+	}
+	r.supportsEndpointSlice = supportsEndpointSlice
 
 	eventFilters := []predicate.Predicate{
 		predicate.GenerationChangedPredicate{},
+		// A Secret carries no generation, so GenerationChangedPredicate would drop its
+		// updates and a plugin would keep the Secret data read at the last spec change.
+		predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
 	}
 
 	if !r.supportsEndpointSlice {
@@ -100,6 +107,9 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&v1alpha1.PluginConfig{},
 			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesByExtensionRef),
 		).
+		Watches(&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesForSecret),
+		).
 		Watches(&gatewayv1.Gateway{},
 			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesForGateway),
 			builder.WithPredicates(
@@ -108,7 +118,7 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 						return false
 					},
 					DeleteFunc: func(e event.DeleteEvent) bool {
-						return false
+						return true
 					},
 					CreateFunc: func(e event.CreateEvent) bool {
 						return true
@@ -140,7 +150,7 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		)
 
 	if GetEnableReferenceGrant() {
-		bdr.Watches(&v1beta1.ReferenceGrant{},
+		bdr.Watches(&gatewayv1.ReferenceGrant{},
 			handler.EnqueueRequestsFromMapFunc(r.listHTTPRoutesForReferenceGrant),
 			builder.WithPredicates(referenceGrantPredicates(KindHTTPRoute)),
 		)
@@ -154,6 +164,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	hr := new(gatewayv1.HTTPRoute)
 	if err := r.Get(ctx, req.NamespacedName, hr); err != nil {
 		if client.IgnoreNotFound(err) == nil {
+			r.parentResolver.Forget(req.NamespacedName)
 			if err := r.updateHTTPRoutePolicyStatusOnDeleting(ctx, req.NamespacedName); err != nil {
 				r.Log.Error(err, "failed to update HTTPRoutePolicy status on HTTPRoute deleting", "httproute", req.NamespacedName)
 			}
@@ -166,7 +177,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			}
 
 			if err := r.Provider.Delete(ctx, hr); err != nil {
-				r.Log.Error(err, "failed to delete httproute", "httproute", hr)
+				r.Log.Error(err, "failed to delete httproute", "httproute", utils.NamespacedName(hr))
 				return ctrl.Result{}, err
 			}
 			return ctrl.Result{}, nil
@@ -185,12 +196,27 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		msg:    "Route is accepted",
 	}
 
-	gateways, err := ParseRouteParentRefs(ctx, r.Client, r.Log, hr, hr.Spec.ParentRefs)
+	gateways, err := r.parentResolver.Resolve(ctx, r.Client, r.Log, hr, hr.Spec.ParentRefs)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
 	if len(gateways) == 0 {
+		// The route does not reference any Gateway managed by this controller.
+		// It may have referenced one before, e.g. when its parentRefs are
+		// repointed at a Gateway belonging to another GatewayClass, so the
+		// configuration a previous reconcile pushed has to be removed. Without
+		// this the data plane keeps serving the route indefinitely.
+		// Provider.Delete derives the resource labels from the object Kind, which
+		// is empty on objects read through the client.
+		hr.TypeMeta = metav1.TypeMeta{
+			Kind:       KindHTTPRoute,
+			APIVersion: gatewayv1.GroupVersion.String(),
+		}
+		if err := r.Provider.Delete(ctx, hr); err != nil {
+			r.Log.Error(err, "failed to delete httproute", "httproute", utils.NamespacedName(hr))
+			return ctrl.Result{}, err
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -203,12 +229,21 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			acceptStatus.status = false
 			acceptStatus.msg = err.Error()
 		}
+		// Populate listeners for port-based routing.
+		// Use Listeners slice if available (multiple listener support)
+		if len(gateway.Listeners) > 0 {
+			tctx.Listeners = appendListeners(tctx.Listeners, gateway.Listeners...)
+		} else if gateway.Listener != nil {
+			// Fallback for backward compatibility
+			tctx.Listeners = appendListeners(tctx.Listeners, *gateway.Listener)
+		}
+		tctx.HasExplicitListenerMatch = tctx.HasExplicitListenerMatch || gateway.ExplicitListenerMatch
 	}
 
 	var backendRefErr error
 	if err := r.processHTTPRoute(tctx, hr); err != nil {
 		// When encountering a backend reference error, it should not affect the acceptance status
-		if types.IsSomeReasonError(err, gatewayv1.RouteReasonInvalidKind) {
+		if types.IsSomeReasonError(err, gatewayv1.RouteReasonInvalidKind, gatewayv1.RouteReasonBackendNotFound) {
 			backendRefErr = err
 		} else {
 			acceptStatus.status = false
@@ -233,6 +268,22 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if err != nil {
 		acceptStatus.status = false
 		acceptStatus.msg = err.Error()
+	}
+
+	// Translate and sync before writing Accepted=True. A translation or
+	// buildConfig failure from Provider.Update used to leave a green status
+	// and only requeue, matching neither Ingress nor ApisixGlobalRule.
+	var syncErr error
+	if isRouteAccepted(gateways) && err == nil {
+		routeToUpdate := hr
+		if filteredHTTPRoute != nil {
+			r.Log.V(1).Info("filtered httproute", "httproute", utils.NamespacedName(filteredHTTPRoute))
+			routeToUpdate = filteredHTTPRoute
+		}
+		if syncErr = r.Provider.Update(ctx, tctx, routeToUpdate); syncErr != nil {
+			acceptStatus.status = false
+			acceptStatus.msg = syncErr.Error()
+		}
 	}
 
 	// TODO: diff the old and new status
@@ -266,14 +317,21 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	UpdateStatus(r.Updater, r.Log, tctx)
 
 	if isRouteAccepted(gateways) && err == nil {
-		routeToUpdate := hr
-		if filteredHTTPRoute != nil {
-			r.Log.V(1).Info("filtered httproute", "httproute", filteredHTTPRoute)
-			routeToUpdate = filteredHTTPRoute
-		}
-		if err := r.Provider.Update(ctx, tctx, routeToUpdate); err != nil {
-			return ctrl.Result{}, err
-		}
+		return ctrl.Result{}, syncErr
+	}
+
+	// The route still resolves to one of our Gateways but no parent accepts it any
+	// more, so retract what an earlier reconcile published. The store is what every
+	// sync pushes, so leaving the entry keeps the data plane serving the route.
+	// Provider.Delete derives the resource labels from the object Kind, which is not
+	// set on every object read through the client.
+	hr.TypeMeta = metav1.TypeMeta{
+		Kind:       KindHTTPRoute,
+		APIVersion: gatewayv1.GroupVersion.String(),
+	}
+	if err := r.Provider.Delete(ctx, hr); err != nil {
+		r.Log.Error(err, "failed to delete httproute", "httproute", utils.NamespacedName(hr))
+		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
 }
@@ -537,10 +595,10 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 		if hrNN.Namespace != targetNN.Namespace {
 			if permitted := checkReferenceGrant(tctx,
 				r.Client,
-				v1beta1.ReferenceGrantFrom{
+				gatewayv1.ReferenceGrantFrom{
 					Group:     gatewayv1.GroupName,
 					Kind:      KindHTTPRoute,
-					Namespace: v1beta1.Namespace(hrNN.Namespace),
+					Namespace: gatewayv1.Namespace(hrNN.Namespace),
 				},
 				gatewayv1.ObjectReference{
 					Group:     corev1.GroupName,
@@ -550,7 +608,7 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 				},
 			); !permitted {
 				terr = types.ReasonError{
-					Reason:  string(v1beta1.RouteReasonRefNotPermitted),
+					Reason:  string(gatewayv1.RouteReasonRefNotPermitted),
 					Message: fmt.Sprintf("%s is in a different namespace than the HTTPRoute %s and no ReferenceGrant allowing reference is configured", targetNN, hrNN),
 				}
 				continue
@@ -564,7 +622,7 @@ func (r *HTTPRouteReconciler) processHTTPRouteBackendRefs(tctx *provider.Transla
 
 		portExists := false
 		for _, port := range service.Spec.Ports {
-			if port.Port == int32(*backend.Port) {
+			if port.Port == *backend.Port {
 				portExists = true
 				break
 			}
@@ -592,19 +650,8 @@ func (r *HTTPRouteReconciler) processHTTPRoute(tctx *provider.TranslateContext, 
 			if filter.Type != gatewayv1.HTTPRouteFilterExtensionRef || filter.ExtensionRef == nil {
 				continue
 			}
-			if filter.ExtensionRef.Kind == types.KindPluginConfig {
-				pluginconfig := new(v1alpha1.PluginConfig)
-				if err := r.Get(context.Background(), client.ObjectKey{
-					Namespace: httpRoute.GetNamespace(),
-					Name:      string(filter.ExtensionRef.Name),
-				}, pluginconfig); err != nil {
-					terror = err
-					continue
-				}
-				tctx.PluginConfigs[k8stypes.NamespacedName{
-					Namespace: httpRoute.GetNamespace(),
-					Name:      string(filter.ExtensionRef.Name),
-				}] = pluginconfig
+			if err := loadPluginConfigExtensionRef(tctx, r.Client, tctx, httpRoute.GetNamespace(), filter.ExtensionRef); err != nil {
+				terror = err
 			}
 		}
 		for _, backend := range rule.BackendRefs {
@@ -639,8 +686,8 @@ func httpRoutePolicyPredicateFuncs(channel chan event.GenericEvent) predicate.Pr
 			if !ok0 || !ok1 {
 				return false
 			}
-			discardsRefs := slices.DeleteFunc(oldPolicy.Spec.TargetRefs, func(oldRef v1alpha2.LocalPolicyTargetReferenceWithSectionName) bool {
-				return slices.ContainsFunc(newPolicy.Spec.TargetRefs, func(newRef v1alpha2.LocalPolicyTargetReferenceWithSectionName) bool {
+			discardsRefs := slices.DeleteFunc(oldPolicy.Spec.TargetRefs, func(oldRef gatewayv1.LocalPolicyTargetReferenceWithSectionName) bool {
+				return slices.ContainsFunc(newPolicy.Spec.TargetRefs, func(newRef gatewayv1.LocalPolicyTargetReferenceWithSectionName) bool {
 					return oldRef.LocalPolicyTargetReference == newRef.LocalPolicyTargetReference && ptr.Equal(oldRef.SectionName, newRef.SectionName)
 				})
 			})
@@ -703,7 +750,7 @@ func (r *HTTPRouteReconciler) listHTTPRoutesForGatewayProxy(ctx context.Context,
 }
 
 func (r *HTTPRouteReconciler) listHTTPRoutesForReferenceGrant(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
-	grant, ok := obj.(*v1beta1.ReferenceGrant)
+	grant, ok := obj.(*gatewayv1.ReferenceGrant)
 	if !ok {
 		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to ReferenceGrant")
 		return nil
@@ -716,10 +763,10 @@ func (r *HTTPRouteReconciler) listHTTPRoutesForReferenceGrant(ctx context.Contex
 	}
 
 	for _, httpRoute := range httpRouteList.Items {
-		hr := v1beta1.ReferenceGrantFrom{
+		hr := gatewayv1.ReferenceGrantFrom{
 			Group:     gatewayv1.GroupName,
 			Kind:      KindHTTPRoute,
-			Namespace: v1beta1.Namespace(httpRoute.GetNamespace()),
+			Namespace: gatewayv1.Namespace(httpRoute.GetNamespace()),
 		}
 		for _, from := range grant.Spec.From {
 			if from == hr {
@@ -733,4 +780,23 @@ func (r *HTTPRouteReconciler) listHTTPRoutesForReferenceGrant(ctx context.Contex
 		}
 	}
 	return requests
+}
+
+// listHTTPRoutesForSecret maps a Secret to the HTTPRoutes that reference, through a PluginConfig
+// extension filter, a plugin configured with that Secret.
+func (r *HTTPRouteReconciler) listHTTPRoutesForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
+	secret, ok := obj.(*corev1.Secret)
+	if !ok {
+		r.Log.Error(fmt.Errorf("unexpected object type"), "failed to convert object to Secret")
+		return nil
+	}
+	var requests []reconcile.Request
+	for _, pcRef := range ListRequests(ctx, r.Client, r.Log, &v1alpha1.PluginConfigList{}, client.MatchingFields{
+		indexer.SecretIndexRef: indexer.GenIndexKey(secret.GetNamespace(), secret.GetName()),
+	}) {
+		requests = append(requests, ListRequests(ctx, r.Client, r.Log, &gatewayv1.HTTPRouteList{}, client.MatchingFields{
+			indexer.ExtensionRef: indexer.GenIndexKey(pcRef.Namespace, pcRef.Name),
+		})...)
+	}
+	return pkgutils.DedupComparable(requests)
 }

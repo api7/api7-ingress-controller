@@ -53,12 +53,10 @@ var _ = Describe("Test ApisixRoute", Label("apisix.apache.org", "v2", "apisixrou
 		By("create GatewayProxy")
 		err := s.CreateResourceFromString(s.GetGatewayProxySpec())
 		Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
-		time.Sleep(5 * time.Second)
 
 		By("create IngressClass")
 		err = s.CreateResourceFromStringWithNamespace(s.GetIngressClassYaml(), "")
 		Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
-		time.Sleep(5 * time.Second)
 	})
 
 	Context("Test ApisixRoute", func() {
@@ -185,6 +183,40 @@ spec:
 			It("Basic: with named service port and granularity service", func() {
 				test(apisixRouteSpecWithNameServiceAndGranularity)
 			})
+			It("Basic: with an uppercase host", func() {
+				const apisixRouteSpecWithUppercaseHost = `
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: default
+  namespace: %s
+spec:
+  ingressClassName: %s
+  http:
+  - name: rule0
+    match:
+      hosts:
+      - HTTPBIN.Example.com
+      paths:
+      - /get
+    backends:
+    - serviceName: httpbin-service-e2e-test
+      servicePort: 80
+`
+				By("apply ApisixRoute")
+				var apisixRoute apiv2.ApisixRoute
+				applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"},
+					&apisixRoute, fmt.Sprintf(apisixRouteSpecWithUppercaseHost, s.Namespace(), s.Namespace()))
+
+				// APISIX matches hosts against nginx's $host, which is always lowercase,
+				// so the host has to be stored lowercase to be reachable at all.
+				request := func(host string) int {
+					return s.NewAPISIXClient().GET("/get").WithHost(host).Expect().Raw().StatusCode
+				}
+				By("verify the route is reachable regardless of the Host header case")
+				Eventually(request).WithArguments("HTTPBIN.Example.com").WithTimeout(20 * time.Second).ProbeEvery(time.Second).Should(Equal(http.StatusOK))
+				Expect(request("httpbin.example.com")).Should(Equal(http.StatusOK))
+			})
 		})
 
 		It("Test plugins in ApisixRoute", func() {
@@ -228,28 +260,32 @@ spec:
 			By("apply ApisixRoute with plugins")
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"},
 				&apisixRoute, fmt.Sprintf(apisixRouteSpecPart0, s.Namespace(), s.Namespace())+apisixRouteSpecPart1)
-			time.Sleep(5 * time.Second)
 
 			By("verify plugin works")
-			resp := s.NewAPISIXClient().GET("/get").Expect().Status(http.StatusOK)
-			resp.Header("X-Global-Rule").IsEqual("test-response-rewrite")
-			resp.Header("X-Global-Test").IsEqual("enabled")
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/get",
+				Checks: []scaffold.ResponseCheckFunc{
+					scaffold.WithExpectedStatus(http.StatusOK),
+					scaffold.WithExpectedHeader("X-Global-Rule", "test-response-rewrite"),
+					scaffold.WithExpectedHeader("X-Global-Test", "enabled"),
+				},
+			})
 
 			By("remove plugin")
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"},
 				&apisixRoute, fmt.Sprintf(apisixRouteSpecPart0, s.Namespace(), s.Namespace()))
-			time.Sleep(5 * time.Second)
 
 			By("verify no plugin works")
 			s.RequestAssert(&scaffold.RequestAssert{
 				Method: "GET",
 				Path:   "/get",
-				Check:  scaffold.WithExpectedStatus(http.StatusOK),
+				Checks: []scaffold.ResponseCheckFunc{
+					scaffold.WithExpectedStatus(http.StatusOK),
+					scaffold.WithExpectedNotHeader("X-Global-Rule"),
+					scaffold.WithExpectedNotHeader("X-Global-Test"),
+				},
 			})
-
-			resp = s.NewAPISIXClient().GET("/get").Expect().Status(http.StatusOK)
-			resp.Header("X-Global-Rule").IsEmpty()
-			resp.Header("X-Global-Test").IsEmpty()
 		})
 
 		It("Test ApisixRoute match by vars", func() {
@@ -689,26 +725,22 @@ spec:
 				&apisixRoute, fmt.Sprintf(apisixRouteSpec, s.Namespace(), s.Namespace()))
 
 			By("verify ApisixRoute with secretRef works")
-			Eventually(func() *http.Response {
-				return s.NewAPISIXClient().GET("/ip").
-					WithHeader("Host", "httpbin.org").
-					Expect().
-					Raw()
-			}).WithTimeout(20 * time.Second).ProbeEvery(time.Second).Should(And(
-				HaveHTTPStatus(http.StatusOK),
-				HaveHTTPHeaderWithValue("X-Foo", "v1"),
-				HaveHTTPHeaderWithValue("X-Foo2", "v2"),
-			))
-
-			// Verify the response body contains the secret values
-			resp := s.NewAPISIXClient().GET("/ip").
-				WithHeader("Host", "httpbin.org").
-				Expect().
-				Status(http.StatusOK)
-
-			resp.Body().Contains("This is the replaced preface") // From secret
-			resp.Body().Contains("This is the epilogue")         // From config
-			resp.Body().Contains("my custom body")               // From secret
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method:  "GET",
+				Path:    "/ip",
+				Host:    "httpbin.org",
+				Timeout: 20 * time.Second,
+				Checks: []scaffold.ResponseCheckFunc{
+					scaffold.WithExpectedStatus(http.StatusOK),
+					scaffold.WithExpectedHeader("X-Foo", "v1"),
+					scaffold.WithExpectedHeader("X-Foo2", "v2"),
+					scaffold.WithExpectedBodyContains(
+						"This is the replaced preface", // From secret
+						"This is the epilogue",         // From config
+						"my custom body",               // From secret
+					),
+				},
+			})
 		})
 
 		It("Test ApisixRoute with secretRef - nested keys", func() {
@@ -762,23 +794,17 @@ spec:
 				&apisixRoute, fmt.Sprintf(apisixRouteSpec, s.Namespace(), s.Namespace()))
 
 			By("verify ApisixRoute with secretRef (nested keys) works")
-			Eventually(func() *http.Response {
-				return s.NewAPISIXClient().GET("/ip").
-					WithHeader("Host", "httpbin.org").
-					Expect().
-					Raw()
-			}).WithTimeout(20 * time.Second).ProbeEvery(time.Second).Should(And(
-				HaveHTTPStatus(http.StatusOK),
-				HaveHTTPHeaderWithValue("X-Foo", "v2"), // From secret, overriding config value "v1"
-			))
-
-			// Verify the response body contains the secret values
-			resp := s.NewAPISIXClient().GET("/ip").
-				WithHeader("Host", "httpbin.org").
-				Expect().
-				Status(http.StatusOK)
-
-			resp.Body().Contains("my custom body") // From secret
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method:  "GET",
+				Path:    "/ip",
+				Host:    "httpbin.org",
+				Timeout: 20 * time.Second,
+				Checks: []scaffold.ResponseCheckFunc{
+					scaffold.WithExpectedStatus(http.StatusOK),
+					scaffold.WithExpectedHeader("X-Foo", "v2"),          // From secret, overriding config value "v1"
+					scaffold.WithExpectedBodyContains("my custom body"), // From secret
+				},
+			})
 		})
 	})
 
@@ -1464,15 +1490,21 @@ spec:
 				fmt.Sprintf(apisixRouteSpec, s.Namespace(), s.Namespace()),
 			)
 			By("wait for WebSocket server to be ready")
-			time.Sleep(10 * time.Second)
-			By("verify WebSocket connection")
 			u = url.URL{
 				Scheme: "ws",
 				Host:   s.ApisixHTTPEndpoint(),
 				Path:   "/echo",
 			}
 			headers = http.Header{"Host": []string{"httpbin.org"}}
+			Eventually(func() int {
+				_, resp, _ := websocket.DefaultDialer.Dial(u.String(), headers)
+				if resp == nil {
+					return 0
+				}
+				return resp.StatusCode
+			}).WithTimeout(scaffold.DefaultTimeout).ProbeEvery(scaffold.DefaultInterval).Should(Equal(http.StatusSwitchingProtocols))
 
+			By("verify WebSocket connection")
 			conn, resp, err := websocket.DefaultDialer.Dial(u.String(), headers)
 			Expect(err).ShouldNot(HaveOccurred(), "WebSocket handshake")
 			Expect(resp.StatusCode).Should(Equal(http.StatusSwitchingProtocols))
@@ -1686,27 +1718,20 @@ spec:
 				createApisixRoute(routeName, upstreamName)
 
 				By("verify access to multiple services")
-				time.Sleep(7 * time.Second)
 				hasHttpbin := false
 				hasNginx := false
-				for range 20 {
-					expect := s.NewAPISIXClient().GET("/ip").
+				Eventually(func(g Gomega) {
+					body := s.NewAPISIXClient().GET("/ip").
 						WithHeader("Host", "httpbin.org").
 						WithHeader("X-Foo", "bar").
-						Expect()
-
-					body := expect.Body().Raw()
+						Expect().Body().Raw()
 					if strings.Contains(body, "Hello") {
 						hasNginx = true
 					} else if strings.Contains(body, `"origin"`) {
 						hasHttpbin = true
 					}
-					if hasHttpbin && hasNginx {
-						break
-					}
-					time.Sleep(100 * time.Millisecond)
-				}
-				assert.True(GinkgoT(), hasHttpbin && hasNginx, "both httpbin and nginx should be accessed at least once")
+					g.Expect(hasHttpbin && hasNginx).To(BeTrue(), "both httpbin and nginx should be accessed at least once")
+				}).WithTimeout(scaffold.DefaultTimeout).ProbeEvery(scaffold.DefaultInterval).Should(Succeed())
 			})
 
 			It("should be able to use backends and upstreams together", func() {
@@ -1759,26 +1784,20 @@ spec:
 					routeSpec,
 				)
 				By("verify access to multiple services")
-				time.Sleep(7 * time.Second)
 				hasNginx := false
 				hasHttpbin := false
-				for range 20 {
-					expect := s.NewAPISIXClient().GET("/ip").
+				Eventually(func(g Gomega) {
+					body := s.NewAPISIXClient().GET("/ip").
 						WithHeader("Host", "httpbin.org").
 						WithHeader("X-Foo", "bar").
-						Expect()
-					body := expect.Body().Raw()
+						Expect().Body().Raw()
 					if strings.Contains(body, "Hello") {
 						hasNginx = true
 					} else if strings.Contains(body, `"origin"`) {
 						hasHttpbin = true
 					}
-					if hasNginx && hasHttpbin {
-						break
-					}
-					time.Sleep(100 * time.Millisecond)
-				}
-				assert.True(GinkgoT(), hasNginx && hasHttpbin, "both nginx and httpbin should be accessed at least once")
+					g.Expect(hasNginx && hasHttpbin).To(BeTrue(), "both nginx and httpbin should be accessed at least once")
+				}).WithTimeout(scaffold.DefaultTimeout).ProbeEvery(scaffold.DefaultInterval).Should(Succeed())
 			})
 		})
 	})
@@ -1942,12 +1961,12 @@ spec:
 			By("apply apisixroute")
 			applier.MustApplyAPIv2(types.NamespacedName{Namespace: s.Namespace(), Name: "default"},
 				new(apiv2.ApisixRoute), fmt.Sprintf(apisixRouteSpec, s.Namespace(), s.Namespace()))
-			time.Sleep(6 * time.Second)
-			services, err := s.DefaultDataplaneResource().Service().List(context.Background())
-			Expect(err).ShouldNot(HaveOccurred(), "list services")
-			assert.Len(GinkgoT(), services, 1, "there should be one service")
-			service := services[0]
-			Expect(service.Upstream.TLS).ShouldNot(BeNil(), "check tls in service")
+			Eventually(func(g Gomega) {
+				services, err := s.DefaultDataplaneResource().Service().List(context.Background())
+				g.Expect(err).ShouldNot(HaveOccurred(), "list services")
+				g.Expect(services).To(HaveLen(1), "there should be one service")
+				g.Expect(services[0].Upstream.TLS).ShouldNot(BeNil(), "check tls in service")
+			}).WithTimeout(scaffold.DefaultTimeout).ProbeEvery(scaffold.DefaultInterval).Should(Succeed())
 		})
 	})
 
@@ -2201,9 +2220,19 @@ spec:
 				&apiv2.ApisixRoute{}, fmt.Sprintf(apisixRouteSpec, s.Namespace()))
 
 			By("check upstreams")
-			upstreams, err := s.DefaultDataplaneResource().Upstream().List(context.Background())
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(upstreams).Should(HaveLen(4))
+			// Poll instead of asserting once: the controller syncs the four
+			// upstreams to the data plane asynchronously after the ApisixRoute is
+			// applied, so a single immediate check can race and observe fewer.
+			s.RetryAssertion(func() error {
+				upstreams, err := s.DefaultDataplaneResource().Upstream().List(context.Background())
+				if err != nil {
+					return err
+				}
+				if len(upstreams) != 4 {
+					return fmt.Errorf("expected 4 upstreams, got %d", len(upstreams))
+				}
+				return nil
+			}).ShouldNot(HaveOccurred(), "waiting for 4 upstreams to be synced")
 
 			By("verify ApisixRoute works")
 			s.RequestAssert(&scaffold.RequestAssert{

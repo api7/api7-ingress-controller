@@ -48,12 +48,10 @@ var _ = Describe("Test apisix.apache.org/v2 Status", Label("apisix.apache.org", 
 			By("create GatewayProxy")
 			err := s.CreateResourceFromString(s.GetGatewayProxySpec())
 			Expect(err).NotTo(HaveOccurred(), "creating GatewayProxy")
-			time.Sleep(5 * time.Second)
 
 			By("create IngressClass")
 			err = s.CreateResourceFromStringWithNamespace(s.GetIngressClassYaml(), "")
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
-			time.Sleep(5 * time.Second)
 		})
 		const ar = `
 apiVersion: apisix.apache.org/v2
@@ -213,6 +211,12 @@ spec:
 			Expect(err).NotTo(HaveOccurred(), "getting service yaml")
 			err = yaml.Unmarshal([]byte(serviceYaml), &k8sservice)
 			Expect(err).NotTo(HaveOccurred(), "unmarshalling service")
+			// Switching to ExternalName released the allocated node ports, and a service
+			// in a parallel test namespace may have taken them since. Ask for fresh ones
+			// instead of the old numbers, which would fail with "already allocated".
+			for i := range oldSpec.Ports {
+				oldSpec.Ports[i].NodePort = 0
+			}
 			k8sservice.Spec = oldSpec
 			newServiceYaml, err = yaml.Marshal(k8sservice)
 			Expect(err).NotTo(HaveOccurred(), "marshalling service")
@@ -270,17 +274,16 @@ spec:
 			err := s.CreateResourceFromString(arWithInvalidIngressClass)
 			Expect(err).NotTo(HaveOccurred(), "creating ApisixRoute with invalid IngressClass")
 
-			for range 10 {
+			Consistently(func(g Gomega) {
 				output, err := s.GetOutputFromString("ar", "ar-with-invalid-ingressclass", "-o", "yaml")
-				Expect(err).NotTo(HaveOccurred(), "getting ApisixRoute output")
-				Expect(output).ShouldNot(
+				g.Expect(err).NotTo(HaveOccurred(), "getting ApisixRoute output")
+				g.Expect(output).ShouldNot(
 					Or(
 						ContainSubstring(`status: "True"`),
 						ContainSubstring(`status: "False"`),
 					),
 				)
-				time.Sleep(1 * time.Second)
-			}
+			}).WithTimeout(10 * time.Second).ProbeEvery(time.Second).Should(Succeed())
 		})
 	})
 })

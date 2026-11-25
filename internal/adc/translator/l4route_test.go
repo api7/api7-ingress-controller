@@ -24,12 +24,17 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	"k8s.io/utils/ptr"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
+	apiv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	"github.com/apache/apisix-ingress-controller/internal/provider"
+	internaltypes "github.com/apache/apisix-ingress-controller/internal/types"
 )
 
 func TestTranslateTCPRouteWithL4RoutePolicy(t *testing.T) {
@@ -38,6 +43,7 @@ func TestTranslateTCPRouteWithL4RoutePolicy(t *testing.T) {
 		policy        *v1alpha1.L4RoutePolicy
 		wantPlugins   []string
 		wantNoPlugins bool
+		wantErr       bool
 	}{
 		{
 			name: "attaches plugins from matching L4RoutePolicy",
@@ -46,6 +52,13 @@ func TestTranslateTCPRouteWithL4RoutePolicy(t *testing.T) {
 				{Name: "ip-restriction", Config: mustJSON(map[string]any{"whitelist": []string{"10.0.0.0/8"}})},
 			}),
 			wantPlugins: []string{"limit-conn", "ip-restriction"},
+		},
+		{
+			name: "rejects a policy with a non-object plugin config",
+			policy: makeL4RoutePolicy("default", "tcp-policy", "TCPRoute", "my-tcp", []v1alpha1.Plugin{
+				{Name: "ip-restriction", Config: mustJSON([]string{"10.0.0.0/8"})},
+			}),
+			wantErr: true,
 		},
 		{
 			name: "does not attach plugins from policy targeting different route kind",
@@ -70,7 +83,7 @@ func TestTranslateTCPRouteWithL4RoutePolicy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			translator := NewTranslator(logr.Discard())
+			translator := NewTranslator(logr.Discard(), "")
 			tctx := provider.NewDefaultTranslateContext(context.Background())
 
 			if tt.policy != nil {
@@ -78,19 +91,24 @@ func TestTranslateTCPRouteWithL4RoutePolicy(t *testing.T) {
 				tctx.L4RoutePolicies[key] = tt.policy
 			}
 
-			route := &gatewayv1alpha2.TCPRoute{
+			route := &gatewayv1.TCPRoute{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "my-tcp",
 					Namespace: "default",
 				},
-				Spec: gatewayv1alpha2.TCPRouteSpec{
-					Rules: []gatewayv1alpha2.TCPRouteRule{
-						{BackendRefs: []gatewayv1alpha2.BackendRef{}},
+				Spec: gatewayv1.TCPRouteSpec{
+					Rules: []gatewayv1.TCPRouteRule{
+						{BackendRefs: []gatewayv1.BackendRef{}},
 					},
 				},
 			}
 
 			result, err := translator.TranslateTCPRoute(tctx, route)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, result)
+				return
+			}
 			require.NoError(t, err)
 			require.Len(t, result.Services, 1)
 			require.NotEmpty(t, result.Services[0].StreamRoutes)
@@ -113,6 +131,7 @@ func TestTranslateUDPRouteWithL4RoutePolicy(t *testing.T) {
 		policy        *v1alpha1.L4RoutePolicy
 		wantPlugins   []string
 		wantNoPlugins bool
+		wantErr       bool
 	}{
 		{
 			name: "attaches plugins from matching L4RoutePolicy",
@@ -120,6 +139,13 @@ func TestTranslateUDPRouteWithL4RoutePolicy(t *testing.T) {
 				{Name: "limit-conn", Config: mustJSON(map[string]any{"conn": 50})},
 			}),
 			wantPlugins: []string{"limit-conn"},
+		},
+		{
+			name: "rejects a policy with a non-object plugin config",
+			policy: makeL4RoutePolicy("default", "udp-policy", "UDPRoute", "my-udp", []v1alpha1.Plugin{
+				{Name: "ip-restriction", Config: mustJSON("10.0.0.0/8")},
+			}),
+			wantErr: true,
 		},
 		{
 			name: "does not attach plugins from policy targeting TCPRoute",
@@ -137,7 +163,7 @@ func TestTranslateUDPRouteWithL4RoutePolicy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			translator := NewTranslator(logr.Discard())
+			translator := NewTranslator(logr.Discard(), "")
 			tctx := provider.NewDefaultTranslateContext(context.Background())
 
 			if tt.policy != nil {
@@ -145,19 +171,24 @@ func TestTranslateUDPRouteWithL4RoutePolicy(t *testing.T) {
 				tctx.L4RoutePolicies[key] = tt.policy
 			}
 
-			route := &gatewayv1alpha2.UDPRoute{
+			route := &gatewayv1.UDPRoute{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "my-udp",
 					Namespace: "default",
 				},
-				Spec: gatewayv1alpha2.UDPRouteSpec{
-					Rules: []gatewayv1alpha2.UDPRouteRule{
-						{BackendRefs: []gatewayv1alpha2.BackendRef{}},
+				Spec: gatewayv1.UDPRouteSpec{
+					Rules: []gatewayv1.UDPRouteRule{
+						{BackendRefs: []gatewayv1.BackendRef{}},
 					},
 				},
 			}
 
 			result, err := translator.TranslateUDPRoute(tctx, route)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, result)
+				return
+			}
 			require.NoError(t, err)
 			require.Len(t, result.Services, 1)
 			require.NotEmpty(t, result.Services[0].StreamRoutes)
@@ -181,6 +212,7 @@ func TestTranslateTLSRouteWithL4RoutePolicy(t *testing.T) {
 		hostnames     []string
 		wantPlugins   []string
 		wantNoPlugins bool
+		wantErr       bool
 	}{
 		{
 			name: "attaches plugins from matching L4RoutePolicy",
@@ -189,6 +221,14 @@ func TestTranslateTLSRouteWithL4RoutePolicy(t *testing.T) {
 			}),
 			hostnames:   []string{"example.com"},
 			wantPlugins: []string{"ip-restriction"},
+		},
+		{
+			name: "rejects a policy with a non-object plugin config",
+			policy: makeL4RoutePolicy("default", "tls-policy", "TLSRoute", "my-tls", []v1alpha1.Plugin{
+				{Name: "ip-restriction", Config: mustJSON(true)},
+			}),
+			hostnames: []string{"example.com"},
+			wantErr:   true,
 		},
 		{
 			name: "plugins attached once per rule even with multiple SNI hostnames",
@@ -216,7 +256,7 @@ func TestTranslateTLSRouteWithL4RoutePolicy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			translator := NewTranslator(logr.Discard())
+			translator := NewTranslator(logr.Discard(), "")
 			tctx := provider.NewDefaultTranslateContext(context.Background())
 
 			if tt.policy != nil {
@@ -224,35 +264,47 @@ func TestTranslateTLSRouteWithL4RoutePolicy(t *testing.T) {
 				tctx.L4RoutePolicies[key] = tt.policy
 			}
 
-			hostnames := make([]gatewayv1alpha2.Hostname, 0, len(tt.hostnames))
+			hostnames := make([]gatewayv1.Hostname, 0, len(tt.hostnames))
 			for _, h := range tt.hostnames {
-				hostnames = append(hostnames, gatewayv1alpha2.Hostname(h))
+				hostnames = append(hostnames, gatewayv1.Hostname(h))
 			}
 
-			route := &gatewayv1alpha2.TLSRoute{
+			route := &gatewayv1.TLSRoute{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "my-tls",
 					Namespace: "default",
 				},
-				Spec: gatewayv1alpha2.TLSRouteSpec{
+				Spec: gatewayv1.TLSRouteSpec{
 					Hostnames: hostnames,
-					Rules: []gatewayv1alpha2.TLSRouteRule{
-						{BackendRefs: []gatewayv1alpha2.BackendRef{}},
+					Rules: []gatewayv1.TLSRouteRule{
+						{BackendRefs: []gatewayv1.BackendRef{}},
 					},
 				},
 			}
 
 			result, err := translator.TranslateTLSRoute(tctx, route)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, result)
+				return
+			}
 			require.NoError(t, err)
 			require.Len(t, result.Services, 1)
 
-			// Verify stream routes are created per SNI hostname
-			if len(tt.hostnames) > 0 {
-				assert.Len(t, result.Services[0].StreamRoutes, len(tt.hostnames))
+			// One stream route carries every hostname: the singular sni for a
+			// single one, the plural snis beyond that. APISIX rejects both at once.
+			require.Len(t, result.Services[0].StreamRoutes, 1)
+			switch len(tt.hostnames) {
+			case 1:
+				assert.Equal(t, tt.hostnames[0], result.Services[0].StreamRoutes[0].SNI)
+				assert.Empty(t, result.Services[0].StreamRoutes[0].SNIs)
+			default:
+				assert.Equal(t, tt.hostnames, result.Services[0].StreamRoutes[0].SNIs)
+				assert.Empty(t, result.Services[0].StreamRoutes[0].SNI)
 			}
 
 			// Plugins are attached at the stream_route level so the APISIX stream proxy
-			// applies them; with multiple SNIs each stream_route carries its own copy.
+			// applies them.
 			require.NotEmpty(t, result.Services[0].StreamRoutes)
 			plugins := result.Services[0].StreamRoutes[0].Plugins
 			if tt.wantNoPlugins {
@@ -266,4 +318,86 @@ func TestTranslateTLSRouteWithL4RoutePolicy(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTranslateTCPRouteUpstreamScheme(t *testing.T) {
+	const (
+		namespace   = "default"
+		serviceName = "backend"
+		portName    = "tcp"
+		portNumber  = int32(6000)
+	)
+
+	translator := NewTranslator(logr.Discard(), "")
+	tctx := provider.NewDefaultTranslateContext(context.Background())
+
+	serviceKey := k8stypes.NamespacedName{Namespace: namespace, Name: serviceName}
+	tctx.Services[serviceKey] = &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      serviceName,
+			Namespace: namespace,
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{{
+				Name: portName,
+				Port: portNumber,
+			}},
+		},
+	}
+	tctx.EndpointSlices[serviceKey] = []discoveryv1.EndpointSlice{{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      serviceName + "-1",
+			Namespace: namespace,
+		},
+		Ports: []discoveryv1.EndpointPort{{
+			Name: ptr.To(portName),
+			Port: ptr.To(portNumber),
+		}},
+		Endpoints: []discoveryv1.Endpoint{{
+			Addresses: []string{"10.0.0.1"},
+			Conditions: discoveryv1.EndpointConditions{
+				Ready: ptr.To(true),
+			},
+		}},
+	}}
+	tctx.BackendTrafficPolicies[serviceKey] = &v1alpha1.BackendTrafficPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "backend-policy",
+			Namespace: namespace,
+		},
+		Spec: v1alpha1.BackendTrafficPolicySpec{
+			TargetRefs: []v1alpha1.BackendPolicyTargetReferenceWithSectionName{{
+				LocalPolicyTargetReference: gatewayv1.LocalPolicyTargetReference{
+					Name: gatewayv1.ObjectName(serviceName),
+					Kind: gatewayv1.Kind(internaltypes.KindService),
+				},
+			}},
+			Scheme: apiv2.SchemeTLS,
+		},
+	}
+
+	route := &gatewayv1.TCPRoute{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-tcp",
+			Namespace: namespace,
+		},
+		Spec: gatewayv1.TCPRouteSpec{
+			Rules: []gatewayv1.TCPRouteRule{{
+				BackendRefs: []gatewayv1.BackendRef{{
+					BackendObjectReference: gatewayv1.BackendObjectReference{
+						Name: gatewayv1.ObjectName(serviceName),
+						Port: ptr.To(portNumber),
+					},
+				}},
+			}},
+		},
+	}
+
+	result, err := translator.TranslateTCPRoute(tctx, route)
+	require.NoError(t, err)
+	require.Len(t, result.Services, 1)
+	require.NotNil(t, result.Services[0].Upstream)
+
+	assert.Equal(t, apiv2.SchemeTLS, result.Services[0].Upstream.Scheme)
+	assert.Equal(t, "10.0.0.1", result.Services[0].Upstream.Nodes[0].Host)
 }

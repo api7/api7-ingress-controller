@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -61,12 +62,34 @@ type Resources struct {
 	SSLs           []*SSL           `json:"ssls,omitempty" yaml:"ssls,omitempty"`
 }
 
+// MarshalLog implements logr.Marshaler so logging Resources emits only counts,
+// never the secret-bearing bodies (SSL private keys, consumer credentials).
+// It affects logging only, not the JSON sent to the data plane.
+func (r *Resources) MarshalLog() any {
+	if r == nil {
+		return nil
+	}
+	return map[string]int{
+		"consumerGroups": len(r.ConsumerGroups),
+		"consumers":      len(r.Consumers),
+		"globalRules":    len(r.GlobalRules),
+		"pluginMetadata": len(r.PluginMetadata),
+		"services":       len(r.Services),
+		"ssls":           len(r.SSLs),
+	}
+}
+
 type GlobalRule Plugins
 
 func (g *GlobalRule) DeepCopy() GlobalRule {
 	original := Plugins(*g)
 	copied := original.DeepCopy()
 	return GlobalRule(copied)
+}
+
+// MarshalLog implements logr.Marshaler. See Plugins.MarshalLog.
+func (g GlobalRule) MarshalLog() any {
+	return pluginNames(g)
 }
 
 // +k8s:deepcopy-gen=true
@@ -82,6 +105,11 @@ func (p *PluginMetadata) DeepCopy() PluginMetadata {
 	original := Plugins(*p)
 	copied := original.DeepCopy()
 	return PluginMetadata(copied)
+}
+
+// MarshalLog implements logr.Marshaler. See Plugins.MarshalLog.
+func (p PluginMetadata) MarshalLog() any {
+	return pluginNames(p)
 }
 
 // +k8s:deepcopy-gen=true
@@ -140,9 +168,9 @@ type Route struct {
 }
 
 type Timeout struct {
-	Connect int `json:"connect"`
-	Read    int `json:"read"`
-	Send    int `json:"send"`
+	Connect float64 `json:"connect"`
+	Read    float64 `json:"read"`
+	Send    float64 `json:"send"`
 }
 
 // +k8s:deepcopy-gen=true
@@ -153,7 +181,18 @@ type StreamRoute struct {
 	RemoteAddr string  `json:"remote_addr,omitempty"`
 	ServerAddr string  `json:"server_addr,omitempty"`
 	ServerPort int32   `json:"server_port,omitempty"`
-	SNI        string  `json:"sni,omitempty"`
+	// SNI and SNIs are the singular and plural forms of the same match; APISIX
+	// rejects a stream route carrying both, so only one is ever set.
+	SNI  string   `json:"sni,omitempty"`
+	SNIs []string `json:"snis,omitempty"`
+	// TLSPassthrough forwards the TLS stream to the upstream untouched instead
+	// of terminating it on the gateway.
+	//
+	// A listen carrying tls_passthrough alone passes every connection through
+	// and never reads this; a listen carrying tls alone always terminates. It
+	// decides only on a listen configured with both, where the matched stream
+	// route picks between the terminating and the prereading server.
+	TLSPassthrough *bool `json:"tls_passthrough,omitempty"`
 }
 
 // +k8s:deepcopy-gen=true
@@ -381,6 +420,23 @@ func (p Plugins) DeepCopy() Plugins {
 	out := make(Plugins)
 	p.DeepCopyInto(&out)
 	return out
+}
+
+// MarshalLog implements logr.Marshaler so logging a plugin map emits only the
+// plugin names. Plugin config is arbitrary user JSON and routinely carries
+// credentials (kafka SASL passwords, logger tokens, OIDC client secrets).
+// It affects logging only, not the JSON sent to the data plane.
+func (p Plugins) MarshalLog() any {
+	return pluginNames(p)
+}
+
+func pluginNames(p map[string]any) []string {
+	names := make([]string, 0, len(p))
+	for name := range p {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // UpstreamNode is the node in upstream
@@ -705,10 +761,21 @@ type SyncResult struct {
 // This is only used in apisix-standalone mode where endpoint-level status is reported
 // instead of resource-level status.
 type EndpointStatus struct {
-	Server  string `json:"server"`
-	Success bool   `json:"success"`
-	Reason  string `json:"reason,omitempty"`
+	Server       string       `json:"server"`
+	Success      bool         `json:"success"`
+	Confirmation Confirmation `json:"confirmation,omitempty"`
+	Reason       string       `json:"reason,omitempty"`
 }
+
+type Confirmation string
+
+const (
+	// ConfirmationApplied means configuration has been accepted and applied.
+	ConfirmationApplied Confirmation = "applied"
+
+	// ConfirmationAccepted means the configuration has been accepted but not yet applied.
+	ConfirmationAccepted Confirmation = "accepted"
+)
 
 type SyncStatus struct {
 	Event    StatusEvent     `json:"event"`
@@ -789,6 +856,16 @@ type Config struct {
 	Token       string
 	TlsVerify   bool
 	BackendType string
+
+	// CaCert is a PEM-encoded CA certificate (or bundle) used to verify the
+	// control plane, in place of the system trust store. Only meaningful when
+	// TlsVerify is true.
+	CaCert string
+
+	// BypassCache makes the ADC server drop the in-memory baseline it holds for this
+	// cacheKey and re-derive it from the data plane before computing the diff. It is a
+	// per-request flag set on the sync path, not part of the translated configuration.
+	BypassCache bool
 }
 
 // MarshalJSON implements custom JSON marshaling for adcConfig
@@ -798,10 +875,12 @@ func (c Config) MarshalJSON() ([]byte, error) {
 		Name        string   `json:"name"`
 		ServerAddrs []string `json:"serverAddrs"`
 		TlsVerify   bool     `json:"tlsVerify"`
+		HasCaCert   bool     `json:"hasCaCert"`
 	}{
 		Name:        c.Name,
 		ServerAddrs: c.ServerAddrs,
 		TlsVerify:   c.TlsVerify,
+		HasCaCert:   c.CaCert != "",
 	})
 }
 

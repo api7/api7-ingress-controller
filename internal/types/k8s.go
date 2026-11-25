@@ -18,6 +18,8 @@
 package types
 
 import (
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	netv1beta1 "k8s.io/api/networking/v1beta1"
@@ -26,12 +28,31 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
 	v2 "github.com/apache/apisix-ingress-controller/api/v2"
 )
+
+// IsPluginConfigExtensionRef reports whether ref identifies the supported PluginConfig type.
+func IsPluginConfigExtensionRef(ref *gatewayv1.LocalObjectReference) bool {
+	return ref != nil &&
+		string(ref.Group) == v1alpha1.GroupVersion.Group &&
+		string(ref.Kind) == KindPluginConfig
+}
+
+// ValidatePluginConfigExtensionRef validates the group and kind of an ExtensionRef.
+func ValidatePluginConfigExtensionRef(ref *gatewayv1.LocalObjectReference) error {
+	if ref == nil || IsPluginConfigExtensionRef(ref) {
+		return nil
+	}
+	return ReasonError{
+		Reason: string(gatewayv1.RouteReasonInvalidKind),
+		Message: fmt.Sprintf(
+			"Invalid ExtensionRef %s/%s, only %s/%s is supported",
+			ref.Group, ref.Kind, v1alpha1.GroupVersion.Group, KindPluginConfig,
+		),
+	}
+}
 
 const (
 	DefaultIngressClassAnnotation = "ingressclass.kubernetes.io/is-default-class"
@@ -46,10 +67,12 @@ const (
 	KindGRPCRoute            = "GRPCRoute"
 	KindTLSRoute             = "TLSRoute"
 	KindGatewayClass         = "GatewayClass"
+	KindReferenceGrant       = "ReferenceGrant"
 	KindIngress              = "Ingress"
 	KindIngressClass         = "IngressClass"
 	KindGatewayProxy         = "GatewayProxy"
 	KindSecret               = "Secret"
+	KindConfigMap            = "ConfigMap"
 	KindService              = "Service"
 	KindApisixRoute          = "ApisixRoute"
 	KindApisixGlobalRule     = "ApisixGlobalRule"
@@ -76,18 +99,20 @@ func KindOf(obj any) string {
 	switch obj.(type) {
 	case *gatewayv1.Gateway:
 		return KindGateway
-	case *gatewayv1alpha2.TCPRoute:
+	case *gatewayv1.TCPRoute:
 		return KindTCPRoute
-	case *gatewayv1alpha2.UDPRoute:
+	case *gatewayv1.UDPRoute:
 		return KindUDPRoute
 	case *gatewayv1.HTTPRoute:
 		return KindHTTPRoute
 	case *gatewayv1.GRPCRoute:
 		return KindGRPCRoute
-	case *gatewayv1alpha2.TLSRoute:
+	case *gatewayv1.TLSRoute:
 		return KindTLSRoute
 	case *gatewayv1.GatewayClass:
 		return KindGatewayClass
+	case *gatewayv1.ReferenceGrant:
+		return KindReferenceGrant
 	case *netv1.Ingress:
 		return KindIngress
 	case *netv1.IngressClass, *netv1beta1.IngressClass:
@@ -151,11 +176,11 @@ func GvkOf(obj any) schema.GroupVersionKind {
 	kind := KindOf(obj)
 	switch obj.(type) {
 	case *gatewayv1.Gateway, *gatewayv1.HTTPRoute, *gatewayv1.GatewayClass, *gatewayv1.GRPCRoute:
-		return gatewayv1.SchemeGroupVersion.WithKind(kind)
-	case *gatewayv1alpha2.TCPRoute, *gatewayv1alpha2.UDPRoute, *gatewayv1alpha2.TLSRoute:
-		return gatewayv1alpha2.SchemeGroupVersion.WithKind(kind)
-	case *gatewayv1beta1.ReferenceGrant:
-		return gatewayv1beta1.SchemeGroupVersion.WithKind(kind)
+		return schema.GroupVersion(gatewayv1.GroupVersion).WithKind(kind)
+	case *gatewayv1.TCPRoute, *gatewayv1.UDPRoute, *gatewayv1.TLSRoute:
+		return schema.GroupVersion(gatewayv1.GroupVersion).WithKind(kind)
+	case *gatewayv1.ReferenceGrant:
+		return schema.GroupVersion(gatewayv1.GroupVersion).WithKind(kind)
 	case *netv1.Ingress, *netv1.IngressClass:
 		return netv1.SchemeGroupVersion.WithKind(kind)
 	case *netv1beta1.IngressClass:
@@ -244,4 +269,32 @@ func GetEffectiveIngressClassName(ingress *netv1.Ingress) string {
 		return cls
 	}
 	return ingress.GetAnnotations()[IngressClassNameAnnotation]
+}
+
+// FrontendTLSValidationForListener resolves the Gateway-level frontend TLS
+// client-certificate validation that applies to the given listener.
+//
+// In Gateway API v1.6 frontendValidation moved from the per-listener TLS config
+// to spec.tls.frontend, and it applies only to Listeners handling HTTPS traffic:
+// Default applies to all HTTPS listeners, and a PerPort entry overrides it for
+// listeners on the matching port. It returns nil for any non-HTTPS listener or
+// when no frontend config is set.
+//
+// This is the single source of truth for that resolution; the gateway
+// translator, the gateway controller and the indexer all rely on it agreeing,
+// otherwise a listener's status and its programmed config would silently diverge.
+func FrontendTLSValidationForListener(gateway *gatewayv1.Gateway, listener gatewayv1.Listener) *gatewayv1.FrontendTLSValidation {
+	if listener.Protocol != gatewayv1.HTTPSProtocolType {
+		return nil
+	}
+	if gateway.Spec.TLS == nil || gateway.Spec.TLS.Frontend == nil {
+		return nil
+	}
+	frontend := gateway.Spec.TLS.Frontend
+	for i := range frontend.PerPort {
+		if frontend.PerPort[i].Port == listener.Port {
+			return frontend.PerPort[i].TLS.Validation
+		}
+	}
+	return frontend.Default.Validation
 }

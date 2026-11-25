@@ -162,7 +162,6 @@ spec:
 			By("create IngressClass")
 			err := s.CreateResourceFromStringWithNamespace(s.GetIngressClassYaml(), "")
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
-			time.Sleep(5 * time.Second)
 		})
 		It("retries", func() {
 			Expect(s.CreateResourceFromString(fmt.Sprintf(ingressRetries, s.Namespace()))).ShouldNot(HaveOccurred(), "creating Ingress")
@@ -211,9 +210,9 @@ spec:
 			Expect(err).NotTo(HaveOccurred(), "listing Upstream")
 			Expect(upstreams).To(HaveLen(1), "checking Upstream length")
 			Expect(upstreams[0].Timeout).ToNot(BeNil(), "checking Upstream timeout")
-			Expect(upstreams[0].Timeout.Read).To(Equal(2), "checking Upstream read timeout")
-			Expect(upstreams[0].Timeout.Send).To(Equal(3), "checking Upstream send timeout")
-			Expect(upstreams[0].Timeout.Connect).To(Equal(4), "checking Upstream connect timeout")
+			Expect(upstreams[0].Timeout.Read).To(Equal(2.0), "checking Upstream read timeout")
+			Expect(upstreams[0].Timeout.Send).To(Equal(3.0), "checking Upstream send timeout")
+			Expect(upstreams[0].Timeout.Connect).To(Equal(4.0), "checking Upstream connect timeout")
 		})
 
 		It("cors annotations", func() {
@@ -606,7 +605,6 @@ spec:
 			By("create IngressClass")
 			err := s.CreateResourceFromStringWithNamespace(s.GetIngressClassYaml(), "")
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
-			time.Sleep(5 * time.Second)
 		})
 		It("redirect", func() {
 			Expect(s.CreateResourceFromString(fmt.Sprintf(tohttps, s.Namespace()))).ShouldNot(HaveOccurred(), "creating Ingress")
@@ -625,35 +623,39 @@ spec:
 				Check:  scaffold.WithExpectedStatus(http.StatusPermanentRedirect),
 			})
 
-			_ = s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.example").
-				Expect().
-				Status(http.StatusMovedPermanently).
-				Header("Location").IsEqual("https://httpbin.example:9443/get")
-
-			_ = s.NewAPISIXClient().
-				GET("/ip").
-				WithHost("httpbin.example").
-				Expect().
-				Status(http.StatusPermanentRedirect).
-				Header("Location").IsEqual("/anything/ip")
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/get",
+				Host:   "httpbin.example",
+				Checks: []scaffold.ResponseCheckFunc{
+					scaffold.WithExpectedStatus(http.StatusMovedPermanently),
+					scaffold.WithExpectedHeader("Location", "https://httpbin.example:9443/get"),
+				},
+			})
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/ip",
+				Host:   "httpbin.example",
+				Checks: []scaffold.ResponseCheckFunc{
+					scaffold.WithExpectedStatus(http.StatusPermanentRedirect),
+					scaffold.WithExpectedHeader("Location", "/anything/ip"),
+				},
+			})
 		})
 
 		It("csrf", func() {
 			Expect(s.CreateResourceFromString(fmt.Sprintf(ingressCSRF, s.Namespace()))).ShouldNot(HaveOccurred(), "creating Ingress")
 
-			time.Sleep(5 * time.Second)
-
 			By("Request without CSRF token should fail")
-			msg401 := s.NewAPISIXClient().
-				POST("/anything").
-				WithHeader("Host", "httpbin.example").
-				Expect().
-				Status(http.StatusUnauthorized).
-				Body().
-				Raw()
-			Expect(msg401).To(ContainSubstring("no csrf token in headers"), "checking error message")
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "POST",
+				Path:   "/anything",
+				Host:   "httpbin.example",
+				Checks: []scaffold.ResponseCheckFunc{
+					scaffold.WithExpectedStatus(http.StatusUnauthorized),
+					scaffold.WithExpectedBodyContains("no csrf token in headers"),
+				},
+			})
 
 			By("GET request should succeed and return CSRF token in cookie")
 			resp := s.NewAPISIXClient().
@@ -754,6 +756,91 @@ spec:
 			Expect(err).NotTo(HaveOccurred(), "unmarshalling echo plugin config")
 			Expect(echoConfig["body"]).To(Equal("hello from plugin config"), "checking echo plugin body")
 		})
+		It("stops serving when the referenced ApisixPluginConfig is deleted", func() {
+			pluginConfig := `
+apiVersion: apisix.apache.org/v2
+kind: ApisixPluginConfig
+metadata:
+  name: revoked-plugin-config
+spec:
+  ingressClassName: %s
+  plugins:
+  - name: response-rewrite
+    enable: true
+    config:
+      headers:
+        X-Revocation-Test: "must-disappear"
+`
+			ingressWithPluginConfig := `
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: revoked-plugin-config-test
+  annotations:
+    k8s.apisix.apache.org/plugin-config-name: "revoked-plugin-config"
+spec:
+  ingressClassName: %s
+  rules:
+  - host: revoked-plugin-config.example
+    http:
+      paths:
+      - path: /get
+        pathType: Exact
+        backend:
+          service:
+            name: httpbin-service-e2e-test
+            port:
+              number: 80
+`
+			applyPluginConfig := func() {
+				Expect(s.CreateResourceFromString(fmt.Sprintf(pluginConfig, s.Namespace()))).
+					ShouldNot(HaveOccurred(), "creating ApisixPluginConfig")
+			}
+
+			applyPluginConfig()
+			Expect(s.CreateResourceFromString(fmt.Sprintf(ingressWithPluginConfig, s.Namespace()))).
+				ShouldNot(HaveOccurred(), "creating Ingress")
+
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/get",
+				Host:   "revoked-plugin-config.example",
+				Checks: []scaffold.ResponseCheckFunc{
+					scaffold.WithExpectedStatus(http.StatusOK),
+					scaffold.WithExpectedHeader("X-Revocation-Test", "must-disappear"),
+				},
+			})
+
+			By("delete only the ApisixPluginConfig, leaving the Ingress in place")
+			Expect(s.DeleteResource("ApisixPluginConfig", "revoked-plugin-config")).
+				ShouldNot(HaveOccurred(), "deleting ApisixPluginConfig")
+
+			// Without the retraction the Ingress keeps forwarding and keeps applying
+			// the deleted plugin, so the header would still come back with a 200.
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method:   "GET",
+				Path:     "/get",
+				Host:     "revoked-plugin-config.example",
+				Check:    scaffold.WithExpectedStatus(http.StatusNotFound),
+				Timeout:  time.Second * 30,
+				Interval: time.Second * 2,
+			})
+
+			By("recreating it under the same name restores the Ingress")
+			applyPluginConfig()
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/get",
+				Host:   "revoked-plugin-config.example",
+				Checks: []scaffold.ResponseCheckFunc{
+					scaffold.WithExpectedStatus(http.StatusOK),
+					scaffold.WithExpectedHeader("X-Revocation-Test", "must-disappear"),
+				},
+				Timeout:  time.Second * 30,
+				Interval: time.Second * 2,
+			})
+		})
+
 		It("methods", func() {
 			Expect(s.CreateResourceFromString(fmt.Sprintf(allowMethods, s.Namespace()))).ShouldNot(HaveOccurred(), "creating Ingress")
 			Expect(s.CreateResourceFromString(fmt.Sprintf(blockMethods, s.Namespace()))).ShouldNot(HaveOccurred(), "creating Ingress")
@@ -1128,7 +1215,6 @@ spec:
 			By("create IngressClass")
 			err = s.CreateResourceFromStringWithNamespace(s.GetIngressClassYaml(), "")
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
-			time.Sleep(5 * time.Second)
 		})
 		AfterEach(func() {
 			s.DeleteNamespace(ns)
@@ -1176,7 +1262,6 @@ spec:
 			By("create IngressClass")
 			err := s.CreateResourceFromStringWithNamespace(s.GetIngressClassYaml(), "")
 			Expect(err).NotTo(HaveOccurred(), "creating IngressClass")
-			time.Sleep(5 * time.Second)
 		})
 		It("regex match", func() {
 			Expect(s.CreateResourceFromString(fmt.Sprintf(ingressRegex, s.Namespace()))).ShouldNot(HaveOccurred(), "creating Ingress")

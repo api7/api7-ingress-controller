@@ -28,7 +28,6 @@ import (
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	adctypes "github.com/apache/apisix-ingress-controller/api/adc"
 	"github.com/apache/apisix-ingress-controller/api/v1alpha1"
@@ -85,7 +84,7 @@ func New(log logr.Logger, updater status.Updater, readier readiness.ReadinessMan
 	return &api7eeProvider{
 		client:     cli,
 		Options:    o,
-		translator: &translator.Translator{},
+		translator: translator.NewTranslator(log, o.ListenerPortMatchMode),
 		updater:    updater,
 		readier:    readier,
 		syncCh:     make(chan struct{}, 1),
@@ -111,13 +110,13 @@ func (d *api7eeProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 	case *gatewayv1.HTTPRoute:
 		result, err = d.translator.TranslateHTTPRoute(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, "service")
-	case *gatewayv1alpha2.TCPRoute:
+	case *gatewayv1.TCPRoute:
 		result, err = d.translator.TranslateTCPRoute(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, adctypes.TypeService)
-	case *gatewayv1alpha2.UDPRoute:
+	case *gatewayv1.UDPRoute:
 		result, err = d.translator.TranslateUDPRoute(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, adctypes.TypeService)
-	case *gatewayv1alpha2.TLSRoute:
+	case *gatewayv1.TLSRoute:
 		result, err = d.translator.TranslateTLSRoute(tctx, t.DeepCopy())
 		resourceTypes = append(resourceTypes, adctypes.TypeService)
 	case *gatewayv1.GRPCRoute:
@@ -196,16 +195,19 @@ func (d *api7eeProvider) Update(ctx context.Context, tctx *provider.TranslateCon
 }
 
 func (d *api7eeProvider) Delete(ctx context.Context, obj client.Object) error {
-	d.log.V(1).Info("deleting object", "object", obj)
+	nnk := utils.NamespacedNameKind(obj)
+	d.log.V(1).Info("deleting object", "object", nnk)
 
 	var resourceTypes []string
 	var labels map[string]string
 	switch obj.(type) {
-	case *gatewayv1.HTTPRoute, *apiv2.ApisixRoute, *gatewayv1.GRPCRoute, *gatewayv1alpha2.TCPRoute, *gatewayv1alpha2.UDPRoute, *gatewayv1alpha2.TLSRoute:
+	case *gatewayv1.HTTPRoute, *apiv2.ApisixRoute, *gatewayv1.GRPCRoute, *gatewayv1.TCPRoute, *gatewayv1.UDPRoute, *gatewayv1.TLSRoute:
 		resourceTypes = append(resourceTypes, "service")
 		labels = label.GenLabel(obj)
 	case *gatewayv1.Gateway:
-		// delete all resources
+		// Gateways sharing a GatewayProxy only own their own certificates.
+		resourceTypes = append(resourceTypes, "ssl")
+		labels = label.GenLabel(obj)
 	case *networkingv1.Ingress:
 		resourceTypes = append(resourceTypes, "service", "ssl")
 		labels = label.GenLabel(obj)
@@ -225,13 +227,20 @@ func (d *api7eeProvider) Delete(ctx context.Context, obj client.Object) error {
 		labels = label.GenLabel(obj)
 	}
 
-	nnk := utils.NamespacedNameKind(obj)
-	return d.client.Delete(ctx, adcclient.Task{
+	if err := d.client.Delete(ctx, adcclient.Task{
 		Key:           nnk,
 		Name:          nnk.String(),
 		Labels:        labels,
 		ResourceTypes: resourceTypes,
-	})
+	}); err != nil {
+		return err
+	}
+	if _, ok := obj.(*gatewayv1.Gateway); ok {
+		// The scoped sync above only covers SSLs; push the rest of the proxy snapshot,
+		// including the Gateway's evicted global rule and plugin metadata.
+		d.syncNotify()
+	}
+	return nil
 }
 
 func (d *api7eeProvider) Start(ctx context.Context) error {
@@ -253,11 +262,14 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 		})
 	}
 
-	if d.SyncPeriod < 1 {
-		return nil
+	// A zero SyncPeriod only disables the periodic sync; syncCh still carries changes
+	// that the scoped syncs cannot push, such as an evicted Gateway's plugins.
+	var tick <-chan time.Time
+	if d.SyncPeriod > 0 {
+		ticker := time.NewTicker(d.SyncPeriod)
+		defer ticker.Stop()
+		tick = ticker.C
 	}
-	ticker := time.NewTicker(d.SyncPeriod)
-	defer ticker.Stop()
 
 	retrier := common.NewRetrier(common.NewExponentialBackoff(RetryBaseDelay, RetryMaxDelay))
 
@@ -265,7 +277,7 @@ func (d *api7eeProvider) Start(ctx context.Context) error {
 		select {
 		case <-d.syncCh:
 		case <-retrier.C():
-		case <-ticker.C:
+		case <-tick:
 		case <-ctx.Done():
 			return nil
 		}

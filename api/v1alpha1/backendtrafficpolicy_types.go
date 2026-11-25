@@ -47,8 +47,11 @@ type BackendTrafficPolicySpec struct {
 	LoadBalancer *LoadBalancer `json:"loadbalancer,omitempty" yaml:"loadbalancer,omitempty"`
 	// Scheme is the protocol used to communicate with the upstream.
 	// Default is `http`.
-	// Can be `http`, `https`, `grpc`, or `grpcs`.
-	// +kubebuilder:validation:Enum=http;https;grpc;grpcs;
+	// For L7 proxy, it can be `http`, `https`, `grpc`, or `grpcs`.
+	// For L4 proxy, it can be `tcp`, `tls`, or `udp`.
+	// The L4 values apply to stream routes only; using them for an HTTP route
+	// makes the upstream unreachable.
+	// +kubebuilder:validation:Enum=http;https;grpc;grpcs;tcp;tls;udp;
 	// +kubebuilder:default=http
 	Scheme string `json:"scheme,omitempty" yaml:"scheme,omitempty"`
 
@@ -110,17 +113,17 @@ type LoadBalancer struct {
 type Timeout struct {
 	// Connection timeout. Default is `60s`.
 	// +kubebuilder:default="60s"
-	// +kubebuilder:validation:Pattern=`^[0-9]+s$`
+	// +kubebuilder:validation:XValidation:rule="duration(self) >= duration('0s')",message="timeout must not be negative"
 	// +kubebuilder:validation:Type=string
 	Connect metav1.Duration `json:"connect,omitempty" yaml:"connect,omitempty"`
 	// Send timeout. Default is `60s`.
 	// +kubebuilder:default="60s"
-	// +kubebuilder:validation:Pattern=`^[0-9]+s$`
+	// +kubebuilder:validation:XValidation:rule="duration(self) >= duration('0s')",message="timeout must not be negative"
 	// +kubebuilder:validation:Type=string
 	Send metav1.Duration `json:"send,omitempty" yaml:"send,omitempty"`
 	// Read timeout. Default is `60s`.
 	// +kubebuilder:default="60s"
-	// +kubebuilder:validation:Pattern=`^[0-9]+s$`
+	// +kubebuilder:validation:XValidation:rule="duration(self) >= duration('0s')",message="timeout must not be negative"
 	// +kubebuilder:validation:Type=string
 	Read metav1.Duration `json:"read,omitempty" yaml:"read,omitempty"`
 }
