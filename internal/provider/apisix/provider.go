@@ -202,7 +202,9 @@ func (d *apisixProvider) Delete(ctx context.Context, obj client.Object) error {
 		resourceTypes = append(resourceTypes, adctypes.TypeService)
 		labels = label.GenLabel(obj)
 	case *gatewayv1.Gateway:
-		// delete all resources
+		// Gateways sharing a GatewayProxy only own their own certificates.
+		resourceTypes = append(resourceTypes, adctypes.TypeSSL)
+		labels = label.GenLabel(obj)
 	case *networkingv1.Ingress:
 		resourceTypes = append(resourceTypes, adctypes.TypeService, adctypes.TypeSSL)
 		labels = label.GenLabel(obj)

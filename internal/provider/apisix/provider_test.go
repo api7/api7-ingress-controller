@@ -19,6 +19,9 @@ package apisix
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -169,4 +172,116 @@ func TestUpdateKeepsLastKnownGoodStateWhenL4PolicyCannotRender(t *testing.T) {
 	require.NoError(t, getErr)
 	require.Len(t, resources.Services, 1)
 	assert.Equal(t, "last-known-good", resources.Services[0].Name)
+}
+
+func TestDeleteGatewayPreservesSharedProxyResources(t *testing.T) {
+	var received adcclient.ADCServerRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&received))
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(adctypes.SyncResult{Status: adctypes.StatusSuccess})
+	}))
+	defer server.Close()
+	t.Setenv("ADC_SERVER_URL", server.URL)
+	cli, err := adcclient.New(logr.Discard(), ProviderTypeAPISIX, time.Second)
+	require.NoError(t, err)
+	d := &apisixProvider{client: cli, syncCh: make(chan struct{}, 1), log: logr.Discard()}
+	gateway := &gatewayv1.Gateway{
+		TypeMeta:   metav1.TypeMeta{Kind: "Gateway", APIVersion: gatewayv1.GroupVersion.String()},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "deleted"},
+	}
+	other := gateway.DeepCopy()
+	other.Name = "remaining"
+	route := &gatewayv1.HTTPRoute{
+		TypeMeta:   metav1.TypeMeta{Kind: "HTTPRoute", APIVersion: gatewayv1.GroupVersion.String()},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "route"},
+	}
+	proxy := types.NamespacedNameKind{Kind: "GatewayProxy", Namespace: "default", Name: "proxy"}
+	configs := map[types.NamespacedNameKind]adctypes.Config{proxy: {
+		Name: proxy.String(), BackendType: "apisix", ServerAddrs: []string{"http://apisix:9180"},
+	}}
+	for _, gw := range []*gatewayv1.Gateway{gateway, other} {
+		labels := label.GenLabel(gw)
+		require.NoError(t, cli.UpdateConfig(context.Background(), adcclient.Task{
+			Key: utils.NamespacedNameKind(gw), Configs: configs, Labels: labels, ResourceTypes: []string{adctypes.TypeSSL},
+			Resources: &adctypes.Resources{SSLs: []*adctypes.SSL{{Metadata: adctypes.Metadata{ID: gw.Name, Labels: labels}}}},
+		}))
+	}
+	labels := label.GenLabel(route)
+	require.NoError(t, cli.UpdateConfig(context.Background(), adcclient.Task{
+		Key: utils.NamespacedNameKind(route), Configs: configs, Labels: labels, ResourceTypes: []string{adctypes.TypeService},
+		Resources: &adctypes.Resources{Services: []*adctypes.Service{{Metadata: adctypes.Metadata{ID: "route", Labels: labels}}}},
+	}))
+	require.NoError(t, d.Delete(context.Background(), gateway))
+	resources, err := cli.GetResources(proxy.String())
+	require.NoError(t, err)
+	require.Len(t, resources.SSLs, 1)
+	assert.Equal(t, "remaining", resources.SSLs[0].ID)
+	require.Len(t, resources.Services, 1)
+	assert.Equal(t, "route", resources.Services[0].ID)
+	require.Len(t, d.syncCh, 1, "Gateway deletion must schedule the remaining shared snapshot")
+	_, err = cli.Sync(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, resources.SSLs, received.Task.Config.SSLs)
+	assert.Equal(t, resources.Services, received.Task.Config.Services)
+	assert.Empty(t, cli.ConfigManager.Get(utils.NamespacedNameKind(gateway)))
+	assert.NotEmpty(t, cli.ConfigManager.Get(utils.NamespacedNameKind(other)))
+	assert.NotEmpty(t, cli.ConfigManager.Get(utils.NamespacedNameKind(route)))
+}
+
+func TestDeleteGatewayClearsProxyPluginsWithLastReferrer(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(adctypes.SyncResult{Status: adctypes.StatusSuccess})
+	}))
+	defer server.Close()
+	t.Setenv("ADC_SERVER_URL", server.URL)
+	proxy := types.NamespacedNameKind{Kind: "GatewayProxy", Namespace: "default", Name: "proxy"}
+	configs := map[types.NamespacedNameKind]adctypes.Config{proxy: {
+		Name: proxy.String(), BackendType: "apisix", ServerAddrs: []string{"http://apisix:9180"},
+	}}
+	pluginTypes := []string{adctypes.TypeGlobalRule, adctypes.TypeSSL, adctypes.TypePluginMetadata}
+	plugins := &adctypes.Resources{
+		GlobalRules:    adctypes.GlobalRule{"cors": map[string]any{}},
+		PluginMetadata: adctypes.PluginMetadata{"http-logger": map[string]any{}},
+	}
+	for name, referrers := range map[string][]types.NamespacedNameKind{
+		"last referrer":           nil,
+		"IngressClass remains":    {{Kind: "IngressClass", Name: "apisix"}},
+		"another Gateway remains": {{Kind: "Gateway", Namespace: "default", Name: "remaining"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cli, err := adcclient.New(logr.Discard(), ProviderTypeAPISIX, time.Second)
+			require.NoError(t, err)
+			d := &apisixProvider{client: cli, syncCh: make(chan struct{}, 1), log: logr.Discard()}
+			gateway := &gatewayv1.Gateway{
+				TypeMeta:   metav1.TypeMeta{Kind: "Gateway", APIVersion: gatewayv1.GroupVersion.String()},
+				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "deleted"},
+			}
+			keys := append(referrers, utils.NamespacedNameKind(gateway))
+			for _, key := range keys {
+				labels := map[string]string{label.LabelKind: key.Kind, label.LabelNamespace: key.Namespace, label.LabelName: key.Name}
+				require.NoError(t, cli.UpdateConfig(context.Background(), adcclient.Task{
+					Key: key, Configs: configs, Labels: labels, ResourceTypes: pluginTypes, Resources: plugins,
+				}))
+			}
+			route := types.NamespacedNameKind{Kind: "HTTPRoute", Namespace: "default", Name: "route"}
+			require.NoError(t, cli.UpdateConfig(context.Background(), adcclient.Task{
+				Key: route, Configs: configs, ResourceTypes: []string{adctypes.TypeService}, Resources: &adctypes.Resources{},
+			}))
+
+			require.NoError(t, d.Delete(context.Background(), gateway))
+			resources, err := cli.GetResources(proxy.String())
+			require.NoError(t, err)
+			if len(referrers) == 0 {
+				assert.Empty(t, resources.GlobalRules, "an attached route must not keep the GatewayProxy's plugins alive")
+				assert.Empty(t, resources.PluginMetadata)
+			} else {
+				assert.Equal(t, plugins.GlobalRules, resources.GlobalRules)
+				assert.Equal(t, plugins.PluginMetadata, resources.PluginMetadata)
+			}
+			globalRules, err := cli.ListGlobalRules(proxy.String())
+			require.NoError(t, err)
+			assert.Len(t, globalRules, len(referrers), "the deleted Gateway's own global rule must go")
+		})
+	}
 }

@@ -58,6 +58,7 @@ func (t *Translator) TranslateUDPRoute(tctx *provider.TranslateContext, udpRoute
 			}
 			// TODO: Confirm BackendTrafficPolicy attachment with e2e test case.
 			t.AttachBackendTrafficPolicyToUpstream(backend, tctx.BackendTrafficPolicies, upstream, tctx.Services)
+			setL4UpstreamScheme(upstream, apiv2.SchemeUDP)
 			upstream.Nodes = upNodes
 			var (
 				kind string
@@ -83,6 +84,7 @@ func (t *Translator) TranslateUDPRoute(tctx *provider.TranslateContext, udpRoute
 		if len(upstreams) == 0 {
 			// Create a default upstream if no valid backends
 			upstream := adctypes.NewDefaultUpstream()
+			setL4UpstreamScheme(upstream, apiv2.SchemeUDP)
 			service.Upstream = upstream
 		} else if len(upstreams) == 1 {
 			// Single backend - use directly as service upstream

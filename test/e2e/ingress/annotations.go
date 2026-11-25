@@ -210,9 +210,9 @@ spec:
 			Expect(err).NotTo(HaveOccurred(), "listing Upstream")
 			Expect(upstreams).To(HaveLen(1), "checking Upstream length")
 			Expect(upstreams[0].Timeout).ToNot(BeNil(), "checking Upstream timeout")
-			Expect(upstreams[0].Timeout.Read).To(Equal(2), "checking Upstream read timeout")
-			Expect(upstreams[0].Timeout.Send).To(Equal(3), "checking Upstream send timeout")
-			Expect(upstreams[0].Timeout.Connect).To(Equal(4), "checking Upstream connect timeout")
+			Expect(upstreams[0].Timeout.Read).To(Equal(2.0), "checking Upstream read timeout")
+			Expect(upstreams[0].Timeout.Send).To(Equal(3.0), "checking Upstream send timeout")
+			Expect(upstreams[0].Timeout.Connect).To(Equal(4.0), "checking Upstream connect timeout")
 		})
 
 		It("cors annotations", func() {
@@ -623,19 +623,24 @@ spec:
 				Check:  scaffold.WithExpectedStatus(http.StatusPermanentRedirect),
 			})
 
-			_ = s.NewAPISIXClient().
-				GET("/get").
-				WithHost("httpbin.example").
-				Expect().
-				Status(http.StatusMovedPermanently).
-				Header("Location").IsEqual("https://httpbin.example:9443/get")
-
-			_ = s.NewAPISIXClient().
-				GET("/ip").
-				WithHost("httpbin.example").
-				Expect().
-				Status(http.StatusPermanentRedirect).
-				Header("Location").IsEqual("/anything/ip")
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/get",
+				Host:   "httpbin.example",
+				Checks: []scaffold.ResponseCheckFunc{
+					scaffold.WithExpectedStatus(http.StatusMovedPermanently),
+					scaffold.WithExpectedHeader("Location", "https://httpbin.example:9443/get"),
+				},
+			})
+			s.RequestAssert(&scaffold.RequestAssert{
+				Method: "GET",
+				Path:   "/ip",
+				Host:   "httpbin.example",
+				Checks: []scaffold.ResponseCheckFunc{
+					scaffold.WithExpectedStatus(http.StatusPermanentRedirect),
+					scaffold.WithExpectedHeader("Location", "/anything/ip"),
+				},
+			})
 		})
 
 		It("csrf", func() {

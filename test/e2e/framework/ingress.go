@@ -56,6 +56,8 @@ type IngressDeployOpts struct {
 	NamespaceSelector  []string
 }
 
+func (IngressDeployOpts) ADCImage() string { return ADCImage }
+
 func (f *Framework) DeployIngress(opts IngressDeployOpts) {
 	buf := bytes.NewBuffer(nil)
 
