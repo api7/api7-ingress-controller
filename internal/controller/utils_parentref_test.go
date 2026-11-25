@@ -27,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -93,7 +94,7 @@ func TestParseRouteParentRefs_ReasonOrderIndependent(t *testing.T) {
 			cli := fake.NewClientBuilder().WithScheme(scheme).
 				WithObjects(newParentRefGatewayClass(), gw).Build()
 
-			got, err := ParseRouteParentRefs(context.Background(), cli, logr.Discard(), route,
+			got, err := (&routeParentResolver{}).Resolve(context.Background(), cli, logr.Discard(), route,
 				[]gatewayv1.ParentReference{{Name: "gw"}})
 			require.NoError(t, err)
 			require.Len(t, got, 1)
@@ -144,7 +145,7 @@ func TestParseRouteParentRefs_ExplicitListenerMatch(t *testing.T) {
 	port8080 := gatewayv1.PortNumber(8080)
 
 	t.Run("invalid explicit ref is not satisfied by another gateway's listener", func(t *testing.T) {
-		got, err := ParseRouteParentRefs(context.Background(), cli, logr.Discard(), route,
+		got, err := (&routeParentResolver{}).Resolve(context.Background(), cli, logr.Discard(), route,
 			[]gatewayv1.ParentReference{
 				// Explicit sectionName "web" on gw-a, which has no such listener.
 				{Name: "gw-a", SectionName: &webSection},
@@ -170,7 +171,7 @@ func TestParseRouteParentRefs_ExplicitListenerMatch(t *testing.T) {
 	})
 
 	t.Run("explicit sectionName on the owning gateway is an explicit match", func(t *testing.T) {
-		got, err := ParseRouteParentRefs(context.Background(), cli, logr.Discard(), route,
+		got, err := (&routeParentResolver{}).Resolve(context.Background(), cli, logr.Discard(), route,
 			[]gatewayv1.ParentReference{{Name: "gw-b", SectionName: &webSection}})
 		require.NoError(t, err)
 		require.Len(t, got, 1)
@@ -179,7 +180,7 @@ func TestParseRouteParentRefs_ExplicitListenerMatch(t *testing.T) {
 	})
 
 	t.Run("explicit port on the owning gateway is an explicit match", func(t *testing.T) {
-		got, err := ParseRouteParentRefs(context.Background(), cli, logr.Discard(), route,
+		got, err := (&routeParentResolver{}).Resolve(context.Background(), cli, logr.Discard(), route,
 			[]gatewayv1.ParentReference{{Name: "gw-b", Port: &port8080}})
 		require.NoError(t, err)
 		require.Len(t, got, 1)
@@ -188,7 +189,7 @@ func TestParseRouteParentRefs_ExplicitListenerMatch(t *testing.T) {
 	})
 
 	t.Run("implicit ref is not an explicit match", func(t *testing.T) {
-		got, err := ParseRouteParentRefs(context.Background(), cli, logr.Discard(), route,
+		got, err := (&routeParentResolver{}).Resolve(context.Background(), cli, logr.Discard(), route,
 			[]gatewayv1.ParentReference{{Name: "gw-b"}})
 		require.NoError(t, err)
 		require.Len(t, got, 1)
@@ -221,7 +222,7 @@ func TestParseRouteParentRefs_ConflictingTLSModePort(t *testing.T) {
 	cli := fake.NewClientBuilder().WithScheme(scheme).
 		WithObjects(newParentRefGatewayClass(), gw).Build()
 
-	got, err := ParseRouteParentRefs(context.Background(), cli, logr.Discard(), route,
+	got, err := (&routeParentResolver{}).Resolve(context.Background(), cli, logr.Discard(), route,
 		[]gatewayv1.ParentReference{{Name: "gw"}})
 	require.NoError(t, err)
 	require.Len(t, got, 1)
@@ -229,4 +230,65 @@ func TestParseRouteParentRefs_ConflictingTLSModePort(t *testing.T) {
 	assert.Equal(t, metav1.ConditionFalse, cond.Status,
 		"route must not attach to a conflicting-tls-mode port")
 	assert.Equal(t, string(gatewayv1.RouteReasonNotAllowedByListeners), cond.Reason)
+}
+
+// Unknown parents must not prevent cleanup of previously managed configuration.
+func TestParseRouteParentRefs_UnresolvedParents(t *testing.T) {
+	scheme := parentRefTestScheme(t)
+
+	route := &gatewayv1.HTTPRoute{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "r"},
+	}
+	listener := gatewayv1.Listener{Name: "http", Port: 80, Protocol: gatewayv1.HTTPProtocolType}
+	gw := func(name, class string) *gatewayv1.Gateway {
+		return &gatewayv1.Gateway{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: name},
+			Spec: gatewayv1.GatewaySpec{
+				GatewayClassName: gatewayv1.ObjectName(class),
+				Listeners:        []gatewayv1.Listener{listener},
+			},
+		}
+	}
+	foreignClass := &gatewayv1.GatewayClass{
+		ObjectMeta: metav1.ObjectMeta{Name: "other"},
+		Spec:       gatewayv1.GatewayClassSpec{ControllerName: "example.com/other-controller"},
+	}
+
+	for _, tc := range []struct {
+		name         string
+		objects      []client.Object
+		parentRef    string
+		wantGateways int
+	}{
+		{
+			name:      "gateway missing retracts stale routes",
+			objects:   []client.Object{newParentRefGatewayClass()},
+			parentRef: "gw",
+		},
+		{
+			name:      "gatewayclass missing",
+			objects:   []client.Object{gw("gw", "apisix")},
+			parentRef: "gw",
+		},
+		{
+			name:      "gateway of another controller",
+			objects:   []client.Object{foreignClass, gw("gw", "other")},
+			parentRef: "gw",
+		},
+		{
+			name:         "gateway of this controller",
+			objects:      []client.Object{newParentRefGatewayClass(), gw("gw", "apisix")},
+			parentRef:    "gw",
+			wantGateways: 1,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tc.objects...).Build()
+
+			got, err := (&routeParentResolver{}).Resolve(context.Background(), cli, logr.Discard(), route,
+				[]gatewayv1.ParentReference{{Name: gatewayv1.ObjectName(tc.parentRef)}})
+			require.NoError(t, err)
+			assert.Len(t, got, tc.wantGateways)
+		})
+	}
 }

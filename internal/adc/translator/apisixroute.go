@@ -63,7 +63,10 @@ func (t *Translator) TranslateApisixRoute(tctx *provider.TranslateContext, ar *a
 }
 
 func (t *Translator) translateHTTPRule(tctx *provider.TranslateContext, ar *apiv2.ApisixRoute, rule apiv2.ApisixRouteHTTP, ruleIndex int) (*adc.Service, error) {
-	timeout := t.buildTimeout(rule)
+	timeout, err := t.buildTimeout(rule)
+	if err != nil {
+		return nil, err
+	}
 	plugins, err := t.buildPlugins(tctx, ar, rule)
 	if err != nil {
 		return nil, err
@@ -83,16 +86,28 @@ func (t *Translator) translateHTTPRule(tctx *provider.TranslateContext, ar *apiv
 	return service, nil
 }
 
-func (t *Translator) buildTimeout(rule apiv2.ApisixRouteHTTP) *adc.Timeout {
+func (t *Translator) buildTimeout(rule apiv2.ApisixRouteHTTP) (*adc.Timeout, error) {
 	if rule.Timeout == nil {
-		return nil
+		return nil, nil
+	}
+	for _, timeout := range []struct {
+		name     string
+		duration metav1.Duration
+	}{
+		{name: "connect", duration: rule.Timeout.Connect},
+		{name: "read", duration: rule.Timeout.Read},
+		{name: "send", duration: rule.Timeout.Send},
+	} {
+		if timeout.duration.Duration < 0 {
+			return nil, fmt.Errorf("invalid value timeout.%s", timeout.name)
+		}
 	}
 	defaultTimeout := metav1.Duration{Duration: apiv2.DefaultUpstreamTimeout}
 	return &adc.Timeout{
-		Connect: cmp.Or(int(rule.Timeout.Connect.Seconds()), int(defaultTimeout.Seconds())),
-		Read:    cmp.Or(int(rule.Timeout.Read.Seconds()), int(defaultTimeout.Seconds())),
-		Send:    cmp.Or(int(rule.Timeout.Send.Seconds()), int(defaultTimeout.Seconds())),
-	}
+		Connect: cmp.Or(rule.Timeout.Connect.Seconds(), defaultTimeout.Seconds()),
+		Read:    cmp.Or(rule.Timeout.Read.Seconds(), defaultTimeout.Seconds()),
+		Send:    cmp.Or(rule.Timeout.Send.Seconds(), defaultTimeout.Seconds()),
+	}, nil
 }
 
 func (t *Translator) buildPlugins(tctx *provider.TranslateContext, ar *apiv2.ApisixRoute, rule apiv2.ApisixRouteHTTP) (adc.Plugins, error) {
@@ -334,6 +349,11 @@ func getPortFromService(svc *corev1.Service, backendSvcPort intstr.IntOrString) 
 	if backendSvcPort.Type == intstr.Int {
 		port = int32(backendSvcPort.IntValue())
 	} else {
+		// A Service port may omit its name, so an empty name would match it by
+		// accident instead of being reported as the invalid reference it is.
+		if backendSvcPort.StrVal == "" {
+			return 0, errors.Errorf("service port must not be empty for service %s", svc.Name)
+		}
 		found := false
 		for _, servicePort := range svc.Spec.Ports {
 			if servicePort.Name == backendSvcPort.StrVal {
