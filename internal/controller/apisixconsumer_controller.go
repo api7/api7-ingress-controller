@@ -78,6 +78,7 @@ func (r *ApisixConsumerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 				r.Log.Error(err, "failed to delete provider", "ApisixConsumer", utils.NamespacedName(ac))
 				return ctrl.Result{}, err
 			}
+			r.Log.Info("deleted apisix consumer", "ApisixConsumer", utils.NamespacedName(ac))
 			return ctrl.Result{}, nil
 		}
 		r.Log.Error(err, "failed to get ApisixConsumer", "request", req.NamespacedName)

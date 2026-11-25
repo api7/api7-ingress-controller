@@ -242,3 +242,72 @@ func TestApisixConsumerReconcile_RemovesConfigWhenIngressClassIsMissing(t *testi
 		})
 	}
 }
+
+func TestApisixConsumerReconcile_DeletedObjectDoesNotRequeue(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, apiv2.AddToScheme(scheme))
+	cli := fake.NewClientBuilder().WithScheme(scheme).Build()
+	prov := &recordingProvider{}
+	r := &ApisixConsumerReconciler{
+		Client:   cli,
+		Scheme:   scheme,
+		Log:      logr.Discard(),
+		Provider: prov,
+		Readier:  noopReadier{},
+	}
+	key := k8stypes.NamespacedName{Namespace: "default", Name: "gone"}
+
+	result, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: key})
+
+	require.NoError(t, err)
+	assert.Equal(t, ctrl.Result{}, result)
+	assert.Equal(t, []k8stypes.NamespacedName{key}, prov.deleted)
+}
+
+func TestApisixConsumerReconcile_DeleteErrorIsReturned(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, apiv2.AddToScheme(scheme))
+	cli := fake.NewClientBuilder().WithScheme(scheme).Build()
+	prov := &recordingProvider{deleteErr: errors.New("provider unavailable")}
+	r := &ApisixConsumerReconciler{
+		Client:   cli,
+		Scheme:   scheme,
+		Log:      logr.Discard(),
+		Provider: prov,
+		Readier:  noopReadier{},
+	}
+	key := k8stypes.NamespacedName{Namespace: "default", Name: "gone"}
+
+	_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: key})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "provider unavailable")
+}
+
+func TestApisixConsumerReconcile_NonNotFoundGetErrorIsReturned(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, apiv2.AddToScheme(scheme))
+	cli := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(context.Context, client.WithWatch, client.ObjectKey, client.Object, ...client.GetOption) error {
+				return k8serrors.NewInternalError(errors.New("boom"))
+			},
+		}).
+		Build()
+	prov := &recordingProvider{}
+	r := &ApisixConsumerReconciler{
+		Client:   cli,
+		Scheme:   scheme,
+		Log:      logr.Discard(),
+		Provider: prov,
+		Readier:  noopReadier{},
+	}
+	key := k8stypes.NamespacedName{Namespace: "default", Name: "present"}
+
+	_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: key})
+
+	require.Error(t, err)
+	assert.True(t, k8serrors.IsInternalError(err), "want an internal error, got %v", err)
+	assert.Empty(t, prov.deleted, "a non-NotFound Get error must not trigger a provider delete")
+}
