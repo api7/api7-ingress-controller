@@ -58,6 +58,8 @@ type Framework struct {
 	clientset   *kubernetes.Clientset
 	restConfig  *rest.Config
 	K8sClient   client.Client
+
+	dashboardAdminPassword string
 }
 
 // NewFramework create a global framework with special settings.

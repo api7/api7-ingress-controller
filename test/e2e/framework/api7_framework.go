@@ -34,7 +34,9 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/kube"
+	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const defaultDashboardVersion = "dev"
@@ -74,13 +76,14 @@ func (f *Framework) BeforeSuite() {
 
 	k8s.CreateNamespace(GinkgoT(), f.kubectlOpts, _namespace)
 
-	f.DeployComponents()
+	initialPassword := f.deployComponents()
 
 	time.Sleep(1 * time.Minute)
 	err := f.newDashboardTunnel()
 	f.Logf("Dashboard HTTP Tunnel:" + _dashboardHTTPTunnel.Endpoint())
 	Expect(err).ShouldNot(HaveOccurred(), "creating dashboard tunnel")
 
+	f.rotateDashboardPassword(initialPassword)
 	f.UploadLicense()
 
 	f.setDpManagerEndpoints()
@@ -91,7 +94,7 @@ func (f *Framework) AfterSuite() {
 }
 
 // DeployAPI7EE deploys the API7EE control plane once (runs on ginkgo node 1 only).
-// It returns a ready signal consumed by InitNodeConnections on all nodes.
+// It passes the rotated administrator password to InitNodeConnections on all nodes.
 func (f *Framework) DeployAPI7EE() []byte {
 	initSuiteEnv()
 
@@ -107,7 +110,7 @@ func (f *Framework) DeployAPI7EE() []byte {
 
 	k8s.CreateNamespace(GinkgoT(), f.kubectlOpts, _namespace)
 
-	f.DeployComponents()
+	initialPassword := f.deployComponents()
 
 	time.Sleep(1 * time.Minute)
 
@@ -117,19 +120,21 @@ func (f *Framework) DeployAPI7EE() []byte {
 	Expect(err).ShouldNot(HaveOccurred(), "creating temporary dashboard tunnel")
 	f.Logf("Temporary dashboard tunnel: %s", _dashboardHTTPTunnel.Endpoint())
 
+	f.rotateDashboardPassword(initialPassword)
 	f.UploadLicense()
 	f.setDpManagerEndpoints()
 
 	// Close the temporary tunnel; each node creates its own in InitNodeConnections.
 	f.shutdownDashboardTunnel()
 
-	return []byte("ready")
+	return []byte(f.dashboardAdminPassword)
 }
 
 // InitNodeConnections initializes per-node connections to the shared API7EE control plane.
 // It runs on every ginkgo parallel node after DeployAPI7EE completes.
-func (f *Framework) InitNodeConnections(_ []byte) {
+func (f *Framework) InitNodeConnections(adminPassword []byte) {
 	initSuiteEnv()
+	f.dashboardAdminPassword = string(adminPassword)
 
 	err := f.newDashboardTunnel()
 	Expect(err).ShouldNot(HaveOccurred(), "creating dashboard tunnel for node")
@@ -145,10 +150,17 @@ func (f *Framework) CloseNodeConnections() {
 // The Kind cluster is deleted by CI after the job, so this is a no-op.
 func (f *Framework) TeardownInfrastructure() {}
 
-// DeployComponents deploy necessary components
-func (f *Framework) DeployComponents() {
+func (f *Framework) deployComponents() string {
+	initialPassword := newDashboardPassword()
+	_, err := f.clientset.CoreV1().Secrets(_namespace).Create(f.Context, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: dashboardInitialPasswordSecret},
+		StringData: map[string]string{"password": initialPassword},
+	}, metav1.CreateOptions{})
+	f.GomegaT.Expect(err).ShouldNot(HaveOccurred(), "creating dashboard initial password secret")
+
 	f.deploy()
 	f.initDashboard()
+	return initialPassword
 }
 
 func (f *Framework) UploadLicense() {
@@ -157,13 +169,9 @@ func (f *Framework) UploadLicense() {
 	assert.Nil(f.GinkgoT, err)
 
 	respExpect := f.DashboardHTTPClient().PUT("/api/license").
-		WithBasicAuth("admin", "admin").
 		WithHeader("Content-Type", "application/json").
 		WithBytes(payloadBytes).
 		Expect()
-
-	body := respExpect.Body().Raw()
-	f.Logf("request /api/license, response body: %s", body)
 
 	respExpect.Status(200)
 }
@@ -196,9 +204,10 @@ func (f *Framework) deploy() {
 
 	buf := bytes.NewBuffer(nil)
 	_ = valuesTemplate.Execute(buf, map[string]any{
-		"DB":  _db,
-		"DSN": getDSN(),
-		"Tag": dashboardVersion,
+		"DB":                         _db,
+		"DSN":                        getDSN(),
+		"Tag":                        dashboardVersion,
+		"AdminInitialPasswordSecret": dashboardInitialPasswordSecret,
 	})
 
 	f.Logf("values: %s", buf.String())
