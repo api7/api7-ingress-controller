@@ -18,6 +18,7 @@
 package framework
 
 import (
+	"crypto/rand"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -30,6 +31,11 @@ import (
 	"github.com/gavv/httpexpect/v2"
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
+)
+
+const (
+	dashboardAdminUser             = "admin"
+	dashboardInitialPasswordSecret = "api7-ee-e2e-admin-initial-password"
 )
 
 var (
@@ -51,6 +57,11 @@ dashboard:
   extraEnvVars:
     - name: GOCOVERDIR
       value: /app/covdatafiles
+    - name: API7_ADMIN_INITIAL_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: {{ .AdminInitialPasswordSecret }}
+          key: password
   extraVolumes:
     - name: cover
       hostPath:
@@ -322,12 +333,9 @@ func (DataplaneCertificate) TableName() string {
 func (f *Framework) GetDataplaneCertificates(gatewayGroupID string) *DataplaneCertificate {
 	respExp := f.DashboardHTTPClient().
 		POST("/api/gateway_groups/"+gatewayGroupID+"/dp_client_certificates").
-		WithBasicAuth("admin", "admin").
 		WithHeader("Content-Type", "application/json").
 		WithBytes([]byte(`{}`)).
 		Expect()
-
-	f.Logger.Logf(f.GinkgoT, "dataplane certificates issuer response: %s", respExp.Body().Raw())
 
 	respExp.Status(200).Body().Contains("certificate").Contains("private_key").Contains("ca_certificate")
 	body := respExp.Body().Raw()
@@ -344,7 +352,6 @@ func (f *Framework) GetDataplaneCertificates(gatewayGroupID string) *DataplaneCe
 func (s *Framework) GetAdminKey(gatewayGroupID string) string {
 	respExp := s.DashboardHTTPClient().PUT("/api/gateway_groups/"+gatewayGroupID+"/admin_key").
 		WithHeader("Content-Type", "application/json").
-		WithBasicAuth("admin", "admin").
 		Expect()
 
 	respExp.Status(200).Body().Contains("key")
@@ -361,7 +368,6 @@ func (f *Framework) DeleteGatewayGroup(gatewayGroupID string) {
 	respExp := f.DashboardHTTPClient().
 		DELETE("/api/gateway_groups/"+gatewayGroupID).
 		WithHeader("Content-Type", "application/json").
-		WithBasicAuth("admin", "admin").
 		Expect()
 
 	body := respExp.Body().Raw()
@@ -387,12 +393,9 @@ func (f *Framework) CreateNewGatewayGroupWithIngressE() (string, error) {
 
 	respExp := f.DashboardHTTPClient().
 		POST("/api/gateway_groups").
-		WithBasicAuth("admin", "admin").
 		WithHeader("Content-Type", "application/json").
 		WithBytes(payload).
 		Expect()
-
-	f.Logger.Logf(f.GinkgoT, "create gateway group response: %s", respExp.Body().Raw())
 
 	respExp.Status(200).Body().Contains("id")
 
@@ -416,7 +419,6 @@ func (f *Framework) setDpManagerEndpoints() {
 
 	respExp := f.DashboardHTTPClient().
 		PUT("/api/system_settings").
-		WithBasicAuth("admin", "admin").
 		WithHeader("Content-Type", "application/json").
 		WithBytes(payload).
 		Expect()
@@ -437,6 +439,50 @@ func (f *Framework) GetDashboardEndpointHTTPS() string {
 }
 
 func (f *Framework) DashboardHTTPClient() *httpexpect.Expect {
+	return f.newDashboardHTTPClient().Builder(func(req *httpexpect.Request) {
+		req.WithBasicAuth(dashboardAdminUser, f.dashboardAdminPassword)
+	})
+}
+
+func newDashboardPassword() string {
+	return "Aa0!" + rand.Text()
+}
+
+func (f *Framework) rotateDashboardPassword(initialPassword string) {
+	password := newDashboardPassword()
+	client := f.newDashboardHTTPClient()
+	rotate := func(currentPassword string) *httpexpect.Response {
+		return client.PUT("/api/password").
+			WithBasicAuth(dashboardAdminUser, currentPassword).
+			WithJSON(map[string]string{"old_password": currentPassword, "new_password": password}).
+			Expect()
+	}
+
+	resp := rotate(initialPassword)
+	source := "injected initial password"
+	if rejectedDashboardCredentials(resp) {
+		// Older test images ignore API7_ADMIN_INITIAL_PASSWORD and start with the legacy password.
+		resp = rotate("admin")
+		source = "legacy image default"
+	}
+	resp.Status(http.StatusOK)
+	f.dashboardAdminPassword = password
+	f.Logf("Rotated Dashboard administrator password using %s", source)
+}
+
+func rejectedDashboardCredentials(resp *httpexpect.Response) bool {
+	status := resp.Raw().StatusCode
+	if status != http.StatusBadRequest && status != http.StatusUnauthorized {
+		return false
+	}
+	var body struct {
+		ErrorMsg string `json:"error_msg"`
+	}
+	return json.Unmarshal([]byte(resp.Body().Raw()), &body) == nil &&
+		body.ErrorMsg == "incorrect username or password"
+}
+
+func (f *Framework) newDashboardHTTPClient() *httpexpect.Expect {
 	u := url.URL{
 		Scheme: "http",
 		Host:   f.GetDashboardEndpoint(),
@@ -452,6 +498,7 @@ func (f *Framework) DashboardHTTPClient() *httpexpect.Expect {
 		Reporter: httpexpect.NewAssertReporter(
 			httpexpect.NewAssertReporter(f.GinkgoT),
 		),
+		Formatter: &httpexpect.DefaultFormatter{DisableRequests: true, DisableResponses: true},
 	})
 }
 
