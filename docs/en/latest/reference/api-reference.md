@@ -234,10 +234,10 @@ _Base type:_ `LocalPolicyTargetReferenceWithSectionName`
 
 | Field | Description |
 | --- | --- |
-| `group` _[Group](#group)_ | Group is the group of the target resource. |
-| `kind` _[Kind](#kind)_ | Kind is kind of the target resource. |
-| `name` _[ObjectName](#objectname)_ | Name is the name of the target resource. |
-| `sectionName` _[SectionName](#sectionname)_ | SectionName is the name of a section within the target resource. When unspecified, this targetRef targets the entire resource. In the following resources, SectionName is interpreted as the following:<br /><br /> • Gateway: Listener name<br /> • HTTPRoute: HTTPRouteRule name<br /> • Service: Port name<br /><br /> If a SectionName is specified, but does not exist on the targeted object, the Policy must fail to attach, and the policy implementation should record a `ResolvedRefs` or similar Condition in the Policy's status. |
+| `group` _[Group](https://pkg.go.dev/sigs.k8s.io/gateway-api@v1.6.0/apis/v1#Group)_ | Group is the group of the target resource. |
+| `kind` _[Kind](https://pkg.go.dev/sigs.k8s.io/gateway-api@v1.6.0/apis/v1#Kind)_ | Kind is kind of the target resource. |
+| `name` _[ObjectName](https://pkg.go.dev/sigs.k8s.io/gateway-api@v1.6.0/apis/v1#ObjectName)_ | Name is the name of the target resource. |
+| `sectionName` _[SectionName](https://pkg.go.dev/sigs.k8s.io/gateway-api@v1.6.0/apis/v1#SectionName)_ | SectionName is the name of a section within the target resource. When unspecified, this targetRef targets the entire resource. In the following resources, SectionName is interpreted as the following:<br /><br /> • Gateway: Listener name<br /> • HTTPRoute: HTTPRouteRule name<br /> • Service: Port name<br /><br /> If a SectionName is specified, but does not exist on the targeted object, the Policy must fail to attach, and the policy implementation should record a `ResolvedRefs` or similar Condition in the Policy's status. |
 
 
 _Appears in:_
@@ -300,6 +300,23 @@ ControlPlaneAuth defines the authentication configuration for control plane.
 _Appears in:_
 - [ControlPlaneProvider](#controlplaneprovider)
 
+#### ControlPlaneCaCert
+
+
+ControlPlaneCaCert defines the CA certificate used to verify the control plane.<br /><br />
+Only an inline value is supported today. A valueFrom source can be added
+later without breaking existing resources.
+
+
+
+| Field | Description |
+| --- | --- |
+| `value` _string_ | Value sets the PEM-encoded CA certificate (or bundle) explicitly. |
+
+
+_Appears in:_
+- [ControlPlaneProvider](#controlplaneprovider)
+
 #### ControlPlaneProvider
 
 
@@ -313,6 +330,7 @@ ControlPlaneProvider defines configuration for control plane provider.
 | `endpoints` _string array_ | Endpoints specifies the list of control plane endpoints. |
 | `service` _[ProviderService](#providerservice)_ |  |
 | `tlsVerify` _boolean_ | TlsVerify specifies whether to verify the TLS certificate of the control plane. |
+| `caCert` _[ControlPlaneCaCert](#controlplanecacert)_ | CaCert specifies the CA certificate used to verify the control plane's TLS certificate, in place of the system trust store. Set it when the control plane uses a self-signed or private CA certificate. It has no effect when tlsVerify is false. |
 | `auth` _[ControlPlaneAuth](#controlplaneauth)_ | Auth specifies the authentication configuration. |
 
 
@@ -549,6 +567,7 @@ _Appears in:_
 | --- | --- |
 | `name` _string_ | Name is the name of the plugin. |
 | `config` _[JSON](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#json-v1-apiextensions-k8s-io)_ | Config is plugin configuration details. |
+| `secretRef` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#localobjectreference-v1-core)_ | SecretRef references a Secret in the same namespace holding sensitive parts of the plugin configuration, so they do not have to be written in `config`. Each Secret key is a dot separated path into the configuration, so the key `session.secret` sets the `secret` field of the `session` object. Values are merged as strings and take precedence over the same path in `config`. |
 
 
 _Appears in:_
@@ -645,8 +664,7 @@ _Appears in:_
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#condition-v1-meta) array_ |  |
 
 
-_Appears in:_
-- [ConsumerStatus](#consumerstatus)
+
 
 #### Timeout
 
@@ -785,7 +803,7 @@ ActiveHealthCheck defines the active upstream health check configuration.
 | Field | Description |
 | --- | --- |
 | `type` _string_ | Type is the health check type. Can be `http`, `https`, or `tcp`. |
-| `timeout` _[Duration](#duration)_ | Timeout sets health check timeout in seconds. |
+| `timeout` _[Duration](https://pkg.go.dev/time#Duration)_ | Timeout sets health check timeout in seconds. |
 | `concurrency` _integer_ | Concurrency sets the number of targets to be checked at the same time. |
 | `host` _string_ | Host sets the upstream host. |
 | `port` _integer_ | Port sets the upstream port. |

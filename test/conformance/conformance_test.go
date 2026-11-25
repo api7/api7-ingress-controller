@@ -31,17 +31,6 @@ var skippedTestsForSSL = []string{
 	tests.HTTPRouteRedirectPortAndScheme.ShortName,
 }
 
-// APISIX terminates TLS on its stream proxy and matches stream routes by SNI,
-// which implements TLSRoute in Terminate mode (declared via the
-// TLSRouteModeTerminate feature) but never forwards the encrypted stream
-// untouched. Every test below pins its listener to mode: Passthrough.
-var skippedTestsForTLSPassthrough = []string{
-	tests.TLSRouteSimpleSameNamespace.ShortName,
-	tests.TLSRouteHostnameIntersection.ShortName,
-	tests.TLSRouteInvalidBackendRefNonexistent.ShortName,
-	tests.TLSRouteInvalidBackendRefUnknownKind.ShortName,
-}
-
 // Known gaps tracked for follow-up. These are genuine feature gaps rather than
 // architectural limits, so they are expected to shrink over time.
 var skippedTestsForKnownGaps = []string{
@@ -50,15 +39,8 @@ var skippedTestsForKnownGaps = []string{
 	tests.HTTPRouteListenerHostnameMatching.ShortName,
 	tests.GRPCRouteListenerHostnameMatching.ShortName,
 
-	// A backendRef that cannot be resolved must still produce a route that
-	// answers 500; today no route is generated at all, so the request 404s.
-	// These consistently pass in standalone mode and fail against the APISIX
-	// admin API, and which member of the group trips is not stable between
-	// runs, so all four are skipped together rather than one at a time.
+	// Omitted backendRefs do not yet inject the required HTTP 500 response.
 	tests.HTTPRouteNoBackendRefs.ShortName,
-	tests.HTTPRouteInvalidBackendRefUnknownKind.ShortName,
-	tests.HTTPRouteInvalidCrossNamespaceBackendRef.ShortName,
-	tests.HTTPRouteInvalidNonExistentBackendRef.ShortName,
 	// Terminate mode itself is covered by TLSRouteListenerTerminateSupportedKinds
 	// and by the e2e TLSRoute suite. This provisional test additionally requires a
 	// standalone Gateway with no GatewayProxy attached to reach Accepted=True, and
@@ -69,6 +51,18 @@ var skippedTestsForKnownGaps = []string{
 	// A single HTTPRoute attached to several Gateways is not served from each
 	// parent independently.
 	tests.HTTPRouteMultipleGateways.ShortName,
+
+	// The same limitation for TLSRoute, and not something the translator can
+	// fix. The test stands four Gateways up on port 443 with different listener
+	// hostnames; every Gateway resolves to the one data plane address and the one
+	// physical stream listen, so their SNI namespaces are shared. The Gateway
+	// whose listener carries no hostname keeps its route's "*.com" verbatim -
+	// correctly, and its own subtest depends on it - which then also answers
+	// "non.matching.com" on the address of the Gateway that should have rejected
+	// it. Which Gateway a connection was addressed to is not on the wire, so
+	// there is nothing left to discriminate on. Every other assertion in this
+	// test passes, including the hostname intersections themselves.
+	tests.TLSRouteHostnameIntersection.ShortName,
 }
 
 func TestGatewayAPIConformance(t *testing.T) {
@@ -77,7 +71,6 @@ func TestGatewayAPIConformance(t *testing.T) {
 	opts.CleanupBaseResources = true
 	opts.GatewayClassName = gatewayClassName
 	opts.SkipTests = append(opts.SkipTests, skippedTestsForSSL...)
-	opts.SkipTests = append(opts.SkipTests, skippedTestsForTLSPassthrough...)
 	opts.SkipTests = append(opts.SkipTests, skippedTestsForKnownGaps...)
 	opts.Implementation = conformancev1.Implementation{
 		Organization: "APISIX",

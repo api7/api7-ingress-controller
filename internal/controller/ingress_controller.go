@@ -26,6 +26,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -83,6 +84,7 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		predicate.GenerationChangedPredicate{},
 		predicate.AnnotationChangedPredicate{},
 		predicate.NewPredicateFuncs(TypePredicate[*corev1.Secret]()),
+		predicate.NewPredicateFuncs(TypePredicate[*corev1.Namespace]()),
 	}
 
 	if !r.supportsEndpointSlice {
@@ -109,6 +111,7 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		r.listIngressesByService,
 		r.listIngressesByEndpoints,
 		r.Log)
+	bdr = watchNamespaceSelector(bdr, r.Client, r.Log, func() client.ObjectList { return &networkingv1.IngressList{} })
 
 	return bdr.
 		Watches(
@@ -176,6 +179,9 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	ingressClass, err := FindMatchingIngressClassByObject(tctx, r.Client, r.Log, ingress, "")
 	if err != nil {
+		if !isIngressClassSelectionAbsent(err) {
+			return ctrl.Result{}, err
+		}
 		if err := r.Provider.Delete(ctx, ingress); err != nil {
 			r.Log.Error(err, "failed to delete ingress resources", "ingress", ingress.Name)
 			return ctrl.Result{}, nil
@@ -210,6 +216,20 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// process plugin config annotation
 	if err := r.processPluginConfig(tctx, ingress); err != nil {
 		r.Log.Error(err, "failed to process PluginConfig annotation", "ingress", ingress.Name)
+		// The referenced ApisixPluginConfig is gone, so the Ingress can no longer be
+		// translated. Retract what an earlier reconcile published: the store is what
+		// every sync pushes, so leaving it in place keeps the data plane applying the
+		// deleted plugin configuration.
+		if internaltypes.IsDependencyMissing(err) {
+			if derr := r.Provider.Delete(ctx, ingress); derr != nil {
+				r.Log.Error(derr, "failed to delete ingress", "ingress", utils.NamespacedName(ingress))
+				return ctrl.Result{}, derr
+			}
+			// Requeueing would retry forever with backoff for a reference that does
+			// not come back on its own; the ApisixPluginConfig watch reconciles the
+			// Ingress again when it does.
+			return ctrl.Result{}, nil
+		}
 		return ctrl.Result{}, err
 	}
 
@@ -670,6 +690,9 @@ func (r *IngressReconciler) processPluginConfig(tctx *provider.TranslateContext,
 
 	if err := r.Get(tctx, pcNN, &pc); err != nil {
 		r.Log.Error(err, "failed to get ApisixPluginConfig", "pluginconfig", pcNN)
+		if k8serrors.IsNotFound(err) {
+			return internaltypes.DependencyMissingError{Err: err}
+		}
 		return err
 	}
 
