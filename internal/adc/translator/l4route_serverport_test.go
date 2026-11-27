@@ -306,7 +306,7 @@ func TestTranslateTLSRouteServerPort(t *testing.T) {
 				require.Len(t, streamRoutes, 1)
 				assert.Zero(t, streamRoutes[0].ServerPort)
 				assert.Equal(t, "example.com", streamRoutes[0].SNI)
-				assert.Equal(t, "default_my-tls_0_TLS", streamRoutes[0].Name)
+				assert.Equal(t, "tlsroute_default_my-tls_0_TLS", streamRoutes[0].Name)
 				return
 			}
 
